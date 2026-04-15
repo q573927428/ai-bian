@@ -539,7 +539,7 @@ export class IndicatorsHub {
         })
       }
 
-      logger.info('IndicatorsHub', `已通知 ${strategyIds.size} 个策略: ${cacheKey}`)
+      // logger.info('IndicatorsHub', `已通知 ${strategyIds.size} 个策略: ${cacheKey}`)
     }
   }
 

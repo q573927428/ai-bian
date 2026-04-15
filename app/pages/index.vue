@@ -67,13 +67,6 @@
                   停止
                 </el-button>
 
-                <el-button
-                  type="info"
-                  @click="goToAnalysis"
-                >
-                  <el-icon style="margin-right: 8px"><ElIconTrendCharts /></el-icon>
-                  分析
-                </el-button>
                 <!-- 余额信息 -->
                 <div class="balance-card-large">
                   <!-- 紧凑统计卡片 -->
@@ -219,11 +212,6 @@ function formatBalance(value: number): string {
   } else {
     return value.toFixed(2)
   }
-}
-
-// 跳转到策略分析页面
-function goToAnalysis() {
-  window.location.href = '/strategy-analysis'
 }
 
 // 跳转到策略管理页面

@@ -314,7 +314,7 @@ ${promptConfig.userPrompt}
       // 异步保存到文件，不阻塞主流程
       this.saveAIAnalysisToFile(analysis).catch(() => {})
 
-      logger.info('MultiStrategyAIAnalyzer', `AI分析完成: ${symbol} 方向:${direction} 得分:${analysis.score}`)
+      logger.info(`${analysis.strategyId}`, `[策略]  ${analysis.symbol} @${analysis.technicalData.price} ${analysis.direction} 置信度（${analysis.confidence}） 评分（${analysis.score}）`);
 
       return analysis
     } catch (error: any) {
