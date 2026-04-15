@@ -478,6 +478,7 @@ export interface Order {
 // 交易记录
 export interface TradeHistory {
   id: string
+  strategyId?: string  // 所属策略ID
   symbol: string
   direction: Direction
   entryPrice: number

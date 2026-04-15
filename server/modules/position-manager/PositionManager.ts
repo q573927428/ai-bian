@@ -15,6 +15,8 @@ export interface PositionInfo {
   quantity: number;                    // 数量
   leverage: number;                    // 杠杆
   openTime: number;                    // 开仓时间
+  highestPrice?: number;               // 持仓期间最高价
+  lowestPrice?: number;                // 持仓期间最低价
   position?: Position;                 // 完整仓位信息
 }
 

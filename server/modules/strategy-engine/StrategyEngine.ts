@@ -15,6 +15,13 @@ import { PositionManager } from '../position-manager/PositionManager'
 import { BinanceService } from '../../utils/binance'
 import { MultiStrategyAIAnalyzer } from '../ai-analyzer/MultiStrategyAIAnalyzer'
 import { logger } from '../../utils/logger'
+import { getOrderSide } from '../../utils/risk'
+import { calculateStopLoss, calculateTakeProfit, calculatePositionSize, calculateMaxUsdtAmount } from '../../utils/indicators-risk'
+import { calculateQuickLeverage, calculateSafeLeverage, calculateFinalLeverage } from '../../utils/dynamic-leverage'
+import { StrategyPositionCloser } from './StrategyPositionCloser'
+import { StrategyPositionMonitor } from './StrategyPositionMonitor'
+import { waitAndConfirmPosition } from './helpers/position-helpers'
+import type { BotState } from '../../../types'
 
 /**
  * 策略运行时状态
@@ -71,20 +78,34 @@ export class StrategyEngine {
   private aiCache: Map<string, { signal: TradeSignal; timestamp: number }> = new Map()
   private readonly AI_CACHE_TTL = 10 * 60 * 1000 // 10分钟
 
+  // 持仓相关模块
+  private positionCloser: StrategyPositionCloser
+  private positionMonitor: StrategyPositionMonitor
+  private state: BotState
+
   constructor(
     store: StrategyStore,
     indicatorsHub: IndicatorsHub,
     positionManager: PositionManager,
     binance: BinanceService,
-    config: BotConfig
+    config: BotConfig,
+    state: BotState
   ) {
     this.store = store
     this.indicatorsHub = indicatorsHub
     this.positionManager = positionManager
     this.binance = binance
+    this.state = state
     
     // 初始化AI分析器
     this.aiAnalyzer = new MultiStrategyAIAnalyzer(binance, config)
+
+    // 初始化持仓相关模块
+    this.positionCloser = new StrategyPositionCloser(binance, positionManager, config, state)
+    this.positionMonitor = new StrategyPositionMonitor(binance, positionManager, this.positionCloser, config, store)
+
+    // 启动持仓监控
+    this.positionMonitor.start()
 
     logger.info('StrategyEngine', '策略执行引擎已初始化')
   }
@@ -480,23 +501,157 @@ ${promptConfig.userPrompt}
       // 锁定交易对
       this.positionManager.lockSymbol(signal.symbol, strategy.id)
 
-      // TODO: 调用现有的开仓逻辑
-      // 这里需要集成 position-opener.ts 的功能
-      // 暂时记录日志
+      // 1. 获取账户余额
+      const account = await this.binance.fetchBalance()
+      logger.info('账户', `余额: ${account.availableBalance} USDT`)
 
-      instance.lastSignalTime = new Date().toISOString()
-      instance.totalTrades++
+      // 余额检查
+      if (account.availableBalance < 120) {
+        logger.warn('开仓', `账户余额（${account.availableBalance} USDT）不足120 USDT，无法开仓`)
+        return
+      }
 
-      // 记录仓位
-      this.positionManager.recordPosition(signal.symbol, {
+      // 2. 计算止损价格
+      const stopLoss = calculateStopLoss(
+        signal.price,
+        signal.direction.toUpperCase() as 'LONG' | 'SHORT',
+        signal.indicators.atr || (signal.price * 0.01), // 默认ATR为价格的1%
+        strategy.riskManagement.stopLossATRMultiplier
+      )
+
+      // 3. 计算杠杆
+      let finalLeverage = typeof strategy.executionConfig.leverage === 'number' ? strategy.executionConfig.leverage : 10
+      let leverageCalculationDetails = {}
+
+      // 暂时固定杠杆，动态杠杆功能后续实现
+      logger.info('杠杆', `使用杠杆: ${finalLeverage} X`)
+
+      // 4. 设置杠杆和持仓模式
+      await this.binance.setLeverage(signal.symbol, finalLeverage)
+      await this.binance.setMarginMode(signal.symbol, 'cross')
+      
+      try {
+        await this.binance.setPositionMode(false) // 单向持仓模式
+        logger.info('持仓模式', '已设置为单向持仓模式')
+      } catch (error: any) {
+        logger.warn('持仓模式', `设置持仓模式失败: ${error.message}`)
+      }
+
+      // 5. 计算仓位大小
+      const riskAmount = calculatePositionSize(
+        account.availableBalance,
+        signal.price,
+        stopLoss,
+        strategy.riskManagement.maxRiskPercentage
+      )
+
+      const maxUsdtAmount = calculateMaxUsdtAmount(
+        account.availableBalance,
+        finalLeverage,
+        strategy.riskManagement.maxRiskPercentage
+      )
+
+      const usdtAmount = Math.min(riskAmount, maxUsdtAmount)
+
+      // 检查最小名义价值
+      const minQuantity = 20 / signal.price
+      const estimatedQuantity = usdtAmount / signal.price
+      
+      let quantity: number
+      let finalUsdtAmount: number
+      
+      if (estimatedQuantity < minQuantity) {
+        logger.warn('风控', `预估数量${estimatedQuantity.toFixed(4)}小于最小名义价值要求，调整到最小数量`)
+        finalUsdtAmount = Math.min(minQuantity * signal.price, maxUsdtAmount)
+        quantity = await this.binance.calculateOrderAmount(
+          signal.symbol,
+          finalUsdtAmount,
+          signal.price
+        )
+
+        const notional = quantity * signal.price
+        if (notional < 20) {
+          throw new Error(`订单名义价值${notional.toFixed(2)} USDT小于交易所最小要求20 USDT`)
+        }
+      } else {
+        finalUsdtAmount = usdtAmount
+        quantity = await this.binance.calculateOrderAmount(
+          signal.symbol,
+          finalUsdtAmount,
+          signal.price
+        )
+
+        const notional = quantity * signal.price
+        if (notional < 20) {
+          throw new Error(`订单名义价值${notional.toFixed(2)} USDT小于交易所最小要求20 USDT`)
+        }
+      }
+
+      logger.info('开仓', `仓位参数`, {
+        数量: quantity,
+        杠杆: finalLeverage,
+        入场价: signal.price,
+        止损价: stopLoss,
+        USDT金额: finalUsdtAmount,
+        ...leverageCalculationDetails,
+      })
+
+      // 6. 市价开仓
+      const side = getOrderSide(signal.direction.toUpperCase() as 'LONG' | 'SHORT', true)
+      const order = await this.binance.marketOrder(signal.symbol, side, quantity)
+
+      logger.success('开仓', `开仓订单已提交`, order)
+
+      // 7. 确认持仓建立
+      const realPosition = await waitAndConfirmPosition(this.binance, signal.symbol, 3, 500)
+      
+      if (!realPosition) {
+        throw new Error('开仓后未检测到实际持仓')
+      }
+
+      const actualQuantity = realPosition.quantity
+      logger.info('持仓确认', `实际成交数量: ${actualQuantity} (下单数量: ${quantity})`)
+
+      // 8. 计算止盈价格
+      const takeProfit1 = calculateTakeProfit(signal.price, stopLoss, signal.direction.toUpperCase() as 'LONG' | 'SHORT', strategy.riskManagement.takeProfitRatios[0])
+      const takeProfit2 = calculateTakeProfit(signal.price, stopLoss, signal.direction.toUpperCase() as 'LONG' | 'SHORT', strategy.riskManagement.takeProfitRatios[1])
+
+      // 9. 设置止损单
+      const stopSide = getOrderSide(signal.direction.toUpperCase() as 'LONG' | 'SHORT', false)
+      const stopOrder = await this.binance.stopLossOrder(signal.symbol, stopSide, actualQuantity, stopLoss)
+
+      logger.success('止损', `止损单已设置`, stopOrder)
+
+      // 10. 记录仓位到PositionManager
+      const position = {
         symbol: signal.symbol,
         strategyId: strategy.id,
         direction: signal.direction,
         entryPrice: signal.price,
-        quantity: 0, // 需要实际计算
-        leverage: strategy.executionConfig.leverage === 'dynamic' ? 10 : strategy.executionConfig.leverage,
-        openTime: Date.now()
-      })
+        quantity: actualQuantity,
+        leverage: finalLeverage,
+        stopLoss,
+        initialStopLoss: stopLoss,
+        takeProfit1,
+        takeProfit2,
+        openTime: Date.now(),
+        highestPrice: signal.price,
+        lowestPrice: signal.price,
+        orderId: order.orderId,
+        stopLossOrderId: stopOrder.orderId,
+        stopLossOrderSymbol: stopOrder.symbol,
+        stopLossOrderSide: stopOrder.side,
+        stopLossOrderType: stopOrder.type,
+        stopLossOrderQuantity: stopOrder.quantity,
+        stopLossOrderStopPrice: stopOrder.stopPrice,
+        stopLossOrderStatus: stopOrder.status,
+        stopLossOrderTimestamp: stopOrder.timestamp,
+      }
+
+      this.positionManager.recordPosition(signal.symbol, position)
+
+      instance.lastSignalTime = new Date().toISOString()
+      instance.totalTrades++
 
       logger.success('StrategyEngine', `信号执行完成: ${signal.symbol}`)
     } catch (error: any) {
@@ -506,6 +661,7 @@ ${promptConfig.userPrompt}
       this.positionManager.unlockSymbol(signal.symbol)
 
       instance.error = error.message
+      throw error
     }
   }
 
@@ -583,6 +739,9 @@ ${promptConfig.userPrompt}
     // 清理 AI 缓存
     this.aiCache.clear()
 
+    // 停止持仓监控
+    this.positionMonitor.stop()
+
     logger.success('StrategyEngine', '所有策略已停止')
   }
 
@@ -601,5 +760,19 @@ ${promptConfig.userPrompt}
     await this.stopAll()
     this.runningStrategies.clear()
     logger.info('StrategyEngine', '引擎已销毁')
+  }
+
+  /**
+   * 获取平仓模块
+   */
+  getPositionCloser(): StrategyPositionCloser {
+    return this.positionCloser
+  }
+
+  /**
+   * 获取持仓监控模块
+   */
+  getPositionMonitor(): StrategyPositionMonitor {
+    return this.positionMonitor
   }
 }
