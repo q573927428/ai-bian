@@ -1,5 +1,4 @@
 import { getStrategyManager } from '../../modules/strategy-manager'
-import { clearExpiredCache } from '../../utils/ai-analysis'
 import { logger } from '../../utils/logger'
 
 export default defineEventHandler(async () => {
@@ -11,10 +10,12 @@ export default defineEventHandler(async () => {
     if (engine) {
       // 清理StrategyEngine中的AI缓存
       engine.clearAICache()
+      
+      // 清理MultiStrategyAIAnalyzer中的AI缓存
+      if (engine.aiAnalyzer) {
+        engine.aiAnalyzer.clearCache()
+      }
     }
-
-    // 清理ai-analysis模块中的全局缓存（传0表示清理所有）
-    clearExpiredCache(0)
 
     logger.info('API', 'AI缓存已全部清理')
 

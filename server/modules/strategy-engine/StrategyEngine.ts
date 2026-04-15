@@ -8,12 +8,12 @@ import type {
   StatisticsType
 } from '../../../types/strategy'
 import type { TradeSignal } from '../../../types/signal'
-import type { OHLCV } from '../../../types'
+import type { OHLCV, BotConfig } from '../../../types'
 import { StrategyStore } from '../strategy-store/StrategyStore'
 import { IndicatorsHub } from '../indicators/IndicatorsHub'
 import { PositionManager } from '../position-manager/PositionManager'
 import { BinanceService } from '../../utils/binance'
-import { analyzeMarketWithAI } from '../../utils/ai-analysis'
+import { MultiStrategyAIAnalyzer } from '../ai-analyzer/MultiStrategyAIAnalyzer'
 import { logger } from '../../utils/logger'
 
 /**
@@ -65,6 +65,8 @@ export class StrategyEngine {
   private positionManager: PositionManager
   private binance: BinanceService
 
+  // AI 分析器
+  private aiAnalyzer: MultiStrategyAIAnalyzer
   // AI 分析缓存: cacheKey -> {signal, timestamp}
   private aiCache: Map<string, { signal: TradeSignal; timestamp: number }> = new Map()
   private readonly AI_CACHE_TTL = 10 * 60 * 1000 // 10分钟
@@ -73,12 +75,16 @@ export class StrategyEngine {
     store: StrategyStore,
     indicatorsHub: IndicatorsHub,
     positionManager: PositionManager,
-    binance: BinanceService
+    binance: BinanceService,
+    config: BotConfig
   ) {
     this.store = store
     this.indicatorsHub = indicatorsHub
     this.positionManager = positionManager
     this.binance = binance
+    
+    // 初始化AI分析器
+    this.aiAnalyzer = new MultiStrategyAIAnalyzer(binance, config)
 
     logger.info('StrategyEngine', '策略执行引擎已初始化')
   }
@@ -322,8 +328,6 @@ export class StrategyEngine {
       const rsiData = indicatorsData.get(`${mainTimeframe}_RSI`)?.values || {}
       const volumeData = indicatorsData.get('1h_Volume')?.values || {}
       
-      const ema20 = emaData.emaFast || 0
-      const ema60 = emaData.emaSlow || 0
       const rsi = rsiData.rsi || 50
       const volume = volumeData.current || 0
       // 暂时使用默认涨跌幅，后续集成fetchTicker方法
@@ -343,32 +347,23 @@ export class StrategyEngine {
         emaNames: emaData.emaNames || { fast: 'EMA20', medium: 'EMA30', slow: 'EMA60' }
       }
       
-      const aiResult = await analyzeMarketWithAI(
-        symbol,
-        price,
-        rsi,
-        volume,
-        priceChange24h,
-        indicators
-      )
-
-      if (!aiResult) {
-        return null
-      }
-
-      // 转换为标准交易信号
-      const signal: TradeSignal = {
+      // 使用新的多策略AI分析器
+      const signal = await this.aiAnalyzer.analyze(
         strategyId,
         symbol,
-        direction: aiResult.direction === 'LONG' ? 'long' : 'short',
-        action: 'open',
+        promptConfig,
+        indicators,
         price,
-        stopLoss: this.calculateStopLoss(price, aiResult.direction === 'LONG' ? 'long' : 'short'),
-        confidence: aiResult.score,
-        reasoning: aiResult.reasoning,
-        indicators: {},
-        timestamp: new Date().toISOString()
+        volume,
+        priceChange24h
+      )
+
+      if (!signal) {
+        return null
       }
+      
+      // 补充止损价
+      signal.stopLoss = this.calculateStopLoss(price, signal.direction)
 
       // 缓存结果
       this.aiCache.set(cacheKey, { signal, timestamp: Date.now() })

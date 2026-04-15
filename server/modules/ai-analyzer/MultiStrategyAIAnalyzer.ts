@@ -1,11 +1,12 @@
 // ==================== 多策略 AI 分析器 ====================
 
 import type { StrategyId, AIPromptConfig } from '../../../types/strategy'
-import type { AIAnalysis, RiskLevel, TechnicalIndicators, BotConfig } from '../../../types'
+import type { AIAnalysis, RiskLevel, TechnicalIndicators, BotConfig, Direction } from '../../../types'
 import type { TradeSignal } from '../../../types/signal'
-import { analyzeMarketWithAI as originalAnalyzeMarketWithAI } from '../../utils/ai-analysis'
 import { BinanceService } from '../../utils/binance'
 import { logger } from '../../utils/logger'
+import fs from 'node:fs/promises'
+import path from 'node:path'
 
 /**
  * AI 分析缓存
@@ -161,7 +162,62 @@ ${promptConfig.userPrompt}
   }
 
   /**
-   * 调用 AI API（复用原有逻辑）
+   * 构建系统提示词（包含历史学习经验）
+   */
+  private async buildSystemPrompt(): Promise<string> {
+    let basePrompt = `你是一位专业的加密货币期货交易分析师，拥有10年以上的交易经验。
+请基于技术分析进行判断，优先考虑趋势一致性、动量强度和风险回报比，
+在没有明显优势时倾向于返回IDLE，而不是强行给出方向。
+请严格按照指定的JSON格式返回分析结果，不要添加任何额外的文本或解释。`
+
+    return basePrompt
+  }
+
+  /**
+   * 保存AI分析结果到每日JSON文件
+   */
+  private async saveAIAnalysisToFile(analysis: AIAnalysis): Promise<void> {
+    try {
+      // 确保目录存在
+      const saveDir = path.join(process.cwd(), 'data', 'ai-analysis')
+      await fs.mkdir(saveDir, { recursive: true })
+      
+      // 生成当天文件名
+      const date = new Date()
+      const dateStr = date.toISOString().split('T')[0]
+      const fileName = `ai-analysis-${dateStr}.json`
+      const filePath = path.join(saveDir, fileName)
+      
+       // 读取现有内容或创建新数组
+       let records: AIAnalysis[] = []
+       try {
+         const fileContent = await fs.readFile(filePath, 'utf-8')
+         // 处理空文件或无效JSON
+         if (fileContent.trim()) {
+           records = JSON.parse(fileContent)
+           // 确保解析结果是数组
+           if (!Array.isArray(records)) {
+             records = []
+           }
+         }
+       } catch (error: any) {
+         // 文件不存在、内容为空或解析失败，使用空数组
+         if (error.code !== 'ENOENT') {
+           logger.error('MultiStrategyAIAnalyzer', '读取AI分析历史文件失败:', error.message)
+         }
+         records = []
+       }
+      
+      // 添加新记录并写入文件
+      records.push(analysis)
+      await fs.writeFile(filePath, JSON.stringify(records, null, 2), 'utf-8')
+    } catch (error: any) {
+      logger.error('MultiStrategyAIAnalyzer', '保存AI分析结果失败:', error.message)
+    }
+  }
+
+  /**
+   * 调用 AI API（直接实现原有逻辑）
    */
   private async callAI(
     prompt: string,
@@ -173,33 +229,121 @@ ${promptConfig.userPrompt}
     strategyId: StrategyId
   ): Promise<AIAnalysis | null> {
     try {
-      // 使用原有的 analyzeMarketWithAI 函数
-      // 注意：analyzeMarketWithAI 需要 9 个参数：
-      // 1. symbol: string
-      // 2. price: number
-      // 3. ema20: number
-      // 4. ema60: number
-      // 5. rsi: number
-      // 6. volume: number
-      // 7. priceChange24h: number
-      // 8. indicators?: TechnicalIndicators
-      // 9. config?: BotConfig
-      
-      const result = await originalAnalyzeMarketWithAI(
-        symbol,
-        price,
-        indicators.rsi,
-        volume,
-        priceChange24h,
-        indicators,
-        this.config,
-        strategyId
-      )
+      // 动态从indicators获取EMA值
+      const emaFast = indicators?.emaFast || 0
+      const emaMedium = indicators?.emaMedium || 0
+      const emaSlow = indicators?.emaSlow || 0
+      const runtimeConfig = useRuntimeConfig()
 
-      return result
+      // 构建系统提示词
+      const systemPrompt = await this.buildSystemPrompt()
+      
+      // 调用DeepSeek API
+      const response = await fetch(`${runtimeConfig.deepseekApiUrl}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${runtimeConfig.deepseekApiKey}`,
+        },
+        body: JSON.stringify({
+          model: 'deepseek-chat',
+          messages: [
+            {
+              role: 'system',
+              content: systemPrompt,
+            },
+            {
+              role: 'user',
+              content: prompt,
+            },
+          ],
+          temperature: 0.5,
+          max_tokens: 1000,
+          response_format: { type: "json_object" }
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error(`DeepSeek API请求失败: ${response.statusText}`)
+      }
+
+      const result = await response.json()
+      const content = result.choices?.[0]?.message?.content || '{}'
+
+      // 提取JSON内容（可能包含markdown代码块）
+      let jsonContent = content
+      const jsonMatch = content.match(/```json\s*([\s\S]*?)\s*```/) || content.match(/```\s*([\s\S]*?)\s*```/)
+      if (jsonMatch) {
+        jsonContent = jsonMatch[1]
+      }
+
+      const aiResult = JSON.parse(jsonContent)
+
+      const direction = (aiResult.direction || 'IDLE') as Direction
+      
+      // 构建分析理由，限制总长度不超过150字
+      let reasoning = aiResult.reasoning || '无分析理由'
+      reasoning = reasoning.length > 150 ? reasoning.slice(0, 147) + '...' : reasoning
+      
+      const analysis: AIAnalysis = {
+        symbol,
+        timestamp: Date.now(),
+        strategyId,
+        direction: direction,
+        confidence: Math.min(100, Math.max(0, aiResult.confidence || 0)),
+        score: Math.min(100, Math.max(0, aiResult.score || 0)),
+        riskLevel: (aiResult.riskLevel || 'MEDIUM') as RiskLevel,
+        isBullish: direction === 'LONG',
+        reasoning: reasoning,
+        technicalData: {
+          price,
+          [indicators?.emaNames?.fast || 'emaFast']: emaFast,
+          [indicators?.emaNames?.medium || 'emaMedium']: emaMedium,
+          [indicators?.emaNames?.slow || 'emaSlow']: emaSlow,
+          rsi: indicators.rsi,
+          volume,
+          adxMain: indicators?.adxMain || 0,
+          adxSecondary: indicators?.adxSecondary || 0,
+          adxTertiary: indicators?.adxTertiary || 0,
+          adxPeriodLabels: indicators?.adxPeriodLabels,
+          support: aiResult.support,
+          resistance: aiResult.resistance,
+        },
+      }
+
+      // 异步保存到文件，不阻塞主流程
+      this.saveAIAnalysisToFile(analysis).catch(() => {})
+
+      logger.info('MultiStrategyAIAnalyzer', `AI分析完成: ${symbol} 方向:${direction} 得分:${analysis.score}`)
+
+      return analysis
     } catch (error: any) {
       logger.error('MultiStrategyAIAnalyzer', `AI API 调用失败: ${error.message}`)
-      return null
+      
+      // 返回默认分析结果（降级处理）
+      const fallbackAnalysis: AIAnalysis = {
+        symbol,
+        timestamp: Date.now(),
+        strategyId,
+        direction: 'IDLE',
+        confidence: 0,
+        score: 0,
+        riskLevel: 'HIGH',
+        isBullish: false,
+        reasoning: `AI分析暂时不可用: ${error.message}`,
+        technicalData: {
+          price,
+          [indicators?.emaNames?.fast || 'emaFast']: indicators?.emaFast || 0,
+          [indicators?.emaNames?.slow || 'emaSlow']: indicators?.emaSlow || 0,
+          rsi: indicators.rsi,
+          volume,
+        },
+      }
+
+      // 异步保存到文件，不阻塞主流程
+      this.saveAIAnalysisToFile(fallbackAnalysis).catch(() => {})
+
+      return fallbackAnalysis
     }
   }
 
