@@ -62,49 +62,45 @@ function buildAIPrompt(
   // 获取策略模式，默认为短期
   const strategyMode = config?.strategyMode || 'short_term'
   
-  // 根据策略模式选择指标名称（使用配置的EMA周期）
-  const emaPeriods = config?.indicatorsConfig?.emaPeriods
-  const emaFastPeriod = emaPeriods?.[strategyMode]?.fast || (strategyMode === 'medium_term' ? 50 : 20)
-  const emaMediumPeriod = emaPeriods?.[strategyMode]?.medium || (strategyMode === 'medium_term' ? 100 : 30)
-  const emaSlowPeriod = emaPeriods?.[strategyMode]?.slow || (strategyMode === 'medium_term' ? 200 : 60)
-  const emaFastName = `EMA${emaFastPeriod}`
-  const emaMediumName = `EMA${emaMediumPeriod}`
-  const emaSlowName = `EMA${emaSlowPeriod}`
+  // 从指标数据中动态获取EMA名称，完全根据策略配置
+  const emaFastName = indicators?.emaNames?.fast || `EMA20`
+  const emaMediumName = indicators?.emaNames?.medium || `EMA30`
+  const emaSlowName = indicators?.emaNames?.slow || `EMA60`
   
   // 根据策略模式选择ADX周期名称
   const adxMainName = strategyMode === 'medium_term' ? '1小时ADX' : '15分钟ADX'
   const adxSecondaryName = strategyMode === 'medium_term' ? '4小时ADX' : '1小时ADX'
   const adxTertiaryName = strategyMode === 'medium_term' ? '日线ADX' : '4小时ADX'
   
-  // 基础市场数据
-  let prompt = `请对${symbol}进行全面的技术分析并提供交易建议。
+   // 基础市场数据
+   let prompt = `请对${symbol}进行全面的技术分析并提供交易建议。
 
 ## 市场数据：
-- 当前价格: ${price.toFixed(4)}
-- 价格变化: ${priceChange24h.toFixed(2)}%
-- 成交量: ${volume.toFixed(2)}
-- RSI(14): ${rsi.toFixed(2)}
-- ${emaFastName}: ${ema20.toFixed(4)}
-- ${emaMediumName}: ${indicators ? indicators.ema30.toFixed(4) : 'N/A'}
-- ${emaSlowName}: ${ema60.toFixed(4)}`
+- 当前价格: ${(price ?? 0).toFixed(4)}
+- 价格变化: ${(priceChange24h ?? 0).toFixed(2)}%
+- 成交量: ${(volume ?? 0).toFixed(2)}
+- RSI(14): ${(rsi ?? 0).toFixed(2)}
+- ${emaFastName}: ${(ema20 ?? 0).toFixed(4)}
+- ${emaMediumName}: ${indicators ? (indicators.emaMedium ?? 0).toFixed(4) : 'N/A'}
+- ${emaSlowName}: ${(ema60 ?? 0).toFixed(4)}`
 
-  // 如果提供了完整的技术指标，添加更多分析维度
-  if (indicators) {
-    prompt += `
+   // 如果提供了完整的技术指标，添加更多分析维度
+   if (indicators) {
+     prompt += `
 
 ## 多时间框架技术指标：
 ### ADX趋势强度：
-- ${adxMainName}: ${indicators.adx15m.toFixed(2)}
-- ${adxSecondaryName}: ${indicators.adx1h.toFixed(2)}
-- ${adxTertiaryName}: ${indicators.adx4h.toFixed(2)}
+- ${adxMainName}: ${(indicators.adxMain ?? 0).toFixed(2)}
+- ${adxSecondaryName}: ${(indicators.adxSecondary ?? 0).toFixed(2)}
+- ${adxTertiaryName}: ${(indicators.adxTertiary ?? 0).toFixed(2)}
 
 ### 其他指标：
-- ATR: ${indicators.atr.toFixed(4)} (${(indicators.atr / price * 100).toFixed(2)}%)
-- ADX斜率: ${indicators.adxSlope.toFixed(4)}
-- 持仓量(OI): ${indicators.openInterest.toFixed(2)}
-- OI变化率: ${indicators.openInterestChangePercent.toFixed(2)}%
-- OI趋势: ${indicators.openInterestTrend}`
-  }
+- ATR: ${(indicators.atr ?? 0).toFixed(4)} (${((indicators.atr ?? 0) / (price ?? 1) * 100).toFixed(2)}%)
+- ADX斜率: ${(indicators.adxSlope ?? 0).toFixed(4)}
+- 持仓量(OI): ${(indicators.openInterest ?? 0).toFixed(2)}
+- OI变化率: ${(indicators.openInterestChangePercent ?? 0).toFixed(2)}%
+- OI趋势: ${indicators.openInterestTrend || '无'}`
+   }
 
   prompt += `
 
@@ -183,17 +179,25 @@ async function saveAIAnalysisToFile(analysis: AIAnalysis): Promise<void> {
     const fileName = `ai-analysis-${dateStr}.json`
     const filePath = path.join(saveDir, fileName)
     
-    // 读取现有内容或创建新数组
-    let records: AIAnalysis[] = []
-    try {
-      const fileContent = await fs.readFile(filePath, 'utf-8')
-      records = JSON.parse(fileContent)
-    } catch (error: any) {
-      // 文件不存在或解析失败，使用空数组
-      if (error.code !== 'ENOENT') {
-        console.error('读取AI分析历史文件失败:', error.message)
-      }
-    }
+     // 读取现有内容或创建新数组
+     let records: AIAnalysis[] = []
+     try {
+       const fileContent = await fs.readFile(filePath, 'utf-8')
+       // 处理空文件或无效JSON
+       if (fileContent.trim()) {
+         records = JSON.parse(fileContent)
+         // 确保解析结果是数组
+         if (!Array.isArray(records)) {
+           records = []
+         }
+       }
+     } catch (error: any) {
+       // 文件不存在、内容为空或解析失败，使用空数组
+       if (error.code !== 'ENOENT') {
+         console.error('读取AI分析历史文件失败:', error.message)
+       }
+       records = []
+     }
     
     // 添加新记录并写入文件
     records.push(analysis)
@@ -209,14 +213,16 @@ async function saveAIAnalysisToFile(analysis: AIAnalysis): Promise<void> {
 export async function analyzeMarketWithAI(
   symbol: string,
   price: number,
-  ema20: number,
-  ema60: number,
   rsi: number,
   volume: number,
   priceChange24h: number,
   indicators?: TechnicalIndicators,
   config?: BotConfig
 ): Promise<AIAnalysis> {
+  // 动态从indicators获取EMA值，完全没有硬编码
+  const emaFast = indicators?.emaFast || 0
+  const emaMedium = indicators?.emaMedium || 0
+  const emaSlow = indicators?.emaSlow || 0
   const runtimeConfig = useRuntimeConfig()
 
   // 检查是否需要执行每日自我学习（后台异步执行，不阻塞当前分析）
@@ -234,7 +240,7 @@ export async function analyzeMarketWithAI(
 
   try {
     // 构建优化的提示词
-    const prompt = buildAIPrompt(symbol, price, ema20, ema60, rsi, volume, priceChange24h, indicators, config)
+    const prompt = buildAIPrompt(symbol, price, emaFast, emaSlow, rsi, volume, priceChange24h, indicators, config)
     
     // 构建系统提示词（包含历史学习经验）
     const systemPrompt = await buildSystemPrompt()
@@ -298,10 +304,16 @@ export async function analyzeMarketWithAI(
       reasoning: reasoning,
       technicalData: {
         price,
-        ema20,
-        ema60,
+        // 完全动态EMA字段，没有硬编码
+        [indicators?.emaNames?.fast || 'emaFast']: emaFast,
+        [indicators?.emaNames?.medium || 'emaMedium']: emaMedium,
+        [indicators?.emaNames?.slow || 'emaSlow']: emaSlow,
         rsi,
         volume,
+        adxMain: indicators?.adxMain || 0,
+        adxSecondary: indicators?.adxSecondary || 0,
+        adxTertiary: indicators?.adxTertiary || 0,
+        adxPeriodLabels: indicators?.adxPeriodLabels,
         support: aiResult.support,
         resistance: aiResult.resistance,
       },
@@ -335,8 +347,9 @@ export async function analyzeMarketWithAI(
       reasoning: `AI分析暂时不可用: ${error.message}`,
       technicalData: {
         price,
-        ema20,
-        ema60,
+        // 降级时也使用动态EMA名称
+        [indicators?.emaNames?.fast || 'emaFast']: emaFast,
+        [indicators?.emaNames?.slow || 'emaSlow']: emaSlow,
         rsi,
         volume,
       },

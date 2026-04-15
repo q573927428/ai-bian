@@ -35,10 +35,5 @@ export default defineNuxtConfig({
     strict: true,
     typeCheck: false,
   },
-
-  // 路径别名配置
-  alias: {
-    '~': '.',
-    '@': '.',
-  },
+  
 })

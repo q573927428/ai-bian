@@ -218,12 +218,30 @@ export async function getLatestLearningResult(): Promise<LearningResult | null> 
   }
 
   try {
+    // 确保data目录存在
+    await fs.mkdir(path.dirname(LEARNING_RESULT_PATH), { recursive: true })
+    
     const data = await fs.readFile(LEARNING_RESULT_PATH, 'utf-8')
     const result = JSON.parse(data) as LearningResult
     cachedLearningResult = result
     lastLearningTime = result.timestamp
     return result
   } catch (error: any) {
+    // 文件不存在或解析失败，创建默认学习结果
+    if (error.code === 'ENOENT' || error instanceof SyntaxError) {
+      const defaultResult: LearningResult = {
+        timestamp: Date.now(),
+        summary: '初始默认学习结果，无历史交易数据',
+        keyPatterns: [],
+        successFactors: [],
+        failureFactors: [],
+        optimizationSuggestions: []
+      }
+      // 保存默认结果到文件
+      await saveLearningResult(defaultResult)
+      return defaultResult
+    }
+    
     console.error('读取学习结果失败:', error.message)
     return null
   }

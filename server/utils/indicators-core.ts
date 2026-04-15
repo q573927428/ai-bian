@@ -14,7 +14,7 @@ export async function calculateIndicators(
 ): Promise<TechnicalIndicators> {
   try {
     // 统一获取EMA配置（复用工具函数，消除重复代码）
-    const { strategyMode, fast: emaFast, medium: emaMedium, slow: emaSlow } = getEMAPeriodConfig(config)
+    const { strategyMode, fast: emaFast, medium: emaMedium, slow: emaSlow, fastName: emaFastName, mediumName: emaMediumName, slowName: emaSlowName } = getEMAPeriodConfig(config)
     
     // 根据策略模式选择K线周期
     const mainTF = strategyMode === 'medium_term' ? '1h' : '15m'
@@ -81,17 +81,17 @@ export async function calculateIndicators(
     })
 
     // 根据策略模式映射ADX字段
-    let adx15m, adx1h, adx4h
+    let adxMain, adxSecondary, adxTertiary
     if (strategyMode === 'medium_term') {
       // 中长期策略：1h为主周期，4h为次要周期，1d为第三周期
-      adx15m = adxMainValues[adxMainValues.length - 1]?.adx || 0      // 1h
-      adx1h = adxSecondaryValues[adxSecondaryValues.length - 1]?.adx || 0  // 4h
-      adx4h = adxTertiaryValues[adxTertiaryValues.length - 1]?.adx || 0    // 1d
+      adxMain = adxMainValues[adxMainValues.length - 1]?.adx || 0      // 1h
+      adxSecondary = adxSecondaryValues[adxSecondaryValues.length - 1]?.adx || 0  // 4h
+      adxTertiary = adxTertiaryValues[adxTertiaryValues.length - 1]?.adx || 0    // 1d
     } else {
       // 短期策略：15m为主周期，1h为次要周期，4h为第三周期
-      adx15m = adxMainValues[adxMainValues.length - 1]?.adx || 0      // 15m
-      adx1h = adxSecondaryValues[adxSecondaryValues.length - 1]?.adx || 0  // 1h
-      adx4h = adxTertiaryValues[adxTertiaryValues.length - 1]?.adx || 0    // 4h
+      adxMain = adxMainValues[adxMainValues.length - 1]?.adx || 0      // 15m
+      adxSecondary = adxSecondaryValues[adxSecondaryValues.length - 1]?.adx || 0  // 1h
+      adxTertiary = adxTertiaryValues[adxTertiaryValues.length - 1]?.adx || 0    // 4h
     }
 
     // 使用getEMAValue函数获取EMA值
@@ -170,16 +170,26 @@ export async function calculateIndicators(
       }
     }
 
+    // 根据策略模式确定ADX周期标签
+    const adxPeriodLabels = strategyMode === 'medium_term' 
+      ? { main: '1h', secondary: '4h', tertiary: '1d' } 
+      : { main: '15m', secondary: '1h', tertiary: '4h' }
+
     return {
-      ema20: emaFastValue,
-      ema30: emaMediumValue,
-      ema60: emaSlowValue,
+      // EMA动态配置
+      emaPeriods: { fast: emaFast, medium: emaMedium, slow: emaSlow },
+      emaNames: { fast: emaFastName, medium: emaMediumName, slow: emaSlowName },
+      emaFast: emaFastValue,
+      emaMedium: emaMediumValue,
+      emaSlow: emaSlowValue,
       emaFastValues,
       emaMediumValues,
       emaSlowValues,
-      adx15m,
-      adx1h,
-      adx4h,
+      // ADX动态配置
+      adxPeriodLabels,
+      adxMain,
+      adxSecondary,
+      adxTertiary,
       adxSlope,
       rsi: rsiValues[rsiValues.length - 1] || 0,
       atr: atrValues[atrValues.length - 1] || 0,
@@ -196,34 +206,36 @@ export async function calculateIndicators(
  * 检查ADX趋势条件（多周期确认）
  */
 export function checkADXTrend(indicators: TechnicalIndicators, config?: BotConfig) {
-  const { adx15m, adx1h, adx4h } = indicators
+  const { adxMain, adxSecondary, adxTertiary } = indicators
   const adxConfig = config?.indicatorsConfig?.adxTrend
   const strategyMode = config?.strategyMode || 'short_term'
   // 根据策略模式确定周期标签
-  const [p1, p2, p3] = strategyMode === 'medium_term' ? ['1h', '4h', '1d'] : ['15m', '1h', '4h']
+  const p1 = indicators.adxPeriodLabels.main
+  const p2 = indicators.adxPeriodLabels.secondary
+  const p3 = indicators.adxPeriodLabels.tertiary
   const t1 = adxConfig?.adx15mThreshold || 30
   const t2 = adxConfig?.adx1hThreshold || 25
   const t3 = adxConfig?.adx4hThreshold || 28
   const enableCompare = adxConfig?.enableAdx15mVs1hCheck ?? true
 
-  const pass1 = adx15m >= t1
-  const pass2 = adx1h >= t2
-  const pass3 = adx4h >= t3
-  const passCompare = enableCompare ? adx15m > adx1h : true
+  const pass1 = adxMain >= t1
+  const pass2 = adxSecondary >= t2
+  const pass3 = adxTertiary >= t3
+  const passCompare = enableCompare ? adxMain > adxSecondary : true
   // 逻辑：必须满足三个绝对阈值，并且根据开关决定是否检查相对比较
   const passed = pass1 && pass2 && pass3 && passCompare
 
   let reason = ''
   if (passed) {
-    const conds = [`${p1} ADX(${adx15m.toFixed(2)}) >= ${t1}`, `${p2} ADX(${adx1h.toFixed(2)}) >= ${t2}`, `${p3} ADX(${adx4h.toFixed(2)}) >= ${t3}`]
-    enableCompare && conds.push(`${p1} ADX(${adx15m.toFixed(2)}) > ${p2} ADX(${adx1h.toFixed(2)})`)
+    const conds = [`${p1} ADX(${adxMain.toFixed(2)}) >= ${t1}`, `${p2} ADX(${adxSecondary.toFixed(2)}) >= ${t2}`, `${p3} ADX(${adxTertiary.toFixed(2)}) >= ${t3}`]
+    enableCompare && conds.push(`${p1} ADX(${adxMain.toFixed(2)}) > ${p2} ADX(${adxSecondary.toFixed(2)})`)
     reason = conds.join(' 且 ') + '（趋势全面确认）'
   } else {
     const reasons = []
-    !pass1 && reasons.push(`${p1} ADX(${adx15m.toFixed(2)}) < ${t1}`)
-    !pass2 && reasons.push(`${p2} ADX(${adx1h.toFixed(2)}) < ${t2}`)
-    !pass3 && reasons.push(`${p3} ADX(${adx4h.toFixed(2)}) < ${t3}`)
-    enableCompare && !passCompare && reasons.push(`${p1} ADX(${adx15m.toFixed(2)}) ≤ ${p2} ADX(${adx1h.toFixed(2)})`)
+    !pass1 && reasons.push(`${p1} ADX(${adxMain.toFixed(2)}) < ${t1}`)
+    !pass2 && reasons.push(`${p2} ADX(${adxSecondary.toFixed(2)}) < ${t2}`)
+    !pass3 && reasons.push(`${p3} ADX(${adxTertiary.toFixed(2)}) < ${t3}`)
+    enableCompare && !passCompare && reasons.push(`${p1} ADX(${adxMain.toFixed(2)}) ≤ ${p2} ADX(${adxSecondary.toFixed(2)})`)
     reason = reasons.join('，')
   }
 
@@ -231,7 +243,7 @@ export function checkADXTrend(indicators: TechnicalIndicators, config?: BotConfi
     passed,
     reason,
     data: {
-      adx15m, adx1h, adx4h,
+      adxMain, adxSecondary, adxTertiary,
       periodLabels: { p1, p2, p3, strategyMode },
       required: { t1, t2, t3, enableCompare },
       actual: { pass1, pass2, pass3, passCompare }

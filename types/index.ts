@@ -330,19 +330,23 @@ export interface OHLCV {
 
 // 技术指标
 export interface TechnicalIndicators {
-  // EMA
-  ema20: number
-  ema30: number
-  ema60: number
+  // EMA动态配置
+  emaPeriods: { fast: number, medium: number, slow: number }
+  emaNames: { fast: string, medium: string, slow: string }
+  emaFast: number
+  emaMedium: number
+  emaSlow: number
   // EMA历史数组
   emaFastValues: number[]
   emaMediumValues: number[]
   emaSlowValues: number[]
   
+  // ADX动态配置
+  adxPeriodLabels: { main: string, secondary: string, tertiary: string }
   // ADX (多周期)
-  adx15m: number
-  adx1h: number
-  adx4h: number
+  adxMain: number
+  adxSecondary: number
+  adxTertiary: number
   
   // ADX斜率（当前值 - N周期前的值，负值表示ADX下降）
   adxSlope: number
@@ -371,12 +375,17 @@ export interface AIAnalysis {
   reasoning: string
   technicalData: {
     price: number
-    ema20: number
-    ema60: number
+    ema20?: number
+    ema60?: number
     rsi: number
     volume: number
+    adxMain?: number
+    adxSecondary?: number
+    adxTertiary?: number
+    adxPeriodLabels?: { main: string, secondary: string, tertiary: string }
     support?: number
     resistance?: number
+    [key: string]: any // 允许动态EMA字段
   }
 }
 

@@ -12,6 +12,18 @@
             <el-tag v-if="botStore.isRunning" type="success" effect="dark">运行中</el-tag>
             <el-tag v-else-if="botStore.isHalted" type="danger" effect="dark">熔断停机</el-tag>
             <el-tag v-else type="info" effect="dark">已停止</el-tag>
+            
+            <!-- 策略管理入口 -->
+            <el-button 
+              type="warning" 
+              plain 
+              size="small"
+              @click="goToStrategies"
+              style="margin-left: 15px"
+            >
+              <el-icon><ElIconSetting /></el-icon>
+              策略管理
+            </el-button>
           </div>
         </div>
       </el-header>
@@ -143,7 +155,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useBotStore } from '../stores/bot'
-import dayjs from 'dayjs'
 
 // 导入组件
 import TradeHistory from '../components/TradeHistory.vue'
@@ -221,6 +232,11 @@ function formatBalance(value: number): string {
 // 跳转到策略分析页面
 function goToAnalysis() {
   window.location.href = '/strategy-analysis'
+}
+
+// 跳转到策略管理页面
+function goToStrategies() {
+  window.location.href = '/strategies'
 }
 
 // 处理编辑配置按钮点击

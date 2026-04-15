@@ -85,9 +85,9 @@
       }
     },
     "adxTrend": {
-      "adx15mThreshold": 23,
-      "adx1hThreshold": 18,
-      "adx4hThreshold": 15,
+      "adx15mThreshold": 43,
+      "adx1hThreshold": 48,
+      "adx4hThreshold": 45,
       "enableAdx15mVs1hCheck": false
     },
     "priceBreakout": {
