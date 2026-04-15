@@ -1,0 +1,53 @@
+//@version=6
+indicator("RSI + ADX + Normalized Volume (EMA)", overlay=false)
+
+// ===== 参数 =====
+rsiLength = input.int(14, "RSI周期")
+rsiOverbought = input.int(70, "RSI超买")
+rsiOversold = input.int(30, "RSI超卖")
+
+diLength = input.int(14, "DI周期")
+adxSmoothing = input.int(14, "ADX平滑")
+adxStrong = input.int(25, "ADX趋势")
+
+volLookback = input.int(100, "成交量归一化周期")
+volMaLength = input.int(12, "成交量EMA周期")
+
+// ===== RSI =====
+rsiValue = ta.rsi(close, rsiLength)
+
+// ===== ADX =====
+[plusDI, minusDI, adxValue] = ta.dmi(diLength, adxSmoothing)
+
+// ===== 成交量归一化 =====
+maxVol = ta.highest(volume, volLookback)
+volumePercent = maxVol > 0 ? (volume / maxVol) * 100 : 0
+
+// ===== 成交量EMA =====
+volumeEMA = ta.ema(volume, volMaLength)
+volumeEMAPercent = maxVol > 0 ? (volumeEMA / maxVol) * 100 : 0
+
+// ===== 成交量颜色 =====
+volColor = close >= open ? color.new(color.green, 60) : color.new(color.red, 60)
+
+// ===== 成交量柱 =====
+plot(volumePercent, title="Volume %", style=plot.style_columns, color=volColor)
+
+// ===== 成交量EMA线 =====
+plot(volumeEMAPercent, title="Volume EMA %", color=color.white, linewidth=2)
+
+// ===== RSI / ADX =====
+plot(rsiValue, title="RSI", color=color.blue, linewidth=2)
+plot(adxValue, title="ADX", color=color.orange, linewidth=2)
+
+// ===== 参考线 =====
+hline(100, "最大成交量", color=color.gray)
+hline(rsiOverbought, "RSI超买", color=color.red)
+hline(rsiOversold, "RSI超卖", color=color.green)
+hline(adxStrong, "ADX趋势", color=color.yellow)
+
+// ===== 真实成交量 =====
+plotchar(volume, title="真实成交量", char="", location=location.top)
+
+// ===== 真实EMA12成交量 =====
+plotchar(volumeEMA, title="真实EMA12成交量", char=" ", location=location.bottom)

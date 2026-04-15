@@ -1,0 +1,143 @@
+{
+  "strategyMode": "medium_term",
+  "symbols": [
+    "BTC/USDT",
+    "ETH/USDT",
+    "SOL/USDT",
+    "DOGE/USDT",
+    "HYPE/USDT",
+    "XAU/USDT",
+    "XAG/USDT",
+    "BNB/USDT"
+  ],
+  "leverage": 10,
+  "maxRiskPercentage": 20,
+  "stopLossATRMultiplier": 2.5,
+  "maxStopLossPercentage": 2,
+  "positionTimeoutHours": 6,
+  "scanInterval": 180,
+  "positionScanInterval": 30,
+  "tradeCooldownInterval": 3600,
+  "aiConfig": {
+    "enabled": true,
+    "analysisInterval": 1500,
+    "minScore": 75,
+    "minConfidence": 75,
+    "conditionMode": "SCORE_ONLY",
+    "maxRiskLevel": "MEDIUM",
+    "technicalPostAdjustmentMode": "PENALTY_ONLY",
+    "useForEntry": true,
+    "useForExit": true,
+    "cacheDuration": 10
+  },
+  "riskConfig": {
+    "circuitBreaker": {
+      "dailyLossThreshold": 10,
+      "consecutiveLossesThreshold": 3
+    },
+    "forceLiquidateTime": {
+      "enabled": false,
+      "hour": 23,
+      "minute": 55
+    },
+    "takeProfit": {
+      "tp1RiskRewardRatio": 2.5,
+      "tp2RiskRewardRatio": 3.5,
+      "tp1MinProfitRatio": 1,
+      "rsiExtreme": {
+        "long": 80,
+        "short": 20
+      },
+      "adxDecreaseThreshold": 2,
+      "adxSlopePeriod": 3
+    },
+    "dailyTradeLimit": 5
+  },
+  "dynamicLeverageConfig": {
+    "enabled": true,
+    "minLeverage": 5,
+    "maxLeverage": 20,
+    "baseLeverage": 8,
+    "riskLevelMultipliers": {
+      "LOW": 1.5,
+      "MEDIUM": 1,
+      "HIGH": 0.5
+    }
+  },
+  "trailingStopConfig": {
+    "enabled": true,
+    "activationRatio": 1,
+    "trailingDistance": 1.2,
+    "minMovePercent": 0.16
+  },
+  "indicatorsConfig": {
+    "requiredCandles": 300,
+    "emaPeriods": {
+      "short_term": {
+        "fast": 14,
+        "medium": 30,
+        "slow": 60
+      },
+      "medium_term": {
+        "fast": 14,
+        "medium": 60,
+        "slow": 120
+      }
+    },
+    "adxTrend": {
+      "adx15mThreshold": 23,
+      "adx1hThreshold": 18,
+      "adx4hThreshold": 15,
+      "enableAdx15mVs1hCheck": false
+    },
+    "priceBreakout": {
+      "enabled": false,
+      "period": 3,
+      "requireConfirmation": false,
+      "confirmationCandles": 1
+    },
+    "volatility": {
+      "enabled": true,
+      "minATRPercent": 0.38,
+      "skipSymbols": []
+    },
+    "openInterest": {
+      "enabled": true,
+      "trendPeriod": 12,
+      "trendThresholdPercent": 0.5,
+      "changePeriod": {
+        "short_term": 96,
+        "medium_term": 24
+      }
+    },
+    "crossEntryEnabled": false,
+    "showCrossFailureReason": true,
+    "predictiveCross": {
+      "enabled": true,
+      "distancePercent": 0.0012,
+      "onlyTrend": true
+    },
+    "entryConfig": {
+      "emaDeviationThreshold": 0.012,
+      "emaDeviationEnabled": true,
+      "emaSlowDeviationThreshold": 0.015,
+      "emaSlowDeviationEnabled": true,
+      "rsiMin": 35,
+      "rsiMax": 65,
+      "candleShadowThreshold": 0.0085,
+      "volumeConfirmation": true,
+      "volumeEMAPeriod": 12,
+      "volumeEMAMultiplier": 1.5,
+      "minScoreThreshold": 80
+    },
+    "priceAction": {
+      "enabled": true,
+      "skipOtherChecks": true,
+      "pinBarEnabled": true,
+      "shadowBodyRatio": 3.5,
+      "maxBodyRatio": 0.3,
+      "engulfingEnabled": true,
+      "minEngulfRatio": 1.8
+    }
+  }
+}

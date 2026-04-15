@@ -1,0 +1,97 @@
+//@version=6
+indicator("Trade History Dashboard", overlay=true, max_labels_count=500, max_lines_count=500)
+
+// EMA 移动平均线 (根据 strategyMode 配置: medium_term)
+emaFastPeriod = 50
+emaSlowPeriod = 200
+emaFastLine = ta.ema(close, emaFastPeriod)
+emaSlowLine = ta.ema(close, emaSlowPeriod)
+
+plot(emaFastLine, "EMA 50", color=color.blue, linewidth=2)
+plot(emaSlowLine, "EMA 200", color=color.orange, linewidth=2)
+
+var int[] openTimes = array.from(1773641330754,1773624193889,1773565609588,1773415419723,1773377192581,1773283201220,1773144934910,1773127282267,1773035034181,1772988040867,1772938255914,1772933739894,1772923078394,1772657925080,1772645215513,1772624501024,1772380745024,1772363641585,1772338784307,1772327560810,1772274384548,1772226740231)
+var int[] closeTimes = array.from(1773763448534,1773632029111,1773615992428,1773419179058,1773396526201,1773293144200,1773226895382,1773141324927,1773039852840,1772999304385,1772946387119,1772934462652,1772929402631,1772664911940,1772649793586,1772634681032,1772383817068,1772375024753,1772342759994,1772330030537,1772286611446,1772255711869)
+
+var float[] entryPrices = array.from(682.47,0.0978,71823.7,72656.7,0.09643,35.9220587,646.32,70279.6,628.48,66923,66991.4,67067.3,67199.9,92.89,90.97,89.5,1997.56,624.26,2001.8,616.02,63854.7,81.65)
+var float[] exitPrices = array.from(669.08,0.10101,73092.3,71188.7,0.09879,36.66186,635.42,70555,622.26,67420.2,66787.2,67309,67453.8,91.23,91.95,91.03,1968.33105,626.54,2020.39,626.11,64618.3,81.73)
+
+var float[] stopLoss = array.from(669.1936846776053,0.095844,71052.00620871168,71203.56599999999,0.0945014,35.22414,635.5897506027093,68874.008,622.450193987451,67410.248366074,67260.2121948511,67297.65033647961,67453.4334505785,91.26304930089448,89.0582143519875,87.97690178568136,1971.7197526912034,619.7589437712153,1967.4819396561275,610.835963660291,64573.62818278809,82.53904542957028)
+var float[] tp1 = array.from(695.7463153223947,0.099756,72595.39379128831,74109.834,0.0983586,36.66186,657.0502493972908,71685.19200000001,634.509806012549,66435.751633926,66722.58780514888,66836.9496635204,66946.3665494215,94.51695069910552,92.8817856480125,91.02309821431864,2023.4002473087965,628.7610562287847,2036.1180603438725,621.204036339709,63135.771817211906,80.76095457042973)
+var float[] tp2 = array.from(709.0226306447894,0.101712,73367.08758257663,75562.96800000001,0.1002872,37.38072,667.7804987945816,73090.78400000001,640.539612025098,65948.50326785201,66453.77561029777,66606.59932704079,66692.833098843,96.14390139821104,94.793571296025,92.54619642863727,2049.240494617593,633.2621124575694,2070.4361206877447,626.388072679418,62416.843634423814,79.87190914085946)
+
+var string[] directions = array.from("LONG","LONG","LONG","LONG","LONG","LONG","LONG","LONG","LONG","SHORT","SHORT","SHORT","SHORT","LONG","LONG","LONG","LONG","LONG","LONG","LONG","SHORT","SHORT")
+var string[] symbols = array.from("BNB/USDT","DOGE/USDT","BTC/USDT","BTC/USDT","DOGE/USDT","HYPE/USDT","BNB/USDT","BTC/USDT","BNB/USDT","BTC/USDT","BTC/USDT","BTC/USDT","BTC/USDT","SOL/USDT","SOL/USDT","SOL/USDT","ETH/USDT","BNB/USDT","ETH/USDT","BNB/USDT","BTC/USDT","SOL/USDT")
+var float[] pnl = array.from(-19.62,32.82,17.66,-20.20,24.47,15.92,-16.86,3.92,-5.94,-4.46,2.44,-2.52,-2.64,-19.66,9.70,18.80,-8.78,2.19,5.57,14.74,-9.57,-0.88)
+
+var int[] leverage = array.from(10,10,10,10,10,10,10,10,6,6,8,7,7,11,9,11,6,6,6,9,8,9)
+var float[] entryRSIs = array.from(67.86,64.99,67.33,62.57,61.43,54.14,64.1,65,66.87,40.12,37.37,36.47,36.42,58.08,53.63,59.83,51.36,51.78,54.23,0,0,0)
+var float[] entryADXs = array.from(41.8472332644892,25.82452067946149,27.2927781710396,33.37160285439947,25.87558891706401,36.516586244785614,39.041404549750546,39.98625271947707,30.14346790988491,33.688123542023575,47.25219355987413,46.484939111749654,48.11282605478359,41.0759605590437,42.83925267795245,42.8104673359004,26.072803455234066,27.340047312943874,48.12400793804818,0,0,0)
+var float[] averageATRs = array.from(5.301713111623343,0.0009816815185732257,313.5937508518392,684.8953698417582,0.0011136615844870132,0.564217206596453,4.642865097327796,676.789707579727,2.945175961249928,229.531929415592,179.713189656511,153.0947599989416,162.80888744600608,0.7304342631928114,0.8787026993233367,0.6914334642666543,13.318310638928539,2.0726572852171596,15.876820720606696,2.6972589631960067,304.5894965503985,0.393866434282112)
+var string[] exitReasons = array.from("止损触发","TP2止盈","TP2止盈","手动平仓","手动平仓","手动平仓","止损触发","止损触发","止损触发","止损触发","止损触发","止损触发","止损触发","止损触发","TP2止盈","TP2止盈","止损触发","止损触发","TP2止盈","TP2止盈","止损触发","持仓超时")
+
+for i = 0 to array.size(openTimes) - 1
+
+    openTime = array.get(openTimes, i)
+    closeTime = array.get(closeTimes, i)
+
+    entryPrice = array.get(entryPrices, i)
+    exitPrice = array.get(exitPrices, i)
+
+    sl = array.get(stopLoss, i)
+    t1 = array.get(tp1, i)
+    t2 = array.get(tp2, i)
+
+    dir = array.get(directions, i)
+    sym = array.get(symbols, i)
+    lev = array.get(leverage, i)
+    p = array.get(pnl, i)
+    
+    // 获取新字段
+    entryRSI = array.get(entryRSIs, i)
+    entryADX = array.get(entryADXs, i)
+    avgATR = array.get(averageATRs, i)
+    exitReason = array.get(exitReasons, i)
+
+    tf = timeframe.in_seconds() * 1000
+    openCond =openTime >= time and openTime < time + tf
+    closeCond =closeTime >= time and closeTime < time + tf
+
+    if openCond
+
+        label.new(
+            bar_index,
+            entryPrice,
+            sym + "\n" +
+            dir + " 开仓" + "\n" +
+            "价格: " + str.tostring(entryPrice) + "\n" +
+            "Lev: " + str.tostring(lev) + "\n" +
+            "RSI: " + str.tostring(entryRSI, "#.##") + "\n" +
+            "ADX: " + str.tostring(entryADX, "#.##") + "\n" +
+            "ATR: " + str.tostring(avgATR, "#.##"),
+            style = dir == "LONG" ? label.style_label_up : label.style_label_down,
+            color = dir == "LONG" ? color.green : color.red,
+            textcolor = color.white,
+            size = size.small
+        )
+
+        // line.new(bar_index, entryPrice, bar_index, sl, color=color.red, width=1)
+        // line.new(bar_index, entryPrice, bar_index, t1, color=color.green, width=1)
+        // line.new(bar_index, entryPrice, bar_index, t2, color=color.green, width=1)
+
+    if closeCond
+        
+        label.new(
+            bar_index,
+            exitPrice,
+            sym + "\n平仓\n" +
+            "价格: " + str.tostring(exitPrice) + "\n" +
+            "PnL: " + str.tostring(p) + "%\n" +
+            exitReason,
+            style = label.style_label_left,
+            color = color.yellow,
+            textcolor = p > 0 ? color.green : color.red,
+            size = size.small
+        )
+
+        // line.new(bar_index, entryPrice, bar_index, exitPrice, color=color.blue, width=2)

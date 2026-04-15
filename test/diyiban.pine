@@ -1,0 +1,177 @@
+//@version=6
+strategy("Bot Config Backtest Strategy (from bot-config.json)", overlay=true, pyramiding=0, initial_capital=10000, commission_type=strategy.commission.percent, commission_value=0.04, calc_on_every_tick=true, max_labels_count=500, margin_long=10, margin_short=10)
+
+// ===== 1) 参数（默认值来自 data/bot-config.json） =====
+leverage = input.int(10, "杠杆", minval=1)
+// 注意：策略属性里 margin_long/margin_short 默认按 10x 设置；若修改杠杆，请同步在 TradingView 策略属性中调整保证金比例。
+maxRiskPct = input.float(20.0, "单笔风险上限(%)", minval=0.1, step=0.1)
+stopAtrMult = input.float(2.5, "ATR止损倍数", minval=0.1, step=0.1)
+maxStopLossPct = input.float(2.0, "最大止损(%)", minval=0.1, step=0.1)
+positionTimeoutHours = input.int(72, "持仓超时(小时)", minval=1)
+
+// Take profit / trailing（riskConfig + trailingStopConfig）
+tp1RR = input.float(3.0, "TP1 风险收益比", minval=0.1, step=0.1)
+tp2RR = input.float(5.0, "TP2 风险收益比", minval=0.1, step=0.1)
+trailEnabled = input.bool(true, "启用追踪止损")
+trailActivationRatio = input.float(0.6, "追踪激活R倍数", minval=0.1, step=0.1)
+trailDistanceR = input.float(1.0, "追踪距离R", minval=0.1, step=0.1)
+
+// 指标参数（indicatorsConfig）
+adxThreshold = input.float(25.0, "ADX阈值(1h)", minval=1)
+emaDeviationThreshold = input.float(0.02, "EMA偏离阈值", minval=0.001, step=0.001)
+rsiMin = input.float(35.0, "RSI最小值", minval=1, maxval=99)
+rsiMax = input.float(65.0, "RSI最大值", minval=1, maxval=99)
+shadowThreshold = input.float(0.005, "影线阈值", minval=0.0001, step=0.0001)
+volumeConfirm = input.bool(true, "启用成交量确认")
+volumeEmaPeriod = input.int(12, "成交量EMA周期", minval=1)
+longVolMult = input.float(1.0, "多头成交量倍率", minval=0.1, step=0.1)
+shortVolMult = input.float(1.2, "空头成交量倍率", minval=0.1, step=0.1)
+
+breakoutEnabled = input.bool(true, "启用突破条件")
+breakoutPeriod = input.int(5, "突破周期", minval=2)
+confirmBars = input.int(1, "突破确认K数量", minval=0, maxval=5)
+
+// ===== 2) 指标计算 =====
+emaFast = ta.ema(close, 34)
+emaSlow = ta.ema(close, 89)
+rsi = ta.rsi(close, 14)
+[plusDI, minusDI, adx] = ta.dmi(14, 14)
+atr = ta.atr(14)
+volEma = ta.ema(volume, volumeEmaPeriod)
+
+rng = math.max(high - low, syminfo.mintick)
+upperShadowRatio = (high - math.max(open, close)) / rng
+lowerShadowRatio = (math.min(open, close) - low) / rng
+
+emaDeviation = math.abs(close - emaFast) / emaFast
+volLongOk = not volumeConfirm or volume > volEma * longVolMult
+volShortOk = not volumeConfirm or volume > volEma * shortVolMult
+
+highestBreak = ta.highest(high, breakoutPeriod)[1]
+lowestBreak = ta.lowest(low, breakoutPeriod)[1]
+longBreakRaw = close > highestBreak
+shortBreakRaw = close < lowestBreak
+longBreakBarsSinceReset = ta.barssince(not longBreakRaw)
+shortBreakBarsSinceReset = ta.barssince(not shortBreakRaw)
+longBreakOk = not breakoutEnabled or longBreakBarsSinceReset >= confirmBars
+shortBreakOk = not breakoutEnabled or shortBreakBarsSinceReset >= confirmBars
+
+trendLong = emaFast > emaSlow
+trendShort = emaFast < emaSlow
+commonFilter = adx >= adxThreshold and rsi >= rsiMin and rsi <= rsiMax and emaDeviation <= emaDeviationThreshold
+
+longSignal = trendLong and commonFilter and lowerShadowRatio <= shadowThreshold and volLongOk and longBreakOk
+shortSignal = trendShort and commonFilter and upperShadowRatio <= shadowThreshold and volShortOk and shortBreakOk
+
+// ===== 3) 仓位与风控 =====
+slLongAtr = close - atr * stopAtrMult
+slLongCap = close * (1.0 - maxStopLossPct / 100.0)
+slLong = math.max(slLongAtr, slLongCap)
+
+slShortAtr = close + atr * stopAtrMult
+slShortCap = close * (1.0 + maxStopLossPct / 100.0)
+slShort = math.min(slShortAtr, slShortCap)
+
+riskPerUnitLong = math.max(close - slLong, syminfo.mintick)
+riskPerUnitShort = math.max(slShort - close, syminfo.mintick)
+
+capitalToRisk = strategy.equity * (maxRiskPct / 100.0)
+riskQtyLong = capitalToRisk / riskPerUnitLong
+riskQtyShort = capitalToRisk / riskPerUnitShort
+
+// 关键修复：限制仓位不超过账户在当前杠杆下可承载的最大名义价值
+maxNotional = strategy.equity * leverage
+maxQtyByLeverage = maxNotional / close
+
+qtyLong = math.min(riskQtyLong, maxQtyByLeverage)
+qtyShort = math.min(riskQtyShort, maxQtyByLeverage)
+
+if strategy.position_size == 0
+    if longSignal and qtyLong > 0
+        strategy.entry("Long", strategy.long, qty=qtyLong, comment="LONG 开仓")
+    if shortSignal and qtyShort > 0
+        strategy.entry("Short", strategy.short, qty=qtyShort, comment="SHORT 开仓")
+
+// ===== 4) 出场管理（TP1/TP2 + 追踪止损 + 超时） =====
+var int entryBarIndex = na
+var float highSinceEntry = na
+var float lowSinceEntry = na
+var float prevNet = 0.0
+
+newLong = strategy.position_size > 0 and strategy.position_size[1] <= 0
+newShort = strategy.position_size < 0 and strategy.position_size[1] >= 0
+flatNow = strategy.position_size == 0 and strategy.position_size[1] != 0
+
+if newLong or newShort
+    entryBarIndex := bar_index
+    highSinceEntry := high
+    lowSinceEntry := low
+
+if strategy.position_size > 0
+    highSinceEntry := na(highSinceEntry) ? high : math.max(highSinceEntry, high)
+if strategy.position_size < 0
+    lowSinceEntry := na(lowSinceEntry) ? low : math.min(lowSinceEntry, low)
+
+if strategy.position_size != 0
+    isLong = strategy.position_size > 0
+    entry = strategy.position_avg_price
+
+    baseStop = isLong ? math.max(entry - atr * stopAtrMult, entry * (1.0 - maxStopLossPct / 100.0)) : math.min(entry + atr * stopAtrMult, entry * (1.0 + maxStopLossPct / 100.0))
+    riskR = isLong ? math.max(entry - baseStop, syminfo.mintick) : math.max(baseStop - entry, syminfo.mintick)
+
+    tp1 = isLong ? entry + riskR * tp1RR : entry - riskR * tp1RR
+    tp2 = isLong ? entry + riskR * tp2RR : entry - riskR * tp2RR
+
+    moveFromEntry = isLong ? (high - entry) : (entry - low)
+    trailActive = trailEnabled and moveFromEntry >= (riskR * trailActivationRatio)
+
+    trailStop = baseStop
+    if trailActive
+        trailCandidate = isLong ? (highSinceEntry - riskR * trailDistanceR) : (lowSinceEntry + riskR * trailDistanceR)
+        trailStop := isLong ? math.max(baseStop, trailCandidate) : math.min(baseStop, trailCandidate)
+
+    if isLong
+        strategy.exit("L-TP1", "Long", stop=trailStop, limit=tp1, qty_percent=50, comment_profit="TP1", comment_loss="SL/Trail")
+        strategy.exit("L-TP2", "Long", stop=trailStop, limit=tp2, qty_percent=100, comment_profit="TP2", comment_loss="SL/Trail")
+    else
+        strategy.exit("S-TP1", "Short", stop=trailStop, limit=tp1, qty_percent=50, comment_profit="TP1", comment_loss="SL/Trail")
+        strategy.exit("S-TP2", "Short", stop=trailStop, limit=tp2, qty_percent=100, comment_profit="TP2", comment_loss="SL/Trail")
+
+barsTimeout = math.ceil(positionTimeoutHours * 3600.0 / timeframe.in_seconds())
+timeoutHit = strategy.position_size != 0 and not na(entryBarIndex) and (bar_index - entryBarIndex >= barsTimeout)
+if timeoutHit
+    strategy.close(strategy.position_size > 0 ? "Long" : "Short", comment="超时平仓")
+
+if flatNow
+    highSinceEntry := na
+    lowSinceEntry := na
+    entryBarIndex := na
+
+// ===== 5) 图表标记：开仓/平仓交易信息标签 =====
+if newLong
+    entry = strategy.position_avg_price
+    stop = math.max(entry - atr * stopAtrMult, entry * (1.0 - maxStopLossPct / 100.0))
+    riskR = math.max(entry - stop, syminfo.mintick)
+    t1 = entry + riskR * tp1RR
+    t2 = entry + riskR * tp2RR
+    label.new(bar_index, low, "🟢 LONG 开仓\nEntry: " + str.tostring(entry, format.mintick) + "\nSL: " + str.tostring(stop, format.mintick) + "\nTP1: " + str.tostring(t1, format.mintick) + "\nTP2: " + str.tostring(t2, format.mintick) + "\nRSI: " + str.tostring(rsi, "#.##") + " ADX: " + str.tostring(adx, "#.##"), style=label.style_label_up, color=color.new(color.green, 0), textcolor=color.white, size=size.small)
+
+if newShort
+    entry = strategy.position_avg_price
+    stop = math.min(entry + atr * stopAtrMult, entry * (1.0 + maxStopLossPct / 100.0))
+    riskR = math.max(stop - entry, syminfo.mintick)
+    t1 = entry - riskR * tp1RR
+    t2 = entry - riskR * tp2RR
+    label.new(bar_index, high, "🔴 SHORT 开仓\nEntry: " + str.tostring(entry, format.mintick) + "\nSL: " + str.tostring(stop, format.mintick) + "\nTP1: " + str.tostring(t1, format.mintick) + "\nTP2: " + str.tostring(t2, format.mintick) + "\nRSI: " + str.tostring(rsi, "#.##") + " ADX: " + str.tostring(adx, "#.##"), style=label.style_label_down, color=color.new(color.red, 0), textcolor=color.white, size=size.small)
+
+if flatNow
+    delta = strategy.netprofit - prevNet
+    txt = (delta >= 0 ? "✅ 平仓盈利" : "❌ 平仓亏损") + "\n本笔PnL: " + str.tostring(delta, "#.##") + "\n累计PnL: " + str.tostring(strategy.netprofit, "#.##")
+    label.new(bar_index, close, txt, style=label.style_label_left, color=color.new(color.yellow, 0), textcolor=delta >= 0 ? color.green : color.red, size=size.small)
+
+prevNet := strategy.netprofit
+
+plot(emaFast, "EMA Fast(34)", color=color.orange)
+plot(emaSlow, "EMA Slow(89)", color=color.blue)
+plotshape(longSignal and strategy.position_size == 0, title="Long Signal", style=shape.triangleup, location=location.belowbar, size=size.tiny, color=color.new(color.green, 0), text="L")
+plotshape(shortSignal and strategy.position_size == 0, title="Short Signal", style=shape.triangledown, location=location.abovebar, size=size.tiny, color=color.new(color.red, 0), text="S")

@@ -1,0 +1,40 @@
+{
+  "name": "binance-futures-bot",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "build": "nuxt build",
+    "dev": "nuxt dev",
+    "dev:with-sync": "nuxt dev --port 3002",
+    "generate": "nuxt generate",
+    "preview": "nuxt preview",
+    "postinstall": "nuxt prepare",
+    "start": "PORT=3002 NITRO_HOST=0.0.0.0 node .output/server/index.mjs",
+    "start:with-sync": "PORT=3002 NITRO_HOST=0.0.0.0 node .output/server/index.mjs",
+    "sync:legacy": "node scripts/start-kline-simple-sync.js"
+  },
+  "dependencies": {
+    "@element-plus/nuxt": "^1.0.10",
+    "@pinia/nuxt": "^0.5.5",
+    "ccxt": "^4.4.43",
+    "dayjs": "^1.11.13",
+    "dotenv": "^17.2.3",
+    "echarts": "^6.0.0",
+    "element-plus": "^2.9.1",
+    "lightweight-charts": "~5.1.0",
+    "nuxt": "^4.3.0",
+    "nuxt-echarts": "^1.0.1",
+    "pinia": "^2.2.8",
+    "technicalindicators": "^3.1.0",
+    "vue": "^3.5.27",
+    "vue-router": "^4.6.4",
+    "ws": "^8.19.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.5",
+    "@types/ws": "^8.18.1",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.7.3"
+  },
+  "packageManager": "pnpm@10.10.0+sha512.d615db246fe70f25dcfea6d8d73dee782ce23e2245e3c4f6f888249fb568149318637dca73c2c5c8ef2a4ca0d5657fb9567188bfab47f566d1ee6ce987815c39"
+}
