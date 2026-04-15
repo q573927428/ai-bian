@@ -70,74 +70,38 @@
     "trailingDistance": 1.2,
     "minMovePercent": 0.16
   },
-  "indicatorsConfig": {
-    "requiredCandles": 300,
-    "emaPeriods": {
-      "short_term": {
-        "fast": 14,
-        "medium": 30,
-        "slow": 60
+    "indicatorsConfig": {
+      "requiredCandles": 300,
+      "emaPeriods": {
+        "short_term": {
+          "fast": 14,
+          "medium": 30,
+          "slow": 60
+        },
+        "medium_term": {
+          "fast": 14,
+          "medium": 60,
+          "slow": 120
+        }
       },
-      "medium_term": {
-        "fast": 14,
-        "medium": 60,
-        "slow": 120
+      "adxTrend": {
+        "adx15mThreshold": 43,
+        "adx1hThreshold": 48,
+        "adx4hThreshold": 45,
+        "enableAdx15mVs1hCheck": false
+      },
+      "priceBreakout": {
+        "enabled": false,
+        "period": 3,
+        "requireConfirmation": false,
+        "confirmationCandles": 1
+      },
+      "crossEntryEnabled": false,
+      "showCrossFailureReason": true,
+      "predictiveCross": {
+        "enabled": true,
+        "distancePercent": 0.0012,
+        "onlyTrend": true
       }
-    },
-    "adxTrend": {
-      "adx15mThreshold": 43,
-      "adx1hThreshold": 48,
-      "adx4hThreshold": 45,
-      "enableAdx15mVs1hCheck": false
-    },
-    "priceBreakout": {
-      "enabled": false,
-      "period": 3,
-      "requireConfirmation": false,
-      "confirmationCandles": 1
-    },
-    "volatility": {
-      "enabled": true,
-      "minATRPercent": 0.38,
-      "skipSymbols": []
-    },
-    "openInterest": {
-      "enabled": true,
-      "trendPeriod": 12,
-      "trendThresholdPercent": 0.5,
-      "changePeriod": {
-        "short_term": 96,
-        "medium_term": 24
-      }
-    },
-    "crossEntryEnabled": false,
-    "showCrossFailureReason": true,
-    "predictiveCross": {
-      "enabled": true,
-      "distancePercent": 0.0012,
-      "onlyTrend": true
-    },
-    "entryConfig": {
-      "emaDeviationThreshold": 0.012,
-      "emaDeviationEnabled": true,
-      "emaSlowDeviationThreshold": 0.015,
-      "emaSlowDeviationEnabled": true,
-      "rsiMin": 35,
-      "rsiMax": 65,
-      "candleShadowThreshold": 0.0085,
-      "volumeConfirmation": true,
-      "volumeEMAPeriod": 12,
-      "volumeEMAMultiplier": 1.5,
-      "minScoreThreshold": 80
-    },
-    "priceAction": {
-      "enabled": true,
-      "skipOtherChecks": true,
-      "pinBarEnabled": true,
-      "shadowBodyRatio": 3.5,
-      "maxBodyRatio": 0.3,
-      "engulfingEnabled": true,
-      "minEngulfRatio": 1.8
     }
-  }
 }

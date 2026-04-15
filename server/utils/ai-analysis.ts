@@ -217,7 +217,8 @@ export async function analyzeMarketWithAI(
   volume: number,
   priceChange24h: number,
   indicators?: TechnicalIndicators,
-  config?: BotConfig
+  config?: BotConfig,
+  strategyId?: string
 ): Promise<AIAnalysis> {
   // 动态从indicators获取EMA值，完全没有硬编码
   const emaFast = indicators?.emaFast || 0
@@ -296,6 +297,7 @@ export async function analyzeMarketWithAI(
     const analysis: AIAnalysis = {
       symbol,
       timestamp: Date.now(),
+      strategyId,
       direction: direction,
       confidence: Math.min(100, Math.max(0, aiResult.confidence || 0)),
       score: Math.min(100, Math.max(0, aiResult.score || 0)),
@@ -339,6 +341,7 @@ export async function analyzeMarketWithAI(
     const fallbackAnalysis: AIAnalysis = {
       symbol,
       timestamp: Date.now(),
+      strategyId,
       direction: 'IDLE',
       confidence: 0,
       score: 0,

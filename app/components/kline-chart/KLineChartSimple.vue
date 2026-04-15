@@ -339,10 +339,10 @@ const handleTooltipUpdate = (data: any, time: string) => {
 
 // 计算EMA差值百分比
 const calculateLatestEmaDiff = (klineData: SimpleKLineData[]): number => {
-  if (!botStore.config) return 0
+  if (!botStore.config || !botStore.config.indicatorsConfig || !botStore.config.indicatorsConfig.emaPeriods) return 0
   
   const strategyMode = botStore.config.strategyMode
-  const emaConfig = botStore.config.indicatorsConfig.emaPeriods[strategyMode]
+  const emaConfig = botStore.config.indicatorsConfig.emaPeriods[strategyMode] || { fast: 20, slow: 60 }
   const fastPeriod = emaConfig.fast
   const slowPeriod = emaConfig.slow
   

@@ -76,7 +76,7 @@ export class MultiStrategyAIAnalyzer {
       )
 
       // 3. 调用原有的 AI 分析函数
-      const aiResult = await this.callAI(fullPrompt, symbol, price, indicators, volume, priceChange24h)
+      const aiResult = await this.callAI(fullPrompt, symbol, price, indicators, volume, priceChange24h, strategyId)
 
       if (!aiResult || aiResult.direction === 'IDLE') {
         return null
@@ -169,7 +169,8 @@ ${promptConfig.userPrompt}
     price: number,
     indicators: TechnicalIndicators,
     volume: number = 0,
-    priceChange24h: number = 0
+    priceChange24h: number = 0,
+    strategyId: StrategyId
   ): Promise<AIAnalysis | null> {
     try {
       // 使用原有的 analyzeMarketWithAI 函数
@@ -191,7 +192,8 @@ ${promptConfig.userPrompt}
         volume,
         priceChange24h,
         indicators,
-        this.config
+        this.config,
+        strategyId
       )
 
       return result

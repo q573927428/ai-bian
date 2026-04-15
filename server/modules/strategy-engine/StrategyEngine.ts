@@ -298,7 +298,7 @@ export class StrategyEngine {
       // 检查缓存
       const cached = this.aiCache.get(cacheKey)
       if (cached && (Date.now() - cached.timestamp < this.AI_CACHE_TTL)) {
-        logger.info('StrategyEngine', `使用 AI 缓存结果: ${symbol}`)
+        // logger.info('StrategyEngine', `使用 AI 缓存结果: ${symbol}`)
         return cached.signal
       }
 
@@ -455,13 +455,16 @@ ${promptConfig.userPrompt}
   private validateSignal(signal: TradeSignal): boolean {
     // 检查必填字段
     if (!signal.strategyId || !signal.symbol || !signal.direction || !signal.action) {
-      logger.warn('StrategyEngine', '信号缺少必填字段')
+      logger.info('StrategyEngine', `[缺失字段] 策略ID=${signal.strategyId || '未知'} 交易对=${signal.symbol || '未知'} 方向=${signal.direction || '未知'} 操作=${signal.action || '未知'}`);
       return false
     }
 
     // 检查置信度
     if (signal.confidence < 70) {
-      logger.warn('StrategyEngine', `信号置信度过低: ${signal.confidence}`)
+      // 获取策略名称
+      const strategyInstance = this.runningStrategies.get(signal.strategyId)
+      const strategyName = strategyInstance ? strategyInstance.strategy.name : '未知策略'
+      logger.info(`${signal.strategyId}`, `[${strategyName}] ${signal.symbol} @${signal.price}  ${signal.direction} 置信度（${signal.confidence} < 70）`);
       return false
     }
 

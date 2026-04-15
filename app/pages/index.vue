@@ -120,14 +120,6 @@
             <ClientOnly>
               <CurrentPositions />
             </ClientOnly>
-            <!-- 盈亏与胜率走势图 -->
-            <ClientOnly>
-              <PnLTrendChart />
-            </ClientOnly>
-            <!-- 手动开仓组件 -->
-            <ManualOpenPosition />
-            <!-- 系统配置组件 -->
-            <SystemConfig />
           </el-col>
 
           <!-- 中间 - 持仓和交易历史 -->

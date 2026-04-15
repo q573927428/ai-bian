@@ -80,10 +80,10 @@ const botStore = useBotStore()
 
 // 计算EMA周期（根据当前策略模式）
 const emaPeriods = computed(() => {
-  if (!botStore.config) return [14, 60] // 默认值
+  if (!botStore.config || !botStore.config.indicatorsConfig || !botStore.config.indicatorsConfig.emaPeriods) return [20, 60] // 默认值
   
   const strategyMode = botStore.config.strategyMode
-  const emaConfig = botStore.config.indicatorsConfig.emaPeriods[strategyMode]
+  const emaConfig = botStore.config.indicatorsConfig.emaPeriods[strategyMode] || { fast: 20, slow: 60 }
   
   // 返回fast和slow两个周期
   return [emaConfig.fast, emaConfig.slow]
