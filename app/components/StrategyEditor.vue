@@ -77,6 +77,7 @@
               <el-select v-model="indicator.type" placeholder="指标类型">
                 <el-option label="EMA" value="EMA" />
                 <el-option label="RSI" value="RSI" />
+                <el-option label="ADX" value="ADX" />
                 <el-option label="MACD" value="MACD" />
                 <el-option label="ATR" value="ATR" />
               </el-select>
@@ -209,18 +210,20 @@
             </el-form-item>
           </el-col>
         </el-row>
-        <el-form-item label="止盈盈亏比">
-          <el-row :gutter="10">
-            <el-col :span="6">
-              <span>TP1: </span>
+        
+        <el-row :gutter="20">
+          <el-col :span="8">
+            <el-form-item label="TP1止盈">
               <el-input-number v-model="form.riskManagement.takeProfitRatios[0]" :min="1" :max="10" :step="0.5" />
-            </el-col>
-            <el-col :span="6">
-              <span>TP2: </span>
+            </el-form-item>
+          </el-col>
+          <el-col :span="8">
+            <el-form-item label="TP2止盈">
               <el-input-number v-model="form.riskManagement.takeProfitRatios[1]" :min="1" :max="10" :step="0.5" />
-            </el-col>
-          </el-row>
-        </el-form-item>
+            </el-form-item>
+          </el-col>
+        </el-row>
+        
         <el-form-item label="移动止损">
           <el-switch v-model="form.riskManagement.trailingStop.enabled" />
           <span class="stat-label">激活: </span>
@@ -302,13 +305,14 @@ const form = reactive<CreateStrategyInput>({
     klineLimit: 300
   },
   indicators: [
-    { id: '1', type: 'EMA', params: { periods: [14, 60, 120] }, timeframes: ['1h'], enabled: true },
-    { id: '2', type: 'RSI', params: { period: 14 }, timeframes: ['1h'], enabled: true },
-    { id: '3', type: 'ATR', params: { period: 14 }, timeframes: ['1h'], enabled: true }
+    { id: '1', type: 'EMA', params: { periods: [14, 60, 120] }, timeframes: ['15m','1h','4h'], enabled: true },
+    { id: '2', type: 'RSI', params: { period: 14 }, timeframes: ['15m','1h','4h'], enabled: true },
+    { id: '3', type: 'ATR', params: { period: 14 }, timeframes: ['15m','1h','4h'], enabled: true },
+    { id: '4', type: 'ADX', params: { period: 14 }, timeframes: ['15m','1h','4h'], enabled: true }
   ],
   statistics: [
-    { id: '4', type: 'OI', params: { trendPeriod: 12, changePeriod: 24 }, timeframes: ['1h'], enabled: true },
-    { id: '5', type: 'Volume', params: { comparePeriod: 20 }, timeframes: ['1h'], enabled: true }
+    { id: '5', type: 'OI', params: { trendPeriod: 12, changePeriod: 24 }, timeframes: ['1h'], enabled: true },
+    { id: '6', type: 'Volume', params: { comparePeriod: 20 }, timeframes: ['1h'], enabled: true }
   ],
   aiPrompt: {
     systemPrompt: '你是一个专业的加密货币交易分析师。请根据提供的技术指标和市场数据，给出明确的交易信号。',

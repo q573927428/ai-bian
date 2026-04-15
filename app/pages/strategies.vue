@@ -60,7 +60,7 @@
             {{ formatDate(row.createdAt) }}
           </template>
         </el-table-column>
-        <el-table-column label="操作" fixed="right" width="280">
+        <el-table-column label="操作" fixed="right" width="360">
           <template #default="{ row }">
             <el-button size="small" @click="editStrategy(row)">编辑</el-button>
             <el-button
@@ -69,6 +69,15 @@
               @click="toggleStrategy(row)"
             >
               {{ row.isActive ? '停用' : '激活' }}
+            </el-button>
+            <el-button 
+              size="small" 
+              type="success" 
+              @click="testStrategy(row)" 
+              :disabled="!row.isActive"
+              :loading="testingStrategies.has(row.id)"
+            >
+              手动分析
             </el-button>
             <el-button size="small" @click="showVersionHistory(row)">版本</el-button>
             <el-button size="small" type="danger" @click="deleteStrategy(row)">删除</el-button>
@@ -114,6 +123,7 @@ const showCreateDialog = ref(false)
 const showVersionHistoryDialog = ref(false)
 const editingStrategy = ref<Strategy | null>(null)
 const viewingStrategy = ref<Strategy | null>(null)
+const testingStrategies = ref<Set<string>>(new Set())
 
 // 加载策略列表
 const loadStrategies = async () => {
@@ -228,6 +238,46 @@ const getStatusText = (strategy: Strategy) => {
 // 格式化日期
 const formatDate = (dateStr: string) => {
   return new Date(dateStr).toLocaleString('zh-CN')
+}
+
+// 手动测试策略
+const testStrategy = async (strategy: Strategy) => {
+  try {
+    let symbol = strategy.marketData.symbols[0]
+    
+    // 如果有多个交易对，让用户选择
+    if (strategy.marketData.symbols.length > 1) {
+      // @ts-ignore
+      const result = await ElMessageBox.prompt('请选择要测试的交易对', '手动分析', {
+        inputPattern: /^[A-Z]+\/[A-Z]+$/,
+        inputErrorMessage: '交易对格式不正确，例如 BTC/USDT'
+      }).catch(() => null)
+      
+      if (!result || !result.value) return
+      symbol = result.value
+    }
+
+    // 设置加载状态
+    testingStrategies.value.add(strategy.id)
+    
+    const res = await $fetch(`/api/strategies/${strategy.id}/test`, {
+      method: 'POST',
+      body: { symbol }
+    })
+
+    if (res.success) {
+      // @ts-ignore
+      ElMessage.success(`分析完成: ${res.data.message}`)
+    } else {
+      // @ts-ignore
+      ElMessage.error(res.error)
+    }
+  } catch (error: any) {
+    // @ts-ignore
+    ElMessage.error(`分析失败: ${error.message}`)
+  } finally {
+    testingStrategies.value.delete(strategy.id)
+  }
 }
 
 // 清理AI缓存

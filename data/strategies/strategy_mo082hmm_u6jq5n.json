@@ -1,20 +1,20 @@
 {
-  "id": "strategy_mo015o9z_6vn3m5",
+  "id": "strategy_mo082hmm_u6jq5n",
   "name": "策略002",
-  "description": "我的策略002描述",
+  "description": "策略002",
   "version": 2,
-  "createdAt": "2026-04-15T12:32:10.535Z",
-  "updatedAt": "2026-04-15T12:34:30.068Z",
+  "createdAt": "2026-04-15T15:45:39.262Z",
+  "updatedAt": "2026-04-15T15:51:35.544Z",
   "isActive": true,
   "marketData": {
     "symbols": [
-      "BTC/USDT",
+      "BNB/USDT",
       "SOL/USDT"
     ],
     "timeframes": [
       "1h",
-      "15m",
-      "4h"
+      "4h",
+      "1d"
     ],
     "klineLimit": 300
   },
@@ -30,8 +30,8 @@
         ]
       },
       "timeframes": [
-        "1h",
         "15m",
+        "1h",
         "4h"
       ],
       "enabled": true
@@ -43,8 +43,8 @@
         "period": 14
       },
       "timeframes": [
-        "1h",
         "15m",
+        "1h",
         "4h"
       ],
       "enabled": true
@@ -56,8 +56,21 @@
         "period": 14
       },
       "timeframes": [
-        "1h",
         "15m",
+        "1h",
+        "4h"
+      ],
+      "enabled": true
+    },
+    {
+      "id": "4",
+      "type": "ADX",
+      "params": {
+        "period": 14
+      },
+      "timeframes": [
+        "15m",
+        "1h",
         "4h"
       ],
       "enabled": true
@@ -65,7 +78,7 @@
   ],
   "statistics": [
     {
-      "id": "4",
+      "id": "5",
       "type": "OI",
       "params": {
         "trendPeriod": 12,
@@ -77,7 +90,7 @@
       "enabled": true
     },
     {
-      "id": "5",
+      "id": "6",
       "type": "Volume",
       "params": {
         "comparePeriod": 20
@@ -90,13 +103,13 @@
   ],
   "aiPrompt": {
     "systemPrompt": "你是一个专业的加密货币交易分析师。请根据提供的技术指标和市场数据，给出明确的交易信号。",
-    "userPrompt": "以下是一个基于**多时间框架趋势确认 + 波动率过滤 + 风险控制**的专业策略逻辑，用于生成 JSON 格式的开仓建议。  \n我不会实时获取数据，但会说明策略如何判断“趋势明确”并输出结果。\n\n---\n\n## 策略核心规则\n\n### 1. 趋势明确的判定条件（同时满足）\n- **日线级别**：  \n  - EMA20 与 EMA50 同向排列（多头：EMA20 > EMA50；空头：EMA20 < EMA50）  \n  - ADX(14) > 25 且 DI+ 与 DI- 差值 > 5\n- **4小时级别**：  \n  - 价格同时位于 EMA20 与 EMA50 上方（多）/ 下方（空）\n  - MACD(12,26,9) 柱状体连续 3 根同向扩大\n- **波动率过滤**：  \n  - ATR(14) 处于过去 20 根 K 线的 30%~70% 分位（避免极低波动假突破与极高波动无序行情）\n\n### 2. 风险控制规则\n- 单次建议风险敞口 ≤ 2% 账户净值\n- 止损距离 ≥ 1.5 × ATR(14)\n- 若市场出现重大数据前 2 小时（如非农、CPI、FOMC），不开新仓\n\n### 3. 输出要求\n- `direction`：仅当趋势明确时才输出 `\"long\"` 或 `\"short\"`，否则输出 `\"wait\"`\n- `confidence`：基于 ADX + 均线分离度 + 趋势持续性（连续同向 K 线数）计算，低于 60 不输出信号\n- `reasoning`：简要列出技术指标证据\n\n---\n\n## 示例输出（假设当前市场满足多头趋势）\n\n```json\n{\n  \"direction\": \"long\",\n  \"confidence\": 78,\n  \"reasoning\": \"日线EMA20>EMA50且ADX=32，DI+领先DI-；4H价格在双EMA之上，MACD柱连续4根扩大；ATR处于正常区间，无重大数据临近。止损设于1.5倍ATR下方。\"\n}\n```\n\n## 示例输出（趋势不明确）\n\n```json\n{\n  \"direction\": \"wait\",\n  \"confidence\": 0,\n  \"reasoning\": \"ADX=18低于阈值，均线缠绕，多空无明确方向。\"\n}\n```\n\n---\n\n如果你需要我基于**当前真实市场数据**（如 BTC/USDT、EUR/USD）运行此策略并给出一次具体输出，请告诉我**交易对**和**时间周期**（如 4H/日线），我会模拟执行并返回 JSON。",
-    "temperature": 0.5,
+    "userPrompt": "以下是一个基于**多时间框架趋势确认 + 波动率过滤 + 风险控制**的专业策略逻辑，用于生成 JSON 格式的开仓建议。  \n我不会实时获取数据，但会说明策略如何判断“趋势明确”并输出结果。",
+    "temperature": 0.7,
     "maxTokens": 2000,
     "model": "deepseek-chat"
   },
   "riskManagement": {
-    "maxRiskPercentage": 20,
+    "maxRiskPercentage": 12,
     "stopLossATRMultiplier": 2.5,
     "takeProfitRatios": [
       2.5,
@@ -120,22 +133,25 @@
   "versionHistory": [
     {
       "version": 1,
-      "updatedAt": "2026-04-15T12:32:10.535Z",
+      "updatedAt": "2026-04-15T15:45:39.262Z",
       "changes": "初始版本创建",
       "snapshot": {
-        "id": "strategy_mo015o9z_6vn3m5",
+        "id": "strategy_mo082hmm_u6jq5n",
         "name": "策略002",
-        "description": "我的策略002描述",
+        "description": "策略002",
         "version": 1,
-        "createdAt": "2026-04-15T12:32:10.535Z",
-        "updatedAt": "2026-04-15T12:32:10.535Z",
+        "createdAt": "2026-04-15T15:45:39.262Z",
+        "updatedAt": "2026-04-15T15:45:39.262Z",
         "isActive": false,
         "marketData": {
-          "symbols": [],
+          "symbols": [
+            "BNB/USDT",
+            "SOL/USDT"
+          ],
           "timeframes": [
             "1h",
-            "15m",
-            "4h"
+            "4h",
+            "1d"
           ],
           "klineLimit": 300
         },
@@ -151,8 +167,8 @@
               ]
             },
             "timeframes": [
-              "1h",
               "15m",
+              "1h",
               "4h"
             ],
             "enabled": true
@@ -164,8 +180,8 @@
               "period": 14
             },
             "timeframes": [
-              "1h",
               "15m",
+              "1h",
               "4h"
             ],
             "enabled": true
@@ -177,8 +193,21 @@
               "period": 14
             },
             "timeframes": [
-              "1h",
               "15m",
+              "1h",
+              "4h"
+            ],
+            "enabled": true
+          },
+          {
+            "id": "4",
+            "type": "ADX",
+            "params": {
+              "period": 14
+            },
+            "timeframes": [
+              "15m",
+              "1h",
               "4h"
             ],
             "enabled": true
@@ -186,7 +215,7 @@
         ],
         "statistics": [
           {
-            "id": "4",
+            "id": "5",
             "type": "OI",
             "params": {
               "trendPeriod": 12,
@@ -198,7 +227,7 @@
             "enabled": true
           },
           {
-            "id": "5",
+            "id": "6",
             "type": "Volume",
             "params": {
               "comparePeriod": 20
@@ -212,12 +241,12 @@
         "aiPrompt": {
           "systemPrompt": "你是一个专业的加密货币交易分析师。请根据提供的技术指标和市场数据，给出明确的交易信号。",
           "userPrompt": "以下是一个基于**多时间框架趋势确认 + 波动率过滤 + 风险控制**的专业策略逻辑，用于生成 JSON 格式的开仓建议。  \n我不会实时获取数据，但会说明策略如何判断“趋势明确”并输出结果。\n\n---\n\n## 策略核心规则\n\n### 1. 趋势明确的判定条件（同时满足）\n- **日线级别**：  \n  - EMA20 与 EMA50 同向排列（多头：EMA20 > EMA50；空头：EMA20 < EMA50）  \n  - ADX(14) > 25 且 DI+ 与 DI- 差值 > 5\n- **4小时级别**：  \n  - 价格同时位于 EMA20 与 EMA50 上方（多）/ 下方（空）\n  - MACD(12,26,9) 柱状体连续 3 根同向扩大\n- **波动率过滤**：  \n  - ATR(14) 处于过去 20 根 K 线的 30%~70% 分位（避免极低波动假突破与极高波动无序行情）\n\n### 2. 风险控制规则\n- 单次建议风险敞口 ≤ 2% 账户净值\n- 止损距离 ≥ 1.5 × ATR(14)\n- 若市场出现重大数据前 2 小时（如非农、CPI、FOMC），不开新仓\n\n### 3. 输出要求\n- `direction`：仅当趋势明确时才输出 `\"long\"` 或 `\"short\"`，否则输出 `\"wait\"`\n- `confidence`：基于 ADX + 均线分离度 + 趋势持续性（连续同向 K 线数）计算，低于 60 不输出信号\n- `reasoning`：简要列出技术指标证据\n\n---\n\n## 示例输出（假设当前市场满足多头趋势）\n\n```json\n{\n  \"direction\": \"long\",\n  \"confidence\": 78,\n  \"reasoning\": \"日线EMA20>EMA50且ADX=32，DI+领先DI-；4H价格在双EMA之上，MACD柱连续4根扩大；ATR处于正常区间，无重大数据临近。止损设于1.5倍ATR下方。\"\n}\n```\n\n## 示例输出（趋势不明确）\n\n```json\n{\n  \"direction\": \"wait\",\n  \"confidence\": 0,\n  \"reasoning\": \"ADX=18低于阈值，均线缠绕，多空无明确方向。\"\n}\n```\n\n---\n\n如果你需要我基于**当前真实市场数据**（如 BTC/USDT、EUR/USD）运行此策略并给出一次具体输出，请告诉我**交易对**和**时间周期**（如 4H/日线），我会模拟执行并返回 JSON。",
-          "temperature": 0.5,
+          "temperature": 0.7,
           "maxTokens": 2000,
           "model": "deepseek-chat"
         },
         "riskManagement": {
-          "maxRiskPercentage": 20,
+          "maxRiskPercentage": 12,
           "stopLossATRMultiplier": 2.5,
           "takeProfitRatios": [
             2.5,
@@ -243,22 +272,25 @@
     },
     {
       "version": 2,
-      "updatedAt": "2026-04-15T12:34:30.068Z",
+      "updatedAt": "2026-04-15T15:51:35.544Z",
       "changes": "通过编辑器更新",
       "snapshot": {
-        "id": "strategy_mo015o9z_6vn3m5",
+        "id": "strategy_mo082hmm_u6jq5n",
         "name": "策略002",
-        "description": "我的策略002描述",
+        "description": "策略002",
         "version": 1,
-        "createdAt": "2026-04-15T12:32:10.535Z",
-        "updatedAt": "2026-04-15T12:32:18.415Z",
+        "createdAt": "2026-04-15T15:45:39.262Z",
+        "updatedAt": "2026-04-15T15:45:46.895Z",
         "isActive": true,
         "marketData": {
-          "symbols": [],
+          "symbols": [
+            "BNB/USDT",
+            "SOL/USDT"
+          ],
           "timeframes": [
             "1h",
-            "15m",
-            "4h"
+            "4h",
+            "1d"
           ],
           "klineLimit": 300
         },
@@ -274,8 +306,8 @@
               ]
             },
             "timeframes": [
-              "1h",
               "15m",
+              "1h",
               "4h"
             ],
             "enabled": true
@@ -287,8 +319,8 @@
               "period": 14
             },
             "timeframes": [
-              "1h",
               "15m",
+              "1h",
               "4h"
             ],
             "enabled": true
@@ -300,8 +332,21 @@
               "period": 14
             },
             "timeframes": [
-              "1h",
               "15m",
+              "1h",
+              "4h"
+            ],
+            "enabled": true
+          },
+          {
+            "id": "4",
+            "type": "ADX",
+            "params": {
+              "period": 14
+            },
+            "timeframes": [
+              "15m",
+              "1h",
               "4h"
             ],
             "enabled": true
@@ -309,7 +354,7 @@
         ],
         "statistics": [
           {
-            "id": "4",
+            "id": "5",
             "type": "OI",
             "params": {
               "trendPeriod": 12,
@@ -321,7 +366,7 @@
             "enabled": true
           },
           {
-            "id": "5",
+            "id": "6",
             "type": "Volume",
             "params": {
               "comparePeriod": 20
@@ -335,12 +380,12 @@
         "aiPrompt": {
           "systemPrompt": "你是一个专业的加密货币交易分析师。请根据提供的技术指标和市场数据，给出明确的交易信号。",
           "userPrompt": "以下是一个基于**多时间框架趋势确认 + 波动率过滤 + 风险控制**的专业策略逻辑，用于生成 JSON 格式的开仓建议。  \n我不会实时获取数据，但会说明策略如何判断“趋势明确”并输出结果。\n\n---\n\n## 策略核心规则\n\n### 1. 趋势明确的判定条件（同时满足）\n- **日线级别**：  \n  - EMA20 与 EMA50 同向排列（多头：EMA20 > EMA50；空头：EMA20 < EMA50）  \n  - ADX(14) > 25 且 DI+ 与 DI- 差值 > 5\n- **4小时级别**：  \n  - 价格同时位于 EMA20 与 EMA50 上方（多）/ 下方（空）\n  - MACD(12,26,9) 柱状体连续 3 根同向扩大\n- **波动率过滤**：  \n  - ATR(14) 处于过去 20 根 K 线的 30%~70% 分位（避免极低波动假突破与极高波动无序行情）\n\n### 2. 风险控制规则\n- 单次建议风险敞口 ≤ 2% 账户净值\n- 止损距离 ≥ 1.5 × ATR(14)\n- 若市场出现重大数据前 2 小时（如非农、CPI、FOMC），不开新仓\n\n### 3. 输出要求\n- `direction`：仅当趋势明确时才输出 `\"long\"` 或 `\"short\"`，否则输出 `\"wait\"`\n- `confidence`：基于 ADX + 均线分离度 + 趋势持续性（连续同向 K 线数）计算，低于 60 不输出信号\n- `reasoning`：简要列出技术指标证据\n\n---\n\n## 示例输出（假设当前市场满足多头趋势）\n\n```json\n{\n  \"direction\": \"long\",\n  \"confidence\": 78,\n  \"reasoning\": \"日线EMA20>EMA50且ADX=32，DI+领先DI-；4H价格在双EMA之上，MACD柱连续4根扩大；ATR处于正常区间，无重大数据临近。止损设于1.5倍ATR下方。\"\n}\n```\n\n## 示例输出（趋势不明确）\n\n```json\n{\n  \"direction\": \"wait\",\n  \"confidence\": 0,\n  \"reasoning\": \"ADX=18低于阈值，均线缠绕，多空无明确方向。\"\n}\n```\n\n---\n\n如果你需要我基于**当前真实市场数据**（如 BTC/USDT、EUR/USD）运行此策略并给出一次具体输出，请告诉我**交易对**和**时间周期**（如 4H/日线），我会模拟执行并返回 JSON。",
-          "temperature": 0.5,
+          "temperature": 0.7,
           "maxTokens": 2000,
           "model": "deepseek-chat"
         },
         "riskManagement": {
-          "maxRiskPercentage": 20,
+          "maxRiskPercentage": 12,
           "stopLossATRMultiplier": 2.5,
           "takeProfitRatios": [
             2.5,
@@ -364,22 +409,25 @@
         "versionHistory": [
           {
             "version": 1,
-            "updatedAt": "2026-04-15T12:32:10.535Z",
+            "updatedAt": "2026-04-15T15:45:39.262Z",
             "changes": "初始版本创建",
             "snapshot": {
-              "id": "strategy_mo015o9z_6vn3m5",
+              "id": "strategy_mo082hmm_u6jq5n",
               "name": "策略002",
-              "description": "我的策略002描述",
+              "description": "策略002",
               "version": 1,
-              "createdAt": "2026-04-15T12:32:10.535Z",
-              "updatedAt": "2026-04-15T12:32:10.535Z",
+              "createdAt": "2026-04-15T15:45:39.262Z",
+              "updatedAt": "2026-04-15T15:45:39.262Z",
               "isActive": false,
               "marketData": {
-                "symbols": [],
+                "symbols": [
+                  "BNB/USDT",
+                  "SOL/USDT"
+                ],
                 "timeframes": [
                   "1h",
-                  "15m",
-                  "4h"
+                  "4h",
+                  "1d"
                 ],
                 "klineLimit": 300
               },
@@ -395,8 +443,8 @@
                     ]
                   },
                   "timeframes": [
-                    "1h",
                     "15m",
+                    "1h",
                     "4h"
                   ],
                   "enabled": true
@@ -408,8 +456,8 @@
                     "period": 14
                   },
                   "timeframes": [
-                    "1h",
                     "15m",
+                    "1h",
                     "4h"
                   ],
                   "enabled": true
@@ -421,8 +469,21 @@
                     "period": 14
                   },
                   "timeframes": [
-                    "1h",
                     "15m",
+                    "1h",
+                    "4h"
+                  ],
+                  "enabled": true
+                },
+                {
+                  "id": "4",
+                  "type": "ADX",
+                  "params": {
+                    "period": 14
+                  },
+                  "timeframes": [
+                    "15m",
+                    "1h",
                     "4h"
                   ],
                   "enabled": true
@@ -430,7 +491,7 @@
               ],
               "statistics": [
                 {
-                  "id": "4",
+                  "id": "5",
                   "type": "OI",
                   "params": {
                     "trendPeriod": 12,
@@ -442,7 +503,7 @@
                   "enabled": true
                 },
                 {
-                  "id": "5",
+                  "id": "6",
                   "type": "Volume",
                   "params": {
                     "comparePeriod": 20
@@ -456,12 +517,12 @@
               "aiPrompt": {
                 "systemPrompt": "你是一个专业的加密货币交易分析师。请根据提供的技术指标和市场数据，给出明确的交易信号。",
                 "userPrompt": "以下是一个基于**多时间框架趋势确认 + 波动率过滤 + 风险控制**的专业策略逻辑，用于生成 JSON 格式的开仓建议。  \n我不会实时获取数据，但会说明策略如何判断“趋势明确”并输出结果。\n\n---\n\n## 策略核心规则\n\n### 1. 趋势明确的判定条件（同时满足）\n- **日线级别**：  \n  - EMA20 与 EMA50 同向排列（多头：EMA20 > EMA50；空头：EMA20 < EMA50）  \n  - ADX(14) > 25 且 DI+ 与 DI- 差值 > 5\n- **4小时级别**：  \n  - 价格同时位于 EMA20 与 EMA50 上方（多）/ 下方（空）\n  - MACD(12,26,9) 柱状体连续 3 根同向扩大\n- **波动率过滤**：  \n  - ATR(14) 处于过去 20 根 K 线的 30%~70% 分位（避免极低波动假突破与极高波动无序行情）\n\n### 2. 风险控制规则\n- 单次建议风险敞口 ≤ 2% 账户净值\n- 止损距离 ≥ 1.5 × ATR(14)\n- 若市场出现重大数据前 2 小时（如非农、CPI、FOMC），不开新仓\n\n### 3. 输出要求\n- `direction`：仅当趋势明确时才输出 `\"long\"` 或 `\"short\"`，否则输出 `\"wait\"`\n- `confidence`：基于 ADX + 均线分离度 + 趋势持续性（连续同向 K 线数）计算，低于 60 不输出信号\n- `reasoning`：简要列出技术指标证据\n\n---\n\n## 示例输出（假设当前市场满足多头趋势）\n\n```json\n{\n  \"direction\": \"long\",\n  \"confidence\": 78,\n  \"reasoning\": \"日线EMA20>EMA50且ADX=32，DI+领先DI-；4H价格在双EMA之上，MACD柱连续4根扩大；ATR处于正常区间，无重大数据临近。止损设于1.5倍ATR下方。\"\n}\n```\n\n## 示例输出（趋势不明确）\n\n```json\n{\n  \"direction\": \"wait\",\n  \"confidence\": 0,\n  \"reasoning\": \"ADX=18低于阈值，均线缠绕，多空无明确方向。\"\n}\n```\n\n---\n\n如果你需要我基于**当前真实市场数据**（如 BTC/USDT、EUR/USD）运行此策略并给出一次具体输出，请告诉我**交易对**和**时间周期**（如 4H/日线），我会模拟执行并返回 JSON。",
-                "temperature": 0.5,
+                "temperature": 0.7,
                 "maxTokens": 2000,
                 "model": "deepseek-chat"
               },
               "riskManagement": {
-                "maxRiskPercentage": 20,
+                "maxRiskPercentage": 12,
                 "stopLossATRMultiplier": 2.5,
                 "takeProfitRatios": [
                   2.5,
