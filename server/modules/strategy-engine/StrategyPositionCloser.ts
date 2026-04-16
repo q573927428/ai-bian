@@ -78,16 +78,54 @@ export class StrategyPositionCloser {
     if (!this.config) {
       logger.warn('StrategyPositionCloser', 'config 未初始化，使用默认配置')
       return {
-        maxDailyLossPercent: 10,
-        maxConsecutiveLosses: 5
+        circuitBreaker: {
+          dailyLossThreshold: 10,
+          consecutiveLossesThreshold: 5
+        },
+        forceLiquidateTime: {
+          enabled: false,
+          hour: 0,
+          minute: 0
+        },
+        takeProfit: {
+          tp1RiskRewardRatio: 1,
+          tp2RiskRewardRatio: 2,
+          tp1MinProfitRatio: 1,
+          rsiExtreme: {
+            long: 70,
+            short: 30
+          },
+          adxDecreaseThreshold: 0.5,
+          adxSlopePeriod: 3
+        },
+        dailyTradeLimit: 10
       }
     }
     
     if (!this.config.riskConfig) {
       logger.warn('StrategyPositionCloser', 'riskConfig 未初始化，使用默认配置')
       return {
-        maxDailyLossPercent: 10,
-        maxConsecutiveLosses: 5
+        circuitBreaker: {
+          dailyLossThreshold: 10,
+          consecutiveLossesThreshold: 5
+        },
+        forceLiquidateTime: {
+          enabled: false,
+          hour: 0,
+          minute: 0
+        },
+        takeProfit: {
+          tp1RiskRewardRatio: 1,
+          tp2RiskRewardRatio: 2,
+          tp1MinProfitRatio: 1,
+          rsiExtreme: {
+            long: 70,
+            short: 30
+          },
+          adxDecreaseThreshold: 0.5,
+          adxSlopePeriod: 3
+        },
+        dailyTradeLimit: 10
       }
     }
     
