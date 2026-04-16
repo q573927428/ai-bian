@@ -58,24 +58,35 @@ export class PositionManager {
     })
   }
 
+  // 防抖定时器
+  private persistTimer: NodeJS.Timeout | null = null
+  
   /**
-   * 持久化当前状态到本地文件
+   * 持久化当前状态到本地文件（带防抖）
    */
   private async _persistState(): Promise<void> {
-    try {
-      // 保存活跃持仓
-      const positions = this.getActivePositions()
-      await saveActivePositions(positions)
-
-      // 保存交易对锁
-      const locks: Record<string, string> = {}
-      for (const [symbol, strategyId] of this.symbolLocks.entries()) {
-        locks[symbol] = strategyId
-      }
-      await saveSymbolLocks(locks)
-    } catch (error: any) {
-      logger.error('PositionManager', '持久化状态失败:', error.message)
+    // 清除之前的定时器
+    if (this.persistTimer) {
+      clearTimeout(this.persistTimer)
     }
+    
+    // 设置新的定时器，延迟100ms执行，避免频繁写入
+    this.persistTimer = setTimeout(async () => {
+      try {
+        // 保存活跃持仓
+        const positions = this.getActivePositions()
+        await saveActivePositions(positions)
+
+        // 保存交易对锁
+        const locks: Record<string, string> = {}
+        for (const [symbol, strategyId] of this.symbolLocks.entries()) {
+          locks[symbol] = strategyId
+        }
+        await saveSymbolLocks(locks)
+      } catch (error: any) {
+        logger.error('PositionManager', '持久化状态失败:', error.message)
+      }
+    }, 100)
   }
 
   /**

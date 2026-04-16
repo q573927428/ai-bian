@@ -12,13 +12,39 @@ const ACTIVE_POSITIONS_FILE = join(DATA_DIR, 'active-positions.json')
 const SYMBOL_LOCKS_FILE = join(DATA_DIR, 'symbol-locks.json')
 const CONFIG_FILE = join(DATA_DIR, 'bot-config.json')
 
+// 文件锁机制，防止并发写入
+const fileLocks = new Map<string, Promise<void>>()
+
+/**
+ * 安全写入文件（带锁机制）
+ */
+async function safeWriteFile(filePath: string, content: string): Promise<void> {
+  // 获取或创建锁
+  let lock = fileLocks.get(filePath) || Promise.resolve()
+  
+  // 创建新的锁链
+  const newLock = lock.then(async () => {
+    try {
+      await writeFile(filePath, content, 'utf-8')
+    } finally {
+      // 写入完成后移除锁
+      if (fileLocks.get(filePath) === newLock) {
+        fileLocks.delete(filePath)
+      }
+    }
+  })
+  
+  fileLocks.set(filePath, newLock)
+  return newLock
+}
+
 /**
  * 保存机器人状态
  */
 export async function saveBotState(state: BotState): Promise<void> {
   try {
     await ensureDataDir()
-    await writeFile(STATE_FILE, JSON.stringify(state, null, 2), 'utf-8')
+    await safeWriteFile(STATE_FILE, JSON.stringify(state, null, 2))
   } catch (error: any) {
     console.error('保存状态失败:', error.message)
     throw error
@@ -99,7 +125,7 @@ export async function addTradeHistory(trade: TradeHistory): Promise<void> {
     // 按关闭时间排序，最新的在前面
     history.sort((a, b) => b.closeTime - a.closeTime)
     
-    await writeFile(HISTORY_FILE, JSON.stringify(history, null, 2), 'utf-8')
+    await safeWriteFile(HISTORY_FILE, JSON.stringify(history, null, 2))
     console.log(`交易历史已保存: ${trade.symbol} ${trade.direction} PnL: ${trade.pnl.toFixed(2)} USDT`)
   } catch (error: any) {
     console.error('保存交易历史失败:', error.message)
@@ -145,7 +171,7 @@ export async function saveActivePositions(positions: PositionInfo[]): Promise<vo
       // 确保 position 对象也可序列化
       position: pos.position ? { ...pos.position } : undefined
     }))
-    await writeFile(ACTIVE_POSITIONS_FILE, JSON.stringify(safePositions, null, 2), 'utf-8')
+    await safeWriteFile(ACTIVE_POSITIONS_FILE, JSON.stringify(safePositions, null, 2))
   } catch (error: any) {
     console.error('保存活跃持仓失败:', error.message)
     throw error
@@ -179,7 +205,7 @@ export async function loadActivePositions(): Promise<PositionInfo[]> {
       if (existsSync(ACTIVE_POSITIONS_FILE)) {
         const backupPath = ACTIVE_POSITIONS_FILE + '.backup-' + Date.now()
         const data = await readFile(ACTIVE_POSITIONS_FILE, 'utf-8')
-        await writeFile(backupPath, data, 'utf-8')
+        await safeWriteFile(backupPath, data)
         console.warn(`已备份损坏的活跃持仓文件到: ${backupPath}`)
       }
     } catch (backupError: any) {
@@ -195,7 +221,7 @@ export async function loadActivePositions(): Promise<PositionInfo[]> {
 export async function saveSymbolLocks(locks: Record<string, string>): Promise<void> {
   try {
     await ensureDataDir()
-    await writeFile(SYMBOL_LOCKS_FILE, JSON.stringify(locks, null, 2), 'utf-8')
+    await safeWriteFile(SYMBOL_LOCKS_FILE, JSON.stringify(locks, null, 2))
   } catch (error: any) {
     console.error('保存交易对锁失败:', error.message)
     throw error
