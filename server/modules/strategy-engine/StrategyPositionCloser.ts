@@ -37,6 +37,64 @@ export class StrategyPositionCloser {
   }
 
   /**
+   * 安全初始化 state，确保必要属性存在
+   */
+  private ensureStateInitialized(): void {
+    if (!this.state) {
+      this.state = {} as BotState
+    }
+    
+    // 初始化 dailyPnL
+    if (this.state.dailyPnL === undefined) {
+      this.state.dailyPnL = 0
+    }
+    
+    // 初始化 circuitBreaker
+    if (!this.state.circuitBreaker) {
+      this.state.circuitBreaker = {
+        isTriggered: false,
+        reason: '',
+        timestamp: Date.now(),
+        dailyLoss: 0,
+        consecutiveLosses: 0
+      }
+    }
+    
+    // 初始化 status
+    if (!this.state.status) {
+      this.state.status = PositionStatus.MONITORING
+    }
+    
+    // 初始化 isRunning
+    if (this.state.isRunning === undefined) {
+      this.state.isRunning = true
+    }
+  }
+
+  /**
+   * 安全获取 riskConfig，确保配置存在
+   */
+  private ensureRiskConfig(): any {
+    if (!this.config) {
+      logger.warn('StrategyPositionCloser', 'config 未初始化，使用默认配置')
+      return {
+        maxDailyLossPercent: 10,
+        maxConsecutiveLosses: 5
+      }
+    }
+    
+    if (!this.config.riskConfig) {
+      logger.warn('StrategyPositionCloser', 'riskConfig 未初始化，使用默认配置')
+      return {
+        maxDailyLossPercent: 10,
+        maxConsecutiveLosses: 5
+      }
+    }
+    
+    return this.config.riskConfig
+  }
+
+  /**
    * 平仓操作
    * @param symbol 交易对
    * @param reason 平仓原因
@@ -83,7 +141,10 @@ export class StrategyPositionCloser {
       // 5. 记录交易历史
       await recordTrade(position.strategyId, position.position!, finalExitPrice, reason)
 
-      // 6. 更新全局状态（临时兼容老架构）
+      // 6. 安全初始化 state
+      this.ensureStateInitialized()
+
+      // 7. 更新全局状态（临时兼容老架构）
       this.state.dailyPnL += pnl
       if (pnl < 0) {
         this.state.circuitBreaker.consecutiveLosses += 1
@@ -93,11 +154,12 @@ export class StrategyPositionCloser {
 
       // 7. 检查熔断
       const account = await this.binance.fetchBalance()
+      const riskConfig = this.ensureRiskConfig()
       const breaker = checkCircuitBreaker(
         this.state.dailyPnL,
         this.state.circuitBreaker.consecutiveLosses,
         account.balance,
-        this.config.riskConfig
+        riskConfig
       )
 
       this.state.circuitBreaker = breaker
@@ -307,6 +369,9 @@ export class StrategyPositionCloser {
       // 记录交易历史并更新状态（手动平仓）
       await recordTrade(position.strategyId, tempPosition, exitPrice, '手动平仓')
 
+      // 安全初始化 state
+      this.ensureStateInitialized()
+
       // 更新每日盈亏（手动平仓影响每日盈亏）
       this.state.dailyPnL += pnl
 
@@ -315,11 +380,12 @@ export class StrategyPositionCloser {
 
       // 检查熔断条件（只检查每日亏损，不计入连续止损）
       const account = await this.binance.fetchBalance()
+      const riskConfig = this.ensureRiskConfig()
       const breaker = checkCircuitBreaker(
         this.state.dailyPnL, 
         this.state.circuitBreaker.consecutiveLosses, // 保持原有连续止损次数
         account.balance, 
-        this.config.riskConfig
+        riskConfig
       )
 
       this.state.circuitBreaker = breaker
@@ -434,6 +500,8 @@ export class StrategyPositionCloser {
         logger.error('持仓一致性检查', '处理平仓流程失败', error.message)
         // 即使处理失败，也要清空本地状态
         this.positionManager.clearPosition(symbol)
+        // 安全初始化 state
+        this.ensureStateInitialized()
         this.state.status = PositionStatus.MONITORING
         await saveBotState(this.state)
       }
@@ -566,6 +634,9 @@ export class StrategyPositionCloser {
       // 记录交易历史并更新状态
       await recordTrade(position.strategyId, tempPosition, exitPrice, reason)
 
+      // 安全初始化 state
+      this.ensureStateInitialized()
+
       // 更新每日盈亏
       this.state.dailyPnL += pnl
 
@@ -579,7 +650,8 @@ export class StrategyPositionCloser {
 
       // 检查熔断条件
       const account = await this.binance.fetchBalance()
-      const breaker = checkCircuitBreaker(this.state.dailyPnL, consecutiveLosses, account.balance, this.config.riskConfig)
+      const riskConfig = this.ensureRiskConfig()
+      const breaker = checkCircuitBreaker(this.state.dailyPnL, consecutiveLosses, account.balance, riskConfig)
 
       this.state.circuitBreaker = breaker
       this.state.status = breaker.isTriggered ? PositionStatus.HALTED : PositionStatus.MONITORING

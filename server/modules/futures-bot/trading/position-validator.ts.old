@@ -38,6 +38,29 @@ export class PositionValidator {
   }
 
   /**
+   * 安全获取 riskConfig，确保配置存在
+   */
+  private ensureRiskConfig(): any {
+    if (!this.config) {
+      logger.warn('PositionValidator', 'config 未初始化，使用默认配置')
+      return {
+        maxDailyLossPercent: 10,
+        maxConsecutiveLosses: 5
+      }
+    }
+    
+    if (!this.config.riskConfig) {
+      logger.warn('PositionValidator', 'riskConfig 未初始化，使用默认配置')
+      return {
+        maxDailyLossPercent: 10,
+        maxConsecutiveLosses: 5
+      }
+    }
+    
+    return this.config.riskConfig
+  }
+
+  /**
    * 检测手动平仓
    * 注意：必须先检查止损订单状态，再检查市价/限价订单
    * 因为止损触发后会产生市价订单，如果先检查市价订单会被错误识别为手动平仓
@@ -176,11 +199,12 @@ export class PositionValidator {
 
       // 检查熔断条件（只检查每日亏损，不计入连续止损）
       const account = await this.binance.fetchBalance()
+      const riskConfig = this.ensureRiskConfig()
       const breaker = checkCircuitBreaker(
         this.state.dailyPnL, 
         this.state.circuitBreaker.consecutiveLosses, // 保持原有连续止损次数
         account.balance, 
-        this.config.riskConfig
+        riskConfig
       )
 
       this.state.circuitBreaker = breaker
@@ -415,7 +439,8 @@ export class PositionValidator {
 
       // 检查熔断条件
       const account = await this.binance.fetchBalance()
-      const breaker = checkCircuitBreaker(this.state.dailyPnL, consecutiveLosses, account.balance, this.config.riskConfig)
+      const riskConfig = this.ensureRiskConfig()
+      const breaker = checkCircuitBreaker(this.state.dailyPnL, consecutiveLosses, account.balance, riskConfig)
 
       this.state.circuitBreaker = breaker
       this.state.currentPosition = null

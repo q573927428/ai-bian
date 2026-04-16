@@ -139,7 +139,13 @@ export async function getTradeHistory(limit?: number): Promise<TradeHistory[]> {
 export async function saveActivePositions(positions: PositionInfo[]): Promise<void> {
   try {
     await ensureDataDir()
-    await writeFile(ACTIVE_POSITIONS_FILE, JSON.stringify(positions, null, 2), 'utf-8')
+    // 确保数据是可序列化
+    const safePositions = positions.map(pos => ({
+      ...pos,
+      // 确保 position 对象也可序列化
+      position: pos.position ? { ...pos.position } : undefined
+    }))
+    await writeFile(ACTIVE_POSITIONS_FILE, JSON.stringify(safePositions, null, 2), 'utf-8')
   } catch (error: any) {
     console.error('保存活跃持仓失败:', error.message)
     throw error
@@ -155,9 +161,30 @@ export async function loadActivePositions(): Promise<PositionInfo[]> {
       return []
     }
     const data = await readFile(ACTIVE_POSITIONS_FILE, 'utf-8')
-    return JSON.parse(data) || []
+    // 检查数据是否为空
+    if (!data.trim()) {
+      return []
+    }
+    const parsed = JSON.parse(data)
+    // 确保返回数组
+    if (!Array.isArray(parsed)) {
+      console.warn('活跃持仓文件格式不正确，返回空数组')
+      return []
+    }
+    return parsed
   } catch (error: any) {
     console.error('加载活跃持仓失败:', error.message)
+    // 如果加载失败，尝试备份损坏的文件并返回空数组
+    try {
+      if (existsSync(ACTIVE_POSITIONS_FILE)) {
+        const backupPath = ACTIVE_POSITIONS_FILE + '.backup-' + Date.now()
+        const data = await readFile(ACTIVE_POSITIONS_FILE, 'utf-8')
+        await writeFile(backupPath, data, 'utf-8')
+        console.warn(`已备份损坏的活跃持仓文件到: ${backupPath}`)
+      }
+    } catch (backupError: any) {
+      console.error('备份损坏文件失败:', backupError.message)
+    }
     return []
   }
 }
