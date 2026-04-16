@@ -17,82 +17,12 @@ export enum PositionStatus {
   HALTED = 'HALTED'        // 熔断停机
 }
 
-// 动态杠杆配置（极简版）
-export interface DynamicLeverageConfig {
-  enabled: boolean                    // 启用动态杠杆
-  minLeverage: number                 // 最小杠杆倍数 (2)
-  maxLeverage: number                 // 最大杠杆倍数 (20)
-  baseLeverage: number                // 基础杠杆倍数 (5)
-  riskLevelMultipliers: Record<RiskLevel, number> // 风险等级乘数
-}
-
 // 移动止损配置（简化版）
 export interface TrailingStopConfig {
   enabled: boolean                // 是否启用移动止损
   activationRatio: number         // 激活盈亏比（默认 0.5，即盈利达到风险的50%时启用）
   trailingDistance: number        // 跟踪距离（ATR倍数，默认 1.5）
   minMovePercent: number          // 最小移动幅度百分比（默认0.2，止损移动超过这个值才更新）
-}
-
-// 策略分析器持久化数据（用于项目重启时恢复）
-export interface StrategyAnalyzerData {
-  tradeId: string
-  symbol: string
-  direction: Direction
-  entryPrice: number
-  openTime: number
-  stopLossPrice: number
-  takeProfit1Price: number
-  takeProfit2Price: number
-  quantity: number
-  leverage: number
-  
-  // MFE/MAE跟踪
-  maxFavorableExcursion: number
-  maxFavorableExcursionPercentage: number
-  maxAdverseExcursion: number
-  maxAdverseExcursionPercentage: number
-  
-  // 最高价和最低价跟踪
-  highestPrice: number
-  lowestPrice: number
-  lastPrice: number
-  
-  // 入场指标（可选，因为可能在记录前重启）
-  entryIndicators?: {
-    rsi: number
-    adx15m: number
-    adx1h: number
-    adx4h: number
-    ema20: number
-    ema30: number
-    ema60: number
-    emaFastValues: number[]
-    emaMediumValues: number[]
-    emaSlowValues: number[]
-    atr: number
-    adxSlope: number
-    openInterest: number
-    openInterestChangePercent: number
-    openInterestTrend: 'increasing' | 'decreasing' | 'flat'
-  }
-  
-  // AI分析指标（可选）
-  aiAnalysis?: {
-    confidence: number
-    score: number
-    riskLevel: RiskLevel
-    reasoning: string
-    support?: number
-    resistance?: number
-  }
-  
-  // ATR增量计算数据（用于计算平均ATR）
-  atrSum: number
-  atrCount: number
-  
-  // 更新时间
-  lastUpdateTime: number
 }
 
 // 移动止损数据（简化版，只保存最后一次移动止损信息）
@@ -104,39 +34,6 @@ export interface TrailingStopData {
   lastTrailingStopPrice?: number      // 最后一次移动止损价格
   lastTrailingStopUpdateTime?: number // 最后一次移动止损更新时间
   trailingStopCount: number           // 移动止损总次数
-}
-
-// 价格突破配置
-export interface PriceBreakoutConfig {
-  enabled: boolean           // 是否启用价格突破指标
-  period: number            // 突破周期（默认5）
-  requireConfirmation: boolean // 是否需要收盘价确认（可配置开关）
-  confirmationCandles: number // 确认K线数量（默认1）
-}
-
-// 波动率过滤配置
-export interface VolatilityFilterConfig {
-  enabled: boolean           // 是否启用波动率过滤
-  minATRPercent: number      // 最小ATR百分比阈值（默认 0.5%）
-  skipSymbols: string[]      // 跳过波动率检查的交易对列表
-}
-
-// 价格行为(PA)策略配置
-export interface PriceActionConfig {
-  enabled: boolean               // 启用价格行为(PA)策略
-  skipOtherChecks: boolean       // 满足PA条件直接开仓，跳过所有其他检查
-  pinBarEnabled: boolean         // 启用Pin Bar针形K线检测
-  shadowBodyRatio: number        // Pin Bar影线/实体比例阈值
-  maxBodyRatio: number           // Pin Bar实体最大占比阈值
-  engulfingEnabled: boolean      // 启用吞没形态检测
-  minEngulfRatio: number         // 吞没形态最小实体比例阈值
-}
-
-// 预判交叉配置
-export interface PredictiveCrossConfig {
-  enabled: boolean               // 预判交叉总开关
-  distancePercent: number        // EMA快慢线距离小于此百分比时触发预判（默认0.08%）
-  onlyTrend: boolean             // 只在顺势时预判（默认true）
 }
 
 // EMA周期配置
@@ -155,6 +52,17 @@ export interface EMAPeriodsConfig {
   }
 }
 
+// 持仓量配置
+export interface OpenInterestConfig {
+  enabled: boolean
+  trendPeriod: number
+  changePeriod: {
+    short_term: number
+    medium_term: number
+  }
+  trendThresholdPercent: number
+}
+
 // 技术指标配置
 export interface IndicatorsConfig {
   // 计算指标所需K线数量
@@ -162,152 +70,44 @@ export interface IndicatorsConfig {
   
   // EMA周期配置
   emaPeriods: EMAPeriodsConfig
-
-  // EMA交叉直接入场开关（统一控制金叉做多/死叉做空）
-  crossEntryEnabled: boolean
   
-  // 是否显示交叉失败原因，默认false（生产模式不显示，日志更简洁）
-  showCrossFailureReason?: boolean
-  
-  // 预判交叉配置
-  predictiveCross: PredictiveCrossConfig
-  
-  // ADX趋势检查配置
-  adxTrend: {
-    adx1hThreshold: number        // 1小时ADX阈值 (默认 25)
-    adx4hThreshold: number        // 4小时ADX阈值 (默认 28)
-    adx15mThreshold: number       // 15分钟ADX阈值 (默认 30)
-    enableAdx15mVs1hCheck: boolean // 启用15分钟ADX > 1小时ADX检查 (默认 true)
-  }
-  
-  // 统一入场条件配置（PA风格，不再区分多空）
-  entryConfig: {
-    emaDeviationThreshold: number  // EMA偏离阈值 (默认 0.005 = 0.5%)
-    emaDeviationEnabled: boolean   // 是否启用EMA偏离检查 (默认 true)
-    emaSlowDeviationThreshold: number  // 慢速EMA偏离阈值 (默认 0.05 = 5%)，根据策略模式动态变化
-    emaSlowDeviationEnabled: boolean   // 是否启用慢速EMA偏离检查 (默认 true)，根据策略模式动态变化
-    rsiMin: number                 // RSI最小值 (默认 40)
-    rsiMax: number                 // RSI最大值 (默认 57.5，函数内部根据方向动态调整)
-    candleShadowThreshold: number  // K线影线阈值 (默认 0.005 = 0.5%)
-    volumeConfirmation: boolean    // 成交量确认 (默认 true)
-    volumeEMAPeriod: number        // EMA成交量周期 (默认 10)
-    volumeEMAMultiplier: number    // EMA成交量倍数 (默认 1.2)
-    minScoreThreshold: number      // 入场最低评分阈值 (默认 70)
-  }
-  
-  // 价格突破配置
-  priceBreakout: PriceBreakoutConfig
-  
-  // 波动率过滤配置
-  volatility: VolatilityFilterConfig
-  
-  // 价格行为(PA)策略配置
-  priceAction: PriceActionConfig
-  
-  // OI持仓量配置
-  openInterest: {
-    enabled: boolean // 是否启用OI分析
-    trendPeriod: number // OI趋势计算周期（默认10）
-    trendThresholdPercent: number // OI趋势变化阈值百分比（默认2%）
-    changePeriod: Record<StrategyMode, number> // OI变化率计算周期（根据策略模式）
-  }
+  // 持仓量配置
+  openInterest: OpenInterestConfig
 }
 
 // 系统配置
 export interface BotConfig {
   // 交易对
   symbols: string[]
-  
-  // 杠杆倍数（静态杠杆，当动态杠杆禁用时使用）
+
+  // 杠杆倍数
   leverage: number
-  
+
   // 单笔最大风险比例（%）
   maxRiskPercentage: number
-  
+
   // 止损ATR倍数
   stopLossATRMultiplier: number
-  
-  // 最大止损比例（%）
-  maxStopLossPercentage: number
-  
-  // 持仓超时时间（小时）
-  positionTimeoutHours: number
-  
-  // 市场扫描间隔（秒）- 用于寻找交易机会
+
+  // 市场扫描间隔（秒）
   scanInterval: number
-  
-  // 持仓扫描间隔（秒）- 用于监控持仓状态
-  positionScanInterval: number
-  
-  // 交易冷却时间间隔（秒）- 两次交易之间的最小间隔时间
-  tradeCooldownInterval: number
-  
+
   // 策略模式
   strategyMode: StrategyMode
-  
-  // AI分析配置
-  aiConfig: AIConfig
-  
+
   // 风险配置
   riskConfig: RiskConfig
-  
-  // 动态杠杆配置
-  dynamicLeverageConfig: DynamicLeverageConfig
-  
-  // 移动止损配置
-  trailingStopConfig: TrailingStopConfig
-  
+
   // 技术指标配置
   indicatorsConfig: IndicatorsConfig
 }
 
 // 风险配置
 export interface RiskConfig {
-  // 熔断配置
-  circuitBreaker: {
-    dailyLossThreshold: number      // 当日亏损阈值（%）
-    consecutiveLossesThreshold: number // 连续止损阈值（次）
-  }
-  
-  // 强制平仓时间
-  forceLiquidateTime: {
-    enabled: boolean    // 是否启用强制平仓
-    hour: number    // 小时（0-23）
-    minute: number  // 分钟（0-59）
-  }
-  
   // 止盈配置
   takeProfit: {
-    tp1RiskRewardRatio: number      // TP1盈亏比（1:1）
-    tp2RiskRewardRatio: number      // TP2盈亏比（1:2）
-    tp1MinProfitRatio: number       // TP2最小盈利比例（默认1R）
-    rsiExtreme: {
-      long: number   // 多头RSI极值
-      short: number  // 空头RSI极值
-    }
-    adxDecreaseThreshold: number    // ADX下降阈值
-    adxSlopePeriod: number          // ADX斜率计算周期（默认3）
+    adxSlopePeriod: number          // ADX斜率计算周期
   }
-  
-  // 每日交易限制
-  dailyTradeLimit: number
-}
-
-// AI配置
-export type AIConditionMode = 'SCORE_ONLY' | 'SCORE_AND_CONFIDENCE'
-export type AITechnicalPostAdjustmentMode = 'PENALTY_ONLY' | 'BALANCED'
-
-export interface AIConfig {
-  enabled: boolean          // 启用AI分析
-  analysisInterval?: number // AI分析间隔（秒）
-  minConfidence: number     // 最小置信度（0-100）
-  minScore: number          // 最小得分（0-100）   
-  maxRiskLevel: RiskLevel   // 最大风险等级
-  useForEntry: boolean      // 用于开仓决策
-  useForExit: boolean       // 用于平仓决策
-  cacheDuration: number     // 缓存时长（分钟）
-  conditionMode?: AIConditionMode // 入场判定模式：仅score或score+confidence
-  technicalPostAdjustmentMode?: AITechnicalPostAdjustmentMode // AI后处理模式：惩罚优先/平衡
 }
 
 // 市场数据
@@ -622,8 +422,6 @@ export interface BotState {
   // 优化相关字段
   lastIndicatorUpdate?: number  // 上次指标计算时间
   lastPrice?: number           // 上次计算指标时的价格
-  // 策略分析器持久化数据（用于项目重启时恢复）
-  strategyAnalyzerData?: StrategyAnalyzerData
 }
 
 // 加密货币余额

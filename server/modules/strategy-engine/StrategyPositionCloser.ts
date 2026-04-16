@@ -71,64 +71,14 @@ export class StrategyPositionCloser {
   }
 
   /**
-   * 安全获取 riskConfig，确保配置存在
+   * 获取熔断配置（使用默认值，兼容多策略架构）
+   * 注意：熔断配置现在应从策略级别获取，这里仅保留默认值用于向后兼容
    */
-  private ensureRiskConfig(): any {
-    if (!this.config) {
-      logger.warn('StrategyPositionCloser', 'config 未初始化，使用默认配置')
-      return {
-        circuitBreaker: {
-          dailyLossThreshold: 10,
-          consecutiveLossesThreshold: 5
-        },
-        forceLiquidateTime: {
-          enabled: false,
-          hour: 0,
-          minute: 0
-        },
-        takeProfit: {
-          tp1RiskRewardRatio: 1,
-          tp2RiskRewardRatio: 2,
-          tp1MinProfitRatio: 1,
-          rsiExtreme: {
-            long: 70,
-            short: 30
-          },
-          adxDecreaseThreshold: 0.5,
-          adxSlopePeriod: 3
-        },
-        dailyTradeLimit: 10
-      }
+  private getCircuitBreakerConfig(): { dailyLossThreshold: number; consecutiveLossesThreshold: number } {
+    return {
+      dailyLossThreshold: 10,
+      consecutiveLossesThreshold: 5
     }
-    
-    if (!this.config.riskConfig) {
-      logger.warn('StrategyPositionCloser', 'riskConfig 未初始化，使用默认配置')
-      return {
-        circuitBreaker: {
-          dailyLossThreshold: 10,
-          consecutiveLossesThreshold: 5
-        },
-        forceLiquidateTime: {
-          enabled: false,
-          hour: 0,
-          minute: 0
-        },
-        takeProfit: {
-          tp1RiskRewardRatio: 1,
-          tp2RiskRewardRatio: 2,
-          tp1MinProfitRatio: 1,
-          rsiExtreme: {
-            long: 70,
-            short: 30
-          },
-          adxDecreaseThreshold: 0.5,
-          adxSlopePeriod: 3
-        },
-        dailyTradeLimit: 10
-      }
-    }
-    
-    return this.config.riskConfig
   }
 
   /**
@@ -192,12 +142,12 @@ export class StrategyPositionCloser {
 
       // 7. 检查熔断
       const account = await this.binance.fetchBalance()
-      const riskConfig = this.ensureRiskConfig()
+      const circuitBreakerConfig = this.getCircuitBreakerConfig()
       const breaker = checkCircuitBreaker(
         this.state.dailyPnL,
         this.state.circuitBreaker.consecutiveLosses,
         account.balance,
-        riskConfig
+        circuitBreakerConfig
       )
 
       this.state.circuitBreaker = breaker
@@ -420,12 +370,12 @@ export class StrategyPositionCloser {
 
       // 检查熔断条件（只检查每日亏损，不计入连续止损）
       const account = await this.binance.fetchBalance()
-      const riskConfig = this.ensureRiskConfig()
+      const circuitBreakerConfig = this.getCircuitBreakerConfig()
       const breaker = checkCircuitBreaker(
         this.state.dailyPnL, 
         this.state.circuitBreaker.consecutiveLosses, // 保持原有连续止损次数
         account.balance, 
-        riskConfig
+        circuitBreakerConfig
       )
 
       this.state.circuitBreaker = breaker
@@ -692,8 +642,8 @@ export class StrategyPositionCloser {
 
       // 检查熔断条件
       const account = await this.binance.fetchBalance()
-      const riskConfig = this.ensureRiskConfig()
-      const breaker = checkCircuitBreaker(this.state.dailyPnL, consecutiveLosses, account.balance, riskConfig)
+      const circuitBreakerConfig = this.getCircuitBreakerConfig()
+      const breaker = checkCircuitBreaker(this.state.dailyPnL, consecutiveLosses, account.balance, circuitBreakerConfig)
 
       this.state.circuitBreaker = breaker
       this.state.status = breaker.isTriggered ? PositionStatus.HALTED : PositionStatus.MONITORING

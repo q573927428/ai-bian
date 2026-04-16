@@ -6,7 +6,9 @@ import { BinanceService } from '../../utils/binance'
 import { StrategyPositionCloser } from './StrategyPositionCloser'
 import { logger } from '../../utils/logger'
 import type { Strategy } from '../../../types/strategy'
-import type { BotConfig } from '../../../types'
+import type { BotConfig, Position } from '../../../types'
+import { checkTP1Condition, checkTP2Condition, isPositionTimeout, convertStrategyRiskConfig } from '../../utils/risk'
+import { calculateIndicators } from '../../utils/indicators-core'
 
 /**
  * 多策略持仓监控模块
@@ -194,29 +196,40 @@ export class StrategyPositionMonitor {
    * 检查止盈条件
    */
   private async checkTakeProfit(position: PositionInfo, strategy: Strategy, currentPrice: number): Promise<boolean> {
-    // 多头止盈：当前价 >= 止盈价
-    // 空头止盈：当前价 <= 止盈价
-    const tp1Hit = position.direction === 'long'
-      ? currentPrice >= position.position?.takeProfit1!
-      : currentPrice <= position.position?.takeProfit1!
+    try {
+      // 确保 position 有完整数据
+      if (!position.position) {
+        logger.warn('止盈', `${position.symbol} 缺少完整仓位信息，无法检查止盈`)
+        return false
+      }
 
-    const tp2Hit = position.direction === 'long'
-      ? currentPrice >= position.position?.takeProfit2!
-      : currentPrice <= position.position?.takeProfit2!
+      // 从策略配置转换到止盈配置
+      const { takeProfit } = convertStrategyRiskConfig(strategy.riskManagement)
 
-    if (tp2Hit) {
-      logger.info('止盈', `${position.symbol} 达到TP2止盈条件，价格: ${currentPrice}`)
-      await this.positionCloser.closePosition(position.symbol, 'TP2止盈', currentPrice)
-      return true
+      // 计算技术指标（需要 RSI 和 ADX 斜率）
+      const indicators = await calculateIndicators(this.binance, position.symbol, this.config)
+
+      // 检查 TP2 条件
+      const tp2Result = checkTP2Condition(position.position as Position, currentPrice, indicators, takeProfit)
+      if (tp2Result.shouldClose) {
+        logger.warn('止盈', `${position.symbol} ${tp2Result.reason}`)
+        await this.positionCloser.closePosition(position.symbol, tp2Result.reason, currentPrice)
+        return true
+      }
+
+      // 检查 TP1 条件
+      const tp1Result = checkTP1Condition(position.position as Position, currentPrice, indicators, takeProfit)
+      if (tp1Result.shouldClose) {
+        logger.warn('止盈', `${position.symbol} ${tp1Result.reason}`)
+        await this.positionCloser.closePosition(position.symbol, tp1Result.reason, currentPrice)
+        return true
+      }
+
+      return false
+    } catch (error: any) {
+      logger.error('止盈', `${position.symbol} 检查止盈条件失败: ${error.message}`)
+      return false
     }
-
-    if (tp1Hit) {
-      logger.info('止盈', `${position.symbol} 达到TP1止盈条件，价格: ${currentPrice}`)
-      await this.positionCloser.closePosition(position.symbol, 'TP1止盈', currentPrice)
-      return true
-    }
-
-    return false
   }
 
   /**
@@ -315,8 +328,35 @@ export class StrategyPositionMonitor {
    * 检查超时平仓
    */
   private async checkTimeout(position: PositionInfo, strategy: Strategy, currentPrice: number): Promise<boolean> {
-    // 暂时没有超时平仓配置，后续扩展
-    return false
+    try {
+      // 确保 position 有完整数据
+      if (!position.position) {
+        logger.warn('超时平仓', `${position.symbol} 缺少完整仓位信息，无法检查超时`)
+        return false
+      }
+
+      // 获取超时配置（从策略配置或全局配置）
+      const maxHoldTimeMinutes = strategy.riskManagement?.maxHoldTimeMinutes || 1440
+      
+      // 计算技术指标（需要 ADX 斜率）
+      const indicators = await calculateIndicators(this.binance, position.symbol, this.config)
+      
+      // 使用ADX斜率判断趋势走弱（负斜率表示ADX下降）
+      const isADXDecreasing = indicators.adxSlope < 0
+      
+      // 检查持仓超时（ADX走弱时触发）
+      const isTimeout = isPositionTimeout(position.position as Position, maxHoldTimeMinutes, isADXDecreasing)
+      if (isTimeout) {
+        logger.warn('超时平仓', `${position.symbol} 持仓超时且ADX走弱 (ADX斜率: ${indicators.adxSlope.toFixed(2)})`)
+        await this.positionCloser.closePosition(position.symbol, '持仓超时', currentPrice)
+        return true
+      }
+
+      return false
+    } catch (error: any) {
+      logger.error('超时平仓', `${position.symbol} 检查超时条件失败: ${error.message}`)
+      return false
+    }
   }
 
   /**

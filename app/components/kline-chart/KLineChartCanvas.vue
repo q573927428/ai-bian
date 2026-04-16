@@ -29,7 +29,7 @@
 import { ref, onMounted, onUnmounted, watch, nextTick, computed } from 'vue'
 import { createChart, ColorType, CandlestickSeries, HistogramSeries, LineSeries, createSeriesMarkers } from 'lightweight-charts'
 import type { SimpleKLineData } from '../../../types/kline-simple'
-import type { TradeHistory, BotConfig } from '../../../types'
+import type { TradeHistory } from '../../../types'
 import type { SeriesMarkerShape } from 'lightweight-charts'
 import { 
   calculateEMASeries, 
