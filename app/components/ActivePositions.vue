@@ -65,12 +65,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, computed } from 'vue'
+import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
 import { useBotStore } from '../stores/bot'
 
 const botStore = useBotStore()
 const positions = ref<any[]>([])
 const prices = ref<Record<string, any>>({})
+const pricePollingTimer = ref<NodeJS.Timeout | null>(null)
+const PRICE_POLLING_INTERVAL = 3000 // 3秒快速轮询价格
 
 // 获取持仓符号列表
 const positionSymbols = computed(() => {
@@ -155,20 +157,55 @@ function formatOpenTime(openTime: string | number | Date): string {
   })
 }
 
+// 启动价格轮询
+function startPricePolling() {
+  if (pricePollingTimer.value) {
+    return
+  }
+  
+  console.log('[ActivePositions] 启动价格快速轮询，间隔:', PRICE_POLLING_INTERVAL, 'ms')
+  
+  // 立即加载一次价格
+  loadPrices()
+  
+  pricePollingTimer.value = setInterval(() => {
+    loadPrices()
+  }, PRICE_POLLING_INTERVAL)
+}
+
+// 停止价格轮询
+function stopPricePolling() {
+  if (pricePollingTimer.value) {
+    console.log('[ActivePositions] 停止价格快速轮询')
+    clearInterval(pricePollingTimer.value)
+    pricePollingTimer.value = null
+  }
+}
+
+// 监听持仓变化，动态启动/停止价格轮询
+watch(positions, (newPositions) => {
+  if (newPositions && newPositions.length > 0) {
+    startPricePolling()
+  } else {
+    stopPricePolling()
+  }
+}, { immediate: true })
+
 onMounted(() => {
   loadPositions()
   loadPrices()
   
-  // 订阅共享轮询
+  // 订阅共享轮询（只用于更新持仓信息）
   botStore.subscribeToPolling('active-positions', () => {
     loadPositions()
-    loadPrices()
   })
 })
 
 onUnmounted(() => {
   // 取消订阅轮询
   botStore.unsubscribeFromPolling('active-positions')
+  // 停止价格轮询
+  stopPricePolling()
 })
 </script>
 
