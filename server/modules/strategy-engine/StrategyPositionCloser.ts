@@ -251,6 +251,12 @@ export class StrategyPositionCloser {
     try {
       logger.info('手动平仓处理', `开始处理手动平仓: ${position.symbol}`)
 
+      // 安全检查：确保position存在且position.position存在
+      if (!position || !position.position) {
+        logger.error('手动平仓处理', `仓位信息不完整，无法处理: ${position?.symbol || '未知交易对'}`)
+        return
+      }
+
       const { exitPrice, closeTime } = manualCloseInfo
 
       // 如果有策略分析器，生成分析指标
@@ -452,6 +458,12 @@ export class StrategyPositionCloser {
    */
   async handleCompensatedClose(position: any, reason: string, strategyAnalyzer?: any): Promise<void> {
     try {
+      // 安全检查：确保position存在且position.position存在
+      if (!position || !position.position) {
+        logger.error('补偿平仓', `仓位信息不完整，无法处理: ${position?.symbol || '未知交易对'}`)
+        return
+      }
+      
       logger.info('补偿平仓', `开始处理补偿平仓: ${position.symbol} ${reason}`)
 
       let exitPrice = 0

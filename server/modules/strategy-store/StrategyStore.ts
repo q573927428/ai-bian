@@ -37,7 +37,7 @@ export class StrategyStore {
     await ensureDataDir()
 
     const now = new Date().toISOString()
-    const strategyId = this.generateId()
+    const strategyId = await this.generateId()
 
     const strategy: Strategy = {
       id: strategyId,
@@ -346,12 +346,65 @@ export class StrategyStore {
   }
 
   /**
-   * 生成唯一 ID
+   * 获取下一个可用的策略序号
    */
-  private generateId(): StrategyId {
-    const timestamp = Date.now().toString(36)
-    const random = Math.random().toString(36).substring(2, 8)
-    return `strategy_${timestamp}_${random}`
+  private async getNextStrategyNumber(): Promise<number> {
+    try {
+      await ensureDataDir()
+      const { readdir } = await import('fs/promises')
+      const files = await readdir(STRATEGIES_DIR)
+      
+      let maxNumber = 0
+      
+      // 遍历所有文件，查找最大的序号
+      for (const file of files) {
+        // 匹配新格式：strategy_001.json
+        const newFormatMatch = file.match(/^strategy_(\d+)\.json$/)
+        if (newFormatMatch && newFormatMatch[1]) {
+          const num = parseInt(newFormatMatch[1], 10)
+          if (!isNaN(num) && num > maxNumber) {
+            maxNumber = num
+          }
+          continue
+        }
+        
+        // 匹配旧格式：strategy_mo015o9z_6vn3m5.json，按创建时间顺序推断序号
+        // 旧格式统一按现有数量递增，避免冲突
+        if (file.startsWith('strategy_') && file.endsWith('.json')) {
+          maxNumber++
+        }
+      }
+      
+      // 归档目录也需要检查，避免重复
+      const archiveDir = join(STRATEGIES_DIR, 'archive')
+      if (existsSync(archiveDir)) {
+        const archiveFiles = await readdir(archiveDir)
+        for (const file of archiveFiles) {
+          const newFormatMatch = file.match(/^strategy_(\d+)\.json$/)
+          if (newFormatMatch && newFormatMatch[1]) {
+            const num = parseInt(newFormatMatch[1], 10)
+            if (!isNaN(num) && num > maxNumber) {
+              maxNumber = num
+            }
+          }
+        }
+      }
+      
+      return maxNumber + 1
+    } catch (error) {
+      // 如果读取失败，默认从1开始
+      return 1
+    }
+  }
+
+  /**
+   * 生成唯一 ID（序号式命名）
+   */
+  private async generateId(): Promise<StrategyId> {
+    const nextNumber = await this.getNextStrategyNumber()
+    // 格式化为3位数字，不足补0，例如：001, 002, 010, 100
+    const formattedNumber = nextNumber.toString().padStart(3, '0')
+    return `strategy_${formattedNumber}`
   }
 }
 
