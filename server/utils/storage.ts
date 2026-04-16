@@ -10,6 +10,7 @@ const STATE_FILE = join(DATA_DIR, 'bot-state.json')
 const HISTORY_FILE = join(DATA_DIR, 'trade-history.json')
 const ACTIVE_POSITIONS_FILE = join(DATA_DIR, 'active-positions.json')
 const SYMBOL_LOCKS_FILE = join(DATA_DIR, 'symbol-locks.json')
+const CONFIG_FILE = join(DATA_DIR, 'bot-config.json')
 
 /**
  * 保存机器人状态
@@ -36,6 +37,22 @@ export async function loadBotState(): Promise<BotState | null> {
     return JSON.parse(data)
   } catch (error: any) {
     console.error('加载状态失败:', error.message)
+    return null
+  }
+}
+
+/**
+ * 加载机器人配置
+ */
+export async function loadBotConfig(): Promise<any | null> {
+  try {
+    if (!existsSync(CONFIG_FILE)) {
+      return null
+    }
+    const data = await readFile(CONFIG_FILE, 'utf-8')
+    return JSON.parse(data)
+  } catch (error: any) {
+    console.error('加载配置失败:', error.message)
     return null
   }
 }
