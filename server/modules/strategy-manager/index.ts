@@ -4,7 +4,7 @@ import { StrategyManager } from './StrategyManager'
 import { StrategyStore } from '../strategy-store/StrategyStore'
 import { StrategyEngine } from '../strategy-engine/StrategyEngine'
 import { IndicatorsHub } from '../indicators/IndicatorsHub'
-import { PositionManager } from '../position-manager/PositionManager'
+import { PositionManager, positionManager } from '../position-manager/PositionManager'
 import { BinanceService } from '../../utils/binance'
 import { loadBotConfig } from '../../utils/storage'
 import { logger } from '../../utils/logger'
@@ -38,8 +38,10 @@ export async function initStrategyManager(): Promise<StrategyManager> {
     // 初始化指标中心
     const indicatorsHub = IndicatorsHub.getInstance(binanceService, config || undefined)
 
-    // 初始化仓位管理器
-    const positionMgr = new PositionManager()
+    // 初始化仓位管理器（使用全局单例）
+    const positionMgr = positionManager
+    // 加载本地持久化状态
+    await positionMgr.init()
 
     // 初始化 BotState (默认值)
     const dateParts = new Date().toISOString().split('T')

@@ -48,6 +48,11 @@ export class StrategyPositionMonitor {
       return
     }
 
+    // 立即执行一次监控
+    this.monitorPositions().catch(error => {
+      logger.error('持仓监控', '首次监控异常:', error.message)
+    })
+
     this.monitorTimer = setInterval(() => {
       this.monitorPositions().catch(error => {
         logger.error('持仓监控', '监控循环异常:', error.message)
@@ -73,6 +78,8 @@ export class StrategyPositionMonitor {
    */
   private async monitorPositions(): Promise<void> {
     const positions = this.positionManager.getAllPositions()
+
+    logger.info('持仓监控', `当前持仓数量: ${positions.length}`)
 
     if (positions.length === 0) {
       return
