@@ -1,1 +1,26 @@
-[]
+[
+  {
+    "symbol": "BTC/USDT",
+    "strategyId": "strategy_mnzt0znm_bnp1qq",
+    "direction": "long",
+    "entryPrice": 74608.6,
+    "quantity": 0.002,
+    "leverage": 5,
+    "stopLoss": 73592.60967747682,
+    "initialStopLoss": 73592.60967747682,
+    "takeProfit1": 77148.57580630796,
+    "takeProfit2": 78164.56612883115,
+    "openTime": 1776333790132,
+    "highestPrice": 74608.7,
+    "lowestPrice": 74527.4,
+    "orderId": "986269532953",
+    "stopLossOrderId": "3000001258392629",
+    "stopLossOrderSymbol": "BTC/USDT:USDT",
+    "stopLossOrderSide": "SELL",
+    "stopLossOrderType": "STOP_MARKET",
+    "stopLossOrderQuantity": 0.002,
+    "stopLossOrderStopPrice": 73592.60967747682,
+    "stopLossOrderStatus": "open",
+    "stopLossOrderTimestamp": 1776333792354
+  }
+]
