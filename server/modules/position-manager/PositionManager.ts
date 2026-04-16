@@ -177,13 +177,13 @@ export class PositionManager {
     // 1. 检查是否有其他策略已锁定该交易对
     const lockHolder = this.symbolLocks.get(symbol)
     if (lockHolder && lockHolder !== strategyId) {
-      logger.info('PositionManager', `交易对 ${symbol} 已被策略 ${lockHolder} 锁定`)
+      // logger.info('扫描结果', ` ${symbol} 已被策略 ${lockHolder} 锁定`)
       return false
     }
 
     // 2. 检查是否已有仓位
     if (this.positions.has(symbol)) {
-      logger.info('PositionManager', `交易对 ${symbol} 已有仓位`)
+      // logger.info('扫描结果', ` ${symbol} 已有仓位`)
       return false
     }
 

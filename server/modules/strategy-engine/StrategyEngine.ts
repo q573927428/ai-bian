@@ -256,7 +256,7 @@ export class StrategyEngine {
 
     // 1. 检查是否已有仓位（同交易对互斥）
     if (await this.positionManager.hasConflict(symbol, strategy.id)) {
-      logger.info('StrategyEngine', `跳过 ${symbol}，已有仓位`)
+      logger.info('扫描结果', ` ${symbol}，已有仓位`)
       return
     }
 
@@ -293,7 +293,7 @@ export class StrategyEngine {
 
     // 6. 再次检查仓位冲突（防止并发问题）
     if (await this.positionManager.hasConflict(symbol, strategy.id)) {
-      logger.info('StrategyEngine', `策略 ${strategy.id} 的信号被忽略，交易对 ${symbol} 已有仓位`)
+      logger.info('扫描结果', ` ${symbol} 已有仓位 [策略 ${strategy.id}] 信号被忽略 `)
       return
     }
 
