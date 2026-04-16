@@ -109,7 +109,7 @@
     "model": "deepseek-chat"
   },
   "riskManagement": {
-    "maxRiskPercentage": 20,
+    "maxRiskPercentage": 10,
     "stopLossATRMultiplier": 2.5,
     "takeProfitRatios": [
       2.5,
@@ -126,7 +126,7 @@
   },
   "executionConfig": {
     "scanInterval": 180,
-    "leverage": 5,
+    "leverage": 3,
     "marginMode": "cross",
     "positionMode": "one-way"
   },
@@ -246,7 +246,7 @@
           "model": "deepseek-chat"
         },
         "riskManagement": {
-          "maxRiskPercentage": 20,
+          "maxRiskPercentage": 10,
           "stopLossATRMultiplier": 2.5,
           "takeProfitRatios": [
             2.5,
@@ -263,7 +263,7 @@
         },
         "executionConfig": {
           "scanInterval": 180,
-          "leverage": 5,
+          "leverage": 3,
           "marginMode": "cross",
           "positionMode": "one-way"
         },
