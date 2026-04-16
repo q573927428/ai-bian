@@ -302,44 +302,6 @@
             </el-table>
           </el-tab-pane>
 
-          <!-- 运行会话 -->
-          <el-tab-pane label="运行历史" name="sessions">
-            <el-table :data="sessions" stripe border>
-              <el-table-column prop="id" label="会话ID" width="180" />
-              <el-table-column prop="strategyVersion" label="版本" width="80">
-                <template #default="{ row }">
-                  v{{ row.strategyVersion }}
-                </template>
-              </el-table-column>
-              <el-table-column prop="startTime" label="启动时间" width="180">
-                <template #default="{ row }">
-                  {{ formatDate(row.startTime) }}
-                </template>
-              </el-table-column>
-              <el-table-column prop="endTime" label="停止时间" width="180">
-                <template #default="{ row }">
-                  {{ row.endTime ? formatDate(row.endTime) : '-' }}
-                </template>
-              </el-table-column>
-              <el-table-column prop="status" label="状态" width="100">
-                <template #default="{ row }">
-                  <el-tag :type="row.status === 'running' ? 'success' : row.status === 'error' ? 'danger' : 'info'">
-                    {{ row.status === 'running' ? '运行中' : row.status === 'stopped' ? '已停止' : '错误' }}
-                  </el-tag>
-                </template>
-              </el-table-column>
-              <el-table-column prop="totalSignals" label="信号数" width="80" />
-              <el-table-column prop="totalTrades" label="交易次数" width="100" />
-              <el-table-column prop="sessionProfit" label="会话盈利" width="120">
-                <template #default="{ row }">
-                  <span :class="row.sessionProfit >= 0 ? 'text-success' : 'text-danger'">
-                    ${{ row.sessionProfit.toFixed(2) }}
-                  </span>
-                </template>
-              </el-table-column>
-              <el-table-column prop="errorMessage" label="错误信息" show-overflow-tooltip />
-            </el-table>
-          </el-tab-pane>
         </el-tabs>
       </div>
     </el-dialog>
@@ -368,7 +330,6 @@ const activeDetailTab = ref('performance')
 // 详情数据
 const performance = ref<any>({})
 const tradeRecords = ref<any[]>([])
-const sessions = ref<any[]>([])
 
 
 // 加载策略列表
@@ -478,15 +439,13 @@ const viewStrategyDetail = async (strategy: Strategy) => {
   
   try {
     // 并行加载所有数据
-    const [perfRes, tradesRes, sessionsRes] = await Promise.all([
+    const [perfRes, tradesRes] = await Promise.all([
       $fetch(`/api/strategies/${strategy.id}/performance`),
-      $fetch(`/api/strategies/${strategy.id}/trades`),
-      $fetch(`/api/strategies/${strategy.id}/sessions`)
+      $fetch(`/api/strategies/${strategy.id}/trades`)
     ])
     
     performance.value = perfRes.data || {}
     tradeRecords.value = (tradesRes.data as unknown as any[]) || []
-    sessions.value = (sessionsRes.data as unknown as any[]) || []
   } catch (error: any) {
     ElMessage.error(`加载详情失败: ${error.message}`)
   } finally {

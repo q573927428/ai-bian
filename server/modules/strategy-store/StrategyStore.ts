@@ -471,114 +471,6 @@ export class StrategyStore {
    */
 
   /**
-   * 启动策略运行会话
-   */
-  async startSession(strategyId: StrategyId): Promise<string | null> {
-    try {
-      const strategy = await this.getStrategy(strategyId)
-      if (!strategy) {
-        logger.warn('StrategyStore', `策略不存在: ${strategyId}`)
-        return null
-      }
-
-      const now = new Date().toISOString()
-      const sessionId = `session_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`
-
-      const newSession = {
-        id: sessionId,
-        strategyId,
-        strategyVersion: strategy.version,
-        startTime: now,
-        status: 'running' as const,
-        totalSignals: 0,
-        totalTrades: 0,
-        sessionProfit: 0
-      }
-
-      strategy.sessions.push(newSession)
-      strategy.currentSessionId = sessionId
-      strategy.updatedAt = now
-
-      // 保存更新
-      const filePath = getStrategyFilePath(strategyId)
-      await writeFile(filePath, JSON.stringify(strategy, null, 2), 'utf-8')
-
-      logger.info('StrategyStore', `策略会话已启动: ${strategy.name} (${sessionId})`)
-      return sessionId
-    } catch (error: any) {
-      logger.error('StrategyStore', `启动会话失败 ${strategyId}: ${error.message}`)
-      return null
-    }
-  }
-
-  /**
-   * 停止策略运行会话
-   */
-  async stopSession(strategyId: StrategyId, status: 'stopped' | 'error' = 'stopped', errorMessage?: string): Promise<boolean> {
-    try {
-      const strategy = await this.getStrategy(strategyId)
-      if (!strategy || !strategy.currentSessionId) {
-        logger.warn('StrategyStore', `策略不存在或没有运行中的会话: ${strategyId}`)
-        return false
-      }
-
-      const now = new Date().toISOString()
-      const session = strategy.sessions.find(s => s.id === strategy.currentSessionId)
-      if (session) {
-        session.endTime = now
-        session.status = status
-        if (errorMessage) {
-          session.errorMessage = errorMessage
-        }
-      }
-
-      strategy.currentSessionId = undefined
-      strategy.updatedAt = now
-
-      // 保存更新
-      const filePath = getStrategyFilePath(strategyId)
-      await writeFile(filePath, JSON.stringify(strategy, null, 2), 'utf-8')
-
-      logger.info('StrategyStore', `策略会话已停止: ${strategy.name} (${strategy.currentSessionId})`)
-      return true
-    } catch (error: any) {
-      logger.error('StrategyStore', `停止会话失败 ${strategyId}: ${error.message}`)
-      return false
-    }
-  }
-
-  /**
-   * 更新会话统计数据
-   */
-  async updateSessionStats(strategyId: StrategyId, incrementSignals: number = 0, incrementTrades: number = 0, addProfit: number = 0): Promise<boolean> {
-    try {
-      const strategy = await this.getStrategy(strategyId)
-      if (!strategy || !strategy.currentSessionId) {
-        return false
-      }
-
-      const session = strategy.sessions.find(s => s.id === strategy.currentSessionId)
-      if (!session) {
-        return false
-      }
-
-      session.totalSignals += incrementSignals
-      session.totalTrades += incrementTrades
-      session.sessionProfit += addProfit
-      strategy.updatedAt = new Date().toISOString()
-
-      // 保存更新
-      const filePath = getStrategyFilePath(strategyId)
-      await writeFile(filePath, JSON.stringify(strategy, null, 2), 'utf-8')
-
-      return true
-    } catch (error: any) {
-      logger.error('StrategyStore', `更新会话统计失败 ${strategyId}: ${error.message}`)
-      return false
-    }
-  }
-
-  /**
    * 添加交易记录
    */
   async addTradeRecord(strategyId: StrategyId, record: Omit<import('../../../types/strategy').TradeRecord, 'id' | 'strategyId' | 'strategyVersion'>): Promise<string | null> {
@@ -605,10 +497,6 @@ export class StrategyStore {
         await this.recalculatePerformance(strategy)
       }
 
-      // 如果有运行中的会话，更新会话交易数
-      if (strategy.currentSessionId && record.status === 'closed') {
-        await this.updateSessionStats(strategyId, 0, 1, record.profitLoss || 0)
-      }
 
       // 保存更新
       const filePath = getStrategyFilePath(strategyId)
@@ -650,10 +538,6 @@ export class StrategyStore {
       // 如果是平仓操作，重新计算性能
       if (updates.status === 'closed' && updates.profitLoss !== undefined) {
         await this.recalculatePerformance(strategy)
-        // 更新会话数据
-        if (strategy.currentSessionId) {
-          await this.updateSessionStats(strategyId, 0, 1, updates.profitLoss)
-        }
       }
 
       // 保存更新
@@ -1027,75 +911,6 @@ export class StrategyStore {
     }
   }
 
-  /**
-   * 从交易记录生成虚拟会话
-   */
-  private generateVirtualSessionFromRecords(
-    strategyId: StrategyId,
-    records: import('../../../types/strategy').TradeRecord[]
-  ): import('../../../types/strategy').StrategySession[] {
-    if (records.length === 0) {
-      return []
-    }
-
-    // 按时间排序交易记录
-    const sortedRecords = [...records].sort((a, b) => 
-      new Date(a.openTime).getTime() - new Date(b.openTime).getTime()
-    )
-
-    const firstRecord = sortedRecords[0]!
-    const lastRecord = sortedRecords[sortedRecords.length - 1]!
-
-    // 计算会话的总盈利
-    const totalProfit = sortedRecords.reduce((sum, r) => sum + (r.profitLoss || 0), 0)
-
-    return [{
-      id: 'virtual_session_from_trade_history',
-      strategyId,
-      strategyVersion: 1,
-      startTime: firstRecord.openTime,
-      endTime: lastRecord.closeTime || new Date().toISOString(),
-      status: 'stopped' as const,
-      totalSignals: records.length,
-      totalTrades: records.filter(r => r.status === 'closed').length,
-      sessionProfit: totalProfit
-    }]
-  }
-
-  /**
-   * 获取策略运行会话历史
-   */
-  async getSessions(strategyId: StrategyId, limit?: number): Promise<import('../../../types/strategy').StrategySession[]> {
-    try {
-      const strategy = await this.getStrategy(strategyId)
-      if (!strategy) {
-        return []
-      }
-
-      // 获取策略自身的会话
-      let sessions = [...strategy.sessions]
-
-      // 如果没有会话，尝试从交易记录生成虚拟会话
-      if (sessions.length === 0) {
-        const allRecords = await this.getTradeRecords(strategyId)
-        sessions = this.generateVirtualSessionFromRecords(strategyId, allRecords)
-      }
-
-      // 按时间倒序排序
-      sessions.sort((a, b) => 
-        new Date(b.startTime).getTime() - new Date(a.startTime).getTime()
-      )
-
-      if (limit) {
-        sessions = sessions.slice(0, limit)
-      }
-
-      return sessions
-    } catch (error: any) {
-      logger.error('StrategyStore', `获取会话历史失败 ${strategyId}: ${error.message}`)
-      return []
-    }
-  }
 
   /**
    * 生成唯一 ID（序号式命名）
