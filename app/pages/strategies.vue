@@ -1,26 +1,28 @@
 <!-- 策略管理页面 -->
 <template>
   <div class="strategies-page">
-    <div class="page-header">
-      <h1>策略管理器</h1>
-      <div class="header-actions">
-        <el-button type="primary" @click="showCreateDialog = true">
-          <el-icon><ElIconPlus /></el-icon>
-          创建新策略
-        </el-button>
-        <el-button @click="loadStrategies">
-          <el-icon><ElIconRefresh /></el-icon>
-          刷新
-        </el-button>
-        <el-button type="warning" @click="clearAICache">
-          <el-icon><ElIconDelete /></el-icon>
-          清理AI缓存
-        </el-button>
-      </div>
-    </div>
-
     <!-- 策略列表 -->
     <el-card>
+    <template #header>
+      <div class="card-header">
+        <span>⚙️ 系统配置</span>
+          <div class="header-actions">
+            <el-button type="primary" @click="showCreateDialog = true">
+              <el-icon><ElIconPlus /></el-icon>
+              创建新策略
+            </el-button>
+            <el-button @click="loadStrategies">
+              <el-icon><ElIconRefresh /></el-icon>
+              刷新
+            </el-button>
+            <el-button type="warning" @click="clearAICache">
+              <el-icon><ElIconDelete /></el-icon>
+              清理AI缓存
+            </el-button>
+          </div>
+      </div>
+    </template>
+
       <el-table :data="strategies" v-loading="loading" stripe>
         <el-table-column prop="name" label="策略名称" width="180" />
         <el-table-column label="交易对" width="200">
@@ -60,7 +62,7 @@
             {{ formatDate(row.createdAt) }}
           </template>
         </el-table-column>
-        <el-table-column label="操作" fixed="right" width="360">
+        <el-table-column label="操作" fixed="right" width="560">
           <template #default="{ row }">
             <el-button size="small" @click="viewStrategyDetail(row)">详情</el-button>
             <el-button size="small" @click="editStrategy(row)">编辑</el-button>
@@ -576,6 +578,12 @@ onMounted(() => {
 <style scoped>
 .strategies-page {
   padding: 20px;
+}
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 
 .page-header {
