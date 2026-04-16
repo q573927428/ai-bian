@@ -66,10 +66,11 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed } from 'vue'
+import { useBotStore } from '../stores/bot'
 
+const botStore = useBotStore()
 const positions = ref<any[]>([])
 const prices = ref<Record<string, any>>({})
-let refreshInterval: any = null
 
 // 获取持仓符号列表
 const positionSymbols = computed(() => {
@@ -157,16 +158,17 @@ function formatOpenTime(openTime: string | number | Date): string {
 onMounted(() => {
   loadPositions()
   loadPrices()
-  refreshInterval = setInterval(() => {
+  
+  // 订阅共享轮询
+  botStore.subscribeToPolling('active-positions', () => {
     loadPositions()
     loadPrices()
-  }, 5000)
+  })
 })
 
 onUnmounted(() => {
-  if (refreshInterval) {
-    clearInterval(refreshInterval)
-  }
+  // 取消订阅轮询
+  botStore.unsubscribeFromPolling('active-positions')
 })
 </script>
 
