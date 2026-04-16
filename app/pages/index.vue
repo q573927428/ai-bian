@@ -109,22 +109,19 @@
                 </div>
               </div>
             </el-card>
-            <!-- 当前持仓组件 -->
-            <ClientOnly>
-              <CurrentPositions />
-            </ClientOnly>
           </el-col>
 
           <!-- 中间 - 持仓和交易历史 -->
           <el-col :xs="24" :sm="24" :md="16" :lg="16">
+            <!-- 当前持仓组件 -->
+            <ClientOnly>
+              <ActivePositions />
+            </ClientOnly>
+            
             <!-- 加密货币价格卡片组件 -->
             <ClientOnly>
               <CryptoPriceCards />
             </ClientOnly>
-
-
-            <!-- 交易历史组件 -->
-            <TradeHistory :has-position="botStore.hasPosition" />
 
             <!-- 系统日志组件 -->
             <ClientOnly>
@@ -142,13 +139,9 @@ import { ref, computed, onMounted } from 'vue'
 import { useBotStore } from '../stores/bot'
 
 // 导入组件
-import TradeHistory from '../components/TradeHistory.vue'
 import SystemLogs from '../components/SystemLogs.vue'
-import SystemConfig from '../components/SystemConfig.vue'
-import CurrentPositions from '../components/CurrentPositions.vue'
-import PnLTrendChart from '../components/PnLTrendChart.vue'
 import CryptoPriceCards from '../components/CryptoPriceCards.vue'
-import ManualOpenPosition from '../components/ManualOpenPosition.vue'
+import ActivePositions from '../components/ActivePositions.vue'
 
 const botStore = useBotStore()
 

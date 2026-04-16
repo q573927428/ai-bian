@@ -1,6 +1,7 @@
 <!-- 策略管理页面 -->
 <template>
   <div class="strategies-page">
+
     <!-- 策略列表 -->
     <el-card>
     <template #header>
@@ -367,6 +368,7 @@ const activeDetailTab = ref('performance')
 const performance = ref<any>({})
 const tradeRecords = ref<any[]>([])
 const sessions = ref<any[]>([])
+
 
 // 加载策略列表
 const loadStrategies = async () => {
