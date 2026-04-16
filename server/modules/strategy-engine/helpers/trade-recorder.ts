@@ -1,9 +1,9 @@
 // ==================== 多策略交易历史记录 ====================
 
 import type { Position, TradeHistory } from '../../../../types'
-import { calculatePnL } from '../../../utils/risk'
 import { addTradeHistory } from '../../../utils/storage'
 import type { StrategyId } from '../../../../types/strategy'
+import { calculatePnL } from '../../../utils/trade-helpers'
 
 /**
  * 记录多策略交易历史
