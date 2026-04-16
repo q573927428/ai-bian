@@ -43,6 +43,10 @@
             <el-option label="BTC/USDT" value="BTC/USDT" />
             <el-option label="ETH/USDT" value="ETH/USDT" />
             <el-option label="SOL/USDT" value="SOL/USDT" />
+            <el-option label="DOGE/USDT" value="DOGE/USDT" />
+            <el-option label="HYPE/USDT" value="HYPE/USDT" />
+            <el-option label="XAU/USDT" value="XAU/USDT" />
+            <el-option label="XAG/USDT" value="XAG/USDT" />
             <el-option label="BNB/USDT" value="BNB/USDT" />
           </el-select>
         </el-form-item>
@@ -68,74 +72,50 @@
           </div>
         </template>
 
-        <div v-for="(indicator, index) in form.indicators" :key="index" class="indicator-item">
-          <el-row :gutter="10" align="middle">
-            <el-col :span="2">
-              <el-checkbox v-model="indicator.enabled" />
-            </el-col>
-            <el-col :span="4">
-              <el-select v-model="indicator.type" placeholder="指标类型">
-                <el-option label="EMA" value="EMA" />
-                <el-option label="RSI" value="RSI" />
-                <el-option label="ADX" value="ADX" />
-                <el-option label="MACD" value="MACD" />
-                <el-option label="ATR" value="ATR" />
-              </el-select>
-            </el-col>
-            <el-col :span="12">
-              <el-input
-                v-if="indicator.type === 'EMA'"
-                v-model="indicator.params.periods"
-                placeholder="周期，如 14,60,120"
-              />
-              <el-input-number
-                v-else
-                v-model="indicator.params.period"
-                :min="2"
-                :max="200"
-                placeholder="周期"
-              />
-            </el-col>
-            <el-col :span="4">
-              <el-select v-model="indicator.timeframes" multiple placeholder="周期">
-                <el-option label="15m" value="15m" />
-                <el-option label="1h" value="1h" />
-                <el-option label="4h" value="4h" />
-              </el-select>
-            </el-col>
-            <el-col :span="2">
-              <el-button type="danger" size="small" @click="removeIndicator(index)">
-                <el-icon><ElIconDelete /></el-icon>
-              </el-button>
-            </el-col>
-          </el-row>
-        </div>
+        <el-form-item label="选择指标">
+          <el-checkbox-group v-model="selectedIndicators">
+            <el-checkbox label="EMA">EMA</el-checkbox>
+            <el-checkbox label="RSI">RSI (14)</el-checkbox>
+            <el-checkbox label="ADX">ADX (14)</el-checkbox>
+            <el-checkbox label="MACD">MACD (12,26,9)</el-checkbox>
+            <el-checkbox label="ATR">ATR (14)</el-checkbox>
+          </el-checkbox-group>
+        </el-form-item>
 
-        <el-button type="primary" plain @click="addIndicator">
-          <el-icon><ElIconPlus /></el-icon>
-          添加指标
-        </el-button>
+        <el-form-item label="EMA 周期" v-if="selectedIndicators.includes('EMA')">
+          <el-checkbox-group v-model="emaPeriods">
+            <el-checkbox :label="7">7</el-checkbox>
+            <el-checkbox :label="14">14</el-checkbox>
+            <el-checkbox :label="20">20</el-checkbox>
+            <el-checkbox :label="30">30</el-checkbox>
+            <el-checkbox :label="50">50</el-checkbox>
+            <el-checkbox :label="60">60</el-checkbox>
+            <el-checkbox :label="120">120</el-checkbox>
+          </el-checkbox-group>
+        </el-form-item>
+
+        <el-form-item label="指标周期">
+          <el-checkbox-group v-model="indicatorTimeframes">
+            <el-checkbox label="15m">15分钟</el-checkbox>
+            <el-checkbox label="1h">1小时</el-checkbox>
+            <el-checkbox label="4h">4小时</el-checkbox>
+          </el-checkbox-group>
+        </el-form-item>
       </el-card>
 
       <!-- 统计数据配置 -->
       <el-card class="form-section">
         <template #header>
           <div class="section-header">
-            <el-icon><ElIconataBoard /></el-icon>
+            <el-icon><ElIconDataBoard /></el-icon>
             <span>3. 统计数据配置</span>
           </div>
         </template>
-        <el-form-item label="OI 持仓量" v-if="form.statistics[0]">
-          <el-switch v-model="form.statistics[0].enabled" />
-          <span class="stat-label">趋势周期: </span>
-          <el-input-number v-model="form.statistics[0].params.trendPeriod" :min="5" :max="50" />
-          <span class="stat-label">变化周期: </span>
-          <el-input-number v-model="form.statistics[0].params.changePeriod" :min="10" :max="100" />
-        </el-form-item>
-        <el-form-item label="成交量" v-if="form.statistics[1]">
-          <el-switch v-model="form.statistics[1].enabled" />
-          <span class="stat-label">比较周期: </span>
-          <el-input-number v-model="form.statistics[1].params.comparePeriod" :min="10" :max="100" />
+        <el-form-item label="选择数据">
+          <el-checkbox-group v-model="selectedStatistics">
+            <el-checkbox label="OI">OI 持仓量</el-checkbox>
+            <el-checkbox label="Volume">成交量</el-checkbox>
+          </el-checkbox-group>
         </el-form-item>
       </el-card>
 
@@ -232,6 +212,12 @@
           <el-input-number v-model="form.riskManagement.trailingStop.trailDistance" :min="0.5" :max="3" :step="0.1" />
           <span class="stat-label">ATR</span>
         </el-form-item>
+        
+        <el-form-item label="持仓超时">
+          <span class="stat-label">最大持仓: </span>
+          <el-input-number v-model="form.riskManagement.maxHoldTimeMinutes" :min="60" :max="10080" :step="60" />
+          <span class="stat-label">分钟 (默认24小时)</span>
+        </el-form-item>
       </el-card>
 
       <!-- 执行配置 -->
@@ -245,16 +231,19 @@
         <el-row :gutter="20">
           <el-col :span="8">
             <el-form-item label="扫描间隔(秒)">
-              <el-input-number v-model="form.executionConfig.scanInterval" :min="30" :max="600" :step="30" />
+              <el-input-number v-model="form.executionConfig.scanInterval" :min="180" :max="600" :step="30" />
             </el-form-item>
           </el-col>
           <el-col :span="8">
             <el-form-item label="杠杆">
               <el-select v-model="form.executionConfig.leverage">
                 <el-option label="动态" value="dynamic" />
+                <el-option label="2" :value="2" />
+                <el-option label="3" :value="3" />
                 <el-option label="5" :value="5" />
                 <el-option label="10" :value="10" />
                 <el-option label="20" :value="20" />
+                <el-option label="50" :value="50" />
               </el-select>
             </el-form-item>
           </el-col>
@@ -295,6 +284,12 @@ const emit = defineEmits<{
 
 const saving = ref(false)
 
+// 多选变量
+const selectedIndicators = ref<string[]>(['EMA', 'RSI', 'ADX', 'ATR'])
+const emaPeriods = ref<number[]>([14, 60, 120])
+const indicatorTimeframes = ref<string[]>(['15m', '1h', '4h'])
+const selectedStatistics = ref<string[]>(['OI', 'Volume'])
+
 // 初始化表单
 const form = reactive<CreateStrategyInput>({
   name: '',
@@ -304,16 +299,8 @@ const form = reactive<CreateStrategyInput>({
     timeframes: ['1h'],
     klineLimit: 300
   },
-  indicators: [
-    { id: '1', type: 'EMA', params: { periods: [14, 60, 120] }, timeframes: ['15m','1h','4h'], enabled: true },
-    { id: '2', type: 'RSI', params: { period: 14 }, timeframes: ['15m','1h','4h'], enabled: true },
-    { id: '3', type: 'ATR', params: { period: 14 }, timeframes: ['15m','1h','4h'], enabled: true },
-    { id: '4', type: 'ADX', params: { period: 14 }, timeframes: ['15m','1h','4h'], enabled: true }
-  ],
-  statistics: [
-    { id: '5', type: 'OI', params: { trendPeriod: 12, changePeriod: 24 }, timeframes: ['1h'], enabled: true },
-    { id: '6', type: 'Volume', params: { comparePeriod: 20 }, timeframes: ['1h'], enabled: true }
-  ],
+  indicators: [],
+  statistics: [],
   aiPrompt: {
     systemPrompt: '你是一个专业的加密货币交易分析师。请根据提供的技术指标和市场数据，给出明确的交易信号。',
     userPrompt: '请分析当前市场趋势，当技术指标显示明确的方向时给出开仓建议。\n\n要求：\n1. 趋势明确时才给出信号\n2. 严格控制风险\n3. 返回JSON格式：{direction: "long/short", confidence: 0-100, reasoning: "理由"}',
@@ -327,6 +314,7 @@ const form = reactive<CreateStrategyInput>({
     takeProfitRatios: [2.5, 3.5],
     maxDailyTrades: 5,
     maxDailyLoss: 10,
+    maxHoldTimeMinutes: 1440,
     trailingStop: {
       enabled: true,
       activationRatio: 1,
@@ -335,12 +323,93 @@ const form = reactive<CreateStrategyInput>({
     }
   },
   executionConfig: {
-    scanInterval: 180,
+    scanInterval: 600,
     leverage: 'dynamic',
     marginMode: 'cross',
     positionMode: 'one-way'
   }
 })
+
+// 同步 indicators 数据
+watch([selectedIndicators, emaPeriods, indicatorTimeframes], () => {
+  const newIndicators: any[] = []
+  let id = 1
+
+  if (selectedIndicators.value.includes('EMA')) {
+    newIndicators.push({
+      id: String(id++),
+      type: 'EMA',
+      params: { periods: emaPeriods.value },
+      timeframes: [...indicatorTimeframes.value],
+      enabled: true
+    })
+  }
+  if (selectedIndicators.value.includes('RSI')) {
+    newIndicators.push({
+      id: String(id++),
+      type: 'RSI',
+      params: { period: 14 },
+      timeframes: [...indicatorTimeframes.value],
+      enabled: true
+    })
+  }
+  if (selectedIndicators.value.includes('ADX')) {
+    newIndicators.push({
+      id: String(id++),
+      type: 'ADX',
+      params: { period: 14 },
+      timeframes: [...indicatorTimeframes.value],
+      enabled: true
+    })
+  }
+  if (selectedIndicators.value.includes('MACD')) {
+    newIndicators.push({
+      id: String(id++),
+      type: 'MACD',
+      params: { fastPeriod: 12, slowPeriod: 26, signalPeriod: 9 },
+      timeframes: [...indicatorTimeframes.value],
+      enabled: true
+    })
+  }
+  if (selectedIndicators.value.includes('ATR')) {
+    newIndicators.push({
+      id: String(id++),
+      type: 'ATR',
+      params: { period: 14 },
+      timeframes: [...indicatorTimeframes.value],
+      enabled: true
+    })
+  }
+
+  form.indicators = newIndicators
+}, { immediate: true, deep: true })
+
+// 同步 statistics 数据
+watch(selectedStatistics, () => {
+  const newStatistics: any[] = []
+  let id = 5
+
+  if (selectedStatistics.value.includes('OI')) {
+    newStatistics.push({
+      id: String(id++),
+      type: 'OI',
+      params: { trendPeriod: 12, changePeriod: 24 },
+      timeframes: ['1h'],
+      enabled: true
+    })
+  }
+  if (selectedStatistics.value.includes('Volume')) {
+    newStatistics.push({
+      id: String(id++),
+      type: 'Volume',
+      params: { comparePeriod: 20 },
+      timeframes: ['1h'],
+      enabled: true
+    })
+  }
+
+  form.statistics = newStatistics
+}, { immediate: true })
 
 // 如果有编辑的策略，加载数据
 watch(() => props.strategy, (newVal) => {
@@ -349,30 +418,30 @@ watch(() => props.strategy, (newVal) => {
       name: newVal.name,
       description: newVal.description,
       marketData: newVal.marketData,
-      indicators: newVal.indicators,
-      statistics: newVal.statistics,
       aiPrompt: newVal.aiPrompt,
       riskManagement: newVal.riskManagement,
       executionConfig: newVal.executionConfig
     })
+
+    // 同步选中的指标
+    selectedIndicators.value = newVal.indicators.filter(i => i.enabled).map(i => i.type)
+    
+    // 同步 EMA 周期
+    const emaIndicator = newVal.indicators.find(i => i.type === 'EMA')
+    if (emaIndicator && emaIndicator.params && emaIndicator.params.periods) {
+      emaPeriods.value = emaIndicator.params.periods
+    }
+    
+    // 同步指标周期
+    const firstIndicator = newVal.indicators[0]
+    if (firstIndicator && firstIndicator.timeframes) {
+      indicatorTimeframes.value = [...firstIndicator.timeframes]
+    }
+    
+    // 同步统计数据
+    selectedStatistics.value = newVal.statistics.filter(s => s.enabled).map(s => s.type)
   }
 }, { immediate: true })
-
-// 添加指标
-const addIndicator = () => {
-  form.indicators.push({
-    id: Date.now().toString(),
-    type: 'EMA',
-    params: { periods: [14, 60, 120] },
-    timeframes: ['1h'],
-    enabled: true
-  })
-}
-
-// 删除指标
-const removeIndicator = (index: number) => {
-  form.indicators.splice(index, 1)
-}
 
 // 保存
 const handleSave = async () => {

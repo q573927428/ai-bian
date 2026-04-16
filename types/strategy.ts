@@ -114,6 +114,7 @@ export interface RiskConfig {
   takeProfitRatios: number[];          // 止盈盈亏比 [2.5, 3.5]
   maxDailyTrades: number;              // 每日最大交易次数
   maxDailyLoss: number;                // 每日最大亏损 (%)
+  maxHoldTimeMinutes?: number;         // 最大持仓时间 (分钟)
   trailingStop: TrailingStopConfig;
 }
 

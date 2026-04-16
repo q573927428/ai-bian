@@ -117,6 +117,7 @@
     ],
     "maxDailyTrades": 5,
     "maxDailyLoss": 10,
+    "maxHoldTimeMinutes": 1440,
     "trailingStop": {
       "enabled": true,
       "activationRatio": 1,
@@ -254,6 +255,7 @@
           ],
           "maxDailyTrades": 5,
           "maxDailyLoss": 10,
+          "maxHoldTimeMinutes": 1440,
           "trailingStop": {
             "enabled": true,
             "activationRatio": 1,
