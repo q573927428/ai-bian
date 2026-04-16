@@ -37,7 +37,7 @@ export function checkCircuitBreaker(
   dailyPnL: number,
   consecutiveLosses: number,
   accountBalance: number,
-  riskConfig?: any
+  circuitBreakerConfig?: { dailyLossThreshold: number; consecutiveLossesThreshold: number }
 ): {
   isTriggered: boolean
   reason: string
@@ -45,13 +45,22 @@ export function checkCircuitBreaker(
   dailyLoss: number
   consecutiveLosses: number
 } {
-  const circuitBreakerConfig = riskConfig?.circuitBreaker || {}
-  const dailyLossThreshold = circuitBreakerConfig.dailyLossThreshold || 10
-  const consecutiveLossesThreshold = circuitBreakerConfig.consecutiveLossesThreshold || 5
+  // 兼容两种配置格式：直接传入配置对象或包含circuitBreaker的对象
+  let config: { dailyLossThreshold?: number; consecutiveLossesThreshold?: number }
+  if (circuitBreakerConfig && 'circuitBreaker' in circuitBreakerConfig) {
+    config = (circuitBreakerConfig as any).circuitBreaker || {}
+  } else {
+    config = circuitBreakerConfig || {}
+  }
+  
+  const dailyLossThreshold = config.dailyLossThreshold || 10
+  const consecutiveLossesThreshold = config.consecutiveLossesThreshold || 5
 
-  const dailyLossPercent = (dailyPnL / accountBalance) * 100
+  const dailyLossPercent = (Math.abs(dailyPnL) / accountBalance) * 100
 
-  const isDailyLossTriggered = dailyLossPercent <= -dailyLossThreshold
+  // 当日亏损 >= 配置阈值
+  const isDailyLossTriggered = dailyPnL < 0 && dailyLossPercent >= dailyLossThreshold
+  // 连续止损达到配置阈值
   const isConsecutiveLossesTriggered = consecutiveLosses >= consecutiveLossesThreshold
 
   let reason = ''
@@ -60,11 +69,11 @@ export function checkCircuitBreaker(
   if (isDailyLossTriggered || isConsecutiveLossesTriggered) {
     isTriggered = true
     if (isDailyLossTriggered && isConsecutiveLossesTriggered) {
-      reason = `日亏损${dailyLossPercent.toFixed(2)}%超过${dailyLossThreshold}%且连续亏损${consecutiveLosses}次超过${consecutiveLossesThreshold}次`
+      reason = `当日亏损达到${dailyLossPercent.toFixed(2)}%且连续${consecutiveLosses}笔止损，触发熔断`
     } else if (isDailyLossTriggered) {
-      reason = `日亏损${dailyLossPercent.toFixed(2)}%超过${dailyLossThreshold}%`
+      reason = `当日亏损达到${dailyLossPercent.toFixed(2)}%，触发熔断`
     } else {
-      reason = `连续亏损${consecutiveLosses}次超过${consecutiveLossesThreshold}次`
+      reason = `连续${consecutiveLosses}笔止损，触发熔断`
     }
   }
 
@@ -72,7 +81,7 @@ export function checkCircuitBreaker(
     isTriggered, 
     reason, 
     timestamp: Date.now(),
-    dailyLoss: dailyPnL,
+    dailyLoss: dailyLossPercent,
     consecutiveLosses
   }
 }

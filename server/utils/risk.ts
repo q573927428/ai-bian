@@ -31,47 +31,6 @@ export interface CompatibleRiskConfig {
   dailyTradeLimit?: number
 }
 
-/**
- * 检查熔断条件
- */
-export function checkCircuitBreaker(
-  dailyPnL: number,
-  consecutiveLosses: number,
-  accountBalance: number,
-  circuitBreakerConfig: CircuitBreakerConfig
-): any {
-  const dailyLossPercent = (Math.abs(dailyPnL) / accountBalance) * 100
-
-  // 当日亏损 >= 配置阈值
-  if (dailyPnL < 0 && dailyLossPercent >= circuitBreakerConfig.dailyLossThreshold) {
-    return {
-      isTriggered: true,
-      reason: `当日亏损达到${dailyLossPercent.toFixed(2)}%，触发熔断`,
-      timestamp: Date.now(),
-      dailyLoss: dailyLossPercent,
-      consecutiveLosses,
-    }
-  }
-
-  // 连续止损达到配置阈值
-  if (consecutiveLosses >= circuitBreakerConfig.consecutiveLossesThreshold) {
-    return {
-      isTriggered: true,
-      reason: `连续${consecutiveLosses}笔止损，触发熔断`,
-      timestamp: Date.now(),
-      dailyLoss: dailyLossPercent,
-      consecutiveLosses,
-    }
-  }
-
-  return {
-    isTriggered: false,
-    reason: '',
-    timestamp: Date.now(),
-    dailyLoss: dailyLossPercent,
-    consecutiveLosses,
-  }
-}
 
 /**
  * 检查持仓超时
@@ -107,11 +66,10 @@ export function checkTP1Condition(
   currentPrice: number,
   indicators: any,
   takeProfitConfig: TakeProfitConfig
-): { shouldClose: boolean; reason: string; data: any } {
+): { shouldClose: boolean; reason: string } {
   const rsi = indicators.rsi
   const adxSlope = indicators.adxSlope
-  const { entryPrice, initialStopLoss, stopLoss, direction } = position
-  // 使用初始止损计算风险，而不是当前止损
+  const { entryPrice, initialStopLoss, direction } = position
   const risk = Math.abs(entryPrice - initialStopLoss)
   
   let profit = 0
@@ -124,88 +82,28 @@ export function checkTP1Condition(
   const riskRewardRatio = risk > 0 ? profit / risk : 0
   const requiredRiskRewardRatio = takeProfitConfig.tp1RiskRewardRatio
   
-  // 检查各个条件
   const riskRewardTriggered = profit >= risk * requiredRiskRewardRatio
   const rsiTriggered = (direction === 'LONG' && rsi >= takeProfitConfig.rsiExtreme.long) ||
                       (direction === 'SHORT' && rsi <= takeProfitConfig.rsiExtreme.short)
-  // 使用ADX斜率判断走弱（负斜率表示ADX下降，绝对值 >= 阈值时触发）
   const adxTriggered = adxSlope <= -takeProfitConfig.adxDecreaseThreshold
   
-  // 必须至少达到最小盈利才允许触发TP1
   const minProfitRatio = takeProfitConfig.tp1MinProfitRatio || 1
   const hasMinProfit = profit >= risk * minProfitRatio
   
-  // 触发条件：必须达到最小盈利，并且满足以下任意条件
   const triggered = hasMinProfit && (riskRewardTriggered || rsiTriggered || adxTriggered)
   
-  // 构建原因说明
   let reason = ''
   if (triggered) {
     const reasons: string[] = []
-    if (riskRewardTriggered) {
-      reasons.push(`盈亏比 ${riskRewardRatio.toFixed(2)}:1 ≥ ${requiredRiskRewardRatio}:1`)
-    }
-    if (rsiTriggered) {
-      const requiredRsi = direction === 'LONG' 
-        ? takeProfitConfig.rsiExtreme.long 
-        : takeProfitConfig.rsiExtreme.short
-      reasons.push(`RSI ${rsi.toFixed(1)} ${direction === 'LONG' ? '≥' : '≤'} ${requiredRsi}`)
-    }
-    if (adxTriggered) {
-      reasons.push(`ADX斜率 ${adxSlope.toFixed(2)} ≤ -${takeProfitConfig.adxDecreaseThreshold}`)
-    }
-    reason = `达到TP1条件：${reasons.join('，')}（已满足最小盈利${minProfitRatio}R）`
+    if (riskRewardTriggered) reasons.push(`盈亏比 ${riskRewardRatio.toFixed(2)}:1`)
+    if (rsiTriggered) reasons.push(`RSI ${rsi.toFixed(1)}`)
+    if (adxTriggered) reasons.push(`ADX走弱`)
+    reason = `达到TP1条件：${reasons.join('，')}`
   } else {
-    // 提供更详细的未触发原因
-    const reasons: string[] = []
-    if (!hasMinProfit) {
-      reasons.push(`未达到最小盈利${minProfitRatio}R（当前${riskRewardRatio.toFixed(2)}R）`)
-    } else {
-      if (!riskRewardTriggered) {
-        reasons.push(`盈亏比 ${riskRewardRatio.toFixed(2)}:1 < ${requiredRiskRewardRatio}:1`)
-      }
-      if (!rsiTriggered) {
-        const requiredRsi = direction === 'LONG' 
-          ? takeProfitConfig.rsiExtreme.long 
-          : takeProfitConfig.rsiExtreme.short
-        reasons.push(`RSI ${rsi.toFixed(1)} ${direction === 'LONG' ? '<' : '>'} ${requiredRsi}`)
-      }
-      if (!adxTriggered) {
-        reasons.push(`ADX斜率 ${adxSlope.toFixed(2)} > -${takeProfitConfig.adxDecreaseThreshold}`)
-      }
-    }
-    reason = `未达到TP1条件：${reasons.join('，')}`
+    reason = `未达到TP1条件`
   }
   
-  return {
-    shouldClose: triggered,
-    reason,
-    data: {
-      currentPrice,
-      entryPrice,
-      initialStopLoss,
-      currentStopLoss: stopLoss,
-      risk,
-      profit,
-      riskRewardRatio,
-      requiredRiskRewardRatio,
-      minProfitRatio,
-      hasMinProfit,
-      rsi,
-      adxSlope,
-      direction,
-      conditionTriggers: {
-        riskReward: riskRewardTriggered,
-        rsiExtreme: rsiTriggered,
-        adxDecrease: adxTriggered
-      },
-      thresholds: {
-        rsiLongExtreme: takeProfitConfig.rsiExtreme.long,
-        rsiShortExtreme: takeProfitConfig.rsiExtreme.short,
-        adxDecreaseThreshold: takeProfitConfig.adxDecreaseThreshold
-      }
-    }
-  }
+  return { shouldClose: triggered, reason }
 }
 
 /**
@@ -216,9 +114,8 @@ export function checkTP2Condition(
   currentPrice: number,
   indicators: any,
   takeProfitConfig: TakeProfitConfig
-): { shouldClose: boolean; reason: string; data: any } {
-  const { entryPrice, initialStopLoss, stopLoss, direction } = position
-  // 使用初始止损计算风险，而不是当前止损
+): { shouldClose: boolean; reason: string } {
+  const { entryPrice, initialStopLoss, direction } = position
   const risk = Math.abs(entryPrice - initialStopLoss)
   
   let profit = 0
@@ -234,47 +131,12 @@ export function checkTP2Condition(
   
   let reason = ''
   if (triggered) {
-    reason = `达到TP2条件：盈亏比 ${riskRewardRatio.toFixed(2)}:1（要求${requiredRiskRewardRatio}:1）`
+    reason = `达到TP2条件：盈亏比 ${riskRewardRatio.toFixed(2)}:1`
   } else {
-    reason = `未达到TP2条件：当前盈亏比 ${riskRewardRatio.toFixed(2)}:1（要求${requiredRiskRewardRatio}:1）`
+    reason = `未达到TP2条件`
   }
   
-  return {
-    shouldClose: triggered,
-    reason,
-    data: {
-      currentPrice,
-      entryPrice,
-      initialStopLoss,
-      currentStopLoss: stopLoss,
-      risk,
-      profit,
-      riskRewardRatio,
-      requiredRatio: requiredRiskRewardRatio,
-      direction
-    }
-  }
-}
-
-/**
- * 计算当前盈亏
- */
-export function calculatePnL(
-  currentPrice: number,
-  position: Position
-): { pnl: number; pnlPercentage: number } {
-  const { entryPrice, quantity, direction, leverage } = position
-  
-  let pnl = 0
-  if (direction === 'LONG') {
-    pnl = (currentPrice - entryPrice) * quantity
-  } else {
-    pnl = (entryPrice - currentPrice) * quantity
-  }
-  
-  const pnlPercentage = ((pnl / (entryPrice * quantity)) * 100) * leverage
-  
-  return { pnl, pnlPercentage }
+  return { shouldClose: triggered, reason }
 }
 
 /**
@@ -352,20 +214,6 @@ export function checkDailyTradeLimit(
   dailyTradeLimit: number
 ): boolean {
   return todayTrades < dailyTradeLimit
-}
-
-/**
- * 获取交易方向对应的订单side
- */
-export function getOrderSide(
-  direction: 'LONG' | 'SHORT',
-  isEntry: boolean
-): 'buy' | 'sell' {
-  if (direction === 'LONG') {
-    return isEntry ? 'buy' : 'sell'
-  } else {
-    return isEntry ? 'sell' : 'buy'
-  }
 }
 
 /**
