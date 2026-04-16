@@ -197,11 +197,8 @@ export class StrategyPositionMonitor {
    */
   private async checkTakeProfit(position: PositionInfo, strategy: Strategy, currentPrice: number): Promise<boolean> {
     try {
-      // 确保 position 有完整数据
-      if (!position.position) {
-        logger.warn('止盈', `${position.symbol} 缺少完整仓位信息，无法检查止盈`)
-        return false
-      }
+      // 构建用于止盈检查的 Position 对象
+      const posForCheck = this.buildPositionForCheck(position)
 
       // 从策略配置转换到止盈配置
       const { takeProfit } = convertStrategyRiskConfig(strategy.riskManagement)
@@ -210,7 +207,7 @@ export class StrategyPositionMonitor {
       const indicators = await calculateIndicators(this.binance, position.symbol, this.config)
 
       // 检查 TP2 条件
-      const tp2Result = checkTP2Condition(position.position as Position, currentPrice, indicators, takeProfit)
+      const tp2Result = checkTP2Condition(posForCheck, currentPrice, indicators, takeProfit)
       if (tp2Result.shouldClose) {
         logger.warn('止盈', `${position.symbol} ${tp2Result.reason}`)
         await this.positionCloser.closePosition(position.symbol, tp2Result.reason, currentPrice)
@@ -218,7 +215,7 @@ export class StrategyPositionMonitor {
       }
 
       // 检查 TP1 条件
-      const tp1Result = checkTP1Condition(position.position as Position, currentPrice, indicators, takeProfit)
+      const tp1Result = checkTP1Condition(posForCheck, currentPrice, indicators, takeProfit)
       if (tp1Result.shouldClose) {
         logger.warn('止盈', `${position.symbol} ${tp1Result.reason}`)
         await this.positionCloser.closePosition(position.symbol, tp1Result.reason, currentPrice)
@@ -236,92 +233,116 @@ export class StrategyPositionMonitor {
    * 检查移动止损
    */
   private async checkTrailingStop(position: PositionInfo, strategy: Strategy, currentPrice: number): Promise<boolean> {
-    const trailingStopConfig = strategy.riskManagement.trailingStop
-    const entryPrice = position.entryPrice
-    const stopLoss = position.position?.stopLoss!
+    try {
+      const trailingStopConfig = strategy.riskManagement.trailingStop
+      const entryPrice = position.entryPrice
+      
+      // 优先使用 position.position.stopLoss，如果没有则用 position.stopLoss
+      const stopLoss = position.position?.stopLoss ?? position.stopLoss ?? 0
 
-    // 计算盈亏比
-    const risk = Math.abs(entryPrice - stopLoss)
-    const currentProfit = position.direction === 'long'
-      ? currentPrice - entryPrice
-      : entryPrice - currentPrice
-
-    const profitRatio = currentProfit / risk
-
-    // 检查是否激活移动止损
-    const isActivated = this.trailingStopActivated.get(position.symbol) || false
-    if (!isActivated && profitRatio >= trailingStopConfig.activationRatio) {
-      this.trailingStopActivated.set(position.symbol, true)
-      logger.info('移动止损', `${position.symbol} 移动止损已激活，盈亏比: ${profitRatio.toFixed(2)}`)
-      return false
-    }
-
-    // 已激活，检查是否需要移动止损
-    if (isActivated) {
-      const highestPrice = position.highestPrice || entryPrice
-      const lowestPrice = position.lowestPrice || entryPrice
-
-      // 计算新的止损价
-      let newStopLoss: number
-      if (position.direction === 'long') {
-        newStopLoss = highestPrice * (1 - trailingStopConfig.trailDistance / 100)
-      } else {
-        newStopLoss = lowestPrice * (1 + trailingStopConfig.trailDistance / 100)
+      // 如果没有止损价，无法进行移动止损
+      if (stopLoss === 0) {
+        logger.warn('移动止损', `${position.symbol} 缺少止损价格，无法检查移动止损`)
+        return false
       }
 
-      // 检查是否需要更新止损单（至少移动minMoveDistance）
-      const minMove = entryPrice * trailingStopConfig.minMoveDistance / 100
-      const stopLossDiff = Math.abs(newStopLoss - stopLoss)
+      // 计算盈亏比
+      const risk = Math.abs(entryPrice - stopLoss)
+      const currentProfit = position.direction === 'long'
+        ? currentPrice - entryPrice
+        : entryPrice - currentPrice
 
-      if (stopLossDiff >= minMove) {
-        try {
-          // 取消旧止损单
-          if (position.position?.stopLossOrderId) {
-            await this.binance.cancelOrder(
-              position.position.stopLossOrderId,
+      const profitRatio = currentProfit / risk
+
+      // 检查是否激活移动止损
+      const isActivated = this.trailingStopActivated.get(position.symbol) || false
+      if (!isActivated && profitRatio >= trailingStopConfig.activationRatio) {
+        this.trailingStopActivated.set(position.symbol, true)
+        logger.info('移动止损', `${position.symbol} 移动止损已激活，盈亏比: ${profitRatio.toFixed(2)}`)
+        return false
+      }
+
+      // 已激活，检查是否需要移动止损
+      if (isActivated) {
+        const highestPrice = position.highestPrice || entryPrice
+        const lowestPrice = position.lowestPrice || entryPrice
+
+        // 计算新的止损价
+        let newStopLoss: number
+        if (position.direction === 'long') {
+          newStopLoss = highestPrice * (1 - trailingStopConfig.trailDistance / 100)
+        } else {
+          newStopLoss = lowestPrice * (1 + trailingStopConfig.trailDistance / 100)
+        }
+
+        // 检查是否需要更新止损单（至少移动minMoveDistance）
+        const minMove = entryPrice * trailingStopConfig.minMoveDistance / 100
+        const stopLossDiff = Math.abs(newStopLoss - stopLoss)
+
+        if (stopLossDiff >= minMove) {
+          try {
+            // 获取止损订单ID，优先从 position.position 获取，否则从 position 获取
+            const stopLossOrderId = position.position?.stopLossOrderId ?? position.stopLossOrderId
+            
+            // 取消旧止损单
+            if (stopLossOrderId) {
+              await this.binance.cancelOrder(
+                stopLossOrderId,
+                position.symbol,
+                { trigger: true }
+              )
+            }
+
+            // 设置新止损单
+            const side = position.direction === 'long' ? 'sell' : 'buy'
+            const stopOrder = await this.binance.stopLossOrder(
               position.symbol,
-              { trigger: true }
+              side,
+              position.quantity,
+              newStopLoss
             )
-          }
 
-          // 设置新止损单
-          const side = position.direction === 'long' ? 'sell' : 'buy'
-          const stopOrder = await this.binance.stopLossOrder(
-            position.symbol,
-            side,
-            position.quantity,
-            newStopLoss
-          )
-
-          // 更新仓位信息
-          this.positionManager.updatePosition(position.symbol, {
-            position: {
-              ...position.position!,
+            // 更新仓位信息 - 同时更新 position 字段和顶层字段
+            const positionUpdate: any = {
               stopLoss: newStopLoss,
               stopLossOrderId: stopOrder.orderId
             }
-          })
+            
+            // 如果已有 position 对象，也更新它
+            if (position.position) {
+              positionUpdate.position = {
+                ...position.position,
+                stopLoss: newStopLoss,
+                stopLossOrderId: stopOrder.orderId
+              }
+            }
+            
+            this.positionManager.updatePosition(position.symbol, positionUpdate)
 
-          logger.info('移动止损', `${position.symbol} 止损已更新到: ${newStopLoss}`)
-        } catch (error: any) {
-          logger.error('移动止损', `${position.symbol} 更新止损失败: ${error.message}`)
+            logger.info('移动止损', `${position.symbol} 止损已更新到: ${newStopLoss}`)
+          } catch (error: any) {
+            logger.error('移动止损', `${position.symbol} 更新止损失败: ${error.message}`)
+          }
+        }
+
+        // 检查是否触发止损
+        const stopHit = position.direction === 'long'
+          ? currentPrice <= newStopLoss
+          : currentPrice >= newStopLoss
+
+        if (stopHit) {
+          logger.info('移动止损', `${position.symbol} 触发移动止损，价格: ${currentPrice}`)
+          await this.positionCloser.closePosition(position.symbol, '移动止损', currentPrice)
+          this.trailingStopActivated.delete(position.symbol)
+          return true
         }
       }
 
-      // 检查是否触发止损
-      const stopHit = position.direction === 'long'
-        ? currentPrice <= newStopLoss
-        : currentPrice >= newStopLoss
-
-      if (stopHit) {
-        logger.info('移动止损', `${position.symbol} 触发移动止损，价格: ${currentPrice}`)
-        await this.positionCloser.closePosition(position.symbol, '移动止损', currentPrice)
-        this.trailingStopActivated.delete(position.symbol)
-        return true
-      }
+      return false
+    } catch (error: any) {
+      logger.error('移动止损', `${position.symbol} 检查移动止损失败: ${error.message}`)
+      return false
     }
-
-    return false
   }
 
   /**
@@ -329,11 +350,8 @@ export class StrategyPositionMonitor {
    */
   private async checkTimeout(position: PositionInfo, strategy: Strategy, currentPrice: number): Promise<boolean> {
     try {
-      // 确保 position 有完整数据
-      if (!position.position) {
-        logger.warn('超时平仓', `${position.symbol} 缺少完整仓位信息，无法检查超时`)
-        return false
-      }
+      // 构建用于超时检查的 Position 对象
+      const posForCheck = this.buildPositionForCheck(position)
 
       // 获取超时配置（从策略配置或全局配置）
       const maxHoldTimeMinutes = strategy.riskManagement?.maxHoldTimeMinutes || 1440
@@ -345,7 +363,7 @@ export class StrategyPositionMonitor {
       const isADXDecreasing = indicators.adxSlope < 0
       
       // 检查持仓超时（ADX走弱时触发）
-      const isTimeout = isPositionTimeout(position.position as Position, maxHoldTimeMinutes, isADXDecreasing)
+      const isTimeout = isPositionTimeout(posForCheck, maxHoldTimeMinutes, isADXDecreasing)
       if (isTimeout) {
         logger.warn('超时平仓', `${position.symbol} 持仓超时且ADX走弱 (ADX斜率: ${indicators.adxSlope.toFixed(2)})`)
         await this.positionCloser.closePosition(position.symbol, '持仓超时', currentPrice)
@@ -356,6 +374,40 @@ export class StrategyPositionMonitor {
     } catch (error: any) {
       logger.error('超时平仓', `${position.symbol} 检查超时条件失败: ${error.message}`)
       return false
+    }
+  }
+
+  /**
+   * 从 PositionInfo 构建 Position 对象用于检查
+   */
+  private buildPositionForCheck(info: PositionInfo): Position {
+    // 如果已有完整的 position 数据，优先使用
+    if (info.position) {
+      return info.position
+    }
+    // 否则从 PositionInfo 构建
+    return {
+      symbol: info.symbol,
+      direction: info.direction === 'long' ? 'LONG' : 'SHORT',
+      entryPrice: info.entryPrice,
+      quantity: info.quantity,
+      leverage: info.leverage,
+      stopLoss: info.stopLoss || 0,
+      initialStopLoss: info.initialStopLoss || info.stopLoss || 0,
+      takeProfit1: info.takeProfit1 || 0,
+      takeProfit2: info.takeProfit2 || 0,
+      openTime: info.openTime,
+      highestPrice: info.highestPrice,
+      lowestPrice: info.lowestPrice,
+      orderId: info.orderId,
+      stopLossOrderId: info.stopLossOrderId,
+      stopLossOrderSymbol: info.stopLossOrderSymbol,
+      stopLossOrderSide: info.stopLossOrderSide as 'BUY' | 'SELL',
+      stopLossOrderType: info.stopLossOrderType as any,
+      stopLossOrderQuantity: info.stopLossOrderQuantity,
+      stopLossOrderStopPrice: info.stopLossOrderStopPrice,
+      stopLossOrderStatus: info.stopLossOrderStatus,
+      stopLossOrderTimestamp: info.stopLossOrderTimestamp
     }
   }
 

@@ -152,6 +152,11 @@ export class PositionManager {
 
       // 重建内存映射 - 从持仓数据中重建所有映射
       for (const position of positions) {
+        // 如果没有 position 字段，自动构建一个
+        if (!position.position) {
+          position.position = this.buildPositionFromInfo(position)
+        }
+        
         this.positions.set(position.symbol, position)
         
         // 重建 symbolLocks
@@ -167,6 +172,35 @@ export class PositionManager {
       logger.success('PositionManager', `本地状态加载完成: ${positions.length} 个仓位, ${this.symbolLocks.size} 个锁`)
     } catch (error: any) {
       logger.error('PositionManager', '加载本地状态失败:', error.message)
+    }
+  }
+
+  /**
+   * 从 PositionInfo 构建 Position 对象
+   */
+  private buildPositionFromInfo(info: PositionInfo): any {
+    return {
+      symbol: info.symbol,
+      direction: info.direction === 'long' ? 'LONG' : 'SHORT',
+      entryPrice: info.entryPrice,
+      quantity: info.quantity,
+      leverage: info.leverage,
+      stopLoss: info.stopLoss || 0,
+      initialStopLoss: info.initialStopLoss || info.stopLoss || 0,
+      takeProfit1: info.takeProfit1 || 0,
+      takeProfit2: info.takeProfit2 || 0,
+      openTime: info.openTime,
+      highestPrice: info.highestPrice,
+      lowestPrice: info.lowestPrice,
+      orderId: info.orderId,
+      stopLossOrderId: info.stopLossOrderId,
+      stopLossOrderSymbol: info.stopLossOrderSymbol,
+      stopLossOrderSide: info.stopLossOrderSide as 'BUY' | 'SELL',
+      stopLossOrderType: info.stopLossOrderType as any,
+      stopLossOrderQuantity: info.stopLossOrderQuantity,
+      stopLossOrderStopPrice: info.stopLossOrderStopPrice,
+      stopLossOrderStatus: info.stopLossOrderStatus,
+      stopLossOrderTimestamp: info.stopLossOrderTimestamp
     }
   }
 
