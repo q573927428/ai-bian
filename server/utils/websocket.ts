@@ -171,7 +171,7 @@ export class BinanceWebSocketService {
     this.state.connectedSymbols = [...this.state.connectedSymbols, ...newSymbols]
     this.state.subscriptions.symbols = [...this.state.subscriptions.symbols, ...newSymbols]
     
-    console.log(`📡 订阅价格数据: ${newSymbols.join(', ')}`)
+    // console.log(`📡 订阅价格数据: ${newSymbols.join(', ')}`)
   }
 
   /**
@@ -332,7 +332,7 @@ export class BinanceWebSocketService {
         this.handleDepthMessage(data)
       } else if (data.id && data.result === null) {
         // 订阅/取消订阅成功响应
-        console.log('✅ 订阅操作成功')
+        // console.log('✅ 订阅操作成功')
       } else {
         // 其他消息类型
         console.log('📨 收到未知消息类型:', data)
@@ -513,7 +513,7 @@ export class BinanceWebSocketService {
    */
   private updateStatus(status: WebSocketStatus): void {
     this.state.status = status
-    console.log(`📊 WebSocket状态更新: ${status}`)
+    // console.log(`📊 WebSocket状态更新: ${status}`)
   }
 
   /**
