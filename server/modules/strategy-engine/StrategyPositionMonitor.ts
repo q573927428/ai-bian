@@ -20,7 +20,7 @@ export class StrategyPositionMonitor {
   private strategyStore: any // 策略存储，获取策略配置
 
   private monitorTimer: NodeJS.Timeout | null = null
-  private readonly MONITOR_INTERVAL = 5000 // 5秒监控一次
+  private readonly MONITOR_INTERVAL = 30000 // 30秒监控一次
 
   // 移动止损激活状态: symbol -> boolean
   private trailingStopActivated: Map<string, boolean> = new Map()
