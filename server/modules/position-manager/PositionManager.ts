@@ -3,6 +3,13 @@
 import type { StrategyId, TradeDirection } from '../../../types/strategy'
 import type { Position } from '../../../types'
 import { logger } from '../../utils/logger'
+import { 
+  saveActivePositions,
+  loadActivePositions,
+  saveSymbolLocks,
+  loadSymbolLocks,
+  clearActiveState
+} from '../../utils/storage'
 
 /**
  * 仓位信息
@@ -40,6 +47,69 @@ export class PositionManager {
 
   // 策略的仓位列表: strategyId -> Set<symbol>
   private strategyPositions: Map<StrategyId, Set<string>> = new Map()
+
+  /**
+   * 构造函数：初始化时加载本地持久化状态
+   */
+  constructor() {
+    // 异步加载本地状态（不阻塞构造函数）
+    this._loadLocalState().catch(err => {
+      logger.error('PositionManager', '加载本地状态失败:', err.message)
+    })
+  }
+
+  /**
+   * 持久化当前状态到本地文件
+   */
+  private async _persistState(): Promise<void> {
+    try {
+      // 保存活跃持仓
+      const positions = this.getActivePositions()
+      await saveActivePositions(positions)
+
+      // 保存交易对锁
+      const locks: Record<string, string> = {}
+      for (const [symbol, strategyId] of this.symbolLocks.entries()) {
+        locks[symbol] = strategyId
+      }
+      await saveSymbolLocks(locks)
+    } catch (error: any) {
+      logger.error('PositionManager', '持久化状态失败:', error.message)
+    }
+  }
+
+  /**
+   * 从本地文件加载状态
+   */
+  private async _loadLocalState(): Promise<void> {
+    try {
+      logger.info('PositionManager', '开始加载本地持久化状态')
+      
+      // 加载活跃持仓
+      const positions = await loadActivePositions()
+      // 加载交易对锁
+      const locks = await loadSymbolLocks()
+
+      // 重建内存映射
+      for (const position of positions) {
+        this.positions.set(position.symbol, position)
+      }
+
+      for (const [symbol, strategyId] of Object.entries(locks)) {
+        this.symbolLocks.set(symbol, strategyId as StrategyId)
+        
+        // 重建策略仓位映射
+        if (!this.strategyPositions.has(strategyId as StrategyId)) {
+          this.strategyPositions.set(strategyId as StrategyId, new Set())
+        }
+        this.strategyPositions.get(strategyId as StrategyId)!.add(symbol)
+      }
+
+      logger.success('PositionManager', `本地状态加载完成: ${positions.length} 个仓位, ${Object.keys(locks).length} 个锁`)
+    } catch (error: any) {
+      logger.error('PositionManager', '加载本地状态失败:', error.message)
+    }
+  }
 
   /**
    * 检查交易对是否可开仓
@@ -95,6 +165,9 @@ export class PositionManager {
     this.strategyPositions.get(strategyId)!.add(symbol)
 
     logger.info('PositionManager', `交易对 ${symbol} 已被策略 ${strategyId} 锁定`)
+    
+    // 持久化状态
+    this._persistState().catch()
   }
 
   /**
@@ -114,6 +187,9 @@ export class PositionManager {
 
       this.symbolLocks.delete(symbol)
       logger.info('PositionManager', `交易对 ${symbol} 锁已释放`)
+      
+      // 持久化状态
+      this._persistState().catch()
     }
   }
 
@@ -128,6 +204,9 @@ export class PositionManager {
     this.positions.set(symbol, positionInfo)
 
     logger.info('PositionManager', `仓位已记录: ${symbol} by ${positionInfo.strategyId}`)
+    
+    // 持久化状态
+    this._persistState().catch()
   }
 
   /**
@@ -145,6 +224,9 @@ export class PositionManager {
     if (positionInfo) {
       logger.info('PositionManager', `仓位已清除: ${symbol} (策略: ${positionInfo.strategyId})`)
     }
+    
+    // 持久化状态
+    this._persistState().catch()
   }
 
   /**
@@ -235,6 +317,9 @@ export class PositionManager {
     }
 
     logger.success('PositionManager', `交易所持仓同步完成，共 ${exchangePositions.length} 个仓位`)
+    
+    // 持久化状态
+    this._persistState().catch()
   }
 
   /**
@@ -244,6 +329,9 @@ export class PositionManager {
     const existing = this.positions.get(symbol)
     if (existing) {
       Object.assign(existing, updates)
+      
+      // 持久化状态
+      this._persistState().catch()
     }
   }
 
@@ -287,6 +375,9 @@ export class PositionManager {
     this.symbolLocks.clear()
     this.strategyPositions.clear()
     logger.warn('PositionManager', `已清除所有仓位，共 ${count} 个`)
+    
+    // 持久化状态
+    this._persistState().catch()
   }
 }
 
