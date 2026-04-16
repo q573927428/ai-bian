@@ -46,6 +46,18 @@
             <span class="label">盈亏%:</span>
             <span class="value">{{ calculateUnrealizedPnlPercentage(pos).toFixed(2) }}%</span>
           </div>
+          <div class="info-item take-profit">
+            <span class="label">TP1止盈:</span>
+            <span class="value">{{ pos.takeProfit1 ? pos.takeProfit1.toFixed(2) : '--' }}</span>
+          </div>
+          <div class="info-item take-profit">
+            <span class="label">TP2止盈:</span>
+            <span class="value">{{ pos.takeProfit2 ? pos.takeProfit2.toFixed(2) : '--' }}</span>
+          </div>
+          <div class="info-item stop-loss" :class="{ 'trailing': isTrailingStopLoss(pos) }">
+            <span class="label">{{ isTrailingStopLoss(pos) ? '当前止损' : '初始止损' }}:</span>
+            <span class="value">{{ pos.stopLoss ? pos.stopLoss.toFixed(2) : '--' }}</span>
+          </div>
           <div class="info-item">
             <span class="label">开仓时间:</span>
             <span class="value">{{ formatOpenTime(pos.openTime) }}</span>
@@ -155,6 +167,12 @@ function formatOpenTime(openTime: string | number | Date): string {
     hour: '2-digit',
     minute: '2-digit',
   })
+}
+
+// 判断是否为移动止损（当前止损与初始止损不同）
+function isTrailingStopLoss(position: any): boolean {
+  if (!position.stopLoss || !position.initialStopLoss) return false
+  return position.stopLoss !== position.initialStopLoss
 }
 
 // 启动价格轮询
@@ -280,6 +298,33 @@ onUnmounted(() => {
 
 .info-item.profit.negative .value {
   color: #f56c6c;
+}
+
+.info-item.take-profit .label {
+  color: #67c23a;
+}
+
+.info-item.take-profit .value {
+  color: #67c23a;
+  font-weight: 600;
+}
+
+.info-item.stop-loss .label {
+  color: #f56c6c;
+}
+
+.info-item.stop-loss .value {
+  color: #f56c6c;
+  font-weight: 600;
+}
+
+.info-item.stop-loss.trailing .label {
+  color: #e6a23c;
+}
+
+.info-item.stop-loss.trailing .value {
+  color: #e6a23c;
+  font-weight: 600;
 }
 
 /* 小屏幕适配 */
