@@ -8,10 +8,17 @@
     <div class="positions-list">
       <el-card v-for="pos in positions" :key="pos.id" class="position-card" shadow="hover">
         <div class="position-header">
-          <span class="symbol">{{ pos.symbol }}</span>
-          <el-tag :type="pos.direction === 'long' ? 'success' : 'danger'" size="small">
-            {{ pos.direction === 'long' ? '做多' : '做空' }}
-          </el-tag>
+          <span class="symbol">
+            {{ pos.symbol }} 
+            <el-tag type="info" size="small" effect="plain">
+              {{ pos.strategyId }}
+            </el-tag>
+          </span>
+          <div class="header-tags">
+            <el-tag :type="pos.direction === 'long' ? 'success' : 'danger'" size="small">
+              {{ pos.direction === 'long' ? '做多' : '做空' }}
+            </el-tag>
+          </div>
         </div>
         <el-divider style="margin: 12px 0;" />
         <div class="position-info">
@@ -199,6 +206,9 @@ onUnmounted(() => {
   font-size: 18px;
   font-weight: 600;
   color: #303133;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .position-info {
