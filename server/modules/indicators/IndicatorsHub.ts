@@ -493,7 +493,7 @@ export class IndicatorsHub {
     }
 
     const duration = Date.now() - startTime
-    logger.info('IndicatorsHub', `数据刷新完成，耗时 ${duration}ms`)
+    // logger.info('IndicatorsHub', `数据刷新完成，耗时 ${duration}ms`)
   }
 
   /**
