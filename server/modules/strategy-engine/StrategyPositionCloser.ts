@@ -251,9 +251,9 @@ export class StrategyPositionCloser {
     try {
       logger.info('手动平仓处理', `开始处理手动平仓: ${position.symbol}`)
 
-      // 安全检查：确保position存在且position.position存在
-      if (!position || !position.position) {
-        logger.error('手动平仓处理', `仓位信息不完整，无法处理: ${position?.symbol || '未知交易对'}`)
+      // 安全检查：确保position存在且有基本信息
+      if (!position) {
+        logger.error('手动平仓处理', `仓位信息不存在，无法处理`)
         return
       }
 
@@ -287,11 +287,25 @@ export class StrategyPositionCloser {
         }
       }
 
+      // 创建临时仓位对象用于计算盈亏和记录交易
+      const tempPosition = position.position || {
+        symbol: position.symbol,
+        direction: position.direction.toUpperCase() as 'LONG' | 'SHORT',
+        entryPrice: position.entryPrice,
+        quantity: position.quantity,
+        leverage: position.leverage,
+        openTime: position.openTime,
+        stopLoss: 0,
+        initialStopLoss: 0,
+        takeProfit1: 0,
+        takeProfit2: 0
+      }
+
       // 计算盈亏
-      const { pnl, pnlPercentage } = calculatePnL(exitPrice, position.position!)
+      const { pnl, pnlPercentage } = calculatePnL(exitPrice, tempPosition)
 
       // 记录交易历史并更新状态（手动平仓）
-      await recordTrade(position.strategyId, position.position!, exitPrice, '手动平仓')
+      await recordTrade(position.strategyId, tempPosition, exitPrice, '手动平仓')
 
       // 更新每日盈亏（手动平仓影响每日盈亏）
       this.state.dailyPnL += pnl
@@ -458,9 +472,9 @@ export class StrategyPositionCloser {
    */
   async handleCompensatedClose(position: any, reason: string, strategyAnalyzer?: any): Promise<void> {
     try {
-      // 安全检查：确保position存在且position.position存在
-      if (!position || !position.position) {
-        logger.error('补偿平仓', `仓位信息不完整，无法处理: ${position?.symbol || '未知交易对'}`)
+      // 安全检查：确保position存在
+      if (!position) {
+        logger.error('补偿平仓', `仓位信息不存在，无法处理`)
         return
       }
       
@@ -468,6 +482,20 @@ export class StrategyPositionCloser {
 
       let exitPrice = 0
       let closeTime = Date.now()
+
+      // 创建临时仓位对象
+      const tempPosition = position.position || {
+        symbol: position.symbol,
+        direction: position.direction.toUpperCase() as 'LONG' | 'SHORT',
+        entryPrice: position.entryPrice,
+        quantity: position.quantity,
+        leverage: position.leverage,
+        openTime: position.openTime,
+        stopLoss: 0,
+        initialStopLoss: 0,
+        takeProfit1: 0,
+        takeProfit2: 0
+      }
 
       // 尝试查询止损订单状态
       if (position.position?.stopLossOrderId) {
@@ -478,7 +506,7 @@ export class StrategyPositionCloser {
           // 如果订单已成交，获取成交价格
           if (stopOrder.status === 'closed' || stopOrder.status === 'filled') {
             // 优化：优先使用average（平均成交价），然后是price，最后是position.stopLoss
-            exitPrice = Number(stopOrder.info?.actualPrice) || stopOrder.average || stopOrder.price || position.position.stopLoss
+            exitPrice = Number(stopOrder.info?.actualPrice) || stopOrder.average || stopOrder.price || tempPosition.stopLoss
             logger.info('补偿平仓', `止损订单已成交: ${stopOrder.status}，成交价: ${exitPrice}`)
           } else {
             //如果订单未成交 尝试取消止损单
@@ -486,7 +514,7 @@ export class StrategyPositionCloser {
               await this.binance.cancelOrder(position.position.stopLossOrderId, position.symbol, { trigger: true })
               logger.info('补偿平仓', `成功取消止损订单: ${position.position.stopLossOrderId}`)
               // 优化：优先使用average（平均成交价），然后是price，最后是position.stopLoss
-              exitPrice = stopOrder.average || stopOrder.price || position.position.stopLoss
+              exitPrice = stopOrder.average || stopOrder.price || tempPosition.stopLoss
             } catch (error: any) {
               // 如果订单未成交，使用当前价格
               exitPrice = await this.binance.fetchPrice(position.symbol)
@@ -533,10 +561,10 @@ export class StrategyPositionCloser {
       }
 
       // 计算盈亏
-      const { pnl, pnlPercentage } = calculatePnL(exitPrice, position.position!)
+      const { pnl, pnlPercentage } = calculatePnL(exitPrice, tempPosition)
 
       // 记录交易历史并更新状态
-      await recordTrade(position.strategyId, position.position!, exitPrice, reason)
+      await recordTrade(position.strategyId, tempPosition, exitPrice, reason)
 
       // 更新每日盈亏
       this.state.dailyPnL += pnl

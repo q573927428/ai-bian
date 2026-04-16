@@ -65,6 +65,12 @@ export interface Strategy {
   
   // 版本历史
   versionHistory: VersionHistory[];
+
+  // 运行数据
+  performance: StrategyPerformance;    // 策略整体表现统计
+  tradeRecords: TradeRecord[];         // 所有交易记录
+  sessions: StrategySession[];         // 所有运行会话
+  currentSessionId?: string;           // 当前运行会话ID
 }
 
 // 市场数据配置
@@ -208,3 +214,67 @@ export interface IndicatorData {
   timestamp: number;
   values: Record<string, any>;         // 指标值，如 { ema: [...], rsi: 45.2 }
 }
+
+// ==================== 策略运行数据 ====================
+
+// 开单记录
+export interface TradeRecord {
+  id: string;                          // 记录唯一ID
+  strategyId: StrategyId;              // 策略ID
+  strategyVersion: StrategyVersion;    // 策略版本
+  symbol: string;                      // 交易对
+  direction: TradeDirection;           // 交易方向
+  action: TradeAction;                 // 交易动作
+  entryPrice: number;                  // 入场价格
+  exitPrice?: number;                  // 出场价格
+  quantity: number;                    // 数量
+  leverage: number;                    // 实际使用杠杆
+  marginMode: MarginMode;              // 保证金模式
+  positionMode: PositionMode;          // 持仓模式
+  openTime: string;                    // 开仓时间
+  closeTime?: string;                  // 平仓时间
+  profitLoss?: number;                 // 盈亏金额
+  profitLossPercentage?: number;       // 盈亏百分比
+  status: 'open' | 'closed' | 'canceled'; // 订单状态
+  reason?: string;                     // 开/平仓原因
+  txHash?: string;                     // 交易哈希
+}
+
+// 策略运行统计
+export interface StrategyPerformance {
+  strategyId: StrategyId;              // 策略ID
+  totalTrades: number;                 // 总交易次数
+  totalWins: number;                   // 盈利次数
+  totalLosses: number;                 // 亏损次数
+  winRate: number;                     // 胜率 (%)
+  totalProfit: number;                 // 总盈利 (USDT)
+  totalLoss: number;                   // 总亏损 (USDT)
+  netProfit: number;                   // 净利润 (USDT)
+  profitFactor: number;                // 盈利因子 (总盈利/总亏损)
+  maxDrawdown: number;                 // 最大回撤 (%)
+  averageProfitPerTrade: number;       // 平均每笔盈利
+  averageLossPerTrade: number;         // 平均每笔亏损
+  largestWin: number;                  // 最大盈利金额
+  largestLoss: number;                 // 最大亏损金额
+  averageHoldTime: number;             // 平均持仓时间 (分钟)
+  consecutiveWins: number;             // 当前连续盈利次数
+  consecutiveLosses: number;           // 当前连续亏损次数
+  maxConsecutiveWins: number;          // 最大连续盈利次数
+  maxConsecutiveLosses: number;        // 最大连续亏损次数
+  updatedAt: string;                   // 统计更新时间
+}
+
+// 策略运行会话
+export interface StrategySession {
+  id: string;                          // 会话ID
+  strategyId: StrategyId;              // 策略ID
+  strategyVersion: StrategyVersion;    // 策略版本
+  startTime: string;                   // 启动时间
+  endTime?: string;                    // 停止时间
+  status: 'running' | 'stopped' | 'error'; // 会话状态
+  totalSignals: number;                // 本次会话产生的信号数
+  totalTrades: number;                 // 本次会话交易次数
+  sessionProfit: number;               // 本次会话盈利
+  errorMessage?: string;               // 错误信息
+}
+

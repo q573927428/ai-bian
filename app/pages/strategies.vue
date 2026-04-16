@@ -62,6 +62,7 @@
         </el-table-column>
         <el-table-column label="操作" fixed="right" width="360">
           <template #default="{ row }">
+            <el-button size="small" @click="viewStrategyDetail(row)">详情</el-button>
             <el-button size="small" @click="editStrategy(row)">编辑</el-button>
             <el-button
               size="small"
@@ -108,6 +109,237 @@
         :strategy-id="viewingStrategy.id"
       />
     </el-dialog>
+
+    <!-- 策略详情对话框 -->
+    <el-dialog v-model="showDetailDialog" :title="`${detailStrategy?.name} 运行详情`" width="90%" :close-on-click-modal="false">
+      <div v-if="detailStrategy" v-loading="detailLoading">
+        <el-tabs v-model="activeDetailTab">
+          <!-- 性能统计 -->
+          <el-tab-pane label="性能统计" name="performance">
+            <el-row :gutter="20" style="margin-bottom: 20px;">
+              <el-col :span="6">
+                <el-card>
+                  <div class="stat-item">
+                    <div class="stat-label">总交易次数</div>
+                    <div class="stat-value">{{ performance.totalTrades || 0 }}</div>
+                  </div>
+                </el-card>
+              </el-col>
+              <el-col :span="6">
+                <el-card>
+                  <div class="stat-item">
+                    <div class="stat-label">胜率</div>
+                    <div class="stat-value" :class="performance.winRate >= 50 ? 'text-success' : 'text-danger'">
+                      {{ (performance.winRate || 0).toFixed(2) }}%
+                    </div>
+                  </div>
+                </el-card>
+              </el-col>
+              <el-col :span="6">
+                <el-card>
+                  <div class="stat-item">
+                    <div class="stat-label">净利润</div>
+                    <div class="stat-value" :class="performance.netProfit >= 0 ? 'text-success' : 'text-danger'">
+                      ${{ (performance.netProfit || 0).toFixed(2) }}
+                    </div>
+                  </div>
+                </el-card>
+              </el-col>
+              <el-col :span="6">
+                <el-card>
+                  <div class="stat-item">
+                    <div class="stat-label">盈利因子</div>
+                    <div class="stat-value" :class="performance.profitFactor >= 1.5 ? 'text-success' : 'text-warning'">
+                      {{ (performance.profitFactor || 0).toFixed(2) }}
+                    </div>
+                  </div>
+                </el-card>
+              </el-col>
+            </el-row>
+            <el-row :gutter="20" style="margin-bottom: 20px;">
+              <el-col :span="6">
+                <el-card>
+                  <div class="stat-item">
+                    <div class="stat-label">总盈利</div>
+                    <div class="stat-value text-success">
+                      ${{ (performance.totalProfit || 0).toFixed(2) }}
+                    </div>
+                  </div>
+                </el-card>
+              </el-col>
+              <el-col :span="6">
+                <el-card>
+                  <div class="stat-item">
+                    <div class="stat-label">总亏损</div>
+                    <div class="stat-value text-danger">
+                      ${{ (performance.totalLoss || 0).toFixed(2) }}
+                    </div>
+                  </div>
+                </el-card>
+              </el-col>
+              <el-col :span="6">
+                <el-card>
+                  <div class="stat-item">
+                    <div class="stat-label">最大回撤</div>
+                    <div class="stat-value" :class="performance.maxDrawdown <= 20 ? 'text-success' : 'text-danger'">
+                      {{ (performance.maxDrawdown || 0).toFixed(2) }}%
+                    </div>
+                  </div>
+                </el-card>
+              </el-col>
+              <el-col :span="6">
+                <el-card>
+                  <div class="stat-item">
+                    <div class="stat-label">平均持仓时间</div>
+                    <div class="stat-value">
+                      {{ (performance.averageHoldTime || 0).toFixed(1) }}分钟
+                    </div>
+                  </div>
+                </el-card>
+              </el-col>
+            </el-row>
+            <el-row :gutter="20">
+              <el-col :span="6">
+                <el-card>
+                  <div class="stat-item">
+                    <div class="stat-label">最大连续盈利</div>
+                    <div class="stat-value text-success">
+                      {{ performance.maxConsecutiveWins || 0 }}次
+                    </div>
+                  </div>
+                </el-card>
+              </el-col>
+              <el-col :span="6">
+                <el-card>
+                  <div class="stat-item">
+                    <div class="stat-label">最大连续亏损</div>
+                    <div class="stat-value text-danger">
+                      {{ performance.maxConsecutiveLosses || 0 }}次
+                    </div>
+                  </div>
+                </el-card>
+              </el-col>
+              <el-col :span="6">
+                <el-card>
+                  <div class="stat-item">
+                    <div class="stat-label">当前连续盈利</div>
+                    <div class="stat-value" :class="performance.consecutiveWins > 0 ? 'text-success' : 'text-secondary'">
+                      {{ performance.consecutiveWins || 0 }}次
+                    </div>
+                  </div>
+                </el-card>
+              </el-col>
+              <el-col :span="6">
+                <el-card>
+                  <div class="stat-item">
+                    <div class="stat-label">当前连续亏损</div>
+                    <div class="stat-value" :class="performance.consecutiveLosses > 0 ? 'text-danger' : 'text-secondary'">
+                      {{ performance.consecutiveLosses || 0 }}次
+                    </div>
+                  </div>
+                </el-card>
+              </el-col>
+            </el-row>
+          </el-tab-pane>
+
+          <!-- 交易记录 -->
+          <el-tab-pane label="交易记录" name="trades">
+            <el-table :data="tradeRecords" stripe border>
+              <el-table-column prop="symbol" label="交易对" width="120" />
+              <el-table-column prop="direction" label="方向" width="80">
+                <template #default="{ row }">
+                  <el-tag :type="row.direction === 'long' ? 'success' : 'danger'">
+                    {{ row.direction === 'long' ? '做多' : '做空' }}
+                  </el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column prop="action" label="动作" width="80">
+                <template #default="{ row }">
+                  <el-tag :type="row.action === 'open' ? 'primary' : 'warning'">
+                    {{ row.action === 'open' ? '开仓' : row.action === 'close' ? '平仓' : '持有' }}
+                  </el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column prop="entryPrice" label="入场价" width="120" />
+              <el-table-column prop="exitPrice" label="出场价" width="120" />
+              <el-table-column prop="quantity" label="数量" width="100" />
+              <el-table-column prop="leverage" label="杠杆" width="80" />
+              <el-table-column prop="profitLoss" label="盈亏金额" width="120">
+                <template #default="{ row }">
+                  <span :class="(row.profitLoss || 0) >= 0 ? 'text-success' : 'text-danger'">
+                    ${{ (row.profitLoss || 0).toFixed(2) }}
+                  </span>
+                </template>
+              </el-table-column>
+              <el-table-column prop="profitLossPercentage" label="盈亏百分比" width="120">
+                <template #default="{ row }">
+                  <span :class="(row.profitLossPercentage || 0) >= 0 ? 'text-success' : 'text-danger'">
+                    {{ (row.profitLossPercentage || 0).toFixed(2) }}%
+                  </span>
+                </template>
+              </el-table-column>
+              <el-table-column prop="openTime" label="开仓时间" width="180">
+                <template #default="{ row }">
+                  {{ formatDate(row.openTime) }}
+                </template>
+              </el-table-column>
+              <el-table-column prop="closeTime" label="平仓时间" width="180">
+                <template #default="{ row }">
+                  {{ row.closeTime ? formatDate(row.closeTime) : '-' }}
+                </template>
+              </el-table-column>
+              <el-table-column prop="status" label="状态" width="100">
+                <template #default="{ row }">
+                  <el-tag :type="row.status === 'closed' ? 'success' : row.status === 'open' ? 'primary' : 'info'">
+                    {{ row.status === 'closed' ? '已平仓' : row.status === 'open' ? '持仓中' : '已取消' }}
+                  </el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column prop="reason" label="原因" show-overflow-tooltip />
+            </el-table>
+          </el-tab-pane>
+
+          <!-- 运行会话 -->
+          <el-tab-pane label="运行历史" name="sessions">
+            <el-table :data="sessions" stripe border>
+              <el-table-column prop="id" label="会话ID" width="180" />
+              <el-table-column prop="strategyVersion" label="版本" width="80">
+                <template #default="{ row }">
+                  v{{ row.strategyVersion }}
+                </template>
+              </el-table-column>
+              <el-table-column prop="startTime" label="启动时间" width="180">
+                <template #default="{ row }">
+                  {{ formatDate(row.startTime) }}
+                </template>
+              </el-table-column>
+              <el-table-column prop="endTime" label="停止时间" width="180">
+                <template #default="{ row }">
+                  {{ row.endTime ? formatDate(row.endTime) : '-' }}
+                </template>
+              </el-table-column>
+              <el-table-column prop="status" label="状态" width="100">
+                <template #default="{ row }">
+                  <el-tag :type="row.status === 'running' ? 'success' : row.status === 'error' ? 'danger' : 'info'">
+                    {{ row.status === 'running' ? '运行中' : row.status === 'stopped' ? '已停止' : '错误' }}
+                  </el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column prop="totalSignals" label="信号数" width="80" />
+              <el-table-column prop="totalTrades" label="交易次数" width="100" />
+              <el-table-column prop="sessionProfit" label="会话盈利" width="120">
+                <template #default="{ row }">
+                  <span :class="row.sessionProfit >= 0 ? 'text-success' : 'text-danger'">
+                    ${{ row.sessionProfit.toFixed(2) }}
+                  </span>
+                </template>
+              </el-table-column>
+              <el-table-column prop="errorMessage" label="错误信息" show-overflow-tooltip />
+            </el-table>
+          </el-tab-pane>
+        </el-tabs>
+      </div>
+    </el-dialog>
   </div>
 </template>
 
@@ -121,9 +353,18 @@ const strategies = ref<Strategy[]>([])
 const loading = ref(false)
 const showCreateDialog = ref(false)
 const showVersionHistoryDialog = ref(false)
+const showDetailDialog = ref(false)
 const editingStrategy = ref<Strategy | null>(null)
 const viewingStrategy = ref<Strategy | null>(null)
+const detailStrategy = ref<Strategy | null>(null)
 const testingStrategies = ref<Set<string>>(new Set())
+const detailLoading = ref(false)
+const activeDetailTab = ref('performance')
+
+// 详情数据
+const performance = ref<any>({})
+const tradeRecords = ref<any[]>([])
+const sessions = ref<any[]>([])
 
 // 加载策略列表
 const loadStrategies = async () => {
@@ -221,6 +462,31 @@ const deleteStrategy = async (strategy: Strategy) => {
 const showVersionHistory = (strategy: Strategy) => {
   viewingStrategy.value = strategy
   showVersionHistoryDialog.value = true
+}
+
+// 查看策略详情
+const viewStrategyDetail = async (strategy: Strategy) => {
+  detailStrategy.value = strategy
+  showDetailDialog.value = true
+  detailLoading.value = true
+  activeDetailTab.value = 'performance'
+  
+  try {
+    // 并行加载所有数据
+    const [perfRes, tradesRes, sessionsRes] = await Promise.all([
+      $fetch(`/api/strategies/${strategy.id}/performance`),
+      $fetch(`/api/strategies/${strategy.id}/trades`),
+      $fetch(`/api/strategies/${strategy.id}/sessions`)
+    ])
+    
+    performance.value = perfRes.data || {}
+    tradeRecords.value = (tradesRes.data as unknown as any[]) || []
+    sessions.value = (sessionsRes.data as unknown as any[]) || []
+  } catch (error: any) {
+    ElMessage.error(`加载详情失败: ${error.message}`)
+  } finally {
+    detailLoading.value = false
+  }
 }
 
 // 获取状态类型
@@ -332,5 +598,36 @@ onMounted(() => {
 .symbol-tag {
   margin-right: 5px;
   margin-bottom: 5px;
+}
+
+.stat-item {
+  text-align: center;
+}
+
+.stat-label {
+  font-size: 14px;
+  color: #909399;
+  margin-bottom: 8px;
+}
+
+.stat-value {
+  font-size: 24px;
+  font-weight: bold;
+}
+
+.text-success {
+  color: #67C23A !important;
+}
+
+.text-danger {
+  color: #F56C6C !important;
+}
+
+.text-warning {
+  color: #E6A23C !important;
+}
+
+.text-secondary {
+  color: #909399 !important;
 }
 </style>

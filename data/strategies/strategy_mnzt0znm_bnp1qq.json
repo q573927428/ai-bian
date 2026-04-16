@@ -124,6 +124,31 @@
     "marginMode": "cross",
     "positionMode": "one-way"
   },
+  "performance": {
+    "strategyId": "strategy_mnzt0znm_bnp1qq",
+    "totalTrades": 0,
+    "totalWins": 0,
+    "totalLosses": 0,
+    "winRate": 0,
+    "totalProfit": 0,
+    "totalLoss": 0,
+    "netProfit": 0,
+    "profitFactor": 0,
+    "maxDrawdown": 0,
+    "averageProfitPerTrade": 0,
+    "averageLossPerTrade": 0,
+    "largestWin": 0,
+    "largestLoss": 0,
+    "averageHoldTime": 0,
+    "consecutiveWins": 0,
+    "consecutiveLosses": 0,
+    "maxConsecutiveWins": 0,
+    "maxConsecutiveLosses": 0,
+    "updatedAt": "2026-04-15T12:41:53.231Z"
+  },
+  "tradeRecords": [],
+  "sessions": [],
+  "currentSessionId": null,
   "versionHistory": [
     {
       "version": 1,
