@@ -25,7 +25,7 @@
     </template>
 
       <el-table :data="strategies" v-loading="loading" stripe>
-        <el-table-column prop="name" label="策略名称" width="80" />
+        <el-table-column prop="name" label="策略" width="100" />
         <el-table-column label="交易对" >
           <template #default="{ row }">
             <el-tag
@@ -58,7 +58,7 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="创建时间" width="180">
+        <el-table-column label="时间" width="180">
           <template #default="{ row }">
             {{ formatDate(row.createdAt) }}
           </template>

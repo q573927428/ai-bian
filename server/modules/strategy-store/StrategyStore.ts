@@ -9,6 +9,7 @@ import { logger } from '../../utils/logger'
 // 项目根目录（ES模块兼容）
 const PROJECT_ROOT = resolve(new URL('../../', import.meta.url).pathname.replace(/^\/([A-Za-z]):\//, '$1:/'))
 const STRATEGIES_DIR = join(PROJECT_ROOT, 'data', 'strategies')
+const TRADE_HISTORY_FILE = join(PROJECT_ROOT, 'data', 'trade-history.json')
 
 /**
  * 确保策略数据目录存在
@@ -795,6 +796,47 @@ export class StrategyStore {
   }
 
   /**
+   * 从全局交易历史文件读取记录
+   */
+  private async getGlobalTradeRecords(strategyId: StrategyId): Promise<import('../../../types/strategy').TradeRecord[]> {
+    try {
+      if (!existsSync(TRADE_HISTORY_FILE)) {
+        return []
+      }
+
+      const data = await readFile(TRADE_HISTORY_FILE, 'utf-8')
+      const globalRecords = JSON.parse(data) as any[]
+
+      // 转换全局记录格式为策略存储格式
+      return globalRecords
+        .filter(record => record.strategyId === strategyId)
+        .map(record => ({
+          id: record.id,
+          strategyId: record.strategyId,
+          strategyVersion: 1, // 全局记录没有版本信息，默认1
+          symbol: record.symbol,
+          direction: (record.direction?.toLowerCase() || 'long') as 'long' | 'short',
+          action: 'close' as const,
+          entryPrice: record.entryPrice,
+          exitPrice: record.exitPrice,
+          quantity: record.quantity,
+          leverage: record.leverage,
+          marginMode: 'cross' as const, // 默认逐仓
+          positionMode: 'one-way' as const, // 默认单向持仓
+          profitLoss: record.pnl,
+          profitLossPercentage: record.pnlPercentage,
+          openTime: new Date(record.openTime).toISOString(),
+          closeTime: new Date(record.closeTime).toISOString(),
+          status: 'closed' as const,
+          reason: record.reason
+        }))
+    } catch (error: any) {
+      logger.error('StrategyStore', `读取全局交易历史失败: ${error.message}`)
+      return []
+    }
+  }
+
+  /**
    * 获取策略交易记录
    */
   async getTradeRecords(strategyId: StrategyId, limit?: number, symbol?: string): Promise<import('../../../types/strategy').TradeRecord[]> {
@@ -804,7 +846,20 @@ export class StrategyStore {
         return []
       }
 
-      let records = [...strategy.tradeRecords].sort((a, b) => 
+      // 从策略文件和全局文件同时读取记录
+      const strategyRecords = [...strategy.tradeRecords]
+      const globalRecords = await this.getGlobalTradeRecords(strategyId)
+
+      // 合并并去重（按id）
+      const recordMap = new Map<string, import('../../../types/strategy').TradeRecord>()
+      for (const record of strategyRecords) {
+        recordMap.set(record.id, record)
+      }
+      for (const record of globalRecords) {
+        recordMap.set(record.id, record)
+      }
+
+      let records = Array.from(recordMap.values()).sort((a, b) => 
         new Date(b.openTime).getTime() - new Date(a.openTime).getTime()
       )
 
@@ -824,6 +879,134 @@ export class StrategyStore {
   }
 
   /**
+   * 基于交易记录计算性能统计
+   */
+  private calculatePerformanceFromRecords(
+    strategyId: StrategyId,
+    records: import('../../../types/strategy').TradeRecord[]
+  ): import('../../../types/strategy').StrategyPerformance {
+    const closedTrades = records.filter(t => t.status === 'closed')
+    const totalTrades = closedTrades.length
+
+    if (totalTrades === 0) {
+      return {
+        strategyId,
+        totalTrades: 0,
+        totalWins: 0,
+        totalLosses: 0,
+        winRate: 0,
+        totalProfit: 0,
+        totalLoss: 0,
+        netProfit: 0,
+        profitFactor: 0,
+        maxDrawdown: 0,
+        averageProfitPerTrade: 0,
+        averageLossPerTrade: 0,
+        largestWin: 0,
+        largestLoss: 0,
+        averageHoldTime: 0,
+        consecutiveWins: 0,
+        consecutiveLosses: 0,
+        maxConsecutiveWins: 0,
+        maxConsecutiveLosses: 0,
+        updatedAt: new Date().toISOString()
+      }
+    }
+
+    // 计算基础统计
+    const winningTrades = closedTrades.filter(t => (t.profitLoss || 0) > 0)
+    const losingTrades = closedTrades.filter(t => (t.profitLoss || 0) <= 0)
+    const totalWins = winningTrades.length
+    const totalLosses = losingTrades.length
+
+    const totalProfit = winningTrades.reduce((sum, t) => sum + (t.profitLoss || 0), 0)
+    const totalLoss = Math.abs(losingTrades.reduce((sum, t) => sum + (t.profitLoss || 0), 0))
+    const netProfit = totalProfit - totalLoss
+
+    const winRate = totalTrades > 0 ? (totalWins / totalTrades) * 100 : 0
+    const profitFactor = totalLoss > 0 ? totalProfit / totalLoss : Infinity
+
+    // 计算最大盈利/亏损
+    const largestWin = winningTrades.length > 0 ? Math.max(...winningTrades.map(t => t.profitLoss || 0)) : 0
+    const largestLoss = losingTrades.length > 0 ? Math.max(...losingTrades.map(t => Math.abs(t.profitLoss || 0))) : 0
+
+    // 平均盈亏
+    const averageProfitPerTrade = totalWins > 0 ? totalProfit / totalWins : 0
+    const averageLossPerTrade = totalLosses > 0 ? totalLoss / totalLosses : 0
+
+    // 平均持仓时间
+    const totalHoldTime = closedTrades.reduce((sum, t) => {
+      if (t.openTime && t.closeTime) {
+        const open = new Date(t.openTime).getTime()
+        const close = new Date(t.closeTime).getTime()
+        return sum + (close - open) / (1000 * 60) // 转换为分钟
+      }
+      return sum
+    }, 0)
+    const averageHoldTime = totalTrades > 0 ? totalHoldTime / totalTrades : 0
+
+    // 计算连续盈亏
+    let consecutiveWins = 0
+    let consecutiveLosses = 0
+    let maxConsecutiveWins = 0
+    let maxConsecutiveLosses = 0
+
+    // 按时间排序交易
+    const sortedTrades = [...closedTrades].sort((a, b) => 
+      new Date(a.closeTime || a.openTime).getTime() - new Date(b.closeTime || b.openTime).getTime()
+    )
+
+    for (const trade of sortedTrades) {
+      const profit = trade.profitLoss || 0
+      if (profit > 0) {
+        consecutiveWins++
+        consecutiveLosses = 0
+        maxConsecutiveWins = Math.max(maxConsecutiveWins, consecutiveWins)
+      } else {
+        consecutiveLosses++
+        consecutiveWins = 0
+        maxConsecutiveLosses = Math.max(maxConsecutiveLosses, consecutiveLosses)
+      }
+    }
+
+    // 计算最大回撤（简化版）
+    let peak = 0
+    let maxDrawdown = 0
+    let cumulativeProfit = 0
+    for (const trade of sortedTrades) {
+      cumulativeProfit += trade.profitLoss || 0
+      if (cumulativeProfit > peak) {
+        peak = cumulativeProfit
+      }
+      const drawdown = peak > 0 ? ((peak - cumulativeProfit) / peak) * 100 : 0
+      maxDrawdown = Math.max(maxDrawdown, drawdown)
+    }
+
+    return {
+      strategyId,
+      totalTrades,
+      totalWins,
+      totalLosses,
+      winRate,
+      totalProfit,
+      totalLoss,
+      netProfit,
+      profitFactor,
+      maxDrawdown,
+      averageProfitPerTrade,
+      averageLossPerTrade,
+      largestWin,
+      largestLoss,
+      averageHoldTime,
+      consecutiveWins,
+      consecutiveLosses,
+      maxConsecutiveWins,
+      maxConsecutiveLosses,
+      updatedAt: new Date().toISOString()
+    }
+  }
+
+  /**
    * 获取策略性能统计
    */
   async getPerformance(strategyId: StrategyId): Promise<import('../../../types/strategy').StrategyPerformance | null> {
@@ -832,11 +1015,51 @@ export class StrategyStore {
       if (!strategy) {
         return null
       }
-      return strategy.performance
+
+      // 获取合并后的交易记录
+      const allRecords = await this.getTradeRecords(strategyId)
+      
+      // 基于合并后的记录重新计算性能统计
+      return this.calculatePerformanceFromRecords(strategyId, allRecords)
     } catch (error: any) {
       logger.error('StrategyStore', `获取性能统计失败 ${strategyId}: ${error.message}`)
       return null
     }
+  }
+
+  /**
+   * 从交易记录生成虚拟会话
+   */
+  private generateVirtualSessionFromRecords(
+    strategyId: StrategyId,
+    records: import('../../../types/strategy').TradeRecord[]
+  ): import('../../../types/strategy').StrategySession[] {
+    if (records.length === 0) {
+      return []
+    }
+
+    // 按时间排序交易记录
+    const sortedRecords = [...records].sort((a, b) => 
+      new Date(a.openTime).getTime() - new Date(b.openTime).getTime()
+    )
+
+    const firstRecord = sortedRecords[0]!
+    const lastRecord = sortedRecords[sortedRecords.length - 1]!
+
+    // 计算会话的总盈利
+    const totalProfit = sortedRecords.reduce((sum, r) => sum + (r.profitLoss || 0), 0)
+
+    return [{
+      id: 'virtual_session_from_trade_history',
+      strategyId,
+      strategyVersion: 1,
+      startTime: firstRecord.openTime,
+      endTime: lastRecord.closeTime || new Date().toISOString(),
+      status: 'stopped' as const,
+      totalSignals: records.length,
+      totalTrades: records.filter(r => r.status === 'closed').length,
+      sessionProfit: totalProfit
+    }]
   }
 
   /**
@@ -849,7 +1072,17 @@ export class StrategyStore {
         return []
       }
 
-      let sessions = [...strategy.sessions].sort((a, b) => 
+      // 获取策略自身的会话
+      let sessions = [...strategy.sessions]
+
+      // 如果没有会话，尝试从交易记录生成虚拟会话
+      if (sessions.length === 0) {
+        const allRecords = await this.getTradeRecords(strategyId)
+        sessions = this.generateVirtualSessionFromRecords(strategyId, allRecords)
+      }
+
+      // 按时间倒序排序
+      sessions.sort((a, b) => 
         new Date(b.startTime).getTime() - new Date(a.startTime).getTime()
       )
 
