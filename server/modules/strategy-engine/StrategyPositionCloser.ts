@@ -1,6 +1,5 @@
 // ==================== 多策略平仓模块 ====================
 
-import type { PositionInfo } from '../position-manager/PositionManager'
 import { PositionManager } from '../position-manager/PositionManager'
 import { BinanceService } from '../../utils/binance'
 import { logger } from '../../utils/logger'

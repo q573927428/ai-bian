@@ -1,14 +1,8 @@
 // ==================== 策略执行引擎 ====================
 
-import type {
-  Strategy,
-  StrategyId,
-  Timeframe,
-  IndicatorType,
-  StatisticsType
-} from '../../../types/strategy'
+import type { Strategy, StrategyId} from '../../../types/strategy'
 import type { TradeSignal } from '../../../types/signal'
-import type { OHLCV, BotConfig } from '../../../types'
+import type { BotConfig } from '../../../types'
 import { StrategyStore } from '../strategy-store/StrategyStore'
 import { IndicatorsHub } from '../indicators/IndicatorsHub'
 import { PositionManager } from '../position-manager/PositionManager'
@@ -17,7 +11,6 @@ import { MultiStrategyAIAnalyzer } from '../ai-analyzer/MultiStrategyAIAnalyzer'
 import { logger } from '../../utils/logger'
 import { calculateStopLoss, calculateTakeProfit, calculatePositionSize, calculateMaxUsdtAmount } from '../../utils/indicators-risk'
 import { getOrderSide } from '../../utils/trade-helpers'
-import { calculateQuickLeverage, calculateSafeLeverage, calculateFinalLeverage } from '../../utils/dynamic-leverage'
 import { StrategyPositionCloser } from './StrategyPositionCloser'
 import { StrategyPositionMonitor } from './StrategyPositionMonitor'
 import { waitAndConfirmPosition } from './helpers/position-helpers'

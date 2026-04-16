@@ -79,22 +79,22 @@ export class MultiStrategyAIAnalyzer {
       // 3. 调用原有的 AI 分析函数
       const aiResult = await this.callAI(fullPrompt, symbol, price, indicators, volume, priceChange24h, strategyId)
 
-      // if (!aiResult || aiResult.direction === 'IDLE') {
-      //   return null
-      // }
-
-      // 临时测试：只针对指定交易对强制返回LONG信号
-      if (!aiResult) {
+      if (!aiResult || aiResult.direction === 'IDLE') {
         return null
       }
-      if (symbol === 'BTC/USDT') { 
-        aiResult.direction = 'LONG'
-        aiResult.score = 80 // 确保置信度足够
-      } else {
-        if (aiResult.direction === 'IDLE') {
-          return null
-        }
-      }
+
+      // 临时测试：只针对指定交易对强制返回LONG信号
+      // if (!aiResult) {
+      //   return null
+      // }
+      // if (symbol === 'BTC/USDT') { 
+      //   aiResult.direction = 'LONG'
+      //   aiResult.score = 80 // 确保置信度足够
+      // } else {
+      //   if (aiResult.direction === 'IDLE') {
+      //     return null
+      //   }
+      // }
 
       // 4. 转换为标准交易信号
       const signal: TradeSignal = {
