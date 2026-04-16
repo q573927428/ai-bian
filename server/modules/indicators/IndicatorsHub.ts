@@ -482,7 +482,7 @@ export class IndicatorsHub {
     const symbols = Array.from(this.symbolDataCache.keys())
     if (symbols.length === 0) return
 
-    logger.info('IndicatorsHub', `开始刷新 ${symbols.length} 个交易对的数据...`)
+    // logger.info('IndicatorsHub', `开始刷新 ${symbols.length} 个交易对的数据...`)
     const startTime = Date.now()
 
     for (let i = 0; i < symbols.length; i += this.MAX_CONCURRENT) {
