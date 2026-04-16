@@ -109,14 +109,14 @@
                 </div>
               </div>
             </el-card>
-          </el-col>
-
-          <!-- 中间 - 持仓和交易历史 -->
-          <el-col :xs="24" :sm="24" :md="16" :lg="16">
             <!-- 当前持仓组件 -->
             <ClientOnly>
               <ActivePositions />
             </ClientOnly>
+          </el-col>
+
+          <!-- 中间 - 持仓和交易历史 -->
+          <el-col :xs="24" :sm="24" :md="16" :lg="16">
             
             <!-- 加密货币价格卡片组件 -->
             <ClientOnly>

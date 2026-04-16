@@ -21,10 +21,14 @@ export interface PositionInfo {
   entryPrice: number;                  // 入场价
   quantity: number;                    // 数量
   leverage: number;                    // 杠杆
+  stopLoss?: number;                   // 止损价格
+  initialStopLoss?: number;            // 初始止损价格
+  takeProfit1?: number;                // 止盈1价格
+  takeProfit2?: number;                // 止盈2价格
   openTime: number;                    // 开仓时间
   highestPrice?: number;               // 持仓期间最高价
   lowestPrice?: number;                // 持仓期间最低价
-  position?: Position;                 // 完整仓位信息
+  orderId?: string;                    // 订单ID
   stopLossOrderId?: string;            // 止损订单ID
   stopLossOrderSymbol?: string;        // 止损订单交易对
   stopLossOrderSide?: string;          // 止损订单方向
@@ -33,6 +37,7 @@ export interface PositionInfo {
   stopLossOrderStopPrice?: number;     // 止损订单止损价
   stopLossOrderStatus?: string;        // 止损订单状态
   stopLossOrderTimestamp?: number;     // 止损订单时间戳
+  position?: Position;                 // 完整仓位信息
 }
 
 /**
@@ -56,14 +61,47 @@ export class PositionManager {
   // 策略的仓位列表: strategyId -> Set<symbol>
   private strategyPositions: Map<StrategyId, Set<string>> = new Map()
 
+  // 初始化完成标志
+  private initialized = false
+  // 初始化 Promise
+  private initPromise: Promise<void> | null = null
+  // 是否正在初始化中
+  private isInitializing = false
+
   /**
-   * 构造函数：初始化时加载本地持久化状态
+   * 构造函数
    */
   constructor() {
-    // 异步加载本地状态（不阻塞构造函数）
-    this._loadLocalState().catch(err => {
-      logger.error('PositionManager', '加载本地状态失败:', err.message)
-    })
+    // 不在构造函数中自动加载，而是通过 init() 方法显式初始化
+  }
+
+  /**
+   * 初始化方法 - 加载本地持久化状态
+   */
+  async init(): Promise<void> {
+    if (this.initialized) {
+      return
+    }
+    if (this.initPromise) {
+      return this.initPromise
+    }
+    this.isInitializing = true
+    this.initPromise = this._loadLocalState()
+    await this.initPromise
+    this.initialized = true
+    this.isInitializing = false
+  }
+
+  /**
+   * 等待初始化完成
+   */
+  async waitForInit(): Promise<void> {
+    if (this.initialized) {
+      return
+    }
+    if (this.initPromise) {
+      await this.initPromise
+    }
   }
 
   // 防抖定时器
@@ -73,6 +111,11 @@ export class PositionManager {
    * 持久化当前状态到本地文件（带防抖）
    */
   private async _persistState(): Promise<void> {
+    // 如果正在初始化中，不持久化，避免覆盖数据
+    if (this.isInitializing) {
+      return
+    }
+    
     // 清除之前的定时器
     if (this.persistTimer) {
       clearTimeout(this.persistTimer)

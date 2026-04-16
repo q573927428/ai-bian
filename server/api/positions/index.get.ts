@@ -4,6 +4,9 @@ import { positionManager } from '../../modules/position-manager/PositionManager'
 
 export default defineEventHandler(async (event) => {
   try {
+    // 等待 PositionManager 初始化完成
+    await positionManager.waitForInit()
+
     const query = getQuery(event)
     const strategyId = query.strategyId as string | undefined
 
