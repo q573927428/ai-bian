@@ -194,8 +194,8 @@ export const useBotStore = defineStore('bot', {
 
     startPolling(interval?: number) {
       // 使用持仓扫描间隔作为前端轮询间隔
-      // 配置中的 positionScanInterval 是秒，需要转换为毫秒
-      const pollInterval = interval || (this.config?.positionScanInterval || 60) * 1000
+      // 配置中的 scanInterval 是秒，需要转换为毫秒
+      const pollInterval = interval || (this.config?.scanInterval || 60) * 1000
       
       // 定时轮询状态
       const timer = setInterval(() => {
@@ -237,8 +237,8 @@ export const useBotStore = defineStore('bot', {
         return // 已经启动了
       }
       
-      // 使用配置中的 positionScanInterval，转换为毫秒
-      const pollInterval = (this.config?.positionScanInterval || 60) * 1000
+      // 使用配置中的 scanInterval，转换为毫秒
+      const pollInterval = (this.config?.scanInterval || 60) * 1000
       
       console.log(`[Polling] 启动共享轮询，间隔: ${pollInterval}ms`)
       
@@ -277,7 +277,7 @@ export const useBotStore = defineStore('bot', {
       return {
         isActive: this.isPollingActive,
         subscribers: Array.from(this.pollingSubscribers),
-        interval: (this.config?.positionScanInterval || 60) * 1000,
+        interval: (this.config?.scanInterval || 60) * 1000,
         hasTimer: !!this.pollingTimer
       }
     },

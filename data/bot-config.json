@@ -13,7 +13,7 @@
   "leverage": 10,
   "maxRiskPercentage": 20,
   "stopLossATRMultiplier": 2.5,
-  "scanInterval": 180,
+  "scanInterval": 60,
   "indicatorsConfig": {
     "requiredCandles": 300,
     "emaPeriods": {
