@@ -2,7 +2,6 @@
 
 import type {
   IndicatorData,
-  IndicatorSubscription,
   Timeframe,
   IndicatorType,
   StatisticsType,
@@ -15,69 +14,75 @@ import { calculateIndicators } from '../../utils/indicators'
 import { logger } from '../../utils/logger'
 
 /**
- * 指标统一获取与缓存中心
+ * 统一数据缓存条目
+ */
+interface SymbolData {
+  symbol: string
+  klineData: Map<Timeframe, OHLCV[]>
+  oiData?: { value: number; timestamp: number }
+  volumeData?: Map<Timeframe, { current: number; average: number; ratio: number; timestamp: number }>
+  indicators: Map<string, IndicatorData>
+}
+
+/**
+ * 指标统一获取与缓存中心（重构版）
  *
  * 核心特性：
- * 1. 单例模式 - 全局唯一实例
- * 2. 智能合并 - 多个策略请求相同数据时只获取一次
- * 3. 按需更新 - 根据 K 线周期自动设置 TTL
- * 4. 发布-订阅 - 数据更新后自动通知所有订阅策略
- * 5. 请求去重 - 防止缓存击穿
- * 6. LRU 淘汰 - 限制最大缓存条目数
- * 7. 降级策略 - API 失败时返回缓存
+ * 1. 全局数据源 - 从 bot-config 统一管理交易对列表
+ * 2. 统一K线缓存 - 所有策略共享同一套K线数据
+ * 3. 按需计算指标 - 从缓存K线计算指标，避免重复API请求
+ * 4. 定时刷新 - 统一刷新所有数据，避免并发控制
  */
 export class IndicatorsHub {
   private static instance: IndicatorsHub | null = null
 
   // 依赖
   private binance: BinanceService
-  private config?: BotConfig
+  private config: BotConfig
 
-  // 缓存层
-  private cache: Map<string, CachedData> = new Map()
+  // 统一数据缓存: symbol -> SymbolData
+  private symbolDataCache: Map<string, SymbolData> = new Map()
 
-  // 进行中的请求（用于去重）
-  private pendingRequests: Map<string, Promise<any>> = new Map()
+  // 常用时间周期
+  private readonly ALL_TIMEFRAMES: Timeframe[] = ['15m', '1h', '4h', '1d']
 
-  // 订阅者管理: cacheKey -> Set<strategyId>
-  private subscribers: Map<string, Set<StrategyId>> = new Map()
+  // 常用指标类型
+  private readonly ALL_INDICATORS: IndicatorType[] = ['EMA', 'RSI', 'ATR', 'ADX']
+  private readonly ALL_STATISTICS: StatisticsType[] = ['OI', 'Volume']
 
-  // 策略订阅配置: strategyId -> IndicatorSubscription
-  private subscriptions: Map<StrategyId, IndicatorSubscription> = new Map()
-
-  // 最大缓存条目数
-  private readonly MAX_CACHE_SIZE: number = 200
-
-  // 默认 TTL (毫秒)
-  private readonly DEFAULT_TTL: number = 60 * 1000 // 1分钟
-
-  // K线周期对应的 TTL (毫秒)
-  private readonly TIMEFRAME_TTL: Record<Timeframe, number> = {
-    '15m': 15 * 60 * 1000,  // 15分钟
-    '1h': 60 * 60 * 1000,   // 1小时
-    '4h': 4 * 60 * 60 * 1000, // 4小时
-    '1d': 24 * 60 * 60 * 1000 // 1天
+  // K线数据TTL（毫秒）
+  private readonly KLINE_TTL: Record<Timeframe, number> = {
+    '15m': 15 * 60 * 1000,
+    '1h': 60 * 60 * 1000,
+    '4h': 4 * 60 * 60 * 1000,
+    '1d': 24 * 60 * 60 * 1000
   }
+
+  // 统计数据TTL
+  private readonly STATS_TTL = 60 * 1000 // 1分钟
+
+  // 进行中的请求
+  private pendingRequests: Map<string, Promise<any>> = new Map()
 
   // 定时更新定时器
   private updateTimer: NodeJS.Timeout | null = null
 
-  // 事件回调存储
-  private eventCallbacks: Map<string, Function[]> = new Map()
+  // 最大并发数
+  private readonly MAX_CONCURRENT = 3
 
   /**
    * 私有构造函数（单例模式）
    */
-  private constructor(binance: BinanceService, config?: BotConfig) {
+  private constructor(binance: BinanceService, config: BotConfig) {
     this.binance = binance
     this.config = config
-    logger.info('IndicatorsHub', '指标统一获取中心已初始化')
+    logger.info('IndicatorsHub', '指标统一获取中心已初始化（重构版）')
   }
 
   /**
    * 获取单例实例
    */
-  static getInstance(binance: BinanceService, config?: BotConfig): IndicatorsHub {
+  static getInstance(binance: BinanceService, config: BotConfig): IndicatorsHub {
     if (!IndicatorsHub.instance) {
       IndicatorsHub.instance = new IndicatorsHub(binance, config)
     }
@@ -90,7 +95,7 @@ export class IndicatorsHub {
   static resetInstance(): void {
     if (IndicatorsHub.instance) {
       IndicatorsHub.instance.stopUpdateLoop()
-      IndicatorsHub.instance.clearCache()
+      IndicatorsHub.instance.symbolDataCache.clear()
       IndicatorsHub.instance = null
       logger.info('IndicatorsHub', '指标统一获取中心已重置')
     }
@@ -110,256 +115,201 @@ export class IndicatorsHub {
     this.binance = binance
   }
 
-  // ==================== 订阅管理 ====================
-
   /**
-   * 注册策略对指标的需求
+   * 获取或创建 SymbolData
    */
-  async subscribe(strategyId: StrategyId, subscription: IndicatorSubscription): Promise<void> {
-    this.subscriptions.set(strategyId, subscription)
-
-    // 为每个需要的指标组合注册订阅者
-    for (const symbol of subscription.symbols) {
-      for (const timeframe of subscription.timeframes) {
-        for (const indicatorType of subscription.indicatorTypes) {
-          const cacheKey = this.buildCacheKey(symbol, timeframe, indicatorType)
-
-          if (!this.subscribers.has(cacheKey)) {
-            this.subscribers.set(cacheKey, new Set())
-          }
-          this.subscribers.get(cacheKey)!.add(strategyId)
-        }
+  private getOrCreateSymbolData(symbol: string): SymbolData {
+    let data = this.symbolDataCache.get(symbol)
+    if (!data) {
+      data = {
+        symbol,
+        klineData: new Map(),
+        indicators: new Map()
       }
-
-      // 统计数据类型
-      for (const statsType of subscription.statisticsTypes || []) {
-        const cacheKey = this.buildCacheKey(symbol, '1h', statsType)
-        if (!this.subscribers.has(cacheKey)) {
-          this.subscribers.set(cacheKey, new Set())
-        }
-        this.subscribers.get(cacheKey)!.add(strategyId)
-      }
+      this.symbolDataCache.set(symbol, data)
     }
-
-    logger.info('IndicatorsHub', `策略 ${strategyId} 已订阅指标`)
-
-    // 预加载数据
-    await this.preload(strategyId)
+    return data
   }
 
-  /**
-   * 取消订阅
-   */
-  unsubscribe(strategyId: StrategyId): void {
-    const subscription = this.subscriptions.get(strategyId)
-    if (!subscription) return
-
-    // 从所有订阅者中移除
-    for (const symbol of subscription.symbols) {
-      for (const timeframe of subscription.timeframes) {
-        for (const indicatorType of subscription.indicatorTypes) {
-          const cacheKey = this.buildCacheKey(symbol, timeframe, indicatorType)
-          const subs = this.subscribers.get(cacheKey)
-          if (subs) {
-            subs.delete(strategyId)
-            if (subs.size === 0) {
-              this.subscribers.delete(cacheKey)
-            }
-          }
-        }
-      }
-    }
-
-    // 删除订阅配置
-    this.subscriptions.delete(strategyId)
-
-    logger.info('IndicatorsHub', `策略 ${strategyId} 已取消订阅`)
-  }
-
-  // ==================== 数据获取 ====================
+  // ==================== 统一数据初始化 ====================
 
   /**
-   * 获取指标数据（自动去重+缓存）
+   * 初始化所有交易对的数据
    */
-  async getIndicators(
-    symbol: string,
-    timeframe: Timeframe,
-    type: IndicatorType | StatisticsType,
-    candles?: OHLCV[]
-  ): Promise<IndicatorData> {
-    const cacheKey = this.buildCacheKey(symbol, timeframe, type)
-    const cached = this.cache.get(cacheKey)
-    const now = Date.now()
-
-    // 如果缓存有效，直接返回
-    if (cached && (now - cached.timestamp < cached.ttl)) {
-      // 更新 LRU 顺序
-      this.cache.delete(cacheKey)
-      this.cache.set(cacheKey, cached)
-      return cached.data as IndicatorData
-    }
-
-    // 检查是否有进行中的请求
-    const pendingRequest = this.pendingRequests.get(cacheKey)
-    if (pendingRequest) {
-      return pendingRequest
-    }
-
-    // 创建新请求
-    const requestPromise = this.fetchAndCacheIndicators(symbol, timeframe, type, candles)
-    this.pendingRequests.set(cacheKey, requestPromise)
-
-    try {
-      const result = await requestPromise
-      return result
-    } finally {
-      // 清理进行中的请求标记
-      this.pendingRequests.delete(cacheKey)
-    }
-  }
-
-  /**
-   * 批量获取指标数据
-   */
-  async getBatchIndicators(
-    symbol: string,
-    timeframes: Timeframe[],
-    types: (IndicatorType | StatisticsType)[],
-    candles?: OHLCV[]
-  ): Promise<Map<string, IndicatorData>> {
-    const results = new Map<string, IndicatorData>()
-
-    const promises = timeframes.flatMap(tf =>
-      types.map(async type => {
-        const data = await this.getIndicators(symbol, tf, type, candles)
-        const key = `${tf}_${type}`
-        results.set(key, data)
-      })
-    )
-
-    await Promise.allSettled(promises)
-    return results
-  }
-
-  /**
-   * 预加载数据（在策略启动时批量加载）
-   */
-  async preload(strategyId: StrategyId): Promise<void> {
-    const subscription = this.subscriptions.get(strategyId)
-    if (!subscription) {
-      logger.warn('IndicatorsHub', `策略 ${strategyId} 未订阅任何指标`)
+  async initializeAllData(): Promise<void> {
+    const symbols = this.config.symbols || []
+    if (symbols.length === 0) {
+      logger.warn('IndicatorsHub', '没有配置交易对')
       return
     }
 
-    logger.info('IndicatorsHub', `开始预加载策略 ${strategyId} 的指标数据...`)
+    logger.info('IndicatorsHub', `开始初始化 ${symbols.length} 个交易对的数据...`)
     const startTime = Date.now()
 
-    // 并行加载所有需要的指标
-    const promises: Promise<void>[] = []
-
-    for (const symbol of subscription.symbols) {
-      for (const timeframe of subscription.timeframes) {
-        for (const indicatorType of subscription.indicatorTypes) {
-          promises.push(
-            this.getIndicators(symbol, timeframe, indicatorType)
-              .then(() => {})
-              .catch(err => logger.warn('IndicatorsHub', `预加载 ${symbol} ${timeframe} ${indicatorType} 失败: ${err.message}`))
-          )
-        }
-      }
-
-      // 统计数据
-      for (const statsType of subscription.statisticsTypes || []) {
-        promises.push(
-          this.getIndicators(symbol, '1h', statsType)
-            .then(() => {})
-            .catch(err => logger.warn('IndicatorsHub', `预加载 ${symbol} ${statsType} 失败: ${err.message}`))
-        )
-      }
+    // 分批初始化，控制并发
+    for (let i = 0; i < symbols.length; i += this.MAX_CONCURRENT) {
+      const batch = symbols.slice(i, i + this.MAX_CONCURRENT)
+      await Promise.allSettled(
+        batch.map(symbol => this.initializeSymbolData(symbol))
+      )
     }
-
-    await Promise.allSettled(promises)
 
     const duration = Date.now() - startTime
-    logger.info('IndicatorsHub', `策略 ${strategyId} 预加载完成，耗时 ${duration}ms`)
+    logger.success('IndicatorsHub', `所有交易对数据初始化完成，耗时 ${duration}ms`)
   }
 
-  // ==================== 内部方法 ====================
-
   /**
-   * 获取并缓存指标
+   * 初始化单个交易对的数据
    */
-  private async fetchAndCacheIndicators(
-    symbol: string,
-    timeframe: Timeframe,
-    type: IndicatorType | StatisticsType,
-    candles?: OHLCV[]
-  ): Promise<IndicatorData> {
+  private async initializeSymbolData(symbol: string): Promise<void> {
     try {
-      let data: any
+      // logger.info('IndicatorsHub', `初始化 ${symbol} 数据...`)
 
-      if (type === 'OI') {
-        // OI 持仓量
-        data = await this.fetchOI(symbol)
-      } else if (type === 'Volume') {
-        // 成交量
-        data = await this.fetchVolume(symbol, candles)
-      } else {
-        // 技术指标 (EMA, RSI, MACD, ATR)
-        data = await this.fetchTechnicalIndicators(symbol, timeframe, type, candles)
-      }
+      // 1. 获取所有时间周期的K线
+      await this.fetchAndCacheKlines(symbol)
 
-      const indicatorData: IndicatorData = {
-        symbol,
-        timeframe: timeframe as Timeframe,
-        timestamp: Date.now(),
-        values: data
-      }
+      // 2. 获取持仓量
+      await this.fetchAndCacheOI(symbol)
 
-      // 缓存数据
-      this.setCache(symbol, timeframe, type, indicatorData)
+      // 3. 计算所有指标
+      await this.calculateAndCacheAllIndicators(symbol)
 
-      // 通知订阅者
-      this.notifySubscribers(symbol, timeframe, type, indicatorData)
-
-      return indicatorData
+      logger.success('IndicatorsHub', `${symbol} 数据初始化完成`)
     } catch (error: any) {
-      logger.error('IndicatorsHub', `获取指标失败 ${symbol} ${timeframe} ${type}: ${error.message}`)
+      logger.error('IndicatorsHub', `${symbol} 数据初始化失败: ${error.message}`)
+    }
+  }
 
-      // 尝试返回过期缓存
-      const cacheKey = this.buildCacheKey(symbol, timeframe, type)
-      const cached = this.cache.get(cacheKey)
-      if (cached) {
-        logger.warn('IndicatorsHub', `${symbol} 使用过期缓存`)
-        return cached.data as IndicatorData
+  // ==================== K线数据管理 ====================
+
+  /**
+   * 获取并缓存K线数据
+   */
+  private async fetchAndCacheKlines(symbol: string): Promise<void> {
+    const symbolData = this.getOrCreateSymbolData(symbol)
+
+    for (const timeframe of this.ALL_TIMEFRAMES) {
+      const cacheKey = `${symbol}_${timeframe}_klines`
+      const pending = this.pendingRequests.get(cacheKey)
+      if (pending) {
+        await pending
+        continue
       }
 
-      throw error
+      const requestPromise = (async () => {
+        try {
+          const limit = this.config.indicatorsConfig?.requiredCandles || 300
+          const klines = await this.binance.fetchOHLCV(symbol, timeframe, undefined, limit)
+          symbolData.klineData.set(timeframe, klines)
+          // logger.info('IndicatorsHub', `${symbol} ${timeframe} K线已缓存，共 ${klines.length} 根`)
+        } finally {
+          this.pendingRequests.delete(cacheKey)
+        }
+      })()
+
+      this.pendingRequests.set(cacheKey, requestPromise)
+      await requestPromise
     }
   }
 
   /**
-   * 获取技术指标
+   * 从缓存获取K线数据
    */
-  private async fetchTechnicalIndicators(
-    symbol: string,
-    timeframe: Timeframe,
-    type: IndicatorType,
-    candles?: OHLCV[]
-  ): Promise<any> {
-    // 如果没有提供 K 线数据，从交易所获取
-    if (!candles) {
-      candles = await this.binance.fetchOHLCV(symbol, timeframe, undefined, 300)
+  getKlines(symbol: string, timeframe: Timeframe): OHLCV[] | undefined {
+    const symbolData = this.symbolDataCache.get(symbol)
+    return symbolData?.klineData.get(timeframe)
+  }
+
+  // ==================== 持仓量数据管理 ====================
+
+  /**
+   * 获取并缓存持仓量
+   */
+  private async fetchAndCacheOI(symbol: string): Promise<void> {
+    const symbolData = this.getOrCreateSymbolData(symbol)
+    const cacheKey = `${symbol}_OI`
+    const pending = this.pendingRequests.get(cacheKey)
+    if (pending) {
+      await pending
+      return
     }
 
-    // 调用现有的指标计算函数
-    const indicators = await calculateIndicators(this.binance, symbol, this.config, candles)
+    const requestPromise = (async () => {
+      try {
+        const oiData = await this.binance.fetchOpenInterest(symbol)
+        symbolData.oiData = {
+          value: oiData.openInterest,
+          timestamp: Date.now()
+        }
+        // logger.info('IndicatorsHub', `${symbol} OI已缓存: ${oiData.openInterest}`)
+      } finally {
+        this.pendingRequests.delete(cacheKey)
+      }
+    })()
 
-    // 根据类型返回对应数据
+    this.pendingRequests.set(cacheKey, requestPromise)
+    await requestPromise
+  }
+
+  /**
+   * 从缓存获取持仓量
+   */
+  getOI(symbol: string): { value: number; timestamp: number } | undefined {
+    return this.symbolDataCache.get(symbol)?.oiData
+  }
+
+  // ==================== 指标计算与缓存 ====================
+
+  /**
+   * 计算并缓存所有指标
+   */
+  private async calculateAndCacheAllIndicators(symbol: string): Promise<void> {
+    const symbolData = this.getOrCreateSymbolData(symbol)
+
+    for (const timeframe of this.ALL_TIMEFRAMES) {
+      const klines = symbolData.klineData.get(timeframe)
+      if (!klines || klines.length === 0) {
+        continue
+      }
+
+      try {
+        // 计算技术指标
+        const indicators = await calculateIndicators(this.binance, symbol, this.config, klines)
+
+        // 缓存各个指标
+        for (const type of this.ALL_INDICATORS) {
+          const cacheKey = `${symbol}_${timeframe}_${type}`
+          const indicatorData: IndicatorData = {
+            symbol,
+            timeframe,
+            timestamp: Date.now(),
+            values: this.extractIndicatorValues(indicators, type)
+          }
+          symbolData.indicators.set(cacheKey, indicatorData)
+        }
+
+        // 缓存成交量
+        const volumeData = this.calculateVolumeFromKlines(klines)
+        if (!symbolData.volumeData) {
+          symbolData.volumeData = new Map()
+        }
+        symbolData.volumeData.set(timeframe, {
+          ...volumeData,
+          timestamp: Date.now()
+        })
+      } catch (error: any) {
+        // logger.error('IndicatorsHub', `${symbol} ${timeframe} 指标计算失败: ${error.message}`)
+      }
+    }
+  }
+
+  /**
+   * 从计算结果中提取指定类型的指标值
+   */
+  private extractIndicatorValues(indicators: TechnicalIndicators, type: IndicatorType): Record<string, any> {
     switch (type) {
       case 'EMA':
         return {
-          // 动态EMA配置
           emaPeriods: indicators.emaPeriods,
           emaNames: indicators.emaNames,
           emaFast: indicators.emaFast,
@@ -372,9 +322,6 @@ export class IndicatorsHub {
         }
       case 'RSI':
         return { rsi: indicators.rsi }
-      case 'MACD':
-        // 如果现有指标中没有 MACD，可以在这里扩展
-        return { macd: null, signal: null, histogram: null }
       case 'ATR':
         return { atr: indicators.atr }
       case 'ADX':
@@ -386,33 +333,16 @@ export class IndicatorsHub {
           adxPeriodLabels: indicators.adxPeriodLabels
         }
       default:
-        return indicators
+        return {}
     }
   }
 
   /**
-   * 获取 OI 持仓量
+   * 从K线计算成交量数据
    */
-  private async fetchOI(symbol: string): Promise<any> {
-    const oiData = await this.binance.fetchOpenInterest(symbol)
-    return {
-      value: oiData.openInterest,
-      trend: 'flat', // 需要根据历史数据计算
-      changePercent: 0
-    }
-  }
-
-  /**
-   * 获取成交量
-   */
-  private async fetchVolume(symbol: string, candles?: OHLCV[]): Promise<any> {
-    if (!candles) {
-      candles = await this.binance.fetchOHLCV(symbol, '1h', undefined, 100)
-    }
-
-    const currentVolume = candles![candles!.length - 1]?.volume || 0
-    const averageVolume = candles!.slice(-20).reduce((sum, c) => sum + c.volume, 0) / 20
-
+  private calculateVolumeFromKlines(klines: OHLCV[]): { current: number; average: number; ratio: number } {
+    const currentVolume = klines[klines.length - 1]?.volume || 0
+    const averageVolume = klines.slice(-20).reduce((sum, c) => sum + c.volume, 0) / 20
     return {
       current: currentVolume,
       average: averageVolume,
@@ -420,150 +350,101 @@ export class IndicatorsHub {
     }
   }
 
-  // ==================== 缓存管理 ====================
+  // ==================== 对外API：获取数据 ====================
 
   /**
-   * 设置缓存（带 LRU 淘汰）
+   * 获取指标数据（从统一缓存读取）
    */
-  private setCache(
+  async getIndicators(
     symbol: string,
     timeframe: Timeframe,
-    type: string,
-    data: IndicatorData
-  ): void {
-    const cacheKey = this.buildCacheKey(symbol, timeframe, type)
-    const ttl = this.calculateTTL(timeframe)
-
-    // 如果已存在，先删除
-    if (this.cache.has(cacheKey)) {
-      this.cache.delete(cacheKey)
+    type: IndicatorType | StatisticsType
+  ): Promise<IndicatorData> {
+    const symbolData = this.symbolDataCache.get(symbol)
+    if (!symbolData) {
+      throw new Error(`${symbol} 数据未初始化`)
     }
 
-    // 检查缓存大小，超出限制则淘汰最旧的条目
-    while (this.cache.size >= this.MAX_CACHE_SIZE) {
-      const oldestKey = this.cache.keys().next().value
-      if (oldestKey) {
-        this.cache.delete(oldestKey)
+    if (type === 'OI') {
+      const oi = symbolData.oiData
+      if (!oi) {
+        throw new Error(`${symbol} OI数据未初始化`)
       }
-    }
-
-    // 插入新缓存
-    this.cache.set(cacheKey, {
-      key: cacheKey,
-      data,
-      timestamp: Date.now(),
-      ttl
-    })
-  }
-
-  /**
-   * 计算 TTL（根据 K 线周期）
-   */
-  private calculateTTL(timeframe: Timeframe): number {
-    return this.TIMEFRAME_TTL[timeframe] || this.DEFAULT_TTL
-  }
-
-  /**
-   * 构建缓存键
-   */
-  private buildCacheKey(
-    symbol: string,
-    timeframe: Timeframe,
-    type: string
-  ): string {
-    return `${symbol}_${timeframe}_${type}`
-  }
-
-  /**
-   * 清除缓存
-   */
-  clearCache(symbol?: string): void {
-    if (symbol) {
-      // 清除指定交易对的所有缓存
-      const keysToDelete: string[] = []
-      for (const [key] of this.cache) {
-        if (key.startsWith(symbol)) {
-          keysToDelete.push(key)
+      return {
+        symbol,
+        timeframe,
+        timestamp: oi.timestamp,
+        values: {
+          value: oi.value,
+          trend: 'flat',
+          changePercent: 0
         }
       }
-      keysToDelete.forEach(key => this.cache.delete(key))
-    } else {
-      // 清除所有缓存
-      this.cache.clear()
-      this.pendingRequests.clear()
-      logger.info('IndicatorsHub', '已清除所有缓存')
     }
+
+    if (type === 'Volume') {
+      const volumeData = symbolData.volumeData?.get(timeframe)
+      if (!volumeData) {
+        throw new Error(`${symbol} ${timeframe} Volume数据未初始化`)
+      }
+      return {
+        symbol,
+        timeframe,
+        timestamp: volumeData.timestamp,
+        values: {
+          current: volumeData.current,
+          average: volumeData.average,
+          ratio: volumeData.ratio
+        }
+      }
+    }
+
+    const cacheKey = `${symbol}_${timeframe}_${type}`
+    const indicatorData = symbolData.indicators.get(cacheKey)
+    if (!indicatorData) {
+      throw new Error(`${symbol} ${timeframe} ${type} 指标数据未初始化`)
+    }
+    return indicatorData
   }
 
   /**
-   * 获取缓存状态
+   * 批量获取指标数据
    */
-  getCacheStatus(): {
-    size: number
-    maxSize: number
-    subscribers: number
-    pendingRequests: number
-  } {
-    return {
-      size: this.cache.size,
-      maxSize: this.MAX_CACHE_SIZE,
-      subscribers: this.subscribers.size,
-      pendingRequests: this.pendingRequests.size
-    }
-  }
-
-  // ==================== 事件通知 ====================
-
-  /**
-   * 通知订阅者
-   */
-  private notifySubscribers(
+  async getBatchIndicators(
     symbol: string,
-    timeframe: Timeframe,
-    type: string,
-    data: IndicatorData
-  ): void {
-    const cacheKey = this.buildCacheKey(symbol, timeframe, type)
-    const strategyIds = this.subscribers.get(cacheKey)
+    timeframes: Timeframe[],
+    types: (IndicatorType | StatisticsType)[]
+  ): Promise<Map<string, IndicatorData>> {
+    const results = new Map<string, IndicatorData>()
+    const promises = timeframes.flatMap(tf =>
+      types.map(async type => {
+        try {
+          const data = await this.getIndicators(symbol, tf, type)
+          const key = `${tf}_${type}`
+          results.set(key, data)
+        } catch (error: any) {
+          logger.warn('IndicatorsHub', `获取 ${symbol} ${tf} ${type} 失败: ${error.message}`)
+        }
+      })
+    )
+    await Promise.allSettled(promises)
+    return results
+  }
 
-    if (strategyIds && strategyIds.size > 0) {
-      // 触发事件回调
-      const callbacks = this.eventCallbacks.get(cacheKey)
-      if (callbacks) {
-        callbacks.forEach(callback => {
-          try {
-            callback(data)
-          } catch (error: any) {
-            logger.error('IndicatorsHub', `事件回调执行失败: ${error.message}`)
-          }
-        })
-      }
+  // ==================== 策略订阅（空实现，保持兼容）====================
 
-      // logger.info('IndicatorsHub', `已通知 ${strategyIds.size} 个策略: ${cacheKey}`)
-    }
+  /**
+   * 订阅（空实现，保持接口兼容）
+   */
+  async subscribe(strategyId: StrategyId): Promise<void> {
+    logger.info('IndicatorsHub', `策略 ${strategyId} 已连接到统一数据源`)
   }
 
   /**
-   * 注册事件回调
+   * 取消订阅（空实现，保持接口兼容）
    */
-  on(cacheKey: string, callback: Function): void {
-    if (!this.eventCallbacks.has(cacheKey)) {
-      this.eventCallbacks.set(cacheKey, [])
-    }
-    this.eventCallbacks.get(cacheKey)!.push(callback)
-  }
-
-  /**
-   * 移除事件回调
-   */
-  off(cacheKey: string, callback: Function): void {
-    const callbacks = this.eventCallbacks.get(cacheKey)
-    if (callbacks) {
-      const index = callbacks.indexOf(callback)
-      if (index > -1) {
-        callbacks.splice(index, 1)
-      }
-    }
+  unsubscribe(strategyId: StrategyId): void {
+    logger.info('IndicatorsHub', `策略 ${strategyId} 已断开连接`)
   }
 
   // ==================== 定时更新 ====================
@@ -577,7 +458,7 @@ export class IndicatorsHub {
     }
 
     this.updateTimer = setInterval(async () => {
-      await this.refreshStaleData()
+      await this.refreshAllData()
     }, intervalMs)
 
     logger.info('IndicatorsHub', `定时更新循环已启动，间隔 ${intervalMs / 1000}秒`)
@@ -595,61 +476,54 @@ export class IndicatorsHub {
   }
 
   /**
-   * 刷新过期数据
+   * 刷新所有数据
    */
-  private async refreshStaleData(): Promise<void> {
-    const now = Date.now()
-    const staleKeys: string[] = []
+  private async refreshAllData(): Promise<void> {
+    const symbols = Array.from(this.symbolDataCache.keys())
+    if (symbols.length === 0) return
 
-    // 找出过期的缓存
-    for (const [key, value] of this.cache) {
-      if (now - value.timestamp >= value.ttl) {
-        staleKeys.push(key)
-      }
-    }
+    logger.info('IndicatorsHub', `开始刷新 ${symbols.length} 个交易对的数据...`)
+    const startTime = Date.now()
 
-    if (staleKeys.length === 0) return
-
-    logger.info('IndicatorsHub', `发现 ${staleKeys.length} 个过期缓存，准备刷新`)
-
-    // 并行刷新（限制并发数）
-    const batchSize = 10
-    for (let i = 0; i < staleKeys.length; i += batchSize) {
-      const batch = staleKeys.slice(i, i + batchSize)
+    for (let i = 0; i < symbols.length; i += this.MAX_CONCURRENT) {
+      const batch = symbols.slice(i, i + this.MAX_CONCURRENT)
       await Promise.allSettled(
-        batch.map(async key => {
-          const parts = key.split('_')
-          if (parts.length >= 3) {
-            const symbol = parts[0]!
-            const timeframe = parts[1] as Timeframe
-            const type = parts.slice(2).join('_')
-            await this.getIndicators(symbol, timeframe, type as any)
-          }
-        })
+        batch.map(symbol => this.refreshSymbolData(symbol))
       )
     }
-  }
 
-  // ==================== 订阅者查询 ====================
-
-  /**
-   * 获取策略的订阅配置
-   */
-  getSubscription(strategyId: StrategyId): IndicatorSubscription | undefined {
-    return this.subscriptions.get(strategyId)
+    const duration = Date.now() - startTime
+    logger.info('IndicatorsHub', `数据刷新完成，耗时 ${duration}ms`)
   }
 
   /**
-   * 获取所有订阅者
+   * 刷新单个交易对数据
    */
-  getAllSubscribers(): Map<StrategyId, IndicatorSubscription> {
-    return new Map(this.subscriptions)
+  private async refreshSymbolData(symbol: string): Promise<void> {
+    try {
+      // 1. 刷新K线
+      await this.fetchAndCacheKlines(symbol)
+
+      // 2. 刷新持仓量
+      await this.fetchAndCacheOI(symbol)
+
+      // 3. 重新计算指标
+      await this.calculateAndCacheAllIndicators(symbol)
+    } catch (error: any) {
+      logger.error('IndicatorsHub', `${symbol} 数据刷新失败: ${error.message}`)
+    }
   }
 
   /**
-   * 获取指定缓存键的订阅者
+   * 获取缓存状态
    */
-  getSubscribers(cacheKey: string): Set<StrategyId> | undefined {
-    return this.subscribers.get(cacheKey)
+  getCacheStatus(): {
+    size: number
+    symbols: string[]
+  } {
+    return {
+      size: this.symbolDataCache.size,
+      symbols: Array.from(this.symbolDataCache.keys())
+    }
   }
 }

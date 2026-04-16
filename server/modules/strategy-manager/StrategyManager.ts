@@ -185,12 +185,7 @@ export class StrategyManager {
     // 如果激活，加载到执行引擎
     if (active && this.engine && this.indicatorsHub) {
       await this.engine.startStrategy(strategyId)
-      await this.indicatorsHub.subscribe(strategyId, {
-        symbols: strategy.marketData.symbols,
-        timeframes: strategy.marketData.timeframes,
-        indicatorTypes: strategy.indicators.map(i => i.type),
-        statisticsTypes: strategy.statistics.map(s => s.type)
-      })
+      await this.indicatorsHub.subscribe(strategyId)
       logger.success('StrategyManager', `策略已激活并加载: ${strategy.name}`)
     }
 
@@ -227,12 +222,7 @@ export class StrategyManager {
     for (const strategy of activeStrategies) {
       try {
         // 订阅指标
-        await this.indicatorsHub.subscribe(strategy.id, {
-          symbols: strategy.marketData.symbols,
-          timeframes: strategy.marketData.timeframes,
-          indicatorTypes: strategy.indicators.map(i => i.type),
-          statisticsTypes: strategy.statistics.map(s => s.type)
-        })
+        await this.indicatorsHub.subscribe(strategy.id)
 
         // 启动策略执行
         await this.engine.startStrategy(strategy.id)

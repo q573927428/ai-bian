@@ -8,6 +8,8 @@ import { PositionManager } from '../position-manager/PositionManager'
 import { BinanceService } from '../../utils/binance'
 import { loadBotConfig } from '../../utils/storage'
 import { logger } from '../../utils/logger'
+import type { BotState } from '../../../types'
+import { PositionStatus } from '../../../types'
 
 let strategyManager: StrategyManager | null = null
 
@@ -39,12 +41,34 @@ export async function initStrategyManager(): Promise<StrategyManager> {
     // 初始化仓位管理器
     const positionMgr = new PositionManager()
 
+    // 初始化 BotState (默认值)
+    const dateParts = new Date().toISOString().split('T')
+    const defaultState: BotState = {
+      status: PositionStatus.IDLE,
+      currentPosition: null,
+      circuitBreaker: {
+        isTriggered: false,
+        reason: '',
+        timestamp: 0,
+        dailyLoss: 0,
+        consecutiveLosses: 0
+      },
+      todayTrades: 0,
+      dailyPnL: 0,
+      lastResetDate: dateParts[0] || new Date().toISOString().slice(0, 10),
+      monitoringSymbols: [],
+      isRunning: false,
+      allowNewTrades: true
+    }
+
     // 初始化策略执行引擎
     const engine = new StrategyEngine(
       store,
       indicatorsHub,
       positionMgr,
-      binanceService
+      binanceService,
+      config || undefined,
+      defaultState
     )
 
     // 初始化策略管理器
@@ -53,6 +77,13 @@ export async function initStrategyManager(): Promise<StrategyManager> {
     strategyManager.setIndicatorsHub(indicatorsHub)
 
     logger.success('StrategyManager', '策略管理系统初始化完成')
+
+    // 初始化 IndicatorsHub 的所有数据
+    logger.info('StrategyManager', '开始初始化统一数据源...')
+    await indicatorsHub.initializeAllData()
+
+    // 启动定时更新循环
+    indicatorsHub.startUpdateLoop(60 * 1000)
 
     // 加载所有激活的策略
     await strategyManager.loadActiveStrategies()
