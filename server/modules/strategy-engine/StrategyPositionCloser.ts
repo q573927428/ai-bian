@@ -149,14 +149,15 @@ export class StrategyPositionCloser {
       logger.info('平仓', `开始平仓 ${symbol}, 原因: ${reason}`)
 
       // 1. 取消止损订单
-      if (position.position?.stopLossOrderId) {
+      const stopLossOrderId = position.stopLossOrderId || position.position?.stopLossOrderId
+      if (stopLossOrderId) {
         try {
           await this.binance.cancelOrder(
-            position.position.stopLossOrderId,
+            stopLossOrderId,
             symbol,
             { trigger: true }
           )
-          logger.info('平仓', `成功取消止损订单: ${position.position.stopLossOrderId}`)
+          logger.info('平仓', `成功取消止损订单: ${stopLossOrderId}`)
         } catch (error: any) {
           logger.warn('平仓', `取消止损订单失败: ${error.message}`)
         }
@@ -274,9 +275,10 @@ export class StrategyPositionCloser {
       logger.info('手动平仓检测', `开始检测 ${position.symbol} 是否手动平仓`)
       
       // 1. 优先检查止损订单状态（条件单触发不是手动平仓）
-      if (position.position?.stopLossOrderId) {
+      const stopLossOrderId = position.stopLossOrderId || position.position?.stopLossOrderId
+      if (stopLossOrderId) {
         try {
-          const stopOrder = await this.binance.fetchOrder(position.position.stopLossOrderId, position.symbol, { trigger: true })
+          const stopOrder = await this.binance.fetchOrder(stopLossOrderId, position.symbol, { trigger: true })
           
           // 如果止损订单已成交，说明是止损触发，不是手动平仓
           if (stopOrder.status === 'closed' || stopOrder.status === 'filled') {
@@ -378,10 +380,11 @@ export class StrategyPositionCloser {
       }
 
       // 取消止损单（如果存在）
-      if (position.position?.stopLossOrderId) {
+      const stopLossOrderId = position.stopLossOrderId || position.position?.stopLossOrderId
+      if (stopLossOrderId) {
         try {
-          await this.binance.cancelOrder(position.position.stopLossOrderId, position.symbol, { trigger: true })
-          logger.info('手动平仓处理', `成功取消止损订单: ${position.position.stopLossOrderId}`)
+          await this.binance.cancelOrder(stopLossOrderId, position.symbol, { trigger: true })
+          logger.info('手动平仓处理', `成功取消止损订单: ${stopLossOrderId}`)
         } catch (error: any) {
           logger.warn('手动平仓处理', `取消止损订单失败: ${error.message}`)
         }
@@ -509,12 +512,13 @@ export class StrategyPositionCloser {
           let reason = '初始止损'
           
           // 检查止损订单状态来确定具体原因
-          if (position.position?.stopLossOrderId) {
+          const stopLossOrderId = position.stopLossOrderId || position.position?.stopLossOrderId
+          if (stopLossOrderId) {
             try {
-              const stopOrder = await this.binance.fetchOrder(position.position.stopLossOrderId, symbol, { trigger: true })
+              const stopOrder = await this.binance.fetchOrder(stopLossOrderId, symbol, { trigger: true })
               if (stopOrder.status === 'closed' || stopOrder.status === 'filled') {
-                // 判断是否是移动止损：检查是否有移动止损数据且移动止损次数大于0
-                const isTrailingStop = position.position.trailingStopData && 
+              // 判断是否是移动止损：检查是否有移动止损数据且移动止损次数大于0
+                const isTrailingStop = position.position?.trailingStopData && 
                                       position.position.trailingStopData.trailingStopCount > 0
                 reason = isTrailingStop ? '移动止损' : '初始止损'
               } else {
@@ -524,7 +528,7 @@ export class StrategyPositionCloser {
             } catch (error: any) {
               logger.warn('补偿平仓', `查询止损订单失败，使用默认原因: ${error.message}`)
               // 查询失败时也尝试判断是否是移动止损
-              const isTrailingStop = position.position.trailingStopData && 
+              const isTrailingStop = position.position?.trailingStopData && 
                                     position.position.trailingStopData.trailingStopCount > 0
               reason = isTrailingStop ? '移动止损' : '初始止损'
             }
@@ -604,10 +608,11 @@ export class StrategyPositionCloser {
       }
 
       // 尝试查询止损订单状态
-      if (position.position?.stopLossOrderId) {
+      const stopLossOrderId = position.stopLossOrderId || position.position?.stopLossOrderId
+      if (stopLossOrderId) {
         try {
           //ccxt 最新 trigger: true 可以查询 条件委托 止损单 
-          const stopOrder = await this.binance.fetchOrder(position.position.stopLossOrderId, position.symbol, { trigger: true })
+          const stopOrder = await this.binance.fetchOrder(stopLossOrderId, position.symbol, { trigger: true })
           
           // 如果订单已成交，获取成交价格
           if (stopOrder.status === 'closed' || stopOrder.status === 'filled') {
@@ -617,8 +622,8 @@ export class StrategyPositionCloser {
           } else {
             //如果订单未成交 尝试取消止损单
             try {
-              await this.binance.cancelOrder(position.position.stopLossOrderId, position.symbol, { trigger: true })
-              logger.info('补偿平仓', `成功取消止损订单: ${position.position.stopLossOrderId}`)
+              await this.binance.cancelOrder(stopLossOrderId, position.symbol, { trigger: true })
+              logger.info('补偿平仓', `成功取消止损订单: ${stopLossOrderId}`)
               // 优化：优先使用average（平均成交价），然后是price，最后是position.stopLoss
               exitPrice = stopOrder.average || stopOrder.price || tempPosition.stopLoss
             } catch (error: any) {

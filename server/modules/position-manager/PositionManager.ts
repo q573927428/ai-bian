@@ -25,6 +25,14 @@ export interface PositionInfo {
   highestPrice?: number;               // 持仓期间最高价
   lowestPrice?: number;                // 持仓期间最低价
   position?: Position;                 // 完整仓位信息
+  stopLossOrderId?: string;            // 止损订单ID
+  stopLossOrderSymbol?: string;        // 止损订单交易对
+  stopLossOrderSide?: string;          // 止损订单方向
+  stopLossOrderType?: string;          // 止损订单类型
+  stopLossOrderQuantity?: number;      // 止损订单数量
+  stopLossOrderStopPrice?: number;     // 止损订单止损价
+  stopLossOrderStatus?: string;        // 止损订单状态
+  stopLossOrderTimestamp?: number;     // 止损订单时间戳
 }
 
 /**
