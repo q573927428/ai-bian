@@ -82,6 +82,9 @@ import { calculateADXSeries } from '../../utils/adx-calculator'
 // 初始化bot store
 const botStore = useBotStore()
 
+// 是否已经初始化过（防止初始加载时不必要的切换）
+let hasInitialized = false
+
 // 防抖函数
 const debounce = <T extends (...args: any[]) => any>(
   func: T,
@@ -124,11 +127,10 @@ const computedTimeframe = computed(() => {
   
   // 否则根据策略模式自动选择
   if (!botStore.config) return '1h' // 默认值
-  console.log("111",botStore.config.strategyMode);
   
   const strategyMode = botStore.config.strategyMode
-  // medium_term 使用 1h，其他（short_term）使用 15m
-  return strategyMode === 'medium_term' ? '1h' : '15m'
+  // 默认使用 1h，除非明确是 short_term
+  return strategyMode === 'short_term' ? '15m' : '1h'
 })
 
 // 响应式数据
@@ -144,6 +146,16 @@ let requestGeneration = 0
 
 // 监听computedTimeframe变化（当botStore.config加载完成后）
 watch(() => computedTimeframe.value, (newTimeframe, oldTimeframe) => {
+  // 首次初始化时不触发切换
+  if (!hasInitialized) {
+    hasInitialized = true
+    // 确保初始值正确
+    if (newTimeframe && newTimeframe !== selectedTimeframe.value) {
+      selectedTimeframe.value = newTimeframe
+    }
+    return
+  }
+  
   if (newTimeframe && newTimeframe !== oldTimeframe && newTimeframe !== selectedTimeframe.value) {
 
     // 清空当前K线数据，避免显示旧周期的数据
