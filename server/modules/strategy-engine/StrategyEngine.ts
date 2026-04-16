@@ -473,7 +473,7 @@ ${promptConfig.userPrompt}
       // 获取策略名称
       const strategyInstance = this.runningStrategies.get(signal.strategyId)
       const strategyName = strategyInstance ? strategyInstance.strategy.name : '未知策略'
-      logger.info(`${signal.strategyId}`, `[${strategyName}] ${signal.symbol} @${signal.price}  ${signal.direction} 置信度（${signal.confidence} < 70）`);
+      logger.info('扫描结果', ` ${signal.symbol} @${signal.price}  ${signal.direction} 置信度（${signal.confidence} < 70）[${strategyName} - ${signal.strategyId}]`);
       return false
     }
 

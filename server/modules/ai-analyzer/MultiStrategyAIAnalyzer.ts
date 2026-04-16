@@ -327,7 +327,7 @@ ${promptConfig.userPrompt}
       // 异步保存到文件，不阻塞主流程
       this.saveAIAnalysisToFile(analysis).catch(() => {})
 
-      logger.info(`${analysis.strategyId}`, `[策略]  ${analysis.symbol} @${analysis.technicalData.price} ${analysis.direction} 置信度（${analysis.confidence}） 评分（${analysis.score}）`);
+      logger.info('扫描结果', ` ${analysis.symbol} @${analysis.technicalData.price} ${analysis.direction} 置信度（${analysis.confidence}） 评分（${analysis.score}）[策略 - ${analysis.strategyId}]`);
 
       return analysis
     } catch (error: any) {
