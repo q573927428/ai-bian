@@ -8,23 +8,6 @@
             <el-icon style="vertical-align: middle; margin-right: 8px"><ElIconTrendCharts /></el-icon>
             币安永续合约AI自动交易系统
           </h1>
-          <div class="header-actions">
-            <el-tag v-if="botStore.isRunning" type="success" effect="dark">运行中</el-tag>
-            <el-tag v-else-if="botStore.isHalted" type="danger" effect="dark">熔断停机</el-tag>
-            <el-tag v-else type="info" effect="dark">已停止</el-tag>
-            
-            <!-- 策略管理入口 -->
-            <el-button 
-              type="warning" 
-              plain 
-              size="small"
-              @click="goToStrategies"
-              style="margin-left: 15px"
-            >
-              <el-icon><ElIconSetting /></el-icon>
-              策略管理
-            </el-button>
-          </div>
         </div>
       </el-header>
 
@@ -36,37 +19,11 @@
             <el-card class="card" shadow="hover">
               <template #header>
                 <div class="card-header">
-                  <span>🎛️ 控制面板</span>
-                  <el-button
-                    text
-                    type="primary"
-                  >
-                    {{ statusText }}
-                  </el-button>
+                  <span>🎛️ 状态面板</span>
                 </div>
               </template>
               
               <div class="control-panel">
-                <el-button
-                  type="primary"
-                  :loading="botStore.isLoading"
-                  :disabled="botStore.isRunning"
-                  @click="handleEditConfig"
-                >
-                  <el-icon style="margin-right: 8px"><ElIconVideoPlay /></el-icon>
-                  启动
-                </el-button>
-
-                <el-button
-                  type="danger"
-                  :loading="botStore.isLoading"
-                  :disabled="!botStore.isRunning"
-                  @click="handleEditConfig"
-                >
-                  <el-icon style="margin-right: 8px"><ElIconVideoPause /></el-icon>
-                  停止
-                </el-button>
-
                 <!-- 余额信息 -->
                 <div class="balance-card-large">
                   <!-- 紧凑统计卡片 -->
@@ -151,19 +108,6 @@ import Strategies from '../components/Strategies.vue'
 
 const botStore = useBotStore()
 
-const statusText = computed(() => {
-  const status = botStore.state?.status
-  const statusMap: Record<string, string> = {
-    IDLE: '空闲',
-    MONITORING: '监控中',
-    OPENING: '开仓中',
-    POSITION: '持仓中',
-    CLOSING: '平仓中',
-    HALTED: '熔断停机',
-  }
-  return statusMap[status || 'IDLE'] || '未知'
-})
-
 const pnlClass = computed(() => {
   const pnl = botStore.state?.dailyPnL || 0
   return pnl >= 0 ? 'text-success' : 'text-danger'
@@ -218,26 +162,6 @@ function goToStrategies() {
   window.location.href = '/strategies'
 }
 
-// 处理编辑配置按钮点击
-async function handleEditConfig() {
-  // 检查是否需要密码验证
-  try {
-    const response = await $fetch<{ success: boolean; requiresPassword: boolean }>('/api/bot/check-password')
-    if (response.success) {
-      // 如果需要密码验证，显示密码输入对话框
-      if (response.requiresPassword) {
-        ElMessage.info('编辑配置需要密码验证，请点击配置面板中的"编辑"按钮')
-        return
-      }
-    }
-  } catch (error) {
-    console.error('检查密码配置失败:', error)
-  }
-  
-  // 不需要密码验证，直接打开配置对话框
-  ElMessage.info('请点击配置面板中的"编辑"按钮打开配置对话框')
-}
-
 // 页面加载时获取状态
 onMounted(async () => {
   await botStore.fetchStatus()
@@ -268,12 +192,6 @@ onMounted(async () => {
   color: #303133;
   margin: 0;
   display: flex;
-  align-items: center;
-}
-
-.header-actions {
-  display: flex;
-  gap: 12px;
   align-items: center;
 }
 
@@ -370,7 +288,6 @@ onMounted(async () => {
   border: 1px solid #91d5ff;
   border-radius: 8px;
   padding: 12px;
-  margin-top: 10px;
   box-shadow: 0 2px 8px rgba(145, 213, 255, 0.15);
 }
 
