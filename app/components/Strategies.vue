@@ -8,15 +8,15 @@
       <div class="card-header">
         <span>⚙️ 系统配置</span>
           <div class="header-actions">
-            <el-button type="primary" @click="showCreateDialog = true">
+            <el-button size="small" type="primary" @click="showCreateDialog = true">
               <el-icon><ElIconPlus /></el-icon>
               创建新策略
             </el-button>
-            <el-button @click="loadStrategies">
+            <el-button size="small" @click="loadStrategies">
               <el-icon><ElIconRefresh /></el-icon>
               刷新
             </el-button>
-            <el-button type="warning" @click="clearAICache">
+            <el-button size="small" type="warning" @click="clearAICache">
               <el-icon><ElIconDelete /></el-icon>
               清理AI缓存
             </el-button>
@@ -25,8 +25,8 @@
     </template>
 
       <el-table :data="strategies" v-loading="loading" stripe>
-        <el-table-column prop="name" label="策略名称" width="180" />
-        <el-table-column label="交易对" width="200">
+        <el-table-column prop="name" label="策略名称" width="80" />
+        <el-table-column label="交易对" >
           <template #default="{ row }">
             <el-tag
               v-for="symbol in row.marketData.symbols.slice(0, 3)"
@@ -46,7 +46,7 @@
             {{ row.marketData.timeframes.join(', ') }}
           </template>
         </el-table-column>
-        <el-table-column label="版本" width="80">
+        <el-table-column label="版本" width="60">
           <template #default="{ row }">
             v{{ row.version }}
           </template>
@@ -63,7 +63,7 @@
             {{ formatDate(row.createdAt) }}
           </template>
         </el-table-column>
-        <el-table-column label="操作" fixed="right" width="560">
+        <el-table-column label="操作" fixed="right" width="380">
           <template #default="{ row }">
             <el-button size="small" @click="viewStrategyDetail(row)">详情</el-button>
             <el-button size="small" @click="editStrategy(row)">编辑</el-button>
@@ -81,7 +81,7 @@
               :disabled="!row.isActive"
               :loading="testingStrategies.has(row.id)"
             >
-              手动分析
+              分析
             </el-button>
             <el-button size="small" @click="showVersionHistory(row)">版本</el-button>
             <el-button size="small" type="danger" @click="deleteStrategy(row)">删除</el-button>
@@ -579,10 +579,6 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.strategies-page {
-  padding: 20px;
-}
-
 .card-header {
   display: flex;
   justify-content: space-between;

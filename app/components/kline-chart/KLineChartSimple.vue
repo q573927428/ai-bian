@@ -123,7 +123,8 @@ const computedTimeframe = computed(() => {
   if (props.timeframe) return props.timeframe
   
   // 否则根据策略模式自动选择
-  if (!botStore.config) return '15m' // 默认值
+  if (!botStore.config) return '1h' // 默认值
+  console.log("111",botStore.config.strategyMode);
   
   const strategyMode = botStore.config.strategyMode
   // medium_term 使用 1h，其他（short_term）使用 15m
@@ -342,7 +343,7 @@ const calculateLatestEmaDiff = (klineData: SimpleKLineData[]): number => {
   if (!botStore.config || !botStore.config.indicatorsConfig || !botStore.config.indicatorsConfig.emaPeriods) return 0
   
   const strategyMode = botStore.config.strategyMode
-  const emaConfig = botStore.config.indicatorsConfig.emaPeriods[strategyMode] || { fast: 20, slow: 60 }
+  const emaConfig = botStore.config.indicatorsConfig.emaPeriods[strategyMode] || { fast: 14, slow: 120 }
   const fastPeriod = emaConfig.fast
   const slowPeriod = emaConfig.slow
   

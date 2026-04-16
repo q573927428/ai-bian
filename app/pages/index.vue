@@ -123,6 +123,11 @@
               <CryptoPriceCards />
             </ClientOnly>
 
+            <!-- 策略组件 -->
+            <ClientOnly>
+              <Strategies />
+            </ClientOnly>
+
             <!-- 系统日志组件 -->
             <ClientOnly>
               <SystemLogs />
@@ -142,6 +147,7 @@ import { useBotStore } from '../stores/bot'
 import SystemLogs from '../components/SystemLogs.vue'
 import CryptoPriceCards from '../components/CryptoPriceCards.vue'
 import ActivePositions from '../components/ActivePositions.vue'
+import Strategies from '../components/Strategies.vue'
 
 const botStore = useBotStore()
 

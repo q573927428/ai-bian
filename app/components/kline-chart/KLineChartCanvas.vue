@@ -80,10 +80,10 @@ const botStore = useBotStore()
 
 // 计算EMA周期（根据当前策略模式）
 const emaPeriods = computed(() => {
-  if (!botStore.config || !botStore.config.indicatorsConfig || !botStore.config.indicatorsConfig.emaPeriods) return [20, 60] // 默认值
+  if (!botStore.config || !botStore.config.indicatorsConfig || !botStore.config.indicatorsConfig.emaPeriods) return [14, 120] // 默认值
   
   const strategyMode = botStore.config.strategyMode
-  const emaConfig = botStore.config.indicatorsConfig.emaPeriods[strategyMode] || { fast: 20, slow: 60 }
+  const emaConfig = botStore.config.indicatorsConfig.emaPeriods[strategyMode] || { fast: 14, slow: 120 }
   
   // 返回fast和slow两个周期
   return [emaConfig.fast, emaConfig.slow]
@@ -243,13 +243,13 @@ let emaSeries: any[] = []
 let resizeObserver: ResizeObserver | null = null
 let markersApi: any = null
 
-// 使用props.timeframe，如果为空则使用默认值15m
+// 使用props.timeframe，如果为空则使用默认值1h
 const computedTimeframe = computed(() => {
   // 如果props提供了timeframe，则使用提供的值
   if (props.timeframe) return props.timeframe
   
-  // 否则使用默认值15m
-  return '15m'
+  // 否则使用默认值1h
+  return '1h'
 })
 
 // 判断是否为DOGE交易对
