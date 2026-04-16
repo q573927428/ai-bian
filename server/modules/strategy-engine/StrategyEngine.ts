@@ -215,7 +215,7 @@ export class StrategyEngine {
       this.strategyLoop(instance)
     }, scanInterval)
 
-    logger.info('StrategyEngine', `策略循环已启动: ${instance.strategy.name}, 间隔 ${scanInterval / 1000}秒`)
+    // logger.info('StrategyEngine', `策略循环已启动: ${instance.strategy.name}, 间隔 ${scanInterval / 1000}秒`)
   }
 
   /**

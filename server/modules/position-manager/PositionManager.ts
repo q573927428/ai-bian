@@ -149,25 +149,22 @@ export class PositionManager {
       
       // 加载活跃持仓
       const positions = await loadActivePositions()
-      // 加载交易对锁
-      const locks = await loadSymbolLocks()
 
-      // 重建内存映射
+      // 重建内存映射 - 从持仓数据中重建所有映射
       for (const position of positions) {
         this.positions.set(position.symbol, position)
-      }
-
-      for (const [symbol, strategyId] of Object.entries(locks)) {
-        this.symbolLocks.set(symbol, strategyId as StrategyId)
         
-        // 重建策略仓位映射
-        if (!this.strategyPositions.has(strategyId as StrategyId)) {
-          this.strategyPositions.set(strategyId as StrategyId, new Set())
+        // 重建 symbolLocks
+        this.symbolLocks.set(position.symbol, position.strategyId)
+        
+        // 重建 strategyPositions
+        if (!this.strategyPositions.has(position.strategyId)) {
+          this.strategyPositions.set(position.strategyId, new Set())
         }
-        this.strategyPositions.get(strategyId as StrategyId)!.add(symbol)
+        this.strategyPositions.get(position.strategyId)!.add(position.symbol)
       }
 
-      logger.success('PositionManager', `本地状态加载完成: ${positions.length} 个仓位, ${Object.keys(locks).length} 个锁`)
+      logger.success('PositionManager', `本地状态加载完成: ${positions.length} 个仓位, ${this.symbolLocks.size} 个锁`)
     } catch (error: any) {
       logger.error('PositionManager', '加载本地状态失败:', error.message)
     }

@@ -227,7 +227,7 @@ export class StrategyManager {
         // 启动策略执行
         await this.engine.startStrategy(strategy.id)
 
-        logger.success('StrategyManager', `策略已加载: ${strategy.name} (${strategy.id})`)
+        // logger.success('StrategyManager', `策略已加载: ${strategy.name} (${strategy.id})`)
       } catch (error: any) {
         logger.error('StrategyManager', `加载策略失败 ${strategy.id}: ${error.message}`)
       }

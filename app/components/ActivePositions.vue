@@ -6,7 +6,7 @@
       </div>
     </template>
     <div class="positions-list">
-      <el-card v-for="pos in positions" :key="pos.id" class="position-card" shadow="hover">
+      <el-card v-for="pos in positions" :key="pos.orderId || pos.symbol" class="position-card" shadow="hover">
         <div class="position-header">
           <span class="symbol">
             {{ pos.symbol }} 

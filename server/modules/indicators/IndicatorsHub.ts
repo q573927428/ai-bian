@@ -59,7 +59,7 @@ export class IndicatorsHub {
   }
 
   // 统计数据TTL
-  private readonly STATS_TTL = 60 * 1000 // 1分钟
+  private readonly STATS_TTL = 300 * 1000 // 5分钟
 
   // 进行中的请求
   private pendingRequests: Map<string, Promise<any>> = new Map()
@@ -143,7 +143,7 @@ export class IndicatorsHub {
       return
     }
 
-    logger.info('IndicatorsHub', `开始初始化 ${symbols.length} 个交易对的数据...`)
+    // logger.info('IndicatorsHub', `开始初始化 ${symbols.length} 个交易对的数据...`)
     const startTime = Date.now()
 
     // 分批初始化，控制并发
@@ -174,7 +174,7 @@ export class IndicatorsHub {
       // 3. 计算所有指标
       await this.calculateAndCacheAllIndicators(symbol)
 
-      logger.success('IndicatorsHub', `${symbol} 数据初始化完成`)
+      // logger.success('IndicatorsHub', `${symbol} 数据初始化完成`)
     } catch (error: any) {
       logger.error('IndicatorsHub', `${symbol} 数据初始化失败: ${error.message}`)
     }
