@@ -79,17 +79,51 @@ export class StrategyPositionMonitor {
   private async monitorPositions(): Promise<void> {
     const positions = this.positionManager.getAllPositions()
 
-    logger.info('持仓监控', `当前持仓数量: ${positions.length}`)
-
     if (positions.length === 0) {
       return
     }
+
+    // 显示所有持仓详细信息
+    await this.logAllPositionsDetails(positions)
 
     for (const position of positions) {
       try {
         await this.monitorSinglePosition(position)
       } catch (error: any) {
         logger.error('持仓监控', `监控 ${position.symbol} 失败: ${error.message}`)
+      }
+    }
+  }
+
+  /**
+   * 记录所有持仓详细信息
+   */
+  private async logAllPositionsDetails(positions: any[]): Promise<void> {
+    
+    for (const position of positions) {
+      try {
+        const currentPrice = await this.binance.fetchPrice(position.symbol)
+        
+        // 计算盈亏
+        const priceDiff = position.direction === 'long' 
+          ? currentPrice - position.entryPrice
+          : position.entryPrice - currentPrice
+        
+        const pnl = priceDiff * position.quantity
+        const pnlPercentage = (priceDiff / position.entryPrice) * 100 * position.leverage
+        
+        const directionText = position.direction === 'long' ? '做多' : '做空'
+        
+        logger.info('持仓监控', 
+          `${position.symbol.padEnd(12)} ` +
+          `${directionText.padEnd(6)} ` +
+          `入场价:${position.entryPrice.toFixed(2).padStart(10)} ` +
+          `当前价:${currentPrice.toFixed(2).padStart(10)} ` +
+          `盈亏:${pnl >= 0 ? '+' : ''}${pnl.toFixed(2)}USDT ` +
+          `${pnlPercentage >= 0 ? '+' : ''}${pnlPercentage.toFixed(2)}%`
+        )
+      } catch (error: any) {
+        logger.error('持仓监控', `获取 ${position.symbol} 当前价失败: ${error.message}`)
       }
     }
   }
