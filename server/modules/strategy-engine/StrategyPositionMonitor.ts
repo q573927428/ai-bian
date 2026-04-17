@@ -8,7 +8,7 @@ import { logger } from '../../utils/logger'
 import type { Strategy } from '../../../types/strategy'
 import type { BotConfig, Position } from '../../../types'
 import { checkTP1Condition, checkTP2Condition, isPositionTimeout, convertStrategyRiskConfig } from '../../utils/risk'
-import { calculateIndicators } from '../../utils/indicators-core'
+import { IndicatorsHub } from '../indicators/IndicatorsHub'
 
 /**
  * 多策略持仓监控模块
@@ -203,8 +203,10 @@ export class StrategyPositionMonitor {
       // 从策略配置转换到止盈配置
       const { takeProfit } = convertStrategyRiskConfig(strategy.riskManagement)
 
-      // 计算技术指标（需要 RSI 和 ADX 斜率）
-      const indicators = await calculateIndicators(this.binance, position.symbol, this.config)
+      // 从 IndicatorsHub 获取指标（从策略 timeframes 中选择 entry 周期）
+      const strategyTimeframes = strategy.marketData?.timeframes || ['15m']
+      const indicatorsHub = IndicatorsHub.getInstance(this.binance, this.config)
+      const indicators = await indicatorsHub.getIndicatorsForRiskManagement(position.symbol, strategyTimeframes)
 
       // 检查 TP2 条件
       const tp2Result = checkTP2Condition(posForCheck, currentPrice, indicators, takeProfit)
@@ -356,8 +358,10 @@ export class StrategyPositionMonitor {
       // 获取超时配置（从策略配置或全局配置）
       const maxHoldTimeMinutes = strategy.riskManagement?.maxHoldTimeMinutes || 1440
       
-      // 计算技术指标（需要 ADX 斜率）
-      const indicators = await calculateIndicators(this.binance, position.symbol, this.config)
+      // 从 IndicatorsHub 获取指标（从策略 timeframes 中选择 entry 周期）
+      const strategyTimeframes = strategy.marketData?.timeframes || ['15m']
+      const indicatorsHub = IndicatorsHub.getInstance(this.binance, this.config)
+      const indicators = await indicatorsHub.getIndicatorsForRiskManagement(position.symbol, strategyTimeframes)
       
       // 使用ADX斜率判断趋势走弱（负斜率表示ADX下降）
       const isADXDecreasing = indicators.adxSlope < 0

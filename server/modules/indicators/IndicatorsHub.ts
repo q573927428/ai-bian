@@ -1,17 +1,19 @@
 // ==================== 指标统一获取与缓存中心 ====================
 
+import { EMA, RSI, ADX } from 'technicalindicators'
 import type {
   IndicatorData,
   Timeframe,
   IndicatorType,
   StatisticsType,
   StrategyId,
-  CachedData
+  CachedData,
+  AIInput
 } from '../../../types/strategy'
-import type { TechnicalIndicators, OHLCV, BotConfig } from '../../../types'
+import type { OHLCV, BotConfig } from '../../../types'
 import { BinanceService } from '../../utils/binance'
-import { calculateIndicators } from '../../utils/indicators'
 import { logger } from '../../utils/logger'
+import { MultiTimeframeIndicatorCalculator } from './MultiTimeframeIndicatorCalculator'
 
 /**
  * 统一数据缓存条目
@@ -43,8 +45,8 @@ export class IndicatorsHub {
   // 统一数据缓存: symbol -> SymbolData
   private symbolDataCache: Map<string, SymbolData> = new Map()
 
-  // 常用时间周期
-  private readonly ALL_TIMEFRAMES: Timeframe[] = ['15m', '1h', '4h', '1d']
+  // 所有支持的时间周期
+  private readonly ALL_TIMEFRAMES: Timeframe[] = ['1m', '5m', '15m', '1h', '4h', '1d']
 
   // 常用指标类型
   private readonly ALL_INDICATORS: IndicatorType[] = ['EMA', 'RSI', 'ATR', 'ADX']
@@ -52,6 +54,8 @@ export class IndicatorsHub {
 
   // K线数据TTL（毫秒）
   private readonly KLINE_TTL: Record<Timeframe, number> = {
+    '1m': 1 * 60 * 1000,
+    '5m': 5 * 60 * 1000,
     '15m': 15 * 60 * 1000,
     '1h': 60 * 60 * 1000,
     '4h': 4 * 60 * 60 * 1000,
@@ -67,6 +71,9 @@ export class IndicatorsHub {
   // 定时更新定时器
   private updateTimer: NodeJS.Timeout | null = null
 
+  // 多周期指标计算器
+  private multiTimeframeCalculator: MultiTimeframeIndicatorCalculator | null = null
+
   // 最大并发数
   private readonly MAX_CONCURRENT = 3
 
@@ -77,6 +84,13 @@ export class IndicatorsHub {
     this.binance = binance
     this.config = config
     logger.info('IndicatorsHub', '指标统一获取中心已初始化（重构版）')
+    
+    // 初始化多周期指标计算器
+    this.multiTimeframeCalculator = new MultiTimeframeIndicatorCalculator(
+      this.binance,
+      this,
+      this.config
+    )
   }
 
   /**
@@ -171,7 +185,7 @@ export class IndicatorsHub {
       // 2. 获取持仓量
       await this.fetchAndCacheOI(symbol)
 
-      // 3. 计算所有指标
+      // 3. 获取成交量数据
       await this.calculateAndCacheAllIndicators(symbol)
 
       // logger.success('IndicatorsHub', `${symbol} 数据初始化完成`)
@@ -261,7 +275,7 @@ export class IndicatorsHub {
   // ==================== 指标计算与缓存 ====================
 
   /**
-   * 计算并缓存所有指标
+   * 缓存成交量数据
    */
   private async calculateAndCacheAllIndicators(symbol: string): Promise<void> {
     const symbolData = this.getOrCreateSymbolData(symbol)
@@ -273,23 +287,15 @@ export class IndicatorsHub {
       }
 
       try {
-        // 计算技术指标
-        const indicators = await calculateIndicators(this.binance, symbol, this.config, klines)
-
-        // 缓存各个指标
-        for (const type of this.ALL_INDICATORS) {
-          const cacheKey = `${symbol}_${timeframe}_${type}`
-          const indicatorData: IndicatorData = {
-            symbol,
-            timeframe,
-            timestamp: Date.now(),
-            values: this.extractIndicatorValues(indicators, type)
-          }
-          symbolData.indicators.set(cacheKey, indicatorData)
-        }
-
         // 缓存成交量
-        const volumeData = this.calculateVolumeFromKlines(klines)
+        const currentVolume = klines[klines.length - 1]?.volume || 0
+        const averageVolume = klines.slice(-20).reduce((sum, c) => sum + c.volume, 0) / 20
+        const volumeData = {
+          current: currentVolume,
+          average: averageVolume,
+          ratio: averageVolume > 0 ? currentVolume / averageVolume : 0
+        }
+        
         if (!symbolData.volumeData) {
           symbolData.volumeData = new Map()
         }
@@ -298,55 +304,8 @@ export class IndicatorsHub {
           timestamp: Date.now()
         })
       } catch (error: any) {
-        // logger.error('IndicatorsHub', `${symbol} ${timeframe} 指标计算失败: ${error.message}`)
+        // logger.error('IndicatorsHub', `${symbol} ${timeframe} 成交量缓存失败: ${error.message}`)
       }
-    }
-  }
-
-  /**
-   * 从计算结果中提取指定类型的指标值
-   */
-  private extractIndicatorValues(indicators: TechnicalIndicators, type: IndicatorType): Record<string, any> {
-    switch (type) {
-      case 'EMA':
-        return {
-          emaPeriods: indicators.emaPeriods,
-          emaNames: indicators.emaNames,
-          emaFast: indicators.emaFast,
-          emaMedium: indicators.emaMedium,
-          emaSlow: indicators.emaSlow,
-          emaFastValues: indicators.emaFastValues,
-          emaMediumValues: indicators.emaMediumValues,
-          emaSlowValues: indicators.emaSlowValues,
-          adxPeriodLabels: indicators.adxPeriodLabels
-        }
-      case 'RSI':
-        return { rsi: indicators.rsi }
-      case 'ATR':
-        return { atr: indicators.atr }
-      case 'ADX':
-        return {
-          adxMain: indicators.adxMain,
-          adxSecondary: indicators.adxSecondary,
-          adxTertiary: indicators.adxTertiary,
-          adxSlope: indicators.adxSlope,
-          adxPeriodLabels: indicators.adxPeriodLabels
-        }
-      default:
-        return {}
-    }
-  }
-
-  /**
-   * 从K线计算成交量数据
-   */
-  private calculateVolumeFromKlines(klines: OHLCV[]): { current: number; average: number; ratio: number } {
-    const currentVolume = klines[klines.length - 1]?.volume || 0
-    const averageVolume = klines.slice(-20).reduce((sum, c) => sum + c.volume, 0) / 20
-    return {
-      current: currentVolume,
-      average: averageVolume,
-      ratio: averageVolume > 0 ? currentVolume / averageVolume : 0
     }
   }
 
@@ -524,6 +483,78 @@ export class IndicatorsHub {
     return {
       size: this.symbolDataCache.size,
       symbols: Array.from(this.symbolDataCache.keys())
+    }
+  }
+
+  // ==================== 多周期指标计算 ====================
+
+  /**
+   * 获取多周期AI输入数据
+   */
+  async getMultiTimeframeAIInput(
+    symbol: string,
+    timeframes: Timeframe[]
+  ): Promise<AIInput> {
+    if (!this.multiTimeframeCalculator) {
+      throw new Error('多周期指标计算器未初始化')
+    }
+    return this.multiTimeframeCalculator.calculateIndicators(symbol, timeframes)
+  }
+
+  /**
+   * 分配周期角色
+   */
+  assignTimeframeRoles(timeframes: Timeframe[]) {
+    if (!this.multiTimeframeCalculator) {
+      throw new Error('多周期指标计算器未初始化')
+    }
+    return this.multiTimeframeCalculator.assignRoles(timeframes)
+  }
+
+  // ==================== 单周期指标计算（用于止盈止损） ====================
+
+  /**
+   * 从策略配置的 timeframes 中选择 entry 周期来计算指标（用于止盈止损）
+   * 只计算止盈止损需要的：rsi 和 adxSlope
+   */
+  async getIndicatorsForRiskManagement(
+    symbol: string,
+    strategyTimeframes: Timeframe[]
+  ): Promise<{ rsi: number; adxSlope: number }> {
+    try {
+      // 1. 分配周期角色，找到 entry 周期
+      const roles = this.assignTimeframeRoles(strategyTimeframes)
+      const entryRole = roles.find(r => r.role === 'entry')
+      const entryTimeframe = entryRole?.tf || strategyTimeframes[0] || '15m'
+
+      // 2. 获取 entry 周期的 K 线数据
+      const klines = this.getKlines(symbol, entryTimeframe)
+      if (!klines || klines.length < 100) {
+        throw new Error(`K线数据不足: ${symbol} ${entryTimeframe}`)
+      }
+
+      const closes = klines.map(c => c.close)
+      const highs = klines.map(c => c.high)
+      const lows = klines.map(c => c.low)
+
+      // 3. 只计算止盈止损需要的指标
+
+      // RSI（14周期）
+      const rsiValues = RSI.calculate({ period: 14, values: closes })
+      const rsi = rsiValues[rsiValues.length - 1] ?? 50
+
+      // ADX和ADX斜率
+      const adxValues = ADX.calculate({ period: 14, high: highs, low: lows, close: closes })
+      const currentADX = adxValues[adxValues.length - 1]?.adx ?? 0
+      const adxSlopePeriod = 3
+      const previousADXIndex = Math.max(0, adxValues.length - 1 - adxSlopePeriod)
+      const previousADX = adxValues[previousADXIndex]?.adx ?? currentADX
+      const adxSlope = currentADX - previousADX
+
+      return { rsi, adxSlope }
+    } catch (error: any) {
+      logger.error('IndicatorsHub', `获取止盈止损指标失败 ${symbol}: ${error.message}`)
+      throw error
     }
   }
 }

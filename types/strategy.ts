@@ -7,7 +7,42 @@ export type StrategyId = string;
 export type StrategyVersion = number;
 
 // K线周期
-export type Timeframe = '15m' | '1h' | '4h' | '1d';
+export type Timeframe = '1m' | '5m' | '15m' | '1h' | '4h' | '1d';
+
+// 周期角色类型
+export type TimeframeRole = 'trend' | 'confirm' | 'entry';
+
+// 带角色的周期配置
+export interface TimeframeWithRole {
+  tf: Timeframe;
+  role: TimeframeRole;
+}
+
+// AI输入数据结构 - 单个周期指标数据
+export interface TimeframeData {
+  timeframe: string;
+  ema?: {
+    fast: number;
+    medium: number;
+    slow: number;
+  };
+  rsi?: number;
+  adx?: number;
+  adxSlope?: number;
+  atr?: number;
+  oi?: {
+    value: number;
+    changePercent: number;
+    trend: 'increasing' | 'decreasing' | 'flat';
+  };
+}
+
+// AI输入数据结构
+export interface AIInput {
+  symbol: string;
+  price: number;
+  timeframes: TimeframeData[];
+}
 
 // 技术指标类型
 export type IndicatorType = 'EMA' | 'RSI' | 'MACD' | 'ATR' | 'ADX';
