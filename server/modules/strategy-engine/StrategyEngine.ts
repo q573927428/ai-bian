@@ -249,6 +249,20 @@ export class StrategyEngine {
   // ==================== 市场分析 ====================
 
   /**
+   * 从策略配置中提取EMA周期
+   */
+  private getEMAPeriodsFromStrategy(strategy: any): { periods: number[], names: string[] } {
+    const emaConfig = strategy.indicators.find((i: any) => i.type === 'EMA' && i.enabled)
+    if (emaConfig?.params?.periods && Array.isArray(emaConfig.params.periods)) {
+      const periods = emaConfig.params.periods.slice(0, 3)
+      const names = periods.map((p: number) => `EMA${p}`)
+      return { periods, names }
+    }
+    // 默认值
+    return { periods: [14, 60, 120], names: ['EMA14', 'EMA60', 'EMA120'] }
+  }
+
+  /**
    * 分析单个交易对
    */
   private async analyzeSymbol(instance: StrategyInstance, symbol: string): Promise<void> {
@@ -260,17 +274,57 @@ export class StrategyEngine {
       return
     }
 
-    // 2. 从指标中心获取数据（自动复用缓存）
+    // 2. 从指标中心获取基础数据
     const indicatorsData = await this.indicatorsHub.getBatchIndicators(
       symbol,
       strategy.marketData.timeframes,
       [
-        ...strategy.indicators.filter(i => i.enabled).map(i => i.type),
+        ...strategy.indicators.filter(i => i.enabled && i.type !== 'EMA').map(i => i.type),
         ...strategy.statistics.filter(s => s.enabled).map(s => s.type)
       ]
     )
 
-    // 3. 构建 AI 提示词并调用 AI 分析
+    // 3. 根据策略配置动态计算EMA
+    const emaConfig = this.getEMAPeriodsFromStrategy(strategy)
+    const mainTimeframe = strategy.marketData.timeframes[0] || '15m'
+    
+    // 获取主时间周期的K线数据
+    const klines = this.indicatorsHub.getKlines(symbol, mainTimeframe)
+    if (klines && klines.length > 0) {
+      const closes = klines.map(c => c.close)
+      
+      // 动态计算EMA
+      const { EMA } = await import('technicalindicators')
+      const emaValues = emaConfig.periods.map((period: number) => {
+        const values = EMA.calculate({ period, values: closes })
+        return values[values.length - 1] ?? closes[closes.length - 1]
+      })
+      
+      // 将动态EMA数据添加到indicatorsData
+      const emaCacheKey = `${mainTimeframe}_EMA`
+      indicatorsData.set(emaCacheKey, {
+        symbol,
+        timeframe: mainTimeframe,
+        timestamp: Date.now(),
+        values: {
+          emaFast: emaValues[0],
+          emaMedium: emaValues[1],
+          emaSlow: emaValues[2],
+          emaNames: {
+            fast: emaConfig.names[0],
+            medium: emaConfig.names[1],
+            slow: emaConfig.names[2]
+          },
+          emaPeriods: {
+            fast: emaConfig.periods[0],
+            medium: emaConfig.periods[1],
+            slow: emaConfig.periods[2]
+          }
+        }
+      })
+    }
+
+    // 4. 构建 AI 提示词并调用 AI 分析
     const signal = await this.callAI(
       instance,
       strategy.id,
@@ -358,7 +412,7 @@ export class StrategyEngine {
         openInterestChangePercent: indicatorsData.get('1h_OI')?.values?.changePercent || 0,
         openInterestTrend: indicatorsData.get('1h_OI')?.values?.trend || 'flat',
         adxPeriodLabels: emaData.adxPeriodLabels || { main: mainTimeframe, secondary: '1h', tertiary: '4h' },
-        emaNames: emaData.emaNames || { fast: 'EMA20', medium: 'EMA30', slow: 'EMA60' }
+        emaNames: emaData.emaNames || { fast: 'EMA14', medium: 'EMA60', slow: 'EMA120' }
       }
       
       // 使用新的多策略AI分析器

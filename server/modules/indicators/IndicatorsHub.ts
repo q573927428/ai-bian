@@ -382,11 +382,11 @@ export class IndicatorsHub {
         const highs = klines.map(c => c.high)
         const lows = klines.map(c => c.low)
 
-        // EMA (20, 30, 60)
+        // EMA (14, 60, 120)
         try {
-          const ema20Values = EMA.calculate({ period: 20, values: closes })
-          const ema30Values = EMA.calculate({ period: 30, values: closes })
+          const ema14Values = EMA.calculate({ period: 14, values: closes })
           const ema60Values = EMA.calculate({ period: 60, values: closes })
+          const ema120Values = EMA.calculate({ period: 120, values: closes })
           
           const emaCacheKey = `${symbol}_${timeframe}_EMA`
           symbolData.indicators.set(emaCacheKey, {
@@ -394,10 +394,10 @@ export class IndicatorsHub {
             timeframe,
             timestamp: Date.now(),
             values: {
-              emaFast: ema20Values[ema20Values.length - 1] ?? closes[closes.length - 1],
-              emaMedium: ema30Values[ema30Values.length - 1] ?? closes[closes.length - 1],
-              emaSlow: ema60Values[ema60Values.length - 1] ?? closes[closes.length - 1],
-              emaNames: { fast: 'EMA20', medium: 'EMA30', slow: 'EMA60' }
+              emaFast: ema14Values[ema14Values.length - 1] ?? closes[closes.length - 1],
+              emaMedium: ema60Values[ema60Values.length - 1] ?? closes[closes.length - 1],
+              emaSlow: ema120Values[ema120Values.length - 1] ?? closes[closes.length - 1],
+              emaNames: { fast: 'EMA14', medium: 'EMA60', slow: 'EMA120' }
             }
           })
         } catch (e) {
