@@ -6,7 +6,6 @@ import { logger } from '../../utils/logger'
 import { saveBotState } from '../../utils/storage'
 import { calculatePnL, checkCircuitBreaker } from '../../utils/trade-helpers'
 import { recordTrade } from './helpers/trade-recorder'
-import { calculateIndicators } from '../../utils/indicators'
 import { PositionStatus } from '../../../types'
 import type { BotConfig, BotState, Order } from '../../../types'
 
@@ -19,20 +18,17 @@ export class StrategyPositionCloser {
   private positionManager: PositionManager
   private config: BotConfig
   private state: BotState
-  private getStrategyAnalyzer?: () => any
 
   constructor(
     binance: BinanceService,
     positionManager: PositionManager,
     config: BotConfig,
-    state: BotState,
-    getStrategyAnalyzer?: () => any
+    state: BotState
   ) {
     this.binance = binance
     this.positionManager = positionManager
     this.config = config
     this.state = state
-    this.getStrategyAnalyzer = getStrategyAnalyzer
   }
 
   /**
@@ -296,8 +292,7 @@ export class StrategyPositionCloser {
    */
   private async handleManualClose(
     position: any, 
-    manualCloseInfo: { exitPrice: number; closeTime: number; orderId?: string },
-    strategyAnalyzer?: any
+    manualCloseInfo: { exitPrice: number; closeTime: number; orderId?: string }
   ): Promise<void> {
     try {
       logger.info('手动平仓处理', `开始处理手动平仓: ${position.symbol}`)
@@ -309,24 +304,6 @@ export class StrategyPositionCloser {
       }
 
       const { exitPrice, closeTime } = manualCloseInfo
-
-      // 如果有策略分析器，生成分析指标
-      if (strategyAnalyzer) {
-        try {
-          // 获取移动止损数据
-          const trailingStopData = position.position?.trailingStopData
-          
-          const metrics = await strategyAnalyzer.generateAnalysisMetrics(
-            exitPrice,
-            '手动平仓',
-            closeTime,
-            trailingStopData
-          )
-          logger.success('策略分析', `手动平仓分析指标已生成: ${position.symbol} MFE=${metrics.mfe.toFixed(2)}, MAE=${metrics.mae.toFixed(2)}`)
-        } catch (error: any) {
-          logger.error('策略分析', `手动平仓生成分析指标失败: ${error.message}`)
-        }
-      }
 
       // 取消止损单（如果存在）
       const stopLossOrderId = position.stopLossOrderId || position.position?.stopLossOrderId
@@ -432,9 +409,6 @@ export class StrategyPositionCloser {
       )
   
       try {
-        // 获取策略分析器
-        const strategyAnalyzer = this.getStrategyAnalyzer ? this.getStrategyAnalyzer() : undefined
-        
         // 1. 检测是否是手动平仓
         const manualCloseInfo = await this.detectManualClose(position)
         
@@ -445,7 +419,7 @@ export class StrategyPositionCloser {
             closeTime: manualCloseInfo.closeTime!, // 使用非空断言，因为我们已经检查过不为undefined
             orderId: manualCloseInfo.orderId
           }
-          await this.handleManualClose(position, closeInfo, strategyAnalyzer)
+          await this.handleManualClose(position, closeInfo)
         } else if (manualCloseInfo.isManualClose) {
           // 如果检测到手動平倉但缺少必要信息，使用默认值
           logger.warn('手动平仓处理', `检测到手动平仓但缺少必要信息，使用默认值`)
@@ -455,7 +429,7 @@ export class StrategyPositionCloser {
             closeTime: Date.now(),
             orderId: manualCloseInfo.orderId
           }
-          await this.handleManualClose(position, closeInfo, strategyAnalyzer)
+          await this.handleManualClose(position, closeInfo)
         } else {
           // 2. 如果不是手动平仓，继续原有补偿平仓逻辑
           let reason = '初始止损'
@@ -485,7 +459,7 @@ export class StrategyPositionCloser {
             reason = '未知原因'
           }
           
-          await this.handleCompensatedClose(position, reason, strategyAnalyzer)
+          await this.handleCompensatedClose(position, reason)
         }
       } catch (error: any) {
         logger.error('持仓一致性检查', '处理平仓流程失败', error.message)
@@ -504,32 +478,9 @@ export class StrategyPositionCloser {
   }
 
   /**
-   * 为补偿平仓记录出场指标
-   */
-  private async recordExitIndicatorsForCompensatedClose(position: any, strategyAnalyzer: any): Promise<void> {
-    try {
-      
-      // 获取当前指标 - 使用导入的calculateIndicators函数
-      const indicators = await calculateIndicators(this.binance, position.symbol, this.config)
-      
-      // 记录出场指标到策略分析器
-      strategyAnalyzer.recordExitIndicators(indicators)
-      
-      const strategyMode = this.config.strategyMode || 'short_term'
-      const adxValue = indicators.adxMain  // 适配现有指标结构，使用主周期ADX
-      const adxLabel = indicators.adxPeriodLabels.main
-      
-      logger.info('策略分析', `补偿平仓出场指标已记录: ${position.symbol} RSI=${indicators.rsi}, ${adxLabel}=${adxValue}`)
-    } catch (error: any) {
-      logger.error('策略分析', `补偿平仓记录出场指标失败: ${error.message}`)
-      // 即使记录失败，也不抛出异常，继续执行平仓流程
-    }
-  }
-
-  /**
    * 处理补偿平仓（当检测到仓位已被平仓但本地没有记录时）
    */
-  async handleCompensatedClose(position: any, reason: string, strategyAnalyzer?: any): Promise<void> {
+  async handleCompensatedClose(position: any, reason: string): Promise<void> {
     try {
       // 安全检查：确保position存在
       if (!position) {
@@ -599,26 +550,6 @@ export class StrategyPositionCloser {
         logger.info('补偿平仓', `重新获取的价格: ${exitPrice}`)
       }
 
-      // 如果有策略分析器，生成分析指标
-      if (strategyAnalyzer) {
-        try {
-          // 在生成分析指标之前，先记录出场指标
-          await this.recordExitIndicatorsForCompensatedClose(position, strategyAnalyzer)
-          
-          // 获取移动止损数据
-          const trailingStopData = position.position?.trailingStopData
-          
-          const metrics = await strategyAnalyzer.generateAnalysisMetrics(
-            exitPrice,
-            reason,
-            closeTime,
-            trailingStopData
-          )
-          logger.success('策略分析', `补偿平仓分析指标已生成: ${position.symbol} MFE=${metrics.mfe.toFixed(2)}, MAE=${metrics.mae.toFixed(2)}`)
-        } catch (error: any) {
-          logger.error('策略分析', `补偿平仓生成分析指标失败: ${error.message}`)
-        }
-      }
 
       // 计算盈亏
       const { pnl, pnlPercentage } = calculatePnL(exitPrice, tempPosition)
