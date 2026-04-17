@@ -7,7 +7,7 @@ export type StrategyId = string;
 export type StrategyVersion = number;
 
 // K线周期
-export type Timeframe = '1m' | '5m' | '15m' | '1h' | '4h' | '1d';
+export type Timeframe = '5m' | '15m' | '1h' | '4h' | '1d';
 
 // 周期角色类型
 export type TimeframeRole = 'trend' | 'confirm' | 'entry';

@@ -7,6 +7,7 @@ import type {
   KLineData,
   KLineTimeframe 
 } from '../../types/kline-simple'
+import type { OHLCV } from '../../types'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -380,4 +381,56 @@ export function cleanupAllData(): boolean {
     console.error('清理所有数据失败', error)
     return false
   }
+}
+
+// ==================== 新增：IndicatorsHub 专用函数 ====================
+
+/**
+ * 获取 OHLCV 格式的K线数据（供 IndicatorsHub 使用）
+ * 将 SimpleKLineData 转换为 IndicatorsHub 需要的 OHLCV 格式
+ */
+export function getSimpleKLineAsOHLCV(
+  symbol: string,
+  timeframe: KLineTimeframe,
+  limit?: number
+): OHLCV[] {
+  const simpleData = getSimpleKLineData(symbol, timeframe, { limit })
+  return simpleData.map(item => ({
+    timestamp: item.t * 1000, // 转换为毫秒（IndicatorsHub 使用毫秒）
+    open: item.o,
+    high: item.h,
+    low: item.l,
+    close: item.c,
+    volume: item.v
+  }))
+}
+
+/**
+ * 获取 K线文件的最后修改时间
+ */
+export function getKLineFileMTime(
+  symbol: string,
+  timeframe: KLineTimeframe
+): number | null {
+  try {
+    const filePath = getFilePath(symbol, timeframe)
+    if (!fs.existsSync(filePath)) {
+      return null
+    }
+    const stats = fs.statSync(filePath)
+    return stats.mtimeMs
+  } catch {
+    return null
+  }
+}
+
+/**
+ * 检查 K线文件是否存在且有数据
+ */
+export function hasKLineData(
+  symbol: string,
+  timeframe: KLineTimeframe
+): boolean {
+  const data = getSimpleKLineData(symbol, timeframe, { limit: 1 })
+  return data.length > 0
 }

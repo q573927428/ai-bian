@@ -8,12 +8,11 @@ import { logger } from '../../utils/logger'
 
 // 周期优先级排序（从大到小）
 const timeframeOrder: Record<Timeframe, number> = {
-  '1d': 6,
-  '4h': 5,
-  '1h': 4,
-  '15m': 3,
-  '5m': 2,
-  '1m': 1
+  '1d': 5,
+  '4h': 4,
+  '1h': 3,
+  '15m': 2,
+  '5m': 1
 }
 
 /**

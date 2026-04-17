@@ -1,6 +1,6 @@
 // ==================== 指标统一获取与缓存中心 ====================
 
-import { EMA, RSI, ADX } from 'technicalindicators'
+import { EMA, RSI, ADX, ATR } from 'technicalindicators'
 import type {
   IndicatorData,
   Timeframe,
@@ -11,9 +11,16 @@ import type {
   AIInput
 } from '../../../types/strategy'
 import type { OHLCV, BotConfig } from '../../../types'
+import type { KLineTimeframe } from '../../../types/kline-simple'
 import { BinanceService } from '../../utils/binance'
 import { logger } from '../../utils/logger'
 import { MultiTimeframeIndicatorCalculator } from './MultiTimeframeIndicatorCalculator'
+import { 
+  getSimpleKLineAsOHLCV, 
+  getKLineFileMTime, 
+  hasKLineData 
+} from '../../utils/kline-simple-storage'
+import { EventEmitter } from 'node:events'
 
 /**
  * 统一数据缓存条目
@@ -46,7 +53,7 @@ export class IndicatorsHub {
   private symbolDataCache: Map<string, SymbolData> = new Map()
 
   // 所有支持的时间周期
-  private readonly ALL_TIMEFRAMES: Timeframe[] = ['1m', '5m', '15m', '1h', '4h', '1d']
+  private readonly ALL_TIMEFRAMES: Timeframe[] = ['5m', '15m', '1h', '4h', '1d']
 
   // 常用指标类型
   private readonly ALL_INDICATORS: IndicatorType[] = ['EMA', 'RSI', 'ATR', 'ADX']
@@ -54,7 +61,6 @@ export class IndicatorsHub {
 
   // K线数据TTL（毫秒）
   private readonly KLINE_TTL: Record<Timeframe, number> = {
-    '1m': 1 * 60 * 1000,
     '5m': 5 * 60 * 1000,
     '15m': 15 * 60 * 1000,
     '1h': 60 * 60 * 1000,
@@ -76,6 +82,21 @@ export class IndicatorsHub {
 
   // 最大并发数
   private readonly MAX_CONCURRENT = 3
+
+  // 文件修改时间跟踪
+  private fileMTimes: Map<string, number> = new Map()
+
+  // 已订阅的事件发射器
+  private subscribedEventEmitters: Set<EventEmitter> = new Set()
+
+  // K线周期映射 - IndicatorsHub 支持的周期 -> 简单存储支持的周期
+  private readonly TIMEFRAME_MAP: Record<Timeframe, KLineTimeframe | null> = {
+    '5m': '5m',
+    '15m': '15m',
+    '1h': '1h',
+    '4h': '4h',
+    '1d': '1d'
+  }
 
   /**
    * 私有构造函数（单例模式）
@@ -179,8 +200,8 @@ export class IndicatorsHub {
     try {
       // logger.info('IndicatorsHub', `初始化 ${symbol} 数据...`)
 
-      // 1. 获取所有时间周期的K线
-      await this.fetchAndCacheKlines(symbol)
+      // 1. 从文件加载所有时间周期的K线
+      await this.loadKlinesFromFile(symbol)
 
       // 2. 获取持仓量
       await this.fetchAndCacheOI(symbol)
@@ -197,41 +218,93 @@ export class IndicatorsHub {
   // ==================== K线数据管理 ====================
 
   /**
-   * 获取并缓存K线数据
+   * 从文件加载并缓存K线数据（替代 API 拉取）
    */
-  private async fetchAndCacheKlines(symbol: string): Promise<void> {
+  private async loadKlinesFromFile(symbol: string): Promise<void> {
     const symbolData = this.getOrCreateSymbolData(symbol)
+    const limit = this.config.indicatorsConfig?.requiredCandles || 300
 
     for (const timeframe of this.ALL_TIMEFRAMES) {
-      const cacheKey = `${symbol}_${timeframe}_klines`
-      const pending = this.pendingRequests.get(cacheKey)
-      if (pending) {
-        await pending
+      const mappedTimeframe = this.TIMEFRAME_MAP[timeframe]
+      
+      // 如果该周期不支持，跳过
+      if (!mappedTimeframe) {
         continue
       }
 
-      const requestPromise = (async () => {
-        try {
-          const limit = this.config.indicatorsConfig?.requiredCandles || 300
-          const klines = await this.binance.fetchOHLCV(symbol, timeframe, undefined, limit)
-          symbolData.klineData.set(timeframe, klines)
-          // logger.info('IndicatorsHub', `${symbol} ${timeframe} K线已缓存，共 ${klines.length} 根`)
-        } finally {
-          this.pendingRequests.delete(cacheKey)
-        }
-      })()
+      // 检查文件是否存在且有数据
+      if (!hasKLineData(symbol, mappedTimeframe)) {
+        logger.warn('IndicatorsHub', `${symbol} ${timeframe} K线文件不存在或为空，跳过`)
+        continue
+      }
 
-      this.pendingRequests.set(cacheKey, requestPromise)
-      await requestPromise
+      try {
+        // 从文件读取 K线
+        const klines = getSimpleKLineAsOHLCV(symbol, mappedTimeframe, limit)
+        symbolData.klineData.set(timeframe, klines)
+
+        // 记录文件修改时间
+        const mtime = getKLineFileMTime(symbol, mappedTimeframe)
+        if (mtime) {
+          this.fileMTimes.set(`${symbol}_${timeframe}`, mtime)
+        }
+
+        // logger.info('IndicatorsHub', `${symbol} ${timeframe} K线已从文件加载，共 ${klines.length} 根`)
+      } catch (error: any) {
+        logger.error('IndicatorsHub', `${symbol} ${timeframe} 从文件加载K线失败: ${error.message}`)
+      }
     }
   }
 
   /**
-   * 从缓存获取K线数据
+   * 使指标缓存失效（当 K线文件更新时）
+   */
+  private invalidateIndicatorsCache(symbol: string, timeframe: Timeframe): void {
+    const symbolData = this.symbolDataCache.get(symbol)
+    if (!symbolData) return
+
+    // 清除该交易对和周期的所有指标缓存
+    for (const [key] of symbolData.indicators) {
+      if (key.startsWith(`${symbol}_${timeframe}_`)) {
+        symbolData.indicators.delete(key)
+      }
+    }
+
+    // 清除成交量缓存
+    symbolData.volumeData?.delete(timeframe)
+  }
+
+  /**
+   * 从缓存获取K线数据（自动检查文件更新）
    */
   getKlines(symbol: string, timeframe: Timeframe): OHLCV[] | undefined {
-    const symbolData = this.symbolDataCache.get(symbol)
-    return symbolData?.klineData.get(timeframe)
+    const symbolData = this.getOrCreateSymbolData(symbol)
+    const mappedTimeframe = this.TIMEFRAME_MAP[timeframe]
+    const cacheKey = `${symbol}_${timeframe}`
+
+    // 如果该周期不支持，尝试返回缓存
+    if (!mappedTimeframe) {
+      return symbolData.klineData.get(timeframe)
+    }
+
+    // 检查文件是否更新
+    const currentMTime = getKLineFileMTime(symbol, mappedTimeframe)
+    const cachedMTime = this.fileMTimes.get(cacheKey)
+
+    // 如果文件已更新，重新加载
+    if (currentMTime && currentMTime !== cachedMTime) {
+      const limit = this.config.indicatorsConfig?.requiredCandles || 300
+      const klines = getSimpleKLineAsOHLCV(symbol, mappedTimeframe, limit)
+      
+      if (klines.length > 0) {
+        symbolData.klineData.set(timeframe, klines)
+        this.fileMTimes.set(cacheKey, currentMTime)
+        this.invalidateIndicatorsCache(symbol, timeframe)
+        // logger.info('IndicatorsHub', `${symbol} ${timeframe} K线已更新（文件变化检测）`)
+      }
+    }
+
+    return symbolData.klineData.get(timeframe)
   }
 
   // ==================== 持仓量数据管理 ====================
@@ -275,7 +348,7 @@ export class IndicatorsHub {
   // ==================== 指标计算与缓存 ====================
 
   /**
-   * 缓存成交量数据
+   * 计算并缓存所有指标（包括技术指标和成交量）
    */
   private async calculateAndCacheAllIndicators(symbol: string): Promise<void> {
     const symbolData = this.getOrCreateSymbolData(symbol)
@@ -303,8 +376,94 @@ export class IndicatorsHub {
           ...volumeData,
           timestamp: Date.now()
         })
+
+        // 计算并缓存技术指标
+        const closes = klines.map(c => c.close)
+        const highs = klines.map(c => c.high)
+        const lows = klines.map(c => c.low)
+
+        // EMA (20, 30, 60)
+        try {
+          const ema20Values = EMA.calculate({ period: 20, values: closes })
+          const ema30Values = EMA.calculate({ period: 30, values: closes })
+          const ema60Values = EMA.calculate({ period: 60, values: closes })
+          
+          const emaCacheKey = `${symbol}_${timeframe}_EMA`
+          symbolData.indicators.set(emaCacheKey, {
+            symbol,
+            timeframe,
+            timestamp: Date.now(),
+            values: {
+              emaFast: ema20Values[ema20Values.length - 1] ?? closes[closes.length - 1],
+              emaMedium: ema30Values[ema30Values.length - 1] ?? closes[closes.length - 1],
+              emaSlow: ema60Values[ema60Values.length - 1] ?? closes[closes.length - 1],
+              emaNames: { fast: 'EMA20', medium: 'EMA30', slow: 'EMA60' }
+            }
+          })
+        } catch (e) {
+          // 忽略 EMA 计算错误
+        }
+
+        // RSI (14)
+        try {
+          const rsiValues = RSI.calculate({ period: 14, values: closes })
+          const rsiCacheKey = `${symbol}_${timeframe}_RSI`
+          symbolData.indicators.set(rsiCacheKey, {
+            symbol,
+            timeframe,
+            timestamp: Date.now(),
+            values: {
+              rsi: rsiValues[rsiValues.length - 1] ?? 50
+            }
+          })
+        } catch (e) {
+          // 忽略 RSI 计算错误
+        }
+
+        // ATR (14)
+        try {
+          const atrValues = ATR.calculate({ period: 14, high: highs, low: lows, close: closes })
+          const atrCacheKey = `${symbol}_${timeframe}_ATR`
+          const lastClose = closes[closes.length - 1] || 0
+          const atrValue = atrValues.length > 0 ? atrValues[atrValues.length - 1] : lastClose * 0.01
+          symbolData.indicators.set(atrCacheKey, {
+            symbol,
+            timeframe,
+            timestamp: Date.now(),
+            values: {
+              atr: atrValue
+            }
+          })
+        } catch (e) {
+          // 忽略 ATR 计算错误
+        }
+
+        // ADX (14) + ADX斜率
+        try {
+          const adxValues = ADX.calculate({ period: 14, high: highs, low: lows, close: closes })
+          const currentADX = adxValues[adxValues.length - 1]?.adx ?? 0
+          const adxSlopePeriod = 3
+          const previousADXIndex = Math.max(0, adxValues.length - 1 - adxSlopePeriod)
+          const previousADX = adxValues[previousADXIndex]?.adx ?? currentADX
+          const adxSlope = currentADX - previousADX
+
+          const adxCacheKey = `${symbol}_${timeframe}_ADX`
+          symbolData.indicators.set(adxCacheKey, {
+            symbol,
+            timeframe,
+            timestamp: Date.now(),
+            values: {
+              adxMain: currentADX,
+              adxSlope: adxSlope,
+              adxPeriodLabels: { main: timeframe, secondary: '1h', tertiary: '4h' }
+            }
+          })
+        } catch (e) {
+          // 忽略 ADX 计算错误
+        }
+
       } catch (error: any) {
-        // logger.error('IndicatorsHub', `${symbol} ${timeframe} 成交量缓存失败: ${error.message}`)
+        logger.error('IndicatorsHub', `${symbol} ${timeframe} 指标缓存失败: ${error.message}`)
       }
     }
   }
@@ -460,10 +619,12 @@ export class IndicatorsHub {
    */
   private async refreshSymbolData(symbol: string): Promise<void> {
     try {
-      // 1. 刷新K线
-      await this.fetchAndCacheKlines(symbol)
+      // 1. 检查K线文件是否更新（getKlines 会自动处理）
+      for (const timeframe of this.ALL_TIMEFRAMES) {
+        this.getKlines(symbol, timeframe)
+      }
 
-      // 2. 刷新持仓量
+      // 2. 刷新持仓量（仅这个需要 API 请求）
       await this.fetchAndCacheOI(symbol)
 
       // 3. 重新计算指标
@@ -555,6 +716,105 @@ export class IndicatorsHub {
     } catch (error: any) {
       logger.error('IndicatorsHub', `获取止盈止损指标失败 ${symbol}: ${error.message}`)
       throw error
+    }
+  }
+
+  // ==================== 事件订阅（连接 KLineSimpleSyncService）====================
+
+  /**
+   * 订阅 K线数据更新事件
+   */
+  subscribeToKLineUpdates(eventEmitter: EventEmitter): void {
+    if (this.subscribedEventEmitters.has(eventEmitter)) {
+      logger.warn('IndicatorsHub', '已经订阅了该事件发射器')
+      return
+    }
+
+    // 监听 K线更新事件
+    eventEmitter.on('klineUpdated', async (data: {
+      symbol: string
+      timeframe: KLineTimeframe
+      type: 'update' | 'append'
+      timestamp: number
+    }) => {
+      try {
+        // 转换为 IndicatorsHub 使用的 Timeframe 类型
+        const mappedTimeframe = this.convertToTimeframe(data.timeframe)
+        if (!mappedTimeframe) {
+          return
+        }
+        
+        // 只刷新该交易对和周期的数据
+        await this.refreshSymbolTimeframe(data.symbol, mappedTimeframe)
+      } catch (error: any) {
+        logger.error('IndicatorsHub', `处理K线更新事件失败: ${error.message}`)
+      }
+    })
+
+    this.subscribedEventEmitters.add(eventEmitter)
+    logger.info('IndicatorsHub', '已订阅K线数据更新事件')
+  }
+
+  /**
+   * 取消订阅 K线数据更新事件
+   */
+  unsubscribeFromKLineUpdates(eventEmitter: EventEmitter): void {
+    if (!this.subscribedEventEmitters.has(eventEmitter)) {
+      return
+    }
+
+    eventEmitter.removeAllListeners('klineUpdated')
+    this.subscribedEventEmitters.delete(eventEmitter)
+    logger.info('IndicatorsHub', '已取消订阅K线数据更新事件')
+  }
+
+  /**
+   * 转换 KLineTimeframe 为 Timeframe
+   */
+  private convertToTimeframe(klineTimeframe: KLineTimeframe): Timeframe | null {
+    // 简单的反向映射
+    const reverseMap: Record<string, Timeframe> = {
+      '5m': '5m',
+      '15m': '15m',
+      '1h': '1h',
+      '4h': '4h',
+      '1d': '1d'
+    }
+    return reverseMap[klineTimeframe] || null
+  }
+
+  /**
+   * 刷新单个交易对和周期的数据
+   */
+  private async refreshSymbolTimeframe(symbol: string, timeframe: Timeframe): Promise<void> {
+    try {
+      // 1. 检查并重新加载该周期的 K线
+      this.getKlines(symbol, timeframe)
+
+      // 2. 重新计算该周期的成交量指标
+      const symbolData = this.symbolDataCache.get(symbol)
+      if (symbolData) {
+        const klines = symbolData.klineData.get(timeframe)
+        if (klines && klines.length > 0) {
+          const currentVolume = klines[klines.length - 1]?.volume || 0
+          const averageVolume = klines.slice(-20).reduce((sum, c) => sum + c.volume, 0) / 20
+          const volumeData = {
+            current: currentVolume,
+            average: averageVolume,
+            ratio: averageVolume > 0 ? currentVolume / averageVolume : 0,
+            timestamp: Date.now()
+          }
+          
+          if (!symbolData.volumeData) {
+            symbolData.volumeData = new Map()
+          }
+          symbolData.volumeData.set(timeframe, volumeData)
+        }
+      }
+
+      // logger.debug('IndicatorsHub', `${symbol} ${timeframe} 数据已刷新（事件驱动）`)
+    } catch (error: any) {
+      logger.error('IndicatorsHub', `${symbol} ${timeframe} 数据刷新失败: ${error.message}`)
     }
   }
 }

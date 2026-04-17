@@ -5,6 +5,7 @@ import {
   setTimeout as nodeSetTimeout,
   clearTimeout as nodeClearTimeout
 } from 'node:timers'
+import { EventEmitter } from 'node:events'
 
 // Binance K线数据接口
 interface BinanceKLine {
@@ -34,12 +35,27 @@ export class KLineSimpleSyncService {
   private lastSyncTimes: Map<KLineTimeframe, number> = new Map()
   private timeframeConfigs: Map<KLineTimeframe, TimeframeSyncConfig> = new Map()
   private isSyncing: Map<KLineTimeframe, boolean> = new Map() // 并发锁：防止同一周期同时执行多个同步
+  
+  // 事件发射器
+  private eventEmitter: EventEmitter
+  // 高频同步定时器
+  private highFrequencyTimer: NodeJS.Timeout | null = null
+  // 高频同步间隔（毫秒）
+  private readonly HIGH_FREQUENCY_INTERVAL = 60 * 1000
+  // 高频同步状态锁
+  private isHighFrequencySyncing = false
 
   constructor(config?: Partial<KLineSyncConfig>) {
     this.config = { ...DEFAULT_CONFIG, ...config }
+    this.eventEmitter = new EventEmitter()
     this.initializeTimeframeConfigs()
     this.initializeStatus()
     this.initializeLastSyncTimes()
+  }
+  
+  // 获取事件发射器（供外部订阅）
+  getEventEmitter(): EventEmitter {
+    return this.eventEmitter
   }
 
   // 初始化状态
@@ -108,6 +124,7 @@ export class KLineSimpleSyncService {
   // 获取时间间隔秒数
   private getIntervalSeconds(timeframe: KLineTimeframe): number {
     switch (timeframe) {
+      case '5m': return 5 * 60
       case '15m': return 15 * 60
       case '1h': return 60 * 60
       case '4h': return 4 * 60 * 60
@@ -122,6 +139,7 @@ export class KLineSimpleSyncService {
     const now = Math.floor(Date.now() / 1000) // 当前时间戳（秒）
     
     const timeframeSecondsMap: Record<KLineTimeframe, number> = {
+      '5m': 5 * 60,
       '15m': 15 * 60,
       '1h': 60 * 60,
       '4h': 4 * 60 * 60,
@@ -189,6 +207,7 @@ export class KLineSimpleSyncService {
     try {
       // 构建请求URL
       const intervalMap: Record<KLineTimeframe, string> = {
+        '5m': '5m',
         '15m': '15m',
         '1h': '1h',
         '4h': '4h',
@@ -384,6 +403,16 @@ export class KLineSimpleSyncService {
           message = `增量同步成功，追加 ${appendedCount} 条新K线`
         } else {
           message = '没有新数据'
+        }
+        
+        // 触发数据更新事件
+        if (updatedCount > 0 || appendedCount > 0) {
+          this.eventEmitter.emit('klineUpdated', {
+            symbol,
+            timeframe,
+            type: appendedCount > 0 ? 'append' : 'update',
+            timestamp: Math.floor(Date.now() / 1000)
+          })
         }
         
         return {
@@ -694,20 +723,116 @@ export class KLineSimpleSyncService {
     }
   }
 
-  // 开始定时同步（按周期调度）
+  // ==================== 高频同步 ====================
+  
+  // 高频同步：仅更新最后一根未收盘K线
+  private async highFrequencySync(): Promise<void> {
+    if (this.isHighFrequencySyncing) {
+      return
+    }
+    
+    try {
+      this.isHighFrequencySyncing = true
+      
+      // 只对较短周期进行高频同步（5m, 15m）
+      const highFreqTimeframes: KLineTimeframe[] = ['5m', '15m', '1h', '4h', '1d']
+      
+      for (const timeframe of highFreqTimeframes) {
+        if (!this.timeframeConfigs.get(timeframe)?.enabled) {
+          continue
+        }
+        
+        for (const symbol of this.config.symbols) {
+          try {
+            await this.syncLastBarOnly(symbol, timeframe)
+          } catch (error) {
+            // 单个交易对失败不影响其他
+            console.debug(`高频同步 ${symbol}/${timeframe} 失败:`, error)
+          }
+          // 避免请求过于频繁
+          await new Promise(resolve => nodeSetTimeout(resolve, 50))
+        }
+      }
+    } finally {
+      this.isHighFrequencySyncing = false
+    }
+  }
+  
+  // 仅同步最后一根K线（用于高频更新）
+  private async syncLastBarOnly(symbol: string, timeframe: KLineTimeframe): Promise<void> {
+    const lastTimestamp = getSimpleLastKLineTimestamp(symbol, timeframe)
+    if (!lastTimestamp) {
+      return // 没有数据，跳过
+    }
+    
+    // 只获取最后1根K线
+    const klineData = await this.fetchKLineFromBinance(
+      symbol,
+      timeframe,
+      lastTimestamp * 1000,
+      undefined,
+      1
+    )
+    
+    if (klineData.length === 0) {
+      return
+    }
+    
+    const lastBar = klineData[klineData.length - 1]
+    if (lastBar && lastBar.timestamp === lastTimestamp) {
+      // 更新最后一根K线
+      const updateSuccess = updateLastKLine(symbol, timeframe, lastBar)
+      if (updateSuccess) {
+        // 触发数据更新事件
+        this.eventEmitter.emit('klineUpdated', {
+          symbol,
+          timeframe,
+          type: 'update',
+          timestamp: lastBar.timestamp
+        })
+      }
+    }
+  }
+  
+  // 开始定时同步（按周期调度 + 高频同步）
   startAutoSync(): void {
     // 检查是否已经在运行
-    if (this.syncIntervals.size > 0) {
+    if (this.syncIntervals.size > 0 || this.highFrequencyTimer) {
       console.warn('定时同步已经在运行')
       return
     }
     
-    console.log('🚀 开始按周期调度定时同步...')
+    console.log('🚀 开始按周期调度定时同步 + 高频同步...')
     
     // 为每个周期创建独立的定时器
     for (const timeframe of this.config.timeframes) {
       this.startTimeframeSync(timeframe)
     }
+    
+    // 启动高频同步
+    this.startHighFrequencySync()
+  }
+  
+  // 启动高频同步
+  private startHighFrequencySync(): void {
+    if (this.highFrequencyTimer) {
+      return
+    }
+    
+    console.log('⚡ 启动高频同步（间隔:', this.HIGH_FREQUENCY_INTERVAL / 1000, '秒）')
+    
+    this.highFrequencyTimer = nodeSetTimeout(async () => {
+      try {
+        await this.highFrequencySync()
+      } catch (error) {
+        console.error('高频同步异常:', error)
+      } finally {
+        // 继续下一次
+        if (this.highFrequencyTimer) {
+          this.startHighFrequencySync()
+        }
+      }
+    }, this.HIGH_FREQUENCY_INTERVAL) as unknown as NodeJS.Timeout
   }
 
   // 开始特定周期的定时同步（使用递归调度，对齐K线周期时间点）
@@ -846,8 +971,16 @@ export class KLineSimpleSyncService {
     }
   }
 
-  // 停止定时同步
+  // 停止定时同步（包含高频同步）
   stopAutoSync(): void {
+    // 停止高频同步
+    if (this.highFrequencyTimer) {
+      nodeClearTimeout(this.highFrequencyTimer)
+      this.highFrequencyTimer = null
+      console.log('⚡ 已停止高频同步')
+    }
+    
+    // 停止周期同步
     if (this.syncIntervals.size === 0) {
       return
     }
@@ -859,7 +992,7 @@ export class KLineSimpleSyncService {
       this.stopTimeframeSync(timeframe)
     }
     
-    console.log('✅ 所有周期定时同步已停止')
+    console.log('✅ 所有定时同步已停止')
   }
 
   // 获取同步状态

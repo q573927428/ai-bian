@@ -1,7 +1,7 @@
 // 简单K线数据类型定义
 
 // 支持的K线周期
-export type KLineTimeframe = '15m' | '1h' | '4h' | '1d' | '1w'
+export type KLineTimeframe = '5m' | '15m' | '1h' | '4h' | '1d' | '1w'
 
 // K线数据条目（简化字段名）
 export interface SimpleKLineData {
@@ -83,10 +83,11 @@ export interface KLineSyncConfig {
 // 默认配置
 export const DEFAULT_CONFIG: KLineSyncConfig = {
   symbols: ['BTC/USDT', 'ETH/USDT'],
-  timeframes: ['15m', '1h', '4h', '1d', '1w'],
+  timeframes: ['5m', '15m', '1h', '4h', '1d', '1w'],
   maxBars: 11000,
   syncInterval: 600, // 按周期调度，此值不再使用，但保留用于API兼容性
   timeframeConfigs: [
+    { timeframe: '5m',  syncInterval: 120, enabled: true },   // ✅ 2分钟
     { timeframe: '15m', syncInterval: 600, enabled: true },   // ✅ 10分钟
     { timeframe: '1h',  syncInterval: 1800, enabled: true },  // ✅ 30分钟
     { timeframe: '4h',  syncInterval: 3600, enabled: true },  // ✅ 1小时

@@ -10,6 +10,7 @@ import { loadBotConfig } from '../../utils/storage'
 import { logger } from '../../utils/logger'
 import type { BotState } from '../../../types'
 import { PositionStatus } from '../../../types'
+import { getSyncService } from '../../utils/kline-sync-service'
 
 let strategyManager: StrategyManager | null = null
 
@@ -37,6 +38,16 @@ export async function initStrategyManager(): Promise<StrategyManager> {
 
     // 初始化指标中心
     const indicatorsHub = IndicatorsHub.getInstance(binanceService, config || undefined)
+
+    // 订阅 K线同步服务的更新事件
+    const syncService = getSyncService()
+    if (syncService) {
+      const eventEmitter = syncService.getEventEmitter()
+      indicatorsHub.subscribeToKLineUpdates(eventEmitter)
+      logger.success('StrategyManager', '已连接K线同步服务与指标中心')
+    } else {
+      logger.warn('StrategyManager', 'K线同步服务尚未初始化，无法连接事件')
+    }
 
     // 初始化仓位管理器（使用全局单例）
     const positionMgr = positionManager

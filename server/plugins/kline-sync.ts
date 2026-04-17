@@ -6,18 +6,17 @@
 import type { NitroApp } from 'nitropack'
 import { KLineSimpleSyncService } from '../modules/kline-simple-sync'
 import type { KLineSyncConfig } from '../../types/kline-simple'
-import { eventHandler } from 'h3'
-
-// 全局同步服务实例
-let syncService: KLineSimpleSyncService | null = null
+import { eventHandler, readBody } from 'h3'
+import { setSyncService, getSyncService } from '../utils/kline-sync-service'
 
 // 默认配置
 const DEFAULT_SYNC_CONFIG: KLineSyncConfig = {
   symbols: ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'DOGEUSDT', 'HYPEUSDT', 'XAUUSDT', 'XAGUSDT', 'BNBUSDT' ],
-  timeframes: ['15m', '1h', '4h', '1d', '1w'],
+  timeframes: ['5m', '15m', '1h', '4h', '1d', '1w'],
   maxBars: 11000,
   syncInterval: 600, // 按周期调度，此值不再使用，但保留用于API兼容性
   timeframeConfigs: [
+    { timeframe: '5m', syncInterval: 60, enabled: true },     // ✅ 1分钟
     { timeframe: '15m', syncInterval: 600, enabled: true },   // ✅ 10分钟
     { timeframe: '1h',  syncInterval: 1800, enabled: true },  // ✅ 30分钟
     { timeframe: '4h',  syncInterval: 3600, enabled: true },  // ✅ 1小时
@@ -34,7 +33,8 @@ export default defineNitroPlugin(async (nitroApp: NitroApp) => {
     const config = await getSyncConfig()
     
     // 创建同步服务实例
-    syncService = new KLineSimpleSyncService(config)
+    const syncService = new KLineSimpleSyncService(config)
+    setSyncService(syncService)
     
     // console.log('✅ K线同步服务配置:', JSON.stringify(config, null, 2))
     
@@ -59,8 +59,6 @@ export default defineNitroPlugin(async (nitroApp: NitroApp) => {
 async function getSyncConfig(): Promise<KLineSyncConfig> {
   // 这里可以从环境变量、配置文件或数据库获取配置
   // 目前使用默认配置，后续可以扩展
-
-  const runtimeConfig = useRuntimeConfig()
   
   // 从配置文件读取symbols
   let configSymbols = DEFAULT_SYNC_CONFIG.symbols
@@ -88,6 +86,7 @@ async function getSyncConfig(): Promise<KLineSyncConfig> {
  * 注册API端点
  */
 function registerApiEndpoints(nitroApp: NitroApp): void {
+  const syncService = getSyncService()
   if (!syncService) return
   
   // 获取同步状态
@@ -256,6 +255,7 @@ function registerApiEndpoints(nitroApp: NitroApp): void {
  * 启动初始同步
  */
 async function startInitialSync(): Promise<void> {
+  const syncService = getSyncService()
   if (!syncService) {
     console.error('❌ 同步服务未初始化，无法启动初始同步')
     return
@@ -332,15 +332,11 @@ async function startInitialSync(): Promise<void> {
  * 停止同步服务
  */
 async function stopSyncService(): Promise<void> {
+  const syncService = getSyncService()
   if (syncService) {
     console.log('🛑 停止K线同步服务...')
     syncService.stopAutoSync()
-    syncService = null
+    setSyncService(null)
     console.log('✅ K线同步服务已停止')
   }
-}
-
-// 导出同步服务实例供其他模块使用
-export function getSyncService(): KLineSimpleSyncService | null {
-  return syncService
 }
