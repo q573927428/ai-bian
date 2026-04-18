@@ -130,16 +130,9 @@ export interface OHLCV {
 
 // 技术指标
 export interface TechnicalIndicators {
-  // EMA动态配置
-  emaPeriods: { fast: number, medium: number, slow: number }
-  emaNames: { fast: string, medium: string, slow: string }
-  emaFast: number
-  emaMedium: number
-  emaSlow: number
-  // EMA历史数组
-  emaFastValues: number[]
-  emaMediumValues: number[]
-  emaSlowValues: number[]
+  // EMA（动态数量，由策略决定，最少1个）
+  emaMap: Record<string, number>
+  emaList: Array<{ period: number; name: string; value: number }>
   
   // ADX动态配置
   adxPeriodLabels: { main: string, secondary: string, tertiary: string }

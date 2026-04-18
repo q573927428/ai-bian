@@ -129,14 +129,16 @@ export class MultiTimeframeIndicatorCalculator {
     try {
       // 获取EMA指标
       try {
-        const emaData = await this.indicatorsHub.getIndicators(symbol, timeframe, 'EMA')
-        if (emaData.values.emaFast !== undefined && 
-            emaData.values.emaMedium !== undefined && 
-            emaData.values.emaSlow !== undefined) {
+        const emaData = await this.indicatorsHub.getEMAByPeriods(symbol, timeframe, [14, 60, 120])
+        const emaList = Array.isArray(emaData.values.emaList) ? emaData.values.emaList : []
+        if (emaList.length > 0) {
+          const fast = emaList[0]?.value ?? 0
+          const medium = emaList[1]?.value ?? fast
+          const slow = emaList[2]?.value ?? emaList[emaList.length - 1]?.value ?? fast
           timeframeData.ema = {
-            fast: emaData.values.emaFast,
-            medium: emaData.values.emaMedium,
-            slow: emaData.values.emaSlow
+            fast,
+            medium,
+            slow
           }
         }
       } catch (error) {

@@ -112,8 +112,8 @@ export class MultiStrategyAIAnalyzer {
         reasoning: aiResult.reasoning,
         indicators: {
           ema: {
-            fast: aiResult.technicalData.ema20 ?? aiResult.technicalData[indicators.emaNames.fast] ?? 0,
-            slow: aiResult.technicalData.ema60 ?? aiResult.technicalData[indicators.emaNames.slow] ?? 0
+            fast: indicators.emaList[0]?.value ?? 0,
+            slow: indicators.emaList[indicators.emaList.length - 1]?.value ?? 0
           },
           rsi: aiResult.technicalData.rsi,
           atr: indicators.atr
@@ -142,6 +142,10 @@ export class MultiStrategyAIAnalyzer {
     volume: number,
     priceChange24h: number
   ): string {
+    const dynamicEmaLines = indicators.emaList
+      .map(item => `- ${item.name}: ${(item.value ?? 0).toFixed(4)}`)
+      .join('\n')
+
     return `
 ${promptConfig.systemPrompt}
 
@@ -153,9 +157,7 @@ ${promptConfig.systemPrompt}
 时间: ${new Date().toISOString()}
 
 ## 技术指标
-- ${indicators.emaNames.fast}: ${(indicators.emaFast ?? 0).toFixed(4)}
-- ${indicators.emaNames.medium}: ${(indicators.emaMedium ?? 0).toFixed(4)}
-- ${indicators.emaNames.slow}: ${(indicators.emaSlow ?? 0).toFixed(4)}
+${dynamicEmaLines}
 - RSI(14): ${(indicators.rsi ?? 0).toFixed(2)}
 - ATR(14): ${(indicators.atr ?? 0).toFixed(4)}
 - ADX(${indicators.adxPeriodLabels.main}): ${(indicators.adxMain ?? 0).toFixed(2)}
@@ -246,10 +248,7 @@ ${promptConfig.userPrompt}
     strategyId: StrategyId
   ): Promise<AIAnalysis | null> {
     try {
-      // 动态从indicators获取EMA值
-      const emaFast = indicators?.emaFast || 0
-      const emaMedium = indicators?.emaMedium || 0
-      const emaSlow = indicators?.emaSlow || 0
+      const emaEntries = indicators.emaList
       const runtimeConfig = useRuntimeConfig()
 
       // 构建系统提示词
@@ -314,9 +313,8 @@ ${promptConfig.userPrompt}
         reasoning: reasoning,
         technicalData: {
           price,
-          [indicators?.emaNames?.fast || 'emaFast']: emaFast,
-          [indicators?.emaNames?.medium || 'emaMedium']: emaMedium,
-          [indicators?.emaNames?.slow || 'emaSlow']: emaSlow,
+          ...Object.fromEntries(emaEntries.map(item => [item.name, item.value])),
+          ...(indicators.emaMap || {}),
           rsi: indicators.rsi,
           volume,
           adxMain: indicators?.adxMain || 0,
@@ -350,8 +348,7 @@ ${promptConfig.userPrompt}
         reasoning: `AI分析暂时不可用: ${error.message}`,
         technicalData: {
           price,
-          [indicators?.emaNames?.fast || 'emaFast']: indicators?.emaFast || 0,
-          [indicators?.emaNames?.slow || 'emaSlow']: indicators?.emaSlow || 0,
+          ...Object.fromEntries(indicators.emaList.map(item => [item.name, item.value])),
           rsi: indicators.rsi,
           volume,
         },
@@ -375,8 +372,7 @@ ${promptConfig.userPrompt}
   ): string {
     // 基于关键指标值构建唯一键
 const indicatorHash = [
-  (indicators.emaFast ?? 0).toFixed(2),
-  (indicators.emaSlow ?? 0).toFixed(2),
+  indicators.emaList.map(item => `${item.name}:${(item.value ?? 0).toFixed(2)}`).join('|'),
   (indicators.rsi ?? 0).toFixed(2),
   (indicators.atr ?? 0).toFixed(2),
   (price ?? 0).toFixed(2)

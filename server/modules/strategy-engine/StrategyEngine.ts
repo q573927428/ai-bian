@@ -251,15 +251,20 @@ export class StrategyEngine {
   /**
    * 从策略配置中提取EMA周期
    */
-  private getEMAPeriodsFromStrategy(strategy: any): { periods: number[], names: string[] } {
+  private getEMAPeriodsFromStrategy(strategy: any): number[] {
     const emaConfig = strategy.indicators.find((i: any) => i.type === 'EMA' && i.enabled)
     if (emaConfig?.params?.periods && Array.isArray(emaConfig.params.periods)) {
-      const periods = emaConfig.params.periods.slice(0, 3)
-      const names = periods.map((p: number) => `EMA${p}`)
-      return { periods, names }
+      const periods = emaConfig.params.periods
+        .map((p: any) => Number(p))
+        .filter((p: number) => Number.isFinite(p) && p >= 2)
+        .map((p: number) => Math.floor(p))
+
+      if (periods.length > 0) {
+        return periods
+      }
     }
     // 默认值
-    return { periods: [14, 60, 120], names: ['EMA14', 'EMA60', 'EMA120'] }
+    return [14]
   }
 
   /**
@@ -284,44 +289,16 @@ export class StrategyEngine {
       ]
     )
 
-    // 3. 根据策略配置动态计算EMA
-    const emaConfig = this.getEMAPeriodsFromStrategy(strategy)
+    // 3. 根据策略配置动态获取 EMA（由 IndicatorsHub 统一计算和缓存）
+    const emaPeriods = this.getEMAPeriodsFromStrategy(strategy)
     const mainTimeframe = strategy.marketData.timeframes[0] || '15m'
-    
-    // 获取主时间周期的K线数据
-    const klines = this.indicatorsHub.getKlines(symbol, mainTimeframe)
-    if (klines && klines.length > 0) {
-      const closes = klines.map(c => c.close)
-      
-      // 动态计算EMA
-      const { EMA } = await import('technicalindicators')
-      const emaValues = emaConfig.periods.map((period: number) => {
-        const values = EMA.calculate({ period, values: closes })
-        return values[values.length - 1] ?? closes[closes.length - 1]
-      })
-      
-      // 将动态EMA数据添加到indicatorsData
+
+    try {
+      const emaData = await this.indicatorsHub.getEMAByPeriods(symbol, mainTimeframe, emaPeriods)
       const emaCacheKey = `${mainTimeframe}_EMA`
-      indicatorsData.set(emaCacheKey, {
-        symbol,
-        timeframe: mainTimeframe,
-        timestamp: Date.now(),
-        values: {
-          emaFast: emaValues[0],
-          emaMedium: emaValues[1],
-          emaSlow: emaValues[2],
-          emaNames: {
-            fast: emaConfig.names[0],
-            medium: emaConfig.names[1],
-            slow: emaConfig.names[2]
-          },
-          emaPeriods: {
-            fast: emaConfig.periods[0],
-            medium: emaConfig.periods[1],
-            slow: emaConfig.periods[2]
-          }
-        }
-      })
+      indicatorsData.set(emaCacheKey, emaData)
+    } catch (error: any) {
+      logger.warn('StrategyEngine', `获取动态EMA失败 ${symbol} ${mainTimeframe}: ${error.message}`)
     }
 
     // 4. 构建 AI 提示词并调用 AI 分析
@@ -404,15 +381,15 @@ export class StrategyEngine {
       // 构造符合TechnicalIndicators格式的指标数据
       const adxData = indicatorsData.get(`${mainTimeframe}_ADX`)?.values || {}
       const indicators: any = {
-        ...emaData,
+        emaList: Array.isArray(emaData.emaList) ? emaData.emaList : [],
+        emaMap: emaData.emaMap || {},
         ...rsiData,
         ...adxData, // ADX数据已经包含adxMain、adxSecondary、adxTertiary三个周期的值
         atr: indicatorsData.get(`${mainTimeframe}_ATR`)?.values?.atr || 0,
         openInterest: indicatorsData.get('1h_OI')?.values?.value || 0,
         openInterestChangePercent: indicatorsData.get('1h_OI')?.values?.changePercent || 0,
         openInterestTrend: indicatorsData.get('1h_OI')?.values?.trend || 'flat',
-        adxPeriodLabels: emaData.adxPeriodLabels || { main: mainTimeframe, secondary: '1h', tertiary: '4h' },
-        emaNames: emaData.emaNames || { fast: 'EMA14', medium: 'EMA60', slow: 'EMA120' }
+        adxPeriodLabels: adxData.adxPeriodLabels || { main: mainTimeframe, secondary: '1h', tertiary: '4h' }
       }
       
       // 使用新的多策略AI分析器

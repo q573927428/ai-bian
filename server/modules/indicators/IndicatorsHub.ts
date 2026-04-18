@@ -348,6 +348,88 @@ export class IndicatorsHub {
   // ==================== 指标计算与缓存 ====================
 
   /**
+   * 标准化 EMA 周期（最少返回 1 个）
+   */
+  private normalizeEMAPeriods(periods: number[]): number[] {
+    const defaultPeriods = [14]
+    const cleaned = periods
+      .map(p => Number(p))
+      .filter(p => Number.isFinite(p) && p >= 2)
+      .map(p => Math.floor(p))
+
+    const merged: number[] = []
+    for (const p of [...cleaned, ...defaultPeriods]) {
+      if (!merged.includes(p)) {
+        merged.push(p)
+      }
+      if (merged.length >= Math.max(1, cleaned.length)) break
+    }
+
+    return merged.length > 0 ? merged : defaultPeriods
+  }
+
+  /**
+   * 计算并缓存指定周期组合的 EMA
+   */
+  private calculateAndCacheEMAByPeriods(
+    symbol: string,
+    timeframe: Timeframe,
+    closes: number[],
+    periods: number[]
+  ): IndicatorData {
+    const symbolData = this.getOrCreateSymbolData(symbol)
+    const emaPeriods = this.normalizeEMAPeriods(periods)
+
+    const cacheKey = `${symbol}_${timeframe}_EMA_${emaPeriods.join('_')}`
+    const cached = symbolData.indicators.get(cacheKey)
+    if (cached) {
+      return cached
+    }
+
+    const emaValues = emaPeriods.map((period) => {
+      const values = EMA.calculate({ period, values: closes })
+      return values[values.length - 1] ?? closes[closes.length - 1]
+    })
+
+    const emaMap = Object.fromEntries(
+      emaPeriods.map((period, index) => [`EMA${period}`, emaValues[index]])
+    )
+
+    const emaList = emaPeriods.map((period, index) => ({
+      period,
+      name: `EMA${period}`,
+      value: emaValues[index]
+    }))
+
+    const indicatorData: IndicatorData = {
+      symbol,
+      timeframe,
+      timestamp: Date.now(),
+      values: {
+        emaMap,
+        emaList
+      }
+    }
+
+    symbolData.indicators.set(cacheKey, indicatorData)
+
+    return indicatorData
+  }
+
+  /**
+   * 对外：按指定周期获取 EMA（带缓存）
+   */
+  async getEMAByPeriods(symbol: string, timeframe: Timeframe, periods: number[]): Promise<IndicatorData> {
+    const klines = this.getKlines(symbol, timeframe)
+    if (!klines || klines.length === 0) {
+      throw new Error(`${symbol} ${timeframe} K线数据不足，无法计算EMA`)
+    }
+
+    const closes = klines.map(c => c.close)
+    return this.calculateAndCacheEMAByPeriods(symbol, timeframe, closes, periods)
+  }
+
+  /**
    * 计算并缓存所有指标（包括技术指标和成交量）
    */
   private async calculateAndCacheAllIndicators(symbol: string): Promise<void> {
@@ -384,22 +466,7 @@ export class IndicatorsHub {
 
         // EMA (14, 60, 120)
         try {
-          const ema14Values = EMA.calculate({ period: 14, values: closes })
-          const ema60Values = EMA.calculate({ period: 60, values: closes })
-          const ema120Values = EMA.calculate({ period: 120, values: closes })
-          
-          const emaCacheKey = `${symbol}_${timeframe}_EMA`
-          symbolData.indicators.set(emaCacheKey, {
-            symbol,
-            timeframe,
-            timestamp: Date.now(),
-            values: {
-              emaFast: ema14Values[ema14Values.length - 1] ?? closes[closes.length - 1],
-              emaMedium: ema60Values[ema60Values.length - 1] ?? closes[closes.length - 1],
-              emaSlow: ema120Values[ema120Values.length - 1] ?? closes[closes.length - 1],
-              emaNames: { fast: 'EMA14', medium: 'EMA60', slow: 'EMA120' }
-            }
-          })
+          this.calculateAndCacheEMAByPeriods(symbol, timeframe, closes, [14, 60, 120])
         } catch (e) {
           // 忽略 EMA 计算错误
         }
@@ -483,6 +550,10 @@ export class IndicatorsHub {
       throw new Error(`${symbol} 数据未初始化`)
     }
 
+    if (type === 'EMA') {
+      throw new Error(`${symbol} ${timeframe} EMA 需通过 getEMAByPeriods(symbol, timeframe, periods) 获取`)
+    }
+
     if (type === 'OI') {
       const oi = symbolData.oiData
       if (!oi) {
@@ -531,13 +602,27 @@ export class IndicatorsHub {
   async getBatchIndicators(
     symbol: string,
     timeframes: Timeframe[],
-    types: (IndicatorType | StatisticsType)[]
+    types: (IndicatorType | StatisticsType)[],
+    options?: {
+      emaPeriods?: number[]
+    }
   ): Promise<Map<string, IndicatorData>> {
     const results = new Map<string, IndicatorData>()
     const promises = timeframes.flatMap(tf =>
       types.map(async type => {
         try {
-          const data = await this.getIndicators(symbol, tf, type)
+          let data: IndicatorData
+
+          if (type === 'EMA') {
+            if (!options?.emaPeriods || options.emaPeriods.length === 0) {
+              logger.warn('IndicatorsHub', `跳过 ${symbol} ${tf} EMA：缺少 emaPeriods，请使用 getEMAByPeriods 或在 getBatchIndicators 传入 options.emaPeriods`)
+              return
+            }
+            data = await this.getEMAByPeriods(symbol, tf, options.emaPeriods)
+          } else {
+            data = await this.getIndicators(symbol, tf, type)
+          }
+
           const key = `${tf}_${type}`
           results.set(key, data)
         } catch (error: any) {
