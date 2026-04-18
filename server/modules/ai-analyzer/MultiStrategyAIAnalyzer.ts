@@ -221,9 +221,12 @@ ${constraints}
       const saveDir = path.join(process.cwd(), 'data', 'ai-analysis')
       await fs.mkdir(saveDir, { recursive: true })
       
-      // 生成当天文件名
-      const date = new Date()
-      const dateStr = date.toISOString().split('T')[0]
+       // 生成当天文件名（使用本地时区）
+       const date = new Date()
+       const year = date.getFullYear()
+       const month = String(date.getMonth() + 1).padStart(2, '0')
+       const day = String(date.getDate()).padStart(2, '0')
+       const dateStr = `${year}-${month}-${day}`
       const fileName = `ai-analysis-${dateStr}.json`
       const filePath = path.join(saveDir, fileName)
       

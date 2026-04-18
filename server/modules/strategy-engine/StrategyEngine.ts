@@ -407,11 +407,11 @@ export class StrategyEngine {
            openInterest: indicatorsData.get('1h_OI')?.values?.value || 0,
            openInterestChangePercent: indicatorsData.get('1h_OI')?.values?.changePercent || 0,
            openInterestTrend: indicatorsData.get('1h_OI')?.values?.trend || 'flat',
-           adxPeriodLabels: { 
-             main: timeframes[0] || mainTimeframe, 
-             secondary: timeframes[1] || (timeframes.length >= 1 ? timeframes[0] : mainTimeframe), 
-             tertiary: timeframes[2] || (timeframes.length >= 2 ? timeframes[1] : (timeframes.length >= 1 ? timeframes[0] : mainTimeframe)) 
-          }
+            adxPeriodLabels: { 
+              main: timeframes[0] || mainTimeframe, 
+              secondary: timeframes[1] || '', 
+              tertiary: timeframes[2] || '' 
+           }
         }
       
       // 使用新的多策略AI分析器

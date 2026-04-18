@@ -304,25 +304,10 @@ export interface CircuitBreaker {
 // 机器人状态
 export interface BotState {
   status: PositionStatus
-  currentPosition: Position | null
   circuitBreaker: CircuitBreaker
-  todayTrades: number
   dailyPnL: number
-  lastResetDate: string
-  monitoringSymbols: string[]
   isRunning: boolean  // 是否正在运行（扫描循环）
-  allowNewTrades: boolean  // 是否允许新交易（用于每日交易限制控制）
   lastTradeTime?: number   // 上次交易时间（用于冷却时间检查）
-  currentPrice?: number  // 当前价格（仅当有持仓时有效）
-  currentPnL?: number    // 当前盈亏金额（仅当有持仓时有效）
-  currentPnLPercentage?: number  // 当前盈亏百分比（仅当有持仓时有效）
-  // 总统计数据
-  totalTrades?: number
-  totalPnL?: number
-  winRate?: number
-  // 优化相关字段
-  lastIndicatorUpdate?: number  // 上次指标计算时间
-  lastPrice?: number           // 上次计算指标时的价格
 }
 
 // 加密货币余额
