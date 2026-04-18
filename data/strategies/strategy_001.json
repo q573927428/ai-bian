@@ -3,7 +3,7 @@
   "name": "策略001",
   "version": 1,
   "createdAt": "2026-04-16T10:07:46.270Z",
-  "updatedAt": "2026-04-18T12:55:07.577Z",
+  "updatedAt": "2026-04-18T15:44:48.893Z",
   "isActive": true,
   "marketData": {
     "symbols": [
@@ -306,27 +306,26 @@
   ],
   "performance": {
     "strategyId": "strategy_001",
-    "totalTrades": 0,
-    "totalWins": 0,
+    "totalTrades": 3,
+    "totalWins": 3,
     "totalLosses": 0,
-    "winRate": 0,
-    "totalProfit": 0,
+    "winRate": 100,
+    "totalProfit": 1.4855799999999708,
     "totalLoss": 0,
-    "netProfit": 0,
-    "profitFactor": 0,
+    "netProfit": 1.4855799999999708,
+    "profitFactor": null,
     "maxDrawdown": 0,
-    "averageProfitPerTrade": 0,
+    "averageProfitPerTrade": 0.4951933333333236,
     "averageLossPerTrade": 0,
-    "largestWin": 0,
+    "largestWin": 0.738,
     "largestLoss": 0,
-    "averageHoldTime": 0,
-    "consecutiveWins": 0,
+    "averageHoldTime": 987.7280444444444,
+    "consecutiveWins": 3,
     "consecutiveLosses": 0,
-    "maxConsecutiveWins": 0,
+    "maxConsecutiveWins": 3,
     "maxConsecutiveLosses": 0,
-    "updatedAt": "2026-04-16T10:07:46.270Z"
+    "updatedAt": "2026-04-18T15:44:48.893Z"
   },
-  "tradeRecords": [],
   "sessions": [],
   "currentSessionId": null
 }
