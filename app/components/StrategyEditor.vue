@@ -63,9 +63,6 @@
              <el-checkbox label="1d">1天</el-checkbox>
            </el-checkbox-group>
          </el-form-item>
-        <el-form-item label="K线数量">
-          <el-input-number v-model="form.marketData.klineLimit" :min="100" :max="1000" :step="50" />
-        </el-form-item>
       </el-card>
 
       <!-- 技术指标配置 -->
@@ -301,8 +298,7 @@ const form = reactive<CreateStrategyInput>({
   description: '',
   marketData: {
     symbols: [],
-    timeframes: ['1h'],
-    klineLimit: 300
+    timeframes: ['1h']
   },
   indicators: [],
   statistics: [],

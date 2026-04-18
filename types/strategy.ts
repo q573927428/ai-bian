@@ -116,8 +116,7 @@ export interface Strategy {
 // 市场数据配置
 export interface MarketDataConfig {
   symbols: string[];                   // 交易对列表 ["BTC/USDT", "ETH/USDT"]
-  timeframes: Timeframe[];             // K线周期 ["15m", "1h", "4h", "1d"]
-  klineLimit: number;                  // K线获取数量 (默认300)
+  timeframes: Timeframe[];             // K线周期 "5m",["15m", "1h", "4h", "1d"]
 }
 
 // 技术指标配置

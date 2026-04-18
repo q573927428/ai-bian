@@ -15,8 +15,7 @@
       "15m",
       "1h",
       "4h"
-    ],
-    "klineLimit": 300
+    ]
   },
   "indicators": [
     {
