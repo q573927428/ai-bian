@@ -526,7 +526,7 @@ export class StrategyEngine {
       )
 
       // 3. 计算杠杆
-      let finalLeverage = typeof strategy.executionConfig.leverage === 'number' ? strategy.executionConfig.leverage : 10
+      let finalLeverage = typeof strategy.executionConfig.leverage === 'number' ? strategy.executionConfig.leverage : 3
       let leverageCalculationDetails = {}
 
       // 暂时固定杠杆，动态杠杆功能后续实现
