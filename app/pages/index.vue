@@ -30,22 +30,22 @@
                   <div class="stats-grid">
                     <div class="stat-card">
                       <div class="stat-card-label">📊 交易</div>
-                      <div class="stat-card-value">{{ botStore.state?.totalTrades || 0 }} </div>
-                      <div class="stat-card-sub">今日 {{ botStore.state?.todayTrades || 0 }}</div>
+                      <div class="stat-card-value">{{ totalTrades }} </div>
+                      <div class="stat-card-sub">今日 {{ todayTrades }}</div>
                     </div>
                     <div class="stat-card">
                       <div class="stat-card-label">📈 今日盈亏</div>
-                      <div :class="['stat-card-value', pnlClass]">{{ formatPnLShort(botStore.state?.dailyPnL || 0) }}</div>
+                      <div :class="['stat-card-value', pnlClass]">{{ formatPnLShort(dailyPnL) }}</div>
                       <div class="stat-card-sub">USDT</div>
                     </div>
                     <div class="stat-card">
                       <div class="stat-card-label">💰 总盈亏</div>
-                      <div :class="['stat-card-value', totalPnLClass]">{{ formatPnLShort(botStore.state?.totalPnL || 0) }}</div>
+                      <div :class="['stat-card-value', totalPnLClass]">{{ formatPnLShort(totalPnL) }}</div>
                       <div class="stat-card-sub">USDT</div>
                     </div>
                     <div class="stat-card">
                       <div class="stat-card-label">🎯 总胜率</div>
-                      <div class="stat-card-value">{{ formatWinRate(botStore.state?.winRate || 0) }}</div>
+                      <div class="stat-card-value">{{ formatWinRate(winRate) }}</div>
                       <div class="stat-card-sub">总体</div>
                     </div>
                   </div>
@@ -99,6 +99,8 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useBotStore } from '../stores/bot'
+import { useStrategiesStore } from '../stores/strategies'
+import type { Strategy, TradeRecord } from '../../types/strategy'
 
 // 导入组件
 import SystemLogs from '../components/SystemLogs.vue'
@@ -107,15 +109,62 @@ import ActivePositions from '../components/ActivePositions.vue'
 import Strategies from '../components/Strategies.vue'
 
 const botStore = useBotStore()
+const strategiesStore = useStrategiesStore()
+
+// 获取所有已平仓的交易记录
+const allClosedTrades = computed(() => {
+  const trades: TradeRecord[] = []
+  for (const strategy of strategiesStore.strategies) {
+    if (strategy.tradeRecords) {
+      trades.push(...strategy.tradeRecords.filter(t => t.status === 'closed'))
+    }
+  }
+  return trades
+})
+
+// 计算总交易次数
+const totalTrades = computed(() => {
+  return allClosedTrades.value.length
+})
+
+// 计算今日交易次数
+const todayTrades = computed(() => {
+  const today = new Date().toDateString()
+  return allClosedTrades.value.filter(trade => {
+    if (!trade.closeTime) return false
+    return new Date(trade.closeTime).toDateString() === today
+  }).length
+})
+
+// 计算总盈亏
+const totalPnL = computed(() => {
+  return allClosedTrades.value.reduce((sum, trade) => sum + (trade.profitLoss || 0), 0)
+})
+
+// 计算今日盈亏
+const dailyPnL = computed(() => {
+  const today = new Date().toDateString()
+  return allClosedTrades.value
+    .filter(trade => {
+      if (!trade.closeTime) return false
+      return new Date(trade.closeTime).toDateString() === today
+    })
+    .reduce((sum, trade) => sum + (trade.profitLoss || 0), 0)
+})
+
+// 计算总胜率
+const winRate = computed(() => {
+  if (allClosedTrades.value.length === 0) return 0
+  const wins = allClosedTrades.value.filter(trade => (trade.profitLoss || 0) > 0).length
+  return (wins / allClosedTrades.value.length) * 100
+})
 
 const pnlClass = computed(() => {
-  const pnl = botStore.state?.dailyPnL || 0
-  return pnl >= 0 ? 'text-success' : 'text-danger'
+  return dailyPnL.value >= 0 ? 'text-success' : 'text-danger'
 })
 
 const totalPnLClass = computed(() => {
-  const totalPnL = botStore.state?.totalPnL || 0
-  return totalPnL >= 0 ? 'text-success' : 'text-danger'
+  return totalPnL.value >= 0 ? 'text-success' : 'text-danger'
 })
 
 // 获取USDT余额
@@ -164,7 +213,10 @@ function goToStrategies() {
 
 // 页面加载时获取状态
 onMounted(async () => {
-  await botStore.fetchStatus()
+  await Promise.all([
+    botStore.fetchStatus(),
+    strategiesStore.loadStrategies()
+  ])
 })
 </script>
 
