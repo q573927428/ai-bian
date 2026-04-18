@@ -146,27 +146,39 @@ export class MultiStrategyAIAnalyzer {
       .map(item => `- ${item.name}: ${(item.value ?? 0).toFixed(4)}`)
       .join('\n')
 
+    // 动态构建ADX显示行（根据实际配置的周期数量）
+    const adxLines: string[] = []
+    adxLines.push(`- ADX(${indicators.adxPeriodLabels.main}): ${(indicators.adxMain ?? 0).toFixed(2)}`)
+    
+    // 只有当有第二个周期时才显示
+    if (indicators.adxSecondary && indicators.adxSecondary > 0) {
+      adxLines.push(`- ADX(${indicators.adxPeriodLabels.secondary}): ${(indicators.adxSecondary ?? 0).toFixed(2)}`)
+    }
+    
+    // 只有当有第三个周期时才显示
+    if (indicators.adxTertiary && indicators.adxTertiary > 0) {
+      adxLines.push(`- ADX(${indicators.adxPeriodLabels.tertiary}): ${(indicators.adxTertiary ?? 0).toFixed(2)}`)
+    }
+
     return `
 ${promptConfig.systemPrompt}
 
 ## 当前市场数据
-交易对: ${symbol}
-价格: ${(price ?? 0).toFixed(4)}
-24h 涨跌: ${(priceChange24h ?? 0).toFixed(2)}%
-成交量: ${(volume ?? 0).toFixed(2)}
-时间: ${new Date().toISOString()}
+ 交易对: ${symbol}
+ 价格: ${(price ?? 0).toFixed(4)}
+ 24h 涨跌: ${(priceChange24h ?? 0).toFixed(2)}%
+ 成交量: ${(volume ?? 0).toFixed(2)}
+ 时间: ${new Date().toISOString()}
 
- ## 技术指标
- ${dynamicEmaLines}
- - RSI(14): ${(indicators.rsi ?? 0).toFixed(2)}
- - MACD(12,26,9): MACD=${(indicators.macd?.macd ?? 0).toFixed(4)}, Signal=${(indicators.macd?.signal ?? 0).toFixed(4)}, Histogram=${(indicators.macd?.histogram ?? 0).toFixed(4)}
- - ATR(14): ${(indicators.atr ?? 0).toFixed(4)}
- - ADX(${indicators.adxPeriodLabels.main}): ${(indicators.adxMain ?? 0).toFixed(2)}
-- ADX(${indicators.adxPeriodLabels.secondary}): ${(indicators.adxSecondary ?? 0).toFixed(2)}
-- ADX(${indicators.adxPeriodLabels.tertiary}): ${(indicators.adxTertiary ?? 0).toFixed(2)}
-- OI: ${(indicators.openInterest ?? 0).toFixed(2)}
-- OI 变化: ${(indicators.openInterestChangePercent ?? 0).toFixed(2)}%
-- OI 趋势: ${indicators.openInterestTrend}
+  ## 技术指标
+  ${dynamicEmaLines}
+  - RSI(14): ${(indicators.rsi ?? 0).toFixed(2)}
+  - MACD(12,26,9): MACD=${(indicators.macd?.macd ?? 0).toFixed(4)}, Signal=${(indicators.macd?.signal ?? 0).toFixed(4)}, Histogram=${(indicators.macd?.histogram ?? 0).toFixed(4)}
+  - ATR(14): ${(indicators.atr ?? 0).toFixed(4)}
+  ${adxLines.join('\n')}
+ - OI: ${(indicators.openInterest ?? 0).toFixed(2)}
+ - OI 变化: ${(indicators.openInterestChangePercent ?? 0).toFixed(2)}%
+ - OI 趋势: ${indicators.openInterestTrend}
 
 ## 交易逻辑
 ${promptConfig.userPrompt}
