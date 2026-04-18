@@ -352,8 +352,11 @@ ${constraints}
         },
       }
 
-      // 异步保存到文件，不阻塞主流程
-      this.saveAIAnalysisToFile(analysis).catch(() => {})
+      // 只保存非IDLE的分析结果
+      if (analysis.direction !== 'IDLE') {
+        // 异步保存到文件，不阻塞主流程
+        this.saveAIAnalysisToFile(analysis).catch(() => {})
+      }
 
       logger.info('扫描结果', ` ${analysis.symbol} @${analysis.technicalData.price} ${analysis.direction} 置信度（${analysis.confidence}） 评分（${analysis.score}）[策略 - ${analysis.strategyId}]`);
 
@@ -380,8 +383,7 @@ ${constraints}
         },
       }
 
-      // 异步保存到文件，不阻塞主流程
-      this.saveAIAnalysisToFile(fallbackAnalysis).catch(() => {})
+      // 降级处理的结果通常是IDLE，不保存到文件
 
       return fallbackAnalysis
     }
