@@ -94,15 +94,6 @@
             <el-checkbox :label="120" disabled>120</el-checkbox>
           </el-checkbox-group>
         </el-form-item>
-
-        <el-form-item label="指标周期">
-          <el-checkbox-group v-model="indicatorTimeframes">
-            <el-checkbox label="5m">5分钟</el-checkbox>
-            <el-checkbox label="15m">15分钟</el-checkbox>
-            <el-checkbox label="1h">1小时</el-checkbox>
-            <el-checkbox label="4h">4小时</el-checkbox>
-          </el-checkbox-group>
-        </el-form-item>
       </el-card>
 
       <!-- 统计数据配置 -->
@@ -289,7 +280,6 @@ const saving = ref(false)
 // 多选变量
 const selectedIndicators = ref<string[]>(['EMA', 'RSI', 'ADX', 'ATR'])
 const emaPeriods = ref<number[]>([14, 60, 120])
-const indicatorTimeframes = ref<string[]>(['15m', '1h', '4h'])
 const selectedStatistics = ref<string[]>(['OI', 'Volume'])
 
 // 初始化表单
@@ -332,8 +322,8 @@ const form = reactive<CreateStrategyInput>({
   }
 })
 
-// 同步 indicators 数据
-watch([selectedIndicators, emaPeriods, indicatorTimeframes], () => {
+// 同步 indicators 数据 - 使用市场数据配置的周期
+watch([selectedIndicators, emaPeriods, () => form.marketData.timeframes], () => {
   const newIndicators: any[] = []
   let id = 1
 
@@ -342,7 +332,7 @@ watch([selectedIndicators, emaPeriods, indicatorTimeframes], () => {
       id: String(id++),
       type: 'EMA',
       params: { periods: emaPeriods.value },
-      timeframes: [...indicatorTimeframes.value],
+      timeframes: [...form.marketData.timeframes],
       enabled: true
     })
   }
@@ -351,7 +341,7 @@ watch([selectedIndicators, emaPeriods, indicatorTimeframes], () => {
       id: String(id++),
       type: 'RSI',
       params: { period: 14 },
-      timeframes: [...indicatorTimeframes.value],
+      timeframes: [...form.marketData.timeframes],
       enabled: true
     })
   }
@@ -360,7 +350,7 @@ watch([selectedIndicators, emaPeriods, indicatorTimeframes], () => {
       id: String(id++),
       type: 'ADX',
       params: { period: 14 },
-      timeframes: [...indicatorTimeframes.value],
+      timeframes: [...form.marketData.timeframes],
       enabled: true
     })
   }
@@ -369,7 +359,7 @@ watch([selectedIndicators, emaPeriods, indicatorTimeframes], () => {
       id: String(id++),
       type: 'MACD',
       params: { fastPeriod: 12, slowPeriod: 26, signalPeriod: 9 },
-      timeframes: [...indicatorTimeframes.value],
+      timeframes: [...form.marketData.timeframes],
       enabled: true
     })
   }
@@ -378,7 +368,7 @@ watch([selectedIndicators, emaPeriods, indicatorTimeframes], () => {
       id: String(id++),
       type: 'ATR',
       params: { period: 14 },
-      timeframes: [...indicatorTimeframes.value],
+      timeframes: [...form.marketData.timeframes],
       enabled: true
     })
   }
@@ -432,12 +422,6 @@ watch(() => props.strategy, (newVal) => {
     const emaIndicator = newVal.indicators.find(i => i.type === 'EMA')
     if (emaIndicator && emaIndicator.params && emaIndicator.params.periods) {
       emaPeriods.value = emaIndicator.params.periods
-    }
-    
-    // 同步指标周期
-    const firstIndicator = newVal.indicators[0]
-    if (firstIndicator && firstIndicator.timeframes) {
-      indicatorTimeframes.value = [...firstIndicator.timeframes]
     }
     
     // 同步统计数据
