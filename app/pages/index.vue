@@ -111,52 +111,53 @@ import Strategies from '../components/Strategies.vue'
 const botStore = useBotStore()
 const strategiesStore = useStrategiesStore()
 
-// 获取所有已平仓的交易记录
-const allClosedTrades = computed(() => {
-  const trades: TradeRecord[] = []
-  for (const strategy of strategiesStore.strategies) {
-    if (strategy.tradeRecords) {
-      trades.push(...strategy.tradeRecords.filter(t => t.status === 'closed'))
-    }
-  }
-  return trades
-})
-
-// 计算总交易次数
+// 计算总交易次数（从 performance 读取）
 const totalTrades = computed(() => {
-  return allClosedTrades.value.length
+  return strategiesStore.strategies.reduce((sum, s) => sum + (s.performance?.totalTrades || 0), 0)
 })
 
 // 计算今日交易次数
 const todayTrades = computed(() => {
   const today = new Date().toDateString()
-  return allClosedTrades.value.filter(trade => {
-    if (!trade.closeTime) return false
-    return new Date(trade.closeTime).toDateString() === today
-  }).length
+  let count = 0
+  for (const strategy of strategiesStore.strategies) {
+    if (strategy.tradeRecords) {
+      count += strategy.tradeRecords.filter(trade => {
+        if (!trade.closeTime) return false
+        return new Date(trade.closeTime).toDateString() === today
+      }).length
+    }
+  }
+  return count
 })
 
-// 计算总盈亏
+// 计算总盈亏（从 performance 读取）
 const totalPnL = computed(() => {
-  return allClosedTrades.value.reduce((sum, trade) => sum + (trade.profitLoss || 0), 0)
+  return strategiesStore.strategies.reduce((sum, s) => sum + (s.performance?.netProfit || 0), 0)
 })
 
 // 计算今日盈亏
 const dailyPnL = computed(() => {
   const today = new Date().toDateString()
-  return allClosedTrades.value
-    .filter(trade => {
-      if (!trade.closeTime) return false
-      return new Date(trade.closeTime).toDateString() === today
-    })
-    .reduce((sum, trade) => sum + (trade.profitLoss || 0), 0)
+  let pnl = 0
+  for (const strategy of strategiesStore.strategies) {
+    if (strategy.tradeRecords) {
+      pnl += strategy.tradeRecords
+        .filter(trade => {
+          if (!trade.closeTime) return false
+          return new Date(trade.closeTime).toDateString() === today
+        })
+        .reduce((sum, trade) => sum + (trade.profitLoss || 0), 0)
+    }
+  }
+  return pnl
 })
 
-// 计算总胜率
+// 计算总胜率（从 performance 读取）
 const winRate = computed(() => {
-  if (allClosedTrades.value.length === 0) return 0
-  const wins = allClosedTrades.value.filter(trade => (trade.profitLoss || 0) > 0).length
-  return (wins / allClosedTrades.value.length) * 100
+  const totalTradesCount = strategiesStore.strategies.reduce((sum, s) => sum + (s.performance?.totalTrades || 0), 0)
+  const totalWinsCount = strategiesStore.strategies.reduce((sum, s) => sum + (s.performance?.totalWins || 0), 0)
+  return totalTradesCount > 0 ? (totalWinsCount / totalTradesCount) * 100 : 0
 })
 
 const pnlClass = computed(() => {
