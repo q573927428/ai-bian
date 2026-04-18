@@ -690,7 +690,7 @@ export class IndicatorsHub {
       await this.refreshAllData()
     }, intervalMs)
 
-    logger.info('IndicatorsHub', `定时更新循环已启动，间隔 ${intervalMs / 1000}秒`)
+    // logger.info('IndicatorsHub', `定时更新循环已启动，间隔 ${intervalMs / 1000}秒`)
   }
 
   /**

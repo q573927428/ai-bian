@@ -160,6 +160,14 @@ export class MultiStrategyAIAnalyzer {
       adxLines.push(`- ADX(${indicators.adxPeriodLabels.tertiary}): ${(indicators.adxTertiary ?? 0).toFixed(2)}`)
     }
 
+    // 👇 约束内容定义在这里
+  const constraints = `
+  ## 重要输出约束
+  - 必须使用 JSON 格式，不要包含 Markdown 代码块标记（如 \`\`\`json）。
+  - "direction" 必须是 "LONG", "SHORT", "IDLE" 之一。
+  - "reasoning" 必须引用提供的具体数值（如：RSI 数值、EMA 排列情况），严禁使用模糊描述。
+  - 若判断为 IDLE，confidence 不得高于 20。`
+
     return `
 ${promptConfig.systemPrompt}
 
@@ -190,6 +198,7 @@ ${promptConfig.userPrompt}
   "score": 0-100,
   "reasoning": "分析理由"
 }
+${constraints}
 `
   }
 

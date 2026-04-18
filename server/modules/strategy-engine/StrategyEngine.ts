@@ -158,7 +158,7 @@ export class StrategyEngine {
     // 启动策略循环
     this.startStrategyLoop(instance)
 
-    logger.success('StrategyEngine', `策略已启动: ${strategy.name}`)
+    // logger.success('StrategyEngine', `策略已启动: ${strategy.name}`)
   }
 
   /**
