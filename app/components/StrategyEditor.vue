@@ -390,21 +390,6 @@ watch([selectedIndicators, emaPeriods, () => form.marketData.timeframes], () => 
   form.indicators = newIndicators
 }, { immediate: true, deep: true })
 
-// 周期排序监听器：确保周期按从短到长排列
-watch(() => form.marketData.timeframes, (newTimeframes) => {
-  if (newTimeframes && newTimeframes.length > 0) {
-    // 按优先级从短到长排序
-    const sortedTimeframes = [...newTimeframes].sort((a, b) => 
-      (timeframePriority[a] || 99) - (timeframePriority[b] || 99)
-    )
-    // 只有当顺序变化时才更新（避免无限循环）
-    const orderChanged = newTimeframes.some((tf, i) => tf !== sortedTimeframes[i])
-    if (orderChanged) {
-      form.marketData.timeframes = sortedTimeframes
-    }
-  }
-}, { immediate: true, deep: true })
-
 // 同步 statistics 数据
 watch(selectedStatistics, () => {
   const newStatistics: any[] = []
@@ -462,6 +447,12 @@ watch(() => props.strategy, (newVal) => {
 const handleSave = async () => {
   try {
     saving.value = true
+    
+    // 简单排序：保存时按从短到长排序周期
+    form.marketData.timeframes.sort((a, b) => 
+      (timeframePriority[a] || 99) - (timeframePriority[b] || 99)
+    )
+    
     emit('save', { ...form })
   } finally {
     saving.value = false
