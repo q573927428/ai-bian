@@ -18,8 +18,7 @@
     "timeframes": [
       "1h",
       "4h"
-    ],
-    "klineLimit": 300
+    ]
   },
   "indicators": [
     {
@@ -139,7 +138,7 @@
     }
   },
   "executionConfig": {
-    "scanInterval": 180,
+    "scanInterval": 300,
     "leverage": 3,
     "marginMode": "cross",
     "positionMode": "one-way"
@@ -276,7 +275,7 @@
           }
         },
         "executionConfig": {
-          "scanInterval": 180,
+          "scanInterval": 300,
           "leverage": 3,
           "marginMode": "cross",
           "positionMode": "one-way"
