@@ -299,7 +299,7 @@ ${promptConfig.userPrompt}
       
       // 构建分析理由，限制总长度不超过150字
       let reasoning = aiResult.reasoning || '无分析理由'
-      reasoning = reasoning.length > 150 ? reasoning.slice(0, 147) + '...' : reasoning
+      reasoning = reasoning
       
       const analysis: AIAnalysis = {
         symbol,

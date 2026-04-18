@@ -4,7 +4,7 @@
   "description": "策略001描述",
   "version": 2,
   "createdAt": "2026-04-16T10:07:15.378Z",
-  "updatedAt": "2026-04-18T10:48:17.756Z",
+  "updatedAt": "2026-04-18T11:46:20.501Z",
   "isActive": true,
   "marketData": {
     "symbols": [
@@ -27,9 +27,9 @@
       "type": "EMA",
       "params": {
         "periods": [
-          14,
-          60,
-          120
+          120,
+          20,
+          50
         ]
       },
       "timeframes": [
