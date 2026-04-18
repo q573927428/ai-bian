@@ -36,7 +36,7 @@ export class MultiTimeframeIndicatorCalculator {
     this.binance = binance
     this.indicatorsHub = indicatorsHub
     this.config = config
-    logger.info('MultiTimeframeIndicatorCalculator', '多周期指标计算器已初始化')
+    // logger.info('MultiTimeframeIndicatorCalculator', '多周期指标计算器已初始化')
   }
 
   /**

@@ -100,7 +100,7 @@ export class StrategyEngine {
     // 启动持仓监控
     this.positionMonitor.start()
 
-    logger.info('StrategyEngine', '策略执行引擎已初始化')
+    // logger.info('StrategyEngine', '策略执行引擎已初始化')
   }
 
   /**

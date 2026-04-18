@@ -22,7 +22,7 @@ export async function initStrategyManager(): Promise<StrategyManager> {
     return strategyManager
   }
 
-  logger.info('StrategyManager', '开始初始化策略管理系统...')
+  // logger.info('StrategyManager', '开始初始化策略管理系统...')
 
   try {
     // 创建依赖实例
@@ -89,10 +89,10 @@ export async function initStrategyManager(): Promise<StrategyManager> {
     strategyManager.setEngine(engine)
     strategyManager.setIndicatorsHub(indicatorsHub)
 
-    logger.success('StrategyManager', '策略管理系统初始化完成')
+    // logger.success('StrategyManager', '策略管理系统初始化完成')
 
     // 初始化 IndicatorsHub 的所有数据
-    logger.info('StrategyManager', '开始初始化统一数据源...')
+    // logger.info('StrategyManager', '开始初始化统一数据源...')
     await indicatorsHub.initializeAllData()
 
     // 启动定时更新循环

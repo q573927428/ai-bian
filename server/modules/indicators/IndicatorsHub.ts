@@ -104,7 +104,7 @@ export class IndicatorsHub {
   private constructor(binance: BinanceService, config: BotConfig) {
     this.binance = binance
     this.config = config
-    logger.info('IndicatorsHub', '指标统一获取中心已初始化（重构版）')
+    // logger.info('IndicatorsHub', '指标统一获取中心已初始化（重构版）')
     
     // 初始化多周期指标计算器
     this.multiTimeframeCalculator = new MultiTimeframeIndicatorCalculator(
@@ -190,7 +190,7 @@ export class IndicatorsHub {
     }
 
     const duration = Date.now() - startTime
-    logger.success('IndicatorsHub', `所有交易对数据初始化完成，耗时 ${duration}ms`)
+    // logger.success('IndicatorsHub', `所有交易对数据初始化完成，耗时 ${duration}ms`)
   }
 
   /**
@@ -640,7 +640,7 @@ export class IndicatorsHub {
    * 订阅（空实现，保持接口兼容）
    */
   async subscribe(strategyId: StrategyId): Promise<void> {
-    logger.info('IndicatorsHub', `策略 ${strategyId} 已连接到统一数据源`)
+    // logger.info('IndicatorsHub', `策略 ${strategyId} 已连接到统一数据源`)
   }
 
   /**

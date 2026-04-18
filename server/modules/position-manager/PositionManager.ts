@@ -145,7 +145,7 @@ export class PositionManager {
    */
   private async _loadLocalState(): Promise<void> {
     try {
-      logger.info('PositionManager', '开始加载本地持久化状态')
+      // logger.info('PositionManager', '开始加载本地持久化状态')
       
       // 加载活跃持仓
       const positions = await loadActivePositions()

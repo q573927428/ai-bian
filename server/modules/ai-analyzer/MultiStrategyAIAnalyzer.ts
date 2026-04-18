@@ -35,7 +35,7 @@ export class MultiStrategyAIAnalyzer {
   constructor(binance: BinanceService, config: BotConfig) {
     this.binance = binance
     this.config = config
-    logger.info('MultiStrategyAIAnalyzer', '多策略 AI 分析器已初始化')
+    // logger.info('MultiStrategyAIAnalyzer', '多策略 AI 分析器已初始化')
   }
 
   /**

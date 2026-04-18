@@ -210,7 +210,7 @@ export class StrategyManager {
       return
     }
 
-    logger.info('StrategyManager', '开始加载所有激活的策略...')
+    // logger.info('StrategyManager', '开始加载所有激活的策略...')
 
     const activeStrategies = await this.store.getActiveStrategies()
 
