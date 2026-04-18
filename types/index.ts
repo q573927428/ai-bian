@@ -147,6 +147,13 @@ export interface TechnicalIndicators {
   // RSI
   rsi: number
   
+  // MACD
+  macd?: {
+    macd: number;
+    signal: number;
+    histogram: number;
+  }
+  
   // ATR
   atr: number
   

@@ -156,11 +156,12 @@ ${promptConfig.systemPrompt}
 成交量: ${(volume ?? 0).toFixed(2)}
 时间: ${new Date().toISOString()}
 
-## 技术指标
-${dynamicEmaLines}
-- RSI(14): ${(indicators.rsi ?? 0).toFixed(2)}
-- ATR(14): ${(indicators.atr ?? 0).toFixed(4)}
-- ADX(${indicators.adxPeriodLabels.main}): ${(indicators.adxMain ?? 0).toFixed(2)}
+ ## 技术指标
+ ${dynamicEmaLines}
+ - RSI(14): ${(indicators.rsi ?? 0).toFixed(2)}
+ - MACD(12,26,9): MACD=${(indicators.macd?.macd ?? 0).toFixed(4)}, Signal=${(indicators.macd?.signal ?? 0).toFixed(4)}, Histogram=${(indicators.macd?.histogram ?? 0).toFixed(4)}
+ - ATR(14): ${(indicators.atr ?? 0).toFixed(4)}
+ - ADX(${indicators.adxPeriodLabels.main}): ${(indicators.adxMain ?? 0).toFixed(2)}
 - ADX(${indicators.adxPeriodLabels.secondary}): ${(indicators.adxSecondary ?? 0).toFixed(2)}
 - ADX(${indicators.adxPeriodLabels.tertiary}): ${(indicators.adxTertiary ?? 0).toFixed(2)}
 - OI: ${(indicators.openInterest ?? 0).toFixed(2)}
@@ -316,6 +317,9 @@ ${promptConfig.userPrompt}
           ...Object.fromEntries(emaEntries.map(item => [item.name, item.value])),
           ...(indicators.emaMap || {}),
           rsi: indicators.rsi,
+          macd: indicators.macd?.macd,
+          macdSignal: indicators.macd?.signal,
+          macdHistogram: indicators.macd?.histogram,
           volume,
           adxMain: indicators?.adxMain || 0,
           adxSecondary: indicators?.adxSecondary || 0,
@@ -374,6 +378,7 @@ ${promptConfig.userPrompt}
 const indicatorHash = [
   indicators.emaList.map(item => `${item.name}:${(item.value ?? 0).toFixed(2)}`).join('|'),
   (indicators.rsi ?? 0).toFixed(2),
+  `${(indicators.macd?.macd ?? 0).toFixed(4)}|${(indicators.macd?.signal ?? 0).toFixed(4)}|${(indicators.macd?.histogram ?? 0).toFixed(4)}`,
   (indicators.atr ?? 0).toFixed(2),
   (price ?? 0).toFixed(2)
 ].join('_')
