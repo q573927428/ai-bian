@@ -4,7 +4,7 @@
   "description": "策略002描述",
   "version": 1,
   "createdAt": "2026-04-16T10:07:46.270Z",
-  "updatedAt": "2026-04-16T10:07:57.290Z",
+  "updatedAt": "2026-04-18T12:55:22.700Z",
   "isActive": true,
   "marketData": {
     "symbols": [
@@ -12,9 +12,9 @@
       "BNB/USDT"
     ],
     "timeframes": [
+      "15m",
       "1h",
-      "4h",
-      "1d"
+      "4h"
     ],
     "klineLimit": 300
   },
@@ -32,7 +32,7 @@
       "timeframes": [
         "1h",
         "4h",
-        "1d"
+        "15m"
       ],
       "enabled": true
     },
@@ -45,25 +45,12 @@
       "timeframes": [
         "1h",
         "4h",
-        "1d"
+        "15m"
       ],
       "enabled": true
     },
     {
       "id": "3",
-      "type": "ATR",
-      "params": {
-        "period": 14
-      },
-      "timeframes": [
-        "1h",
-        "4h",
-        "1d"
-      ],
-      "enabled": true
-    },
-    {
-      "id": "4",
       "type": "ADX",
       "params": {
         "period": 14
@@ -71,7 +58,20 @@
       "timeframes": [
         "1h",
         "4h",
-        "1d"
+        "15m"
+      ],
+      "enabled": true
+    },
+    {
+      "id": "4",
+      "type": "ATR",
+      "params": {
+        "period": 14
+      },
+      "timeframes": [
+        "1h",
+        "4h",
+        "15m"
       ],
       "enabled": true
     }

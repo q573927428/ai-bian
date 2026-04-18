@@ -62,7 +62,6 @@
              <el-checkbox label="4h">4小时</el-checkbox>
              <el-checkbox label="1d">1天</el-checkbox>
            </el-checkbox-group>
-           <div class="form-tip">最少选择1个周期，最多选择3个周期</div>
          </el-form-item>
         <el-form-item label="K线数量">
           <el-input-number v-model="form.marketData.klineLimit" :min="100" :max="1000" :step="50" />
