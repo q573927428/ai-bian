@@ -13,14 +13,6 @@
         <el-form-item label="策略名称">
           <el-input v-model="form.name" placeholder="请输入策略名称" />
         </el-form-item>
-        <el-form-item label="描述">
-          <el-input
-            v-model="form.description"
-            type="textarea"
-            :rows="2"
-            placeholder="请输入策略描述"
-          />
-        </el-form-item>
       </el-card>
 
       <!-- 市场数据配置 -->
@@ -286,7 +278,6 @@ const selectedStatistics = ref<string[]>(['OI', 'Volume'])
 // 初始化表单
 const form = reactive<CreateStrategyInput>({
   name: '',
-  description: '',
   marketData: {
     symbols: [],
     timeframes: ['1h']
@@ -407,7 +398,6 @@ watch(() => props.strategy, (newVal) => {
   if (newVal) {
     Object.assign(form, {
       name: newVal.name,
-      description: newVal.description,
       marketData: newVal.marketData,
       aiPrompt: newVal.aiPrompt,
       riskManagement: newVal.riskManagement,

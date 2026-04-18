@@ -43,7 +43,6 @@ export class StrategyStore {
     const strategy: Strategy = {
       id: strategyId,
       name: input.name,
-      description: input.description,
       version: 1,
       createdAt: now,
       updatedAt: now,
@@ -216,7 +215,6 @@ export class StrategyStore {
 
       // 应用更新
       if (updates.name !== undefined) strategy.name = updates.name
-      if (updates.description !== undefined) strategy.description = updates.description
       if (updates.marketData !== undefined) strategy.marketData = updates.marketData
       if (updates.indicators !== undefined) strategy.indicators = updates.indicators
       if (updates.statistics !== undefined) strategy.statistics = updates.statistics
@@ -262,7 +260,6 @@ export class StrategyStore {
 
       // 应用更新
       if (updates.name !== undefined) strategy.name = updates.name
-      if (updates.description !== undefined) strategy.description = updates.description
       if (updates.marketData !== undefined) strategy.marketData = updates.marketData
       if (updates.indicators !== undefined) strategy.indicators = updates.indicators
       if (updates.statistics !== undefined) strategy.statistics = updates.statistics

@@ -79,7 +79,6 @@ export type TradeAction = 'open' | 'close' | 'hold';
 export interface Strategy {
   id: StrategyId;                      // 策略唯一ID (UUID)
   name: string;                        // 策略名称
-  description: string;                 // 策略描述
   version: StrategyVersion;            // 版本号 (从1开始递增)
   createdAt: string;                   // 创建时间
   updatedAt: string;                   // 更新时间
@@ -185,7 +184,6 @@ export interface VersionHistory {
 // 创建策略输入
 export interface CreateStrategyInput {
   name: string;
-  description: string;
   marketData: MarketDataConfig;
   indicators: IndicatorConfig[];
   statistics: StatisticsConfig[];
@@ -197,7 +195,6 @@ export interface CreateStrategyInput {
 // 更新策略输入
 export interface UpdateStrategyInput {
   name?: string;
-  description?: string;
   marketData?: MarketDataConfig;
   indicators?: IndicatorConfig[];
   statistics?: StatisticsConfig[];

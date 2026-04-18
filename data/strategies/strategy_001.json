@@ -1,7 +1,6 @@
 {
   "id": "strategy_001",
   "name": "策略001",
-  "description": "策略001描述",
   "version": 1,
   "createdAt": "2026-04-16T10:07:46.270Z",
   "updatedAt": "2026-04-18T12:55:07.577Z",
@@ -150,7 +149,6 @@
       "snapshot": {
         "id": "strategy_001",
         "name": "策略001",
-        "description": "策略001描述",
         "version": 1,
         "createdAt": "2026-04-16T10:07:46.270Z",
         "updatedAt": "2026-04-16T10:07:46.270Z",
