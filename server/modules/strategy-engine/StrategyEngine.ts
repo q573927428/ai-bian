@@ -369,43 +369,49 @@ export class StrategyEngine {
       const mainTimeframe = instance.strategy.marketData.timeframes[0] || '15m'
       
       // 正确提取指标数据，匹配IndicatorsHub返回的key格式：${timeframe}_${type}
-      const emaData = indicatorsData.get(`${mainTimeframe}_EMA`)?.values || {}
-      const rsiData = indicatorsData.get(`${mainTimeframe}_RSI`)?.values || {}
-      const volumeData = indicatorsData.get('1h_Volume')?.values || {}
-      
-      const rsi = rsiData.rsi || 50
-      const volume = volumeData.current || 0
-      // 暂时使用默认涨跌幅，后续集成fetchTicker方法
-      const priceChange24h = 0
-      
-       // 构造符合TechnicalIndicators格式的指标数据
-       // 获取三个周期的ADX数据（如果策略配置了多个周期）
-       const timeframes = instance.strategy.marketData.timeframes || [mainTimeframe]
-       
-       // 从所有可用周期中获取ADX数据
-       const adxMainData = indicatorsData.get(`${timeframes[0]}_ADX`)?.values || {}
-       const adxSecondaryData = timeframes[1] ? indicatorsData.get(`${timeframes[1]}_ADX`)?.values : null
-       const adxTertiaryData = timeframes[2] ? indicatorsData.get(`${timeframes[2]}_ADX`)?.values : null
-       
-       const indicators: any = {
-         emaList: Array.isArray(emaData.emaList) ? emaData.emaList : [],
-         emaMap: emaData.emaMap || {},
-         ...rsiData,
-         // 分别获取三个周期的ADX值
-         adxMain: adxMainData.adxMain || 0,
-         adxSecondary: adxSecondaryData?.adxMain || 0,
-         adxTertiary: adxTertiaryData?.adxMain || 0,
-         adxSlope: adxMainData.adxSlope || 0,
-         atr: indicatorsData.get(`${mainTimeframe}_ATR`)?.values?.atr || 0,
-         openInterest: indicatorsData.get('1h_OI')?.values?.value || 0,
-         openInterestChangePercent: indicatorsData.get('1h_OI')?.values?.changePercent || 0,
-         openInterestTrend: indicatorsData.get('1h_OI')?.values?.trend || 'flat',
-         adxPeriodLabels: { 
-           main: timeframes[0] || mainTimeframe, 
-           secondary: timeframes[1] || (timeframes.length >= 1 ? timeframes[0] : mainTimeframe), 
-           tertiary: timeframes[2] || (timeframes.length >= 2 ? timeframes[1] : (timeframes.length >= 1 ? timeframes[0] : mainTimeframe)) 
-         }
-       }
+        const emaData = indicatorsData.get(`${mainTimeframe}_EMA`)?.values || {}
+        const rsiData = indicatorsData.get(`${mainTimeframe}_RSI`)?.values || {}
+        const macdData = indicatorsData.get(`${mainTimeframe}_MACD`)?.values || {}
+        const volumeData = indicatorsData.get('1h_Volume')?.values || {}
+        
+        const rsi = rsiData.rsi || 50
+        const volume = volumeData.current || 0
+        // 暂时使用默认涨跌幅，后续集成fetchTicker方法
+        const priceChange24h = 0
+        
+         // 构造符合TechnicalIndicators格式的指标数据
+         // 获取三个周期的ADX数据（如果策略配置了多个周期）
+         const timeframes = instance.strategy.marketData.timeframes || [mainTimeframe]
+         
+         // 从所有可用周期中获取ADX数据
+         const adxMainData = indicatorsData.get(`${timeframes[0]}_ADX`)?.values || {}
+         const adxSecondaryData = timeframes[1] ? indicatorsData.get(`${timeframes[1]}_ADX`)?.values : null
+         const adxTertiaryData = timeframes[2] ? indicatorsData.get(`${timeframes[2]}_ADX`)?.values : null
+         
+         const indicators: any = {
+           emaList: Array.isArray(emaData.emaList) ? emaData.emaList : [],
+           emaMap: emaData.emaMap || {},
+           ...rsiData,
+           macd: macdData.macd !== undefined ? {
+             macd: macdData.macd,
+             signal: macdData.signal,
+             histogram: macdData.histogram
+           } : undefined,
+           // 分别获取三个周期的ADX值
+           adxMain: adxMainData.adxMain || 0,
+           adxSecondary: adxSecondaryData?.adxMain || 0,
+           adxTertiary: adxTertiaryData?.adxMain || 0,
+           adxSlope: adxMainData.adxSlope || 0,
+           atr: indicatorsData.get(`${mainTimeframe}_ATR`)?.values?.atr || 0,
+           openInterest: indicatorsData.get('1h_OI')?.values?.value || 0,
+           openInterestChangePercent: indicatorsData.get('1h_OI')?.values?.changePercent || 0,
+           openInterestTrend: indicatorsData.get('1h_OI')?.values?.trend || 'flat',
+           adxPeriodLabels: { 
+             main: timeframes[0] || mainTimeframe, 
+             secondary: timeframes[1] || (timeframes.length >= 1 ? timeframes[0] : mainTimeframe), 
+             tertiary: timeframes[2] || (timeframes.length >= 2 ? timeframes[1] : (timeframes.length >= 1 ? timeframes[0] : mainTimeframe)) 
+          }
+        }
       
       // 使用新的多策略AI分析器
       const signal = await this.aiAnalyzer.analyze(
