@@ -198,7 +198,16 @@ export class StrategyEngine {
    * 启动策略循环
    */
   private startStrategyLoop(instance: StrategyInstance): void {
-    const scanInterval = instance.strategy.executionConfig.scanInterval * 1000 // 转为毫秒
+    const MIN_INTERVAL = 300 // 最小间隔 300 秒
+    
+    let intervalSeconds = instance.strategy.executionConfig.scanInterval
+    
+    // 安全检查：如果间隔小于最小值或无效，使用安全值
+    if (!intervalSeconds || intervalSeconds < MIN_INTERVAL) {
+      intervalSeconds = MIN_INTERVAL
+    }
+    
+    const scanInterval = intervalSeconds * 1000 // 转为毫秒
 
     // 立即执行一次
     this.strategyLoop(instance)
@@ -208,7 +217,7 @@ export class StrategyEngine {
       this.strategyLoop(instance)
     }, scanInterval)
 
-    // logger.info('StrategyEngine', `策略循环已启动: ${instance.strategy.name}, 间隔 ${scanInterval / 1000}秒`)
+    logger.info('StrategyEngine', `策略循环已启动: ${instance.strategy.name}, 间隔 ${intervalSeconds}秒`)
   }
 
   /**
