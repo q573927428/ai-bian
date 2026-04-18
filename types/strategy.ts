@@ -56,7 +56,7 @@ export type IndicatorType = 'EMA' | 'RSI' | 'MACD' | 'ATR' | 'ADX';
 export type StatisticsType = 'OI' | 'Volume';
 
 // AI模型类型
-export type AIModel = 'deepseek-chat' | 'deepseek-coder' | string;
+export type AIModel = 'deepseek-chat' | 'deepseek-reasoner' | string;
 
 // 保证金模式
 export type MarginMode = 'cross' | 'isolated';

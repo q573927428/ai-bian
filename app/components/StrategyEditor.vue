@@ -134,7 +134,7 @@
             <el-form-item label="AI模型">
               <el-select v-model="form.aiPrompt.model">
                 <el-option label="deepseek-chat" value="deepseek-chat" />
-                <el-option label="deepseek-coder" value="deepseek-coder" />
+                <el-option label="deepseek-reasoner" value="deepseek-reasoner" />
               </el-select>
             </el-form-item>
           </el-col>
@@ -200,9 +200,8 @@
         </el-form-item>
         
         <el-form-item label="持仓超时">
-          <span class="stat-label">最大持仓: </span>
           <el-input-number v-model="form.riskManagement.maxHoldTimeMinutes" :min="60" :max="10080" :step="60" />
-          <span class="stat-label">分钟 (默认24小时)</span>
+          <span class="stat-label">分钟 (默认1440分=24小时)</span>
         </el-form-item>
       </el-card>
 
@@ -296,14 +295,14 @@ const form = reactive<CreateStrategyInput>({
   statistics: [],
   aiPrompt: {
     userPrompt: '请分析当前市场趋势，当技术指标显示明确的方向时给出开仓建议。\n\n要求：\n1. 趋势明确时才给出信号\n2. 严格控制风险\n3. 返回JSON格式：{direction: "long/short", confidence: 0-100, reasoning: "理由"}',
-    temperature: 0.7,
+    temperature: 0.5,
     maxTokens: 2000,
     model: 'deepseek-chat'
   },
   riskManagement: {
     maxRiskPercentage: 20,
     stopLossATRMultiplier: 2.5,
-    takeProfitRatios: [2.5, 3.5],
+    takeProfitRatios: [2, 3],
     maxDailyTrades: 5,
     maxDailyLoss: 10,
     maxHoldTimeMinutes: 1440,
