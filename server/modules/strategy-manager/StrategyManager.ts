@@ -100,6 +100,30 @@ export class StrategyManager {
   }
 
   /**
+   * 更新策略（普通更新，不创建新版本）
+   */
+  async updateStrategyWithoutVersion(
+    strategyId: StrategyId,
+    updates: UpdateStrategyInput
+  ): Promise<Strategy | null> {
+    logger.info('StrategyManager', `开始更新策略（无版本）: ${strategyId}`)
+
+    const strategy = await this.store.updateStrategyWithoutVersion(strategyId, updates)
+
+    if (strategy) {
+      logger.success('StrategyManager', `策略更新成功（无版本）: ${strategy.name}`)
+
+      // 如果策略正在运行，需要重启以应用新配置
+      if (this.engine && strategy.isActive) {
+        logger.info('StrategyManager', `策略正在运行，需要重启以应用新配置`)
+        await this.engine.restartStrategy(strategyId)
+      }
+    }
+
+    return strategy
+  }
+
+  /**
    * 更新策略（自动创建新版本）
    */
   async updateStrategy(

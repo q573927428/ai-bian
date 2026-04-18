@@ -113,6 +113,25 @@
       />
     </el-dialog>
 
+    <!-- 保存确认对话框 -->
+    <el-dialog v-model="showSaveConfirmDialog" title="保存策略" width="500px">
+      <div style="margin-bottom: 20px;">请选择保存方式：</div>
+      <el-checkbox v-model="saveAsNewVersion" style="margin-bottom: 15px;">保存为新版本</el-checkbox>
+      <el-input
+        v-if="saveAsNewVersion"
+        v-model="versionChanges"
+        type="textarea"
+        :rows="3"
+        placeholder="请输入版本变更说明"
+      />
+      <template #footer>
+        <el-button @click="showSaveConfirmDialog = false">取消</el-button>
+        <el-button type="primary" @click="confirmSaveStrategy" :disabled="saveAsNewVersion && !versionChanges.trim()">
+          确认保存
+        </el-button>
+      </template>
+    </el-dialog>
+
     <!-- 策略详情对话框 -->
     <el-dialog v-model="showDetailDialog" :title="`${detailStrategy?.name} 运行详情`" width="90%" :close-on-click-modal="false">
       <div v-if="detailStrategy" v-loading="detailLoading">
@@ -320,12 +339,18 @@ const loading = ref(false)
 const showCreateDialog = ref(false)
 const showVersionHistoryDialog = ref(false)
 const showDetailDialog = ref(false)
+const showSaveConfirmDialog = ref(false)
 const editingStrategy = ref<Strategy | null>(null)
 const viewingStrategy = ref<Strategy | null>(null)
 const detailStrategy = ref<Strategy | null>(null)
 const testingStrategies = ref<Set<string>>(new Set())
 const detailLoading = ref(false)
 const activeDetailTab = ref('performance')
+
+// 保存确认对话框相关
+const saveAsNewVersion = ref(false)
+const versionChanges = ref('')
+const pendingSaveData = ref<any>(null)
 
 // 详情数据
 const performance = ref<any>({})
@@ -355,24 +380,44 @@ const editStrategy = (strategy: Strategy) => {
 const handleSaveStrategy = async (data: any) => {
   try {
     if (editingStrategy.value) {
-      await $fetch(`/api/strategies/${editingStrategy.value.id}`, {
-        method: 'PUT',
-        body: {
-          updates: data,
-          changes: '通过编辑器更新'
-        }
-      })
-      ElMessage.success('策略已更新')
+      // 编辑现有策略：显示保存确认对话框
+      pendingSaveData.value = data
+      saveAsNewVersion.value = false
+      versionChanges.value = ''
+      showSaveConfirmDialog.value = true
     } else {
+      // 创建新策略
       await $fetch('/api/strategies', {
         method: 'POST',
         body: data
       })
       ElMessage.success('策略已创建')
+      showCreateDialog.value = false
+      editingStrategy.value = null
+      await loadStrategies()
     }
+  } catch (error: any) {
+    ElMessage.error(`保存失败: ${error.message}`)
+  }
+}
 
+// 确认保存
+const confirmSaveStrategy = async () => {
+  try {
+    await $fetch(`/api/strategies/${editingStrategy.value!.id}`, {
+      method: 'PUT',
+      body: {
+        updates: pendingSaveData.value,
+        saveAsNewVersion: saveAsNewVersion.value,
+        changes: saveAsNewVersion.value ? versionChanges.value : '通过编辑器更新'
+      }
+    })
+
+    ElMessage.success(saveAsNewVersion.value ? '策略已更新到新版本' : '策略已更新')
+    showSaveConfirmDialog.value = false
     showCreateDialog.value = false
     editingStrategy.value = null
+    pendingSaveData.value = null
     await loadStrategies()
   } catch (error: any) {
     ElMessage.error(`保存失败: ${error.message}`)

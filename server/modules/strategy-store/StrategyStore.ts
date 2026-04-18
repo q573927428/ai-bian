@@ -199,6 +199,47 @@ export class StrategyStore {
   }
 
   /**
+   * 更新策略（普通更新，不创建新版本）
+   */
+  async updateStrategyWithoutVersion(
+    strategyId: StrategyId,
+    updates: UpdateStrategyInput
+  ): Promise<Strategy | null> {
+    try {
+      const strategy = await this.getStrategy(strategyId)
+      if (!strategy) {
+        logger.warn('StrategyStore', `策略不存在: ${strategyId}`)
+        return null
+      }
+
+      const now = new Date().toISOString()
+
+      // 应用更新
+      if (updates.name !== undefined) strategy.name = updates.name
+      if (updates.description !== undefined) strategy.description = updates.description
+      if (updates.marketData !== undefined) strategy.marketData = updates.marketData
+      if (updates.indicators !== undefined) strategy.indicators = updates.indicators
+      if (updates.statistics !== undefined) strategy.statistics = updates.statistics
+      if (updates.aiPrompt !== undefined) strategy.aiPrompt = updates.aiPrompt
+      if (updates.riskManagement !== undefined) strategy.riskManagement = updates.riskManagement
+      if (updates.executionConfig !== undefined) strategy.executionConfig = updates.executionConfig
+
+      // 只更新 updatedAt，不修改 version
+      strategy.updatedAt = now
+
+      // 保存更新后的策略
+      const filePath = getStrategyFilePath(strategyId)
+      await writeFile(filePath, JSON.stringify(strategy, null, 2), 'utf-8')
+
+      logger.info('StrategyStore', `策略已更新（无版本）: ${strategy.name}`)
+      return strategy
+    } catch (error: any) {
+      logger.error('StrategyStore', `更新策略失败 ${strategyId}: ${error.message}`)
+      return null
+    }
+  }
+
+  /**
    * 更新策略（自动创建新版本）
    */
   async updateStrategy(
@@ -216,8 +257,8 @@ export class StrategyStore {
       const now = new Date().toISOString()
       const newVersion = strategy.version + 1
 
-      // 保存旧版本快照
-      const oldSnapshot = JSON.parse(JSON.stringify(strategy))
+      // 保存旧版本快照（排除 versionHistory 避免循环引用）
+      const oldSnapshot = JSON.parse(JSON.stringify({ ...strategy, versionHistory: [] }))
 
       // 应用更新
       if (updates.name !== undefined) strategy.name = updates.name

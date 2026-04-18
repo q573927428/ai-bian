@@ -15,16 +15,26 @@ export default defineEventHandler(async (event) => {
       })
     }
 
-    const body = await readBody<{ updates: UpdateStrategyInput; changes: string }>(event)
+    const body = await readBody<{
+      updates: UpdateStrategyInput
+      saveAsNewVersion?: boolean
+      changes?: string
+    }>(event)
 
-    if (!body.changes) {
-      throw createError({
-        statusCode: 400,
-        message: '变更说明不能为空'
-      })
+    let strategy
+    if (body.saveAsNewVersion) {
+      // 保存为新版本
+      if (!body.changes) {
+        throw createError({
+          statusCode: 400,
+          message: '版本变更说明不能为空'
+        })
+      }
+      strategy = await strategyManager.updateStrategy(id, body.updates, body.changes)
+    } else {
+      // 普通更新，不创建版本
+      strategy = await strategyManager.updateStrategyWithoutVersion(id, body.updates)
     }
-
-    const strategy = await strategyManager.updateStrategy(id, body.updates, body.changes)
 
     if (!strategy) {
       throw createError({
@@ -35,7 +45,9 @@ export default defineEventHandler(async (event) => {
 
     return {
       success: true,
-      message: `策略已更新到 v${strategy.version}`,
+      message: body.saveAsNewVersion
+        ? `策略已更新到 v${strategy.version}`
+        : '策略已更新',
       data: strategy
     }
   } catch (error: any) {
