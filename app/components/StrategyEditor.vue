@@ -117,7 +117,7 @@
           <el-input
             v-model="form.aiPrompt.userPrompt"
             type="textarea"
-            :rows="6"
+            :rows="12"
             placeholder="当EMA金叉且RSI<30时，开多仓..."
           />
         </el-form-item>
