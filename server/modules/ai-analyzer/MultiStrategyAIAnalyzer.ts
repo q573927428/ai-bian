@@ -80,25 +80,25 @@ export class MultiStrategyAIAnalyzer {
       const aiResult = await this.callAI(fullPrompt, symbol, price, indicators, volume, priceChange24h, strategyId)
 
 
-      if (!aiResult || aiResult.direction === 'IDLE') {
-        return null
-      }
-
-      // 临时测试：针对不同策略和交易对强制返回信号
-      // if (!aiResult) {
+      // if (!aiResult || aiResult.direction === 'IDLE') {
       //   return null
       // }
-      // if (strategyId === 'strategy_001' && symbol === 'ETH/USDT') { 
-      //   aiResult.direction = 'LONG'
-      //   aiResult.score = 80 // 确保置信度足够
-      // } else if (strategyId === 'strategy_002' && symbol === 'SOL/USDT') {
-      //   aiResult.direction = 'LONG'
-      //   aiResult.score = 80 // 确保置信度足够
-      // } else {
-      //   if (aiResult.direction === 'IDLE') {
-      //     return null
-      //   }
-      // }
+
+      // 临时测试：针对不同策略和交易对强制返回信号
+      if (!aiResult) {
+        return null
+      }
+      if (strategyId === 'strategy_001' && symbol === 'ETH/USDT') { 
+        aiResult.direction = 'LONG'
+        aiResult.score = 80 // 确保置信度足够
+      } else if (strategyId === 'strategy_002' && symbol === 'SOL/USDT') {
+        aiResult.direction = 'LONG'
+        aiResult.score = 80 // 确保置信度足够
+      } else {
+        if (aiResult.direction === 'IDLE') {
+          return null
+        }
+      }
 
       // 4. 转换为标准交易信号
       const signal: TradeSignal = {

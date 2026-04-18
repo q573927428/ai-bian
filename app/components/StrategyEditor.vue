@@ -52,6 +52,7 @@
         </el-form-item>
         <el-form-item label="K线周期">
           <el-checkbox-group v-model="form.marketData.timeframes">
+            <el-checkbox label="5m">5分钟</el-checkbox>
             <el-checkbox label="15m">15分钟</el-checkbox>
             <el-checkbox label="1h">1小时</el-checkbox>
             <el-checkbox label="4h">4小时</el-checkbox>
@@ -74,7 +75,7 @@
 
         <el-form-item label="选择指标">
           <el-checkbox-group v-model="selectedIndicators">
-            <el-checkbox label="EMA">EMA</el-checkbox>
+            <el-checkbox label="EMA" disabled>EMA</el-checkbox>
             <el-checkbox label="RSI">RSI (14)</el-checkbox>
             <el-checkbox label="ADX">ADX (14)</el-checkbox>
             <el-checkbox label="MACD">MACD (12,26,9)</el-checkbox>
@@ -90,12 +91,13 @@
             <el-checkbox :label="30">30</el-checkbox>
             <el-checkbox :label="50">50</el-checkbox>
             <el-checkbox :label="60">60</el-checkbox>
-            <el-checkbox :label="120">120</el-checkbox>
+            <el-checkbox :label="120" disabled>120</el-checkbox>
           </el-checkbox-group>
         </el-form-item>
 
         <el-form-item label="指标周期">
           <el-checkbox-group v-model="indicatorTimeframes">
+            <el-checkbox label="5m">5分钟</el-checkbox>
             <el-checkbox label="15m">15分钟</el-checkbox>
             <el-checkbox label="1h">1小时</el-checkbox>
             <el-checkbox label="4h">4小时</el-checkbox>

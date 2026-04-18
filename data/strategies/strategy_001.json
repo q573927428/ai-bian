@@ -2,14 +2,17 @@
   "id": "strategy_001",
   "name": "策略001",
   "description": "策略001描述",
-  "version": 1,
+  "version": 2,
   "createdAt": "2026-04-16T10:07:15.378Z",
-  "updatedAt": "2026-04-16T10:08:00.680Z",
+  "updatedAt": "2026-04-18T10:48:17.756Z",
   "isActive": true,
   "marketData": {
     "symbols": [
       "BTC/USDT",
-      "ETH/USDT"
+      "ETH/USDT",
+      "DOGE/USDT",
+      "SOL/USDT",
+      "HYPE/USDT"
     ],
     "timeframes": [
       "1h",
@@ -51,7 +54,7 @@
     },
     {
       "id": "3",
-      "type": "ATR",
+      "type": "ADX",
       "params": {
         "period": 14
       },
@@ -64,7 +67,7 @@
     },
     {
       "id": "4",
-      "type": "ADX",
+      "type": "ATR",
       "params": {
         "period": 14
       },
@@ -294,6 +297,336 @@
         },
         "tradeRecords": [],
         "sessions": []
+      }
+    },
+    {
+      "version": 2,
+      "updatedAt": "2026-04-18T10:48:17.756Z",
+      "changes": "通过编辑器更新",
+      "snapshot": {
+        "id": "strategy_001",
+        "name": "策略001",
+        "description": "策略001描述",
+        "version": 1,
+        "createdAt": "2026-04-16T10:07:15.378Z",
+        "updatedAt": "2026-04-16T10:08:00.680Z",
+        "isActive": true,
+        "marketData": {
+          "symbols": [
+            "BTC/USDT",
+            "ETH/USDT"
+          ],
+          "timeframes": [
+            "1h",
+            "15m",
+            "4h"
+          ],
+          "klineLimit": 300
+        },
+        "indicators": [
+          {
+            "id": "1",
+            "type": "EMA",
+            "params": {
+              "periods": [
+                14,
+                60,
+                120
+              ]
+            },
+            "timeframes": [
+              "15m",
+              "1h",
+              "4h"
+            ],
+            "enabled": true
+          },
+          {
+            "id": "2",
+            "type": "RSI",
+            "params": {
+              "period": 14
+            },
+            "timeframes": [
+              "15m",
+              "1h",
+              "4h"
+            ],
+            "enabled": true
+          },
+          {
+            "id": "3",
+            "type": "ATR",
+            "params": {
+              "period": 14
+            },
+            "timeframes": [
+              "15m",
+              "1h",
+              "4h"
+            ],
+            "enabled": true
+          },
+          {
+            "id": "4",
+            "type": "ADX",
+            "params": {
+              "period": 14
+            },
+            "timeframes": [
+              "15m",
+              "1h",
+              "4h"
+            ],
+            "enabled": true
+          }
+        ],
+        "statistics": [
+          {
+            "id": "5",
+            "type": "OI",
+            "params": {
+              "trendPeriod": 12,
+              "changePeriod": 24
+            },
+            "timeframes": [
+              "1h"
+            ],
+            "enabled": true
+          },
+          {
+            "id": "6",
+            "type": "Volume",
+            "params": {
+              "comparePeriod": 20
+            },
+            "timeframes": [
+              "1h"
+            ],
+            "enabled": true
+          }
+        ],
+        "aiPrompt": {
+          "systemPrompt": "你是一个专业的加密货币交易分析师。请根据提供的技术指标和市场数据，给出明确的交易信号。",
+          "userPrompt": "请分析当前市场趋势，当技术指标显示明确的方向时给出开仓建议。\n\n要求：\n1. 趋势明确时才给出信号\n2. 严格控制风险\n3. 返回JSON格式：{direction: \"long/short\", confidence: 0-100, reasoning: \"理由\"}",
+          "temperature": 0.7,
+          "maxTokens": 2000,
+          "model": "deepseek-chat"
+        },
+        "riskManagement": {
+          "maxRiskPercentage": 10,
+          "stopLossATRMultiplier": 2.5,
+          "takeProfitRatios": [
+            2.5,
+            3.5
+          ],
+          "maxDailyTrades": 5,
+          "maxDailyLoss": 10,
+          "maxHoldTimeMinutes": 1440,
+          "trailingStop": {
+            "enabled": true,
+            "activationRatio": 1,
+            "trailDistance": 1.2,
+            "minMoveDistance": 0.16
+          }
+        },
+        "executionConfig": {
+          "scanInterval": 180,
+          "leverage": 3,
+          "marginMode": "cross",
+          "positionMode": "one-way"
+        },
+        "versionHistory": [
+          {
+            "version": 1,
+            "updatedAt": "2026-04-16T10:07:15.378Z",
+            "changes": "初始版本创建",
+            "snapshot": {
+              "id": "strategy_001",
+              "name": "策略001",
+              "description": "策略001描述",
+              "version": 1,
+              "createdAt": "2026-04-16T10:07:15.378Z",
+              "updatedAt": "2026-04-16T10:07:15.378Z",
+              "isActive": false,
+              "marketData": {
+                "symbols": [
+                  "BTC/USDT",
+                  "ETH/USDT"
+                ],
+                "timeframes": [
+                  "1h",
+                  "15m",
+                  "4h"
+                ],
+                "klineLimit": 300
+              },
+              "indicators": [
+                {
+                  "id": "1",
+                  "type": "EMA",
+                  "params": {
+                    "periods": [
+                      14,
+                      60,
+                      120
+                    ]
+                  },
+                  "timeframes": [
+                    "15m",
+                    "1h",
+                    "4h"
+                  ],
+                  "enabled": true
+                },
+                {
+                  "id": "2",
+                  "type": "RSI",
+                  "params": {
+                    "period": 14
+                  },
+                  "timeframes": [
+                    "15m",
+                    "1h",
+                    "4h"
+                  ],
+                  "enabled": true
+                },
+                {
+                  "id": "3",
+                  "type": "ATR",
+                  "params": {
+                    "period": 14
+                  },
+                  "timeframes": [
+                    "15m",
+                    "1h",
+                    "4h"
+                  ],
+                  "enabled": true
+                },
+                {
+                  "id": "4",
+                  "type": "ADX",
+                  "params": {
+                    "period": 14
+                  },
+                  "timeframes": [
+                    "15m",
+                    "1h",
+                    "4h"
+                  ],
+                  "enabled": true
+                }
+              ],
+              "statistics": [
+                {
+                  "id": "5",
+                  "type": "OI",
+                  "params": {
+                    "trendPeriod": 12,
+                    "changePeriod": 24
+                  },
+                  "timeframes": [
+                    "1h"
+                  ],
+                  "enabled": true
+                },
+                {
+                  "id": "6",
+                  "type": "Volume",
+                  "params": {
+                    "comparePeriod": 20
+                  },
+                  "timeframes": [
+                    "1h"
+                  ],
+                  "enabled": true
+                }
+              ],
+              "aiPrompt": {
+                "systemPrompt": "你是一个专业的加密货币交易分析师。请根据提供的技术指标和市场数据，给出明确的交易信号。",
+                "userPrompt": "请分析当前市场趋势，当技术指标显示明确的方向时给出开仓建议。\n\n要求：\n1. 趋势明确时才给出信号\n2. 严格控制风险\n3. 返回JSON格式：{direction: \"long/short\", confidence: 0-100, reasoning: \"理由\"}",
+                "temperature": 0.7,
+                "maxTokens": 2000,
+                "model": "deepseek-chat"
+              },
+              "riskManagement": {
+                "maxRiskPercentage": 10,
+                "stopLossATRMultiplier": 2.5,
+                "takeProfitRatios": [
+                  2.5,
+                  3.5
+                ],
+                "maxDailyTrades": 5,
+                "maxDailyLoss": 10,
+                "maxHoldTimeMinutes": 1440,
+                "trailingStop": {
+                  "enabled": true,
+                  "activationRatio": 1,
+                  "trailDistance": 1.2,
+                  "minMoveDistance": 0.16
+                }
+              },
+              "executionConfig": {
+                "scanInterval": 180,
+                "leverage": 3,
+                "marginMode": "cross",
+                "positionMode": "one-way"
+              },
+              "versionHistory": [],
+              "performance": {
+                "strategyId": "strategy_001",
+                "totalTrades": 0,
+                "totalWins": 0,
+                "totalLosses": 0,
+                "winRate": 0,
+                "totalProfit": 0,
+                "totalLoss": 0,
+                "netProfit": 0,
+                "profitFactor": 0,
+                "maxDrawdown": 0,
+                "averageProfitPerTrade": 0,
+                "averageLossPerTrade": 0,
+                "largestWin": 0,
+                "largestLoss": 0,
+                "averageHoldTime": 0,
+                "consecutiveWins": 0,
+                "consecutiveLosses": 0,
+                "maxConsecutiveWins": 0,
+                "maxConsecutiveLosses": 0,
+                "updatedAt": "2026-04-16T10:07:15.378Z"
+              },
+              "tradeRecords": [],
+              "sessions": []
+            }
+          }
+        ],
+        "performance": {
+          "strategyId": "strategy_001",
+          "totalTrades": 0,
+          "totalWins": 0,
+          "totalLosses": 0,
+          "winRate": 0,
+          "totalProfit": 0,
+          "totalLoss": 0,
+          "netProfit": 0,
+          "profitFactor": 0,
+          "maxDrawdown": 0,
+          "averageProfitPerTrade": 0,
+          "averageLossPerTrade": 0,
+          "largestWin": 0,
+          "largestLoss": 0,
+          "averageHoldTime": 0,
+          "consecutiveWins": 0,
+          "consecutiveLosses": 0,
+          "maxConsecutiveWins": 0,
+          "maxConsecutiveLosses": 0,
+          "updatedAt": "2026-04-16T10:07:15.378Z"
+        },
+        "tradeRecords": [],
+        "sessions": [],
+        "currentSessionId": null
       }
     }
   ],
