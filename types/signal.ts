@@ -90,7 +90,6 @@ export interface AIAnalysisInput {
   strategyId: StrategyId;              // 策略ID
   symbol: string;                      // 交易对
   timeframe: Timeframe;                // 时间周期
-  systemPrompt: string;                // 系统提示词
   userPrompt: string;                  // 用户交易逻辑
   indicators: IndicatorValues;         // 指标数据
   marketData: MarketDataInput;         // 市场数据
@@ -127,7 +126,6 @@ export interface SignalGenerationContext {
   indicators: IndicatorValues;         // 指标数据
   marketData: MarketDataInput;         // 市场数据
   aiPrompt: {                          // AI 提示词
-    systemPrompt: string;
     userPrompt: string;
   };
   riskLimits: {                        // 风险限制

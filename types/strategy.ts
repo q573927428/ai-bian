@@ -139,7 +139,6 @@ export interface StatisticsConfig {
 
 // AI 提示词配置
 export interface AIPromptConfig {
-  systemPrompt: string;                // 系统提示词（固定部分）
   userPrompt: string;                  // 用户提示词（交易逻辑）
   temperature: number;                 // AI 温度 (0-1)
   maxTokens: number;                   // 最大token数

@@ -121,14 +121,6 @@
             <span>4. AI 交易逻辑提示词</span>
           </div>
         </template>
-        <el-form-item label="系统提示词">
-          <el-input
-            v-model="form.aiPrompt.systemPrompt"
-            type="textarea"
-            :rows="4"
-            placeholder="你是一个专业的交易分析师..."
-          />
-        </el-form-item>
         <el-form-item label="用户交易逻辑">
           <el-input
             v-model="form.aiPrompt.userPrompt"
@@ -303,7 +295,6 @@ const form = reactive<CreateStrategyInput>({
   indicators: [],
   statistics: [],
   aiPrompt: {
-    systemPrompt: '你是一个专业的加密货币交易分析师。请根据提供的技术指标和市场数据，给出明确的交易信号。',
     userPrompt: '请分析当前市场趋势，当技术指标显示明确的方向时给出开仓建议。\n\n要求：\n1. 趋势明确时才给出信号\n2. 严格控制风险\n3. 返回JSON格式：{direction: "long/short", confidence: 0-100, reasoning: "理由"}',
     temperature: 0.7,
     maxTokens: 2000,

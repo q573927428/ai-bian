@@ -348,7 +348,7 @@ export class StrategyEngine {
     instance: StrategyInstance,
     strategyId: StrategyId,
     symbol: string,
-    promptConfig: { systemPrompt: string; userPrompt: string; temperature: number; maxTokens: number; model: string },
+     promptConfig: { userPrompt: string; temperature: number; maxTokens: number; model: string },
     indicatorsData: Map<string, any>
   ): Promise<TradeSignal | null> {
     try {
@@ -364,14 +364,6 @@ export class StrategyEngine {
 
       // 获取当前价格
       const price = await this.binance.fetchPrice(symbol)
-
-      // 构建提示词
-      const fullPrompt = this.buildAIPrompt(
-        promptConfig,
-        symbol,
-        price,
-        indicatorsData
-      )
 
       // 调用 AI API（复用现有的 analyzeMarketWithAI 函数）
       // 从指标数据中提取所需参数（主时间框架取第一个配置的时间周期
@@ -470,14 +462,12 @@ export class StrategyEngine {
    * 构建 AI 提示词
    */
   private buildAIPrompt(
-    promptConfig: { systemPrompt: string; userPrompt: string },
+    promptConfig: { userPrompt: string },
     symbol: string,
     price: number,
     indicatorsData: Map<string, any>
   ): string {
     return `
-${promptConfig.systemPrompt}
-
 ## 当前市场数据
 交易对: ${symbol}
 价格: ${price}

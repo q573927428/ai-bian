@@ -168,9 +168,7 @@ export class MultiStrategyAIAnalyzer {
   - "reasoning" 必须引用提供的具体数值（如：RSI 数值、EMA 排列情况），严禁使用模糊描述。
   - 若判断为 IDLE，confidence 不得高于 20。`
 
-    return `
-${promptConfig.systemPrompt}
-
+     return `
 ## 当前市场数据
  交易对: ${symbol}
  价格: ${(price ?? 0).toFixed(4)}
