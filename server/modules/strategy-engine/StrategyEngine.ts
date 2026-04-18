@@ -198,7 +198,7 @@ export class StrategyEngine {
    * 启动策略循环
    */
   private startStrategyLoop(instance: StrategyInstance): void {
-    const MIN_INTERVAL = 600 // 最小间隔 300 秒
+    const MIN_INTERVAL = 300 // 最小间隔 300 秒
     
     let intervalSeconds = instance.strategy.executionConfig.scanInterval
     
