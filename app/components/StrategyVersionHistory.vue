@@ -14,7 +14,7 @@
             <span class="changes">{{ version.changes }}</span>
           </div>
           <div class="version-actions">
-            <el-button size="small" @click="handleRollback(version.version)">
+            <el-button size="small" @click="showRollbackConfirmDialog(version)">
               回滚到此版本
             </el-button>
             <el-button size="small" @click="viewSnapshot(version.version)">
@@ -26,16 +26,31 @@
     </el-timeline>
 
     <!-- 配置快照对话框 -->
-    <el-dialog v-model="showSnapshotDialog" title="策略配置快照" width="70%">
+    <el-dialog v-model="showSnapshotDialog" title="策略配置快照" width="70%" append-to-body>
       <pre class="snapshot-content">{{ JSON.stringify(snapshot, null, 2) }}</pre>
+    </el-dialog>
+
+    <!-- 回滚确认对话框 -->
+    <el-dialog
+      v-model="showRollbackConfirm"
+      title="确认回滚"
+      width="400px"
+      append-to-body
+      :close-on-click-modal="false"
+    >
+      <div style="text-align: center; padding: 20px 0;">
+        <p>确定要回滚到版本 v{{ confirmRollbackVersion }} 吗？</p>
+      </div>
+      <template #footer>
+        <el-button @click="showRollbackConfirm = false">取消</el-button>
+        <el-button type="primary" @click="handleRollback" :loading="rollingBack">确认回滚</el-button>
+      </template>
     </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
-import type { AnyRecord } from 'node:dns';
 
 const props = defineProps<{
   strategyId: string
@@ -45,6 +60,15 @@ const versions = ref<any[]>([])
 const loading = ref(false)
 const showSnapshotDialog = ref(false)
 const snapshot = ref<any>(null)
+const showRollbackConfirm = ref(false)
+const confirmRollbackVersion = ref<number | null>(null)
+const rollingBack = ref(false)
+
+// 显示回滚确认对话框
+const showRollbackConfirmDialog = (version: any) => {
+  confirmRollbackVersion.value = version.version
+  showRollbackConfirm.value = true
+}
 
 // 加载版本历史
 const loadVersions = async () => {
@@ -60,25 +84,23 @@ const loadVersions = async () => {
 }
 
 // 回滚版本
-const handleRollback = async (version: number) => {
+const handleRollback = async () => {
+  if (!confirmRollbackVersion.value) return
+  
   try {
-    await ElMessageBox.confirm(
-      `确定要回滚到版本 v${version} 吗？`,
-      '确认回滚',
-      { type: 'warning' }
-    )
-
+    rollingBack.value = true
     await $fetch(`/api/strategies/${props.strategyId}/rollback`, {
       method: 'POST',
-      body: { targetVersion: version }
+      body: { targetVersion: confirmRollbackVersion.value }
     })
 
     ElMessage.success('策略已回滚')
+    showRollbackConfirm.value = false
     await loadVersions()
   } catch (error: any) {
-    if (error !== 'cancel') {
-      ElMessage.error(`回滚失败: ${error.message}`)
-    }
+    ElMessage.error(`回滚失败: ${error.message}`)
+  } finally {
+    rollingBack.value = false
   }
 }
 

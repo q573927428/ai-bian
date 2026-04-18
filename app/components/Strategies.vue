@@ -106,7 +106,7 @@
     </el-dialog>
 
     <!-- 版本历史对话框 -->
-    <el-dialog v-model="showVersionHistoryDialog" title="版本历史" width="60%">
+    <el-dialog v-model="showVersionHistoryDialog" title="版本历史" width="60%" append-to-body>
       <StrategyVersionHistory
         v-if="showVersionHistoryDialog && viewingStrategy"
         :strategy-id="viewingStrategy.id"
