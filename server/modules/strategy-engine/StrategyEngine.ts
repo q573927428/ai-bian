@@ -459,44 +459,6 @@ export class StrategyEngine {
   }
 
   /**
-   * 构建 AI 提示词
-   */
-  private buildAIPrompt(
-    promptConfig: { userPrompt: string },
-    symbol: string,
-    price: number,
-    indicatorsData: Map<string, any>
-  ): string {
-    return `
-## 当前市场数据
-交易对: ${symbol}
-价格: ${price}
-时间: ${new Date().toISOString()}
-
-## 技术指标
-${this.formatIndicators(indicatorsData)}
-
-## 交易逻辑
-${promptConfig.userPrompt}
-
-请返回 JSON 格式的交易信号。
-`
-  }
-
-  /**
-   * 格式化指标数据
-   */
-  private formatIndicators(indicatorsData: Map<string, any>): string {
-    const lines: string[] = []
-
-    for (const [key, value] of indicatorsData) {
-      lines.push(`${key}: ${JSON.stringify(value)}`)
-    }
-
-    return lines.join('\n')
-  }
-
-  /**
    * 计算止损价
    */
   private calculateStopLoss(price: number, direction: 'long' | 'short'): number {
