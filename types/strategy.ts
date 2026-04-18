@@ -27,6 +27,11 @@ export interface TimeframeData {
     slow: number;
   };
   rsi?: number;
+  macd?: {
+    macd: number;
+    signal: number;
+    histogram: number;
+  };
   adx?: number;
   adxSlope?: number;
   atr?: number;

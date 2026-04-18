@@ -1,6 +1,6 @@
 // ==================== 指标统一获取与缓存中心 ====================
 
-import { EMA, RSI, ADX, ATR } from 'technicalindicators'
+import { EMA, RSI, ADX, ATR, MACD } from 'technicalindicators'
 import type {
   IndicatorData,
   Timeframe,
@@ -56,7 +56,7 @@ export class IndicatorsHub {
   private readonly ALL_TIMEFRAMES: Timeframe[] = ['5m', '15m', '1h', '4h', '1d']
 
   // 常用指标类型
-  private readonly ALL_INDICATORS: IndicatorType[] = ['EMA', 'RSI', 'ATR', 'ADX']
+  private readonly ALL_INDICATORS: IndicatorType[] = ['EMA', 'RSI', 'MACD', 'ATR', 'ADX']
   private readonly ALL_STATISTICS: StatisticsType[] = ['OI', 'Volume']
 
   // K线数据TTL（毫秒）
@@ -485,6 +485,32 @@ export class IndicatorsHub {
           })
         } catch (e) {
           // 忽略 RSI 计算错误
+        }
+
+        // MACD (默认参数: fast=12, slow=26, signal=9)
+        try {
+          const macdValues = MACD.calculate({
+            values: closes,
+            fastPeriod: 12,
+            slowPeriod: 26,
+            signalPeriod: 9,
+            SimpleMAOscillator: false,
+            SimpleMASignal: false
+          })
+          const lastMACD = macdValues[macdValues.length - 1]
+          const macdCacheKey = `${symbol}_${timeframe}_MACD`
+          symbolData.indicators.set(macdCacheKey, {
+            symbol,
+            timeframe,
+            timestamp: Date.now(),
+            values: {
+              macd: lastMACD?.MACD ?? 0,
+              signal: lastMACD?.signal ?? 0,
+              histogram: lastMACD?.histogram ?? 0
+            }
+          })
+        } catch (e) {
+          // 忽略 MACD 计算错误
         }
 
         // ATR (14)

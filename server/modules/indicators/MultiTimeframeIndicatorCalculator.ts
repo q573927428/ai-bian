@@ -155,6 +155,20 @@ export class MultiTimeframeIndicatorCalculator {
         logger.info('MultiTimeframeIndicatorCalculator', `${symbol} ${timeframe} RSI获取失败`)
       }
 
+      // 获取MACD指标
+      try {
+        const macdData = await this.indicatorsHub.getIndicators(symbol, timeframe, 'MACD')
+        if (macdData.values.macd !== undefined && macdData.values.signal !== undefined && macdData.values.histogram !== undefined) {
+          timeframeData.macd = {
+            macd: macdData.values.macd,
+            signal: macdData.values.signal,
+            histogram: macdData.values.histogram
+          }
+        }
+      } catch (error) {
+        logger.info('MultiTimeframeIndicatorCalculator', `${symbol} ${timeframe} MACD获取失败`)
+      }
+
       // 获取ADX指标
       try {
         const adxData = await this.indicatorsHub.getIndicators(symbol, timeframe, 'ADX')
