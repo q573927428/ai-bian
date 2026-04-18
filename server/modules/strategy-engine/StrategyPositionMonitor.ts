@@ -61,7 +61,7 @@ export class StrategyPositionMonitor {
       })
     }, this.MONITOR_INTERVAL)
 
-    logger.success('持仓监控', '持仓监控已启动')
+    // logger.success('持仓监控', '持仓监控已启动')
   }
 
   /**

@@ -837,7 +837,7 @@ export class IndicatorsHub {
     })
 
     this.subscribedEventEmitters.add(eventEmitter)
-    logger.info('IndicatorsHub', '已订阅K线数据更新事件')
+    // logger.info('IndicatorsHub', '已订阅K线数据更新事件')
   }
 
   /**

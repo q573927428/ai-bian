@@ -44,7 +44,7 @@ export async function initStrategyManager(): Promise<StrategyManager> {
     if (syncService) {
       const eventEmitter = syncService.getEventEmitter()
       indicatorsHub.subscribeToKLineUpdates(eventEmitter)
-      logger.success('StrategyManager', '已连接K线同步服务与指标中心')
+      // logger.success('StrategyManager', '已连接K线同步服务与指标中心')
     } else {
       logger.warn('StrategyManager', 'K线同步服务尚未初始化，无法连接事件')
     }

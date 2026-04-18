@@ -248,7 +248,7 @@ function registerApiEndpoints(nitroApp: NitroApp): void {
     }
   }))
   
-  console.log('✅ K线同步服务API端点已注册')
+  // console.log('✅ K线同步服务API端点已注册')
 }
 
 /**

@@ -141,7 +141,7 @@ export class StrategyEngine {
       return
     }
 
-    logger.info('StrategyEngine', `启动策略: ${strategy.name} (${strategyId})`)
+    // logger.info('StrategyEngine', `启动策略: ${strategy.name} (${strategyId})`)
 
     // 创建策略实例
     const instance: StrategyInstance = {
