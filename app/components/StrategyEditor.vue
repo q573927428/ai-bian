@@ -208,7 +208,7 @@
         <el-row :gutter="20">
           <el-col :span="8">
             <el-form-item label="扫描间隔(秒)">
-              <el-input-number v-model="form.executionConfig.scanInterval" :min="180" :max="600" :step="30" />
+              <el-input-number v-model="form.executionConfig.scanInterval" :min="600" :max="6000" :step="60" />
             </el-form-item>
           </el-col>
           <el-col :span="8">
