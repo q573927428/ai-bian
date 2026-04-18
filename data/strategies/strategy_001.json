@@ -4,17 +4,21 @@
   "description": "策略001描述",
   "version": 1,
   "createdAt": "2026-04-16T10:07:46.270Z",
-  "updatedAt": "2026-04-16T10:07:57.290Z",
+  "updatedAt": "2026-04-18T12:25:36.647Z",
   "isActive": true,
   "marketData": {
     "symbols": [
       "SOL/USDT",
-      "BNB/USDT"
+      "BNB/USDT",
+      "BTC/USDT",
+      "ETH/USDT",
+      "DOGE/USDT",
+      "HYPE/USDT"
     ],
     "timeframes": [
       "1h",
       "4h",
-      "1d"
+      "15m"
     ],
     "klineLimit": 300
   },
@@ -24,15 +28,15 @@
       "type": "EMA",
       "params": {
         "periods": [
-          14,
-          60,
-          120
+          120,
+          20,
+          50
         ]
       },
       "timeframes": [
         "1h",
         "4h",
-        "1d"
+        "15m"
       ],
       "enabled": true
     },
@@ -45,25 +49,12 @@
       "timeframes": [
         "1h",
         "4h",
-        "1d"
+        "15m"
       ],
       "enabled": true
     },
     {
       "id": "3",
-      "type": "ATR",
-      "params": {
-        "period": 14
-      },
-      "timeframes": [
-        "1h",
-        "4h",
-        "1d"
-      ],
-      "enabled": true
-    },
-    {
-      "id": "4",
       "type": "ADX",
       "params": {
         "period": 14
@@ -71,7 +62,35 @@
       "timeframes": [
         "1h",
         "4h",
-        "1d"
+        "15m"
+      ],
+      "enabled": true
+    },
+    {
+      "id": "4",
+      "type": "MACD",
+      "params": {
+        "fastPeriod": 12,
+        "slowPeriod": 26,
+        "signalPeriod": 9
+      },
+      "timeframes": [
+        "1h",
+        "4h",
+        "15m"
+      ],
+      "enabled": true
+    },
+    {
+      "id": "5",
+      "type": "ATR",
+      "params": {
+        "period": 14
+      },
+      "timeframes": [
+        "1h",
+        "4h",
+        "15m"
       ],
       "enabled": true
     }
@@ -112,7 +131,7 @@
     "maxRiskPercentage": 10,
     "stopLossATRMultiplier": 2.5,
     "takeProfitRatios": [
-      2.5,
+      2,
       3.5
     ],
     "maxDailyTrades": 5,
