@@ -50,15 +50,20 @@
             <el-option label="BNB/USDT" value="BNB/USDT" />
           </el-select>
         </el-form-item>
-        <el-form-item label="K线周期">
-          <el-checkbox-group v-model="form.marketData.timeframes">
-            <el-checkbox label="5m">5分钟</el-checkbox>
-            <el-checkbox label="15m">15分钟</el-checkbox>
-            <el-checkbox label="1h">1小时</el-checkbox>
-            <el-checkbox label="4h">4小时</el-checkbox>
-            <el-checkbox label="1d">1天</el-checkbox>
-          </el-checkbox-group>
-        </el-form-item>
+         <el-form-item label="K线周期">
+           <el-checkbox-group 
+             v-model="form.marketData.timeframes" 
+             :min="1" 
+             :max="3"
+           >
+             <el-checkbox label="5m">5分钟</el-checkbox>
+             <el-checkbox label="15m">15分钟</el-checkbox>
+             <el-checkbox label="1h">1小时</el-checkbox>
+             <el-checkbox label="4h">4小时</el-checkbox>
+             <el-checkbox label="1d">1天</el-checkbox>
+           </el-checkbox-group>
+           <div class="form-tip">最少选择1个周期，最多选择3个周期</div>
+         </el-form-item>
         <el-form-item label="K线数量">
           <el-input-number v-model="form.marketData.klineLimit" :min="100" :max="1000" :step="50" />
         </el-form-item>
@@ -277,6 +282,15 @@ const emit = defineEmits<{
 
 const saving = ref(false)
 
+// 周期优先级（从短到长）
+const timeframePriority: Record<string, number> = {
+  '5m': 1,
+  '15m': 2,
+  '1h': 3,
+  '4h': 4,
+  '1d': 5
+}
+
 // 多选变量
 const selectedIndicators = ref<string[]>(['EMA', 'RSI', 'ADX', 'ATR'])
 const emaPeriods = ref<number[]>([14, 60, 120])
@@ -374,6 +388,21 @@ watch([selectedIndicators, emaPeriods, () => form.marketData.timeframes], () => 
   }
 
   form.indicators = newIndicators
+}, { immediate: true, deep: true })
+
+// 周期排序监听器：确保周期按从短到长排列
+watch(() => form.marketData.timeframes, (newTimeframes) => {
+  if (newTimeframes && newTimeframes.length > 0) {
+    // 按优先级从短到长排序
+    const sortedTimeframes = [...newTimeframes].sort((a, b) => 
+      (timeframePriority[a] || 99) - (timeframePriority[b] || 99)
+    )
+    // 只有当顺序变化时才更新（避免无限循环）
+    const orderChanged = newTimeframes.some((tf, i) => tf !== sortedTimeframes[i])
+    if (orderChanged) {
+      form.marketData.timeframes = sortedTimeframes
+    }
+  }
 }, { immediate: true, deep: true })
 
 // 同步 statistics 数据
@@ -475,5 +504,11 @@ const handleSave = async () => {
   margin-top: 20px;
   padding: 20px 0;
   border-top: 1px solid #ebeef5;
+}
+
+.form-tip {
+  margin-top: 5px;
+  font-size: 12px;
+  color: #909399;
 }
 </style>
