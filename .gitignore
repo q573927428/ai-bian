@@ -16,7 +16,6 @@ logs
 # json 交易对K线数据 
 data/kline-simple/
 data/ai-analysis/
-data/bot-state.json
 data/strategy-analysis.json
 data/trade-history.json
 data/ai-learning-result.json

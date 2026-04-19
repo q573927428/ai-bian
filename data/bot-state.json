@@ -1,0 +1,13 @@
+{
+  "status": "MONITORING",
+  "circuitBreaker": {
+    "isTriggered": false,
+    "reason": "",
+    "timestamp": 0,
+    "dailyLoss": 0,
+    "consecutiveLosses": 0
+  },
+  "dailyPnL": 0,
+  "isRunning": true,
+  "lastTradeTime": 0
+}
