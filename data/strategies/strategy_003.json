@@ -1,9 +1,9 @@
 {
-  "id": "strategy_002",
-  "name": "策略02",
+  "id": "strategy_003",
+  "name": "策略03",
   "version": 1,
-  "createdAt": "2026-04-19T16:06:46.003Z",
-  "updatedAt": "2026-04-19T16:19:08.568Z",
+  "createdAt": "2026-04-19T16:14:17.182Z",
+  "updatedAt": "2026-04-19T16:19:10.398Z",
   "isActive": true,
   "marketData": {
     "symbols": [
@@ -11,14 +11,12 @@
       "ETH/USDT",
       "SOL/USDT",
       "DOGE/USDT",
-      "HYPE/USDT",
-      "XAU/USDT",
-      "XAG/USDT",
-      "BNB/USDT"
+      "HYPE/USDT"
     ],
     "timeframes": [
-      "15m",
-      "1h"
+      "1h",
+      "4h",
+      "1d"
     ]
   },
   "indicators": [
@@ -28,42 +26,32 @@
       "params": {
         "periods": [
           120,
-          20,
-          50
+          50,
+          200
         ]
       },
       "timeframes": [
-        "15m",
-        "1h"
+        "1h",
+        "4h",
+        "1d"
       ],
       "enabled": true
     },
     {
       "id": "2",
-      "type": "RSI",
-      "params": {
-        "period": 14
-      },
-      "timeframes": [
-        "15m",
-        "1h"
-      ],
-      "enabled": true
-    },
-    {
-      "id": "3",
       "type": "ADX",
       "params": {
         "period": 14
       },
       "timeframes": [
-        "15m",
-        "1h"
+        "1h",
+        "4h",
+        "1d"
       ],
       "enabled": true
     },
     {
-      "id": "4",
+      "id": "3",
       "type": "MACD",
       "params": {
         "fastPeriod": 12,
@@ -71,20 +59,9 @@
         "signalPeriod": 9
       },
       "timeframes": [
-        "15m",
-        "1h"
-      ],
-      "enabled": true
-    },
-    {
-      "id": "5",
-      "type": "ATR",
-      "params": {
-        "period": 14
-      },
-      "timeframes": [
-        "15m",
-        "1h"
+        "1h",
+        "4h",
+        "1d"
       ],
       "enabled": true
     }
@@ -101,44 +78,33 @@
         "1h"
       ],
       "enabled": true
-    },
-    {
-      "id": "6",
-      "type": "Volume",
-      "params": {
-        "comparePeriod": 20
-      },
-      "timeframes": [
-        "1h"
-      ],
-      "enabled": true
     }
   ],
   "aiPrompt": {
-    "userPrompt": "你是一个理性的中短线交易员，追求稳定胜率和趋势交易机会。\n\n请重点分析：\n\n1. 趋势方向（EMA20/50/120排列）\n   - 多头：20 > 50 > 120\n   - 空头：20 < 50 < 120\n\n2. 趋势强度（ADX）\n   - ADX > 20：趋势有效\n   - ADX > 25：趋势较强\n   - ADX < 20：震荡，避免交易\n\n3. 回调入场机会\n   - 多头趋势中价格回踩EMA20或50\n   - 空头趋势中价格反弹至EMA20或50\n\n4. RSI辅助判断\n   - 多头：RSI不应过高（<70）\n   - 空头：RSI不应过低（>30）\n\n5. OI资金确认\n   - 趋势方向 + OI增加 → 强确认\n   - OI减少 → 警惕假突破\n\n交易原则：\n- 只做顺势单，不做逆势抄底/摸顶\n- 趋势不明确（EMA缠绕 / ADX低）直接IDLE\n- 必须有“趋势 + 回调 + 资金确认”三要素\n\n否则返回IDLE。",
+    "userPrompt": "你是一个保守型趋势交易员，目标是捕捉中长线趋势，避免频繁交易。\n\n请重点分析：\n\n1. 大趋势方向（EMA50/120/200）\n   - 多头趋势：价格在EMA120上方，且EMA多头排列\n   - 空头趋势：价格在EMA120下方，且EMA空头排列\n\n2. 趋势强度（ADX）\n   - ADX > 25：趋势成立\n   - ADX > 30：强趋势优先考虑入场\n   - ADX < 20：绝不交易\n\n3. MACD确认趋势延续\n   - 多头：MACD > Signal 且 Histogram为正\n   - 空头：MACD < Signal 且 Histogram为负\n\n4. OI判断主力行为\n   - 趋势方向 + OI持续增加 → 强趋势\n   - OI下降 → 可能趋势结束\n\n5. 风险控制\n   - 不追高，不抄底\n   - 只在趋势明确且回调确认后考虑入场\n\n只有在“趋势明确 + 强度足够 + 资金支持”的情况下才给出LONG或SHORT。\n\n否则一律返回IDLE。",
     "temperature": 0.5,
     "maxTokens": 2000,
     "model": "deepseek-chat"
   },
   "riskManagement": {
     "maxRiskPercentage": 10,
-    "stopLossATRMultiplier": 2.2,
+    "stopLossATRMultiplier": 3,
     "takeProfitRatios": [
-      2,
-      3
+      2.5,
+      4
     ],
-    "maxDailyTrades": 5,
+    "maxDailyTrades": 2,
     "maxDailyLoss": 10,
-    "maxHoldTimeMinutes": 360,
+    "maxHoldTimeMinutes": 1440,
     "trailingStop": {
       "enabled": true,
-      "activationRatio": 1,
-      "trailDistance": 1.2,
+      "activationRatio": 1.5,
+      "trailDistance": 1.5,
       "minMoveDistance": 0.16
     }
   },
   "executionConfig": {
-    "scanInterval": 600,
+    "scanInterval": 1200,
     "leverage": 3,
     "marginMode": "cross",
     "positionMode": "one-way"
@@ -146,14 +112,14 @@
   "versionHistory": [
     {
       "version": 1,
-      "updatedAt": "2026-04-19T16:06:46.003Z",
+      "updatedAt": "2026-04-19T16:14:17.182Z",
       "changes": "初始版本创建",
       "snapshot": {
-        "id": "strategy_002",
-        "name": "策略02",
+        "id": "strategy_003",
+        "name": "策略03",
         "version": 1,
-        "createdAt": "2026-04-19T16:06:46.003Z",
-        "updatedAt": "2026-04-19T16:06:46.003Z",
+        "createdAt": "2026-04-19T16:14:17.182Z",
+        "updatedAt": "2026-04-19T16:14:17.182Z",
         "isActive": false,
         "marketData": {
           "symbols": [
@@ -167,8 +133,9 @@
             "BNB/USDT"
           ],
           "timeframes": [
-            "15m",
-            "1h"
+            "1h",
+            "4h",
+            "1d"
           ]
         },
         "indicators": [
@@ -178,42 +145,32 @@
             "params": {
               "periods": [
                 120,
-                20,
-                50
+                50,
+                60
               ]
             },
             "timeframes": [
-              "15m",
-              "1h"
+              "1h",
+              "4h",
+              "1d"
             ],
             "enabled": true
           },
           {
             "id": "2",
-            "type": "RSI",
-            "params": {
-              "period": 14
-            },
-            "timeframes": [
-              "15m",
-              "1h"
-            ],
-            "enabled": true
-          },
-          {
-            "id": "3",
             "type": "ADX",
             "params": {
               "period": 14
             },
             "timeframes": [
-              "15m",
-              "1h"
+              "1h",
+              "4h",
+              "1d"
             ],
             "enabled": true
           },
           {
-            "id": "4",
+            "id": "3",
             "type": "MACD",
             "params": {
               "fastPeriod": 12,
@@ -221,20 +178,9 @@
               "signalPeriod": 9
             },
             "timeframes": [
-              "15m",
-              "1h"
-            ],
-            "enabled": true
-          },
-          {
-            "id": "5",
-            "type": "ATR",
-            "params": {
-              "period": 14
-            },
-            "timeframes": [
-              "15m",
-              "1h"
+              "1h",
+              "4h",
+              "1d"
             ],
             "enabled": true
           }
@@ -251,51 +197,40 @@
               "1h"
             ],
             "enabled": true
-          },
-          {
-            "id": "6",
-            "type": "Volume",
-            "params": {
-              "comparePeriod": 20
-            },
-            "timeframes": [
-              "1h"
-            ],
-            "enabled": true
           }
         ],
         "aiPrompt": {
-          "userPrompt": "你是一个理性的中短线交易员，追求稳定胜率和趋势交易机会。\n\n请重点分析：\n\n1. 趋势方向（EMA20/50/120排列）\n   - 多头：20 > 50 > 120\n   - 空头：20 < 50 < 120\n\n2. 趋势强度（ADX）\n   - ADX > 20：趋势有效\n   - ADX > 25：趋势较强\n   - ADX < 20：震荡，避免交易\n\n3. 回调入场机会\n   - 多头趋势中价格回踩EMA20或50\n   - 空头趋势中价格反弹至EMA20或50\n\n4. RSI辅助判断\n   - 多头：RSI不应过高（<70）\n   - 空头：RSI不应过低（>30）\n\n5. OI资金确认\n   - 趋势方向 + OI增加 → 强确认\n   - OI减少 → 警惕假突破\n\n交易原则：\n- 只做顺势单，不做逆势抄底/摸顶\n- 趋势不明确（EMA缠绕 / ADX低）直接IDLE\n- 必须有“趋势 + 回调 + 资金确认”三要素\n\n否则返回IDLE。",
+          "userPrompt": "你是一个保守型趋势交易员，目标是捕捉中长线趋势，避免频繁交易。\n\n请重点分析：\n\n1. 大趋势方向（EMA50/120/200）\n   - 多头趋势：价格在EMA120上方，且EMA多头排列\n   - 空头趋势：价格在EMA120下方，且EMA空头排列\n\n2. 趋势强度（ADX）\n   - ADX > 25：趋势成立\n   - ADX > 30：强趋势优先考虑入场\n   - ADX < 20：绝不交易\n\n3. MACD确认趋势延续\n   - 多头：MACD > Signal 且 Histogram为正\n   - 空头：MACD < Signal 且 Histogram为负\n\n4. OI判断主力行为\n   - 趋势方向 + OI持续增加 → 强趋势\n   - OI下降 → 可能趋势结束\n\n5. 风险控制\n   - 不追高，不抄底\n   - 只在趋势明确且回调确认后考虑入场\n\n只有在“趋势明确 + 强度足够 + 资金支持”的情况下才给出LONG或SHORT。\n\n否则一律返回IDLE。",
           "temperature": 0.5,
           "maxTokens": 2000,
           "model": "deepseek-chat"
         },
         "riskManagement": {
           "maxRiskPercentage": 10,
-          "stopLossATRMultiplier": 2.2,
+          "stopLossATRMultiplier": 3,
           "takeProfitRatios": [
-            2,
-            3
+            2.5,
+            4
           ],
-          "maxDailyTrades": 5,
+          "maxDailyTrades": 2,
           "maxDailyLoss": 10,
-          "maxHoldTimeMinutes": 360,
+          "maxHoldTimeMinutes": 1440,
           "trailingStop": {
             "enabled": true,
-            "activationRatio": 1,
-            "trailDistance": 1.2,
+            "activationRatio": 1.5,
+            "trailDistance": 1.5,
             "minMoveDistance": 0.16
           }
         },
         "executionConfig": {
-          "scanInterval": 600,
+          "scanInterval": 1200,
           "leverage": 3,
           "marginMode": "cross",
           "positionMode": "one-way"
         },
         "versionHistory": [],
         "performance": {
-          "strategyId": "strategy_002",
+          "strategyId": "strategy_003",
           "totalTrades": 0,
           "totalWins": 0,
           "totalLosses": 0,
@@ -314,7 +249,7 @@
           "consecutiveLosses": 0,
           "maxConsecutiveWins": 0,
           "maxConsecutiveLosses": 0,
-          "updatedAt": "2026-04-19T16:06:46.003Z"
+          "updatedAt": "2026-04-19T16:14:17.182Z"
         },
         "tradeRecords": [],
         "sessions": []
@@ -322,7 +257,7 @@
     }
   ],
   "performance": {
-    "strategyId": "strategy_002",
+    "strategyId": "strategy_003",
     "totalTrades": 0,
     "totalWins": 0,
     "totalLosses": 0,
@@ -341,7 +276,7 @@
     "consecutiveLosses": 0,
     "maxConsecutiveWins": 0,
     "maxConsecutiveLosses": 0,
-    "updatedAt": "2026-04-19T16:06:46.003Z"
+    "updatedAt": "2026-04-19T16:14:17.182Z"
   },
   "tradeRecords": [],
   "sessions": [],

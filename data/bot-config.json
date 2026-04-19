@@ -10,7 +10,7 @@
     "BNB/USDT"
   ],
   "indicatorsConfig": {
-    "requiredCandles": 300,
+    "requiredCandles": 500,
     "adxSlopePeriod": 3
   },
   "aiCacheTtlMinutes": 10

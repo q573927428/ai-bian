@@ -85,6 +85,7 @@
             <el-checkbox :label="50">50</el-checkbox>
             <el-checkbox :label="60">60</el-checkbox>
             <el-checkbox :label="120">120</el-checkbox>
+            <el-checkbox :label="200">200</el-checkbox>
           </el-checkbox-group>
         </el-form-item>
       </el-card>

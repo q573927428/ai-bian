@@ -1,22 +1,24 @@
 {
   "id": "strategy_001",
-  "name": "策略001",
+  "name": "策略01",
   "version": 1,
-  "createdAt": "2026-04-16T10:07:46.270Z",
-  "updatedAt": "2026-04-18T15:44:48.893Z",
+  "createdAt": "2026-04-19T16:03:49.383Z",
+  "updatedAt": "2026-04-19T16:19:06.638Z",
   "isActive": true,
   "marketData": {
     "symbols": [
-      "SOL/USDT",
-      "BNB/USDT",
       "BTC/USDT",
       "ETH/USDT",
+      "SOL/USDT",
       "DOGE/USDT",
-      "HYPE/USDT"
+      "HYPE/USDT",
+      "XAU/USDT",
+      "XAG/USDT",
+      "BNB/USDT"
     ],
     "timeframes": [
-      "1h",
-      "4h"
+      "5m",
+      "15m"
     ]
   },
   "indicators": [
@@ -25,15 +27,14 @@
       "type": "EMA",
       "params": {
         "periods": [
-          120,
           20,
-          50,
-          20
+          7,
+          50
         ]
       },
       "timeframes": [
-        "4h",
-        "1h"
+        "15m",
+        "5m"
       ],
       "enabled": true
     },
@@ -44,46 +45,20 @@
         "period": 14
       },
       "timeframes": [
-        "4h",
-        "1h"
+        "15m",
+        "5m"
       ],
       "enabled": true
     },
     {
       "id": "3",
-      "type": "ADX",
-      "params": {
-        "period": 14
-      },
-      "timeframes": [
-        "4h",
-        "1h"
-      ],
-      "enabled": true
-    },
-    {
-      "id": "4",
-      "type": "MACD",
-      "params": {
-        "fastPeriod": 12,
-        "slowPeriod": 26,
-        "signalPeriod": 9
-      },
-      "timeframes": [
-        "4h",
-        "1h"
-      ],
-      "enabled": true
-    },
-    {
-      "id": "5",
       "type": "ATR",
       "params": {
         "period": 14
       },
       "timeframes": [
-        "4h",
-        "1h"
+        "15m",
+        "5m"
       ],
       "enabled": true
     }
@@ -114,25 +89,25 @@
     }
   ],
   "aiPrompt": {
-    "userPrompt": "请分析当前市场趋势，当技术指标显示明确的方向时给出开仓建议。\n\n要求：\n1. 趋势明确时才给出信号\n2. 严格控制风险\n3. 返回JSON格式：{direction: \"long/short\", confidence: 0-100, reasoning: \"理由\"}",
-    "temperature": 0.7,
+    "userPrompt": "你是一个偏激进的短线交易员，目标是捕捉快速波动机会。\n\n请重点关注以下因素：\n1. EMA短期结构（7/20/50）是否形成多头或空头排列\n2. RSI是否处于超买或超卖区（>70 或 <30）\n3. 价格是否刚刚突破EMA关键线（20或50）\n4. OI是否同步增加（代表有新资金进场）\n5. 成交量是否放大（确认突破有效）\n\n做多条件偏好：\n- EMA多头排列（7 > 20 > 50）\n- RSI低位反弹（30~50区间向上）\n- OI增加 + 成交量放大\n\n做空条件偏好：\n- EMA空头排列（7 < 20 < 50）\n- RSI高位回落（50~70向下）\n- OI增加 + 成交量放大\n\n允许在信号不完全确认时提前入场，但必须说明风险。\n\n如果没有明显动量或结构混乱，返回IDLE。",
+    "temperature": 0.5,
     "maxTokens": 2000,
     "model": "deepseek-chat"
   },
   "riskManagement": {
-    "maxRiskPercentage": 10,
-    "stopLossATRMultiplier": 2.5,
+    "maxRiskPercentage": 20,
+    "stopLossATRMultiplier": 2,
     "takeProfitRatios": [
-      2,
-      3.5
+      1.5,
+      2.5
     ],
-    "maxDailyTrades": 5,
+    "maxDailyTrades": 8,
     "maxDailyLoss": 10,
-    "maxHoldTimeMinutes": 1440,
+    "maxHoldTimeMinutes": 120,
     "trailingStop": {
       "enabled": true,
-      "activationRatio": 1,
-      "trailDistance": 1.2,
+      "activationRatio": 0.8,
+      "trailDistance": 1,
       "minMoveDistance": 0.16
     }
   },
@@ -145,24 +120,29 @@
   "versionHistory": [
     {
       "version": 1,
-      "updatedAt": "2026-04-16T10:07:46.270Z",
+      "updatedAt": "2026-04-19T16:03:49.383Z",
       "changes": "初始版本创建",
       "snapshot": {
         "id": "strategy_001",
-        "name": "策略001",
+        "name": "策略01",
         "version": 1,
-        "createdAt": "2026-04-16T10:07:46.270Z",
-        "updatedAt": "2026-04-16T10:07:46.270Z",
+        "createdAt": "2026-04-19T16:03:49.383Z",
+        "updatedAt": "2026-04-19T16:03:49.383Z",
         "isActive": false,
         "marketData": {
           "symbols": [
+            "BTC/USDT",
+            "ETH/USDT",
             "SOL/USDT",
+            "DOGE/USDT",
+            "HYPE/USDT",
+            "XAU/USDT",
+            "XAG/USDT",
             "BNB/USDT"
           ],
           "timeframes": [
-            "1h",
-            "4h",
-            "1d"
+            "5m",
+            "15m"
           ]
         },
         "indicators": [
@@ -171,16 +151,14 @@
             "type": "EMA",
             "params": {
               "periods": [
-                5,
-                14,
-                60,
-                120
+                20,
+                7,
+                50
               ]
             },
             "timeframes": [
-              "1h",
-              "4h",
-              "1d"
+              "15m",
+              "5m"
             ],
             "enabled": true
           },
@@ -191,9 +169,8 @@
               "period": 14
             },
             "timeframes": [
-              "1h",
-              "4h",
-              "1d"
+              "15m",
+              "5m"
             ],
             "enabled": true
           },
@@ -204,22 +181,8 @@
               "period": 14
             },
             "timeframes": [
-              "1h",
-              "4h",
-              "1d"
-            ],
-            "enabled": true
-          },
-          {
-            "id": "4",
-            "type": "ADX",
-            "params": {
-              "period": 14
-            },
-            "timeframes": [
-              "1h",
-              "4h",
-              "1d"
+              "15m",
+              "5m"
             ],
             "enabled": true
           }
@@ -250,25 +213,25 @@
           }
         ],
         "aiPrompt": {
-          "userPrompt": "请分析当前市场趋势，当技术指标显示明确的方向时给出开仓建议。\n\n要求：\n1. 趋势明确时才给出信号\n2. 严格控制风险\n3. 返回JSON格式：{direction: \"long/short\", confidence: 0-100, reasoning: \"理由\"}",
-          "temperature": 0.7,
+          "userPrompt": "你是一个偏激进的短线交易员，目标是捕捉快速波动机会。\n\n请重点关注以下因素：\n1. EMA短期结构（7/20/50）是否形成多头或空头排列\n2. RSI是否处于超买或超卖区（>70 或 <30）\n3. 价格是否刚刚突破EMA关键线（20或50）\n4. OI是否同步增加（代表有新资金进场）\n5. 成交量是否放大（确认突破有效）\n\n做多条件偏好：\n- EMA多头排列（7 > 20 > 50）\n- RSI低位反弹（30~50区间向上）\n- OI增加 + 成交量放大\n\n做空条件偏好：\n- EMA空头排列（7 < 20 < 50）\n- RSI高位回落（50~70向下）\n- OI增加 + 成交量放大\n\n允许在信号不完全确认时提前入场，但必须说明风险。\n\n如果没有明显动量或结构混乱，返回IDLE。",
+          "temperature": 0.5,
           "maxTokens": 2000,
           "model": "deepseek-chat"
         },
         "riskManagement": {
-          "maxRiskPercentage": 10,
-          "stopLossATRMultiplier": 2.5,
+          "maxRiskPercentage": 20,
+          "stopLossATRMultiplier": 2,
           "takeProfitRatios": [
-            2.5,
-            3.5
+            1.5,
+            2.5
           ],
-          "maxDailyTrades": 5,
+          "maxDailyTrades": 8,
           "maxDailyLoss": 10,
-          "maxHoldTimeMinutes": 1440,
+          "maxHoldTimeMinutes": 120,
           "trailingStop": {
             "enabled": true,
-            "activationRatio": 1,
-            "trailDistance": 1.2,
+            "activationRatio": 0.8,
+            "trailDistance": 1,
             "minMoveDistance": 0.16
           }
         },
@@ -299,7 +262,7 @@
           "consecutiveLosses": 0,
           "maxConsecutiveWins": 0,
           "maxConsecutiveLosses": 0,
-          "updatedAt": "2026-04-16T10:07:46.270Z"
+          "updatedAt": "2026-04-19T16:03:49.383Z"
         },
         "tradeRecords": [],
         "sessions": []
@@ -308,26 +271,27 @@
   ],
   "performance": {
     "strategyId": "strategy_001",
-    "totalTrades": 3,
-    "totalWins": 3,
+    "totalTrades": 0,
+    "totalWins": 0,
     "totalLosses": 0,
-    "winRate": 100,
-    "totalProfit": 1.4855799999999708,
+    "winRate": 0,
+    "totalProfit": 0,
     "totalLoss": 0,
-    "netProfit": 1.4855799999999708,
-    "profitFactor": null,
+    "netProfit": 0,
+    "profitFactor": 0,
     "maxDrawdown": 0,
-    "averageProfitPerTrade": 0.4951933333333236,
+    "averageProfitPerTrade": 0,
     "averageLossPerTrade": 0,
-    "largestWin": 0.738,
+    "largestWin": 0,
     "largestLoss": 0,
-    "averageHoldTime": 987.7280444444444,
-    "consecutiveWins": 3,
+    "averageHoldTime": 0,
+    "consecutiveWins": 0,
     "consecutiveLosses": 0,
-    "maxConsecutiveWins": 3,
+    "maxConsecutiveWins": 0,
     "maxConsecutiveLosses": 0,
-    "updatedAt": "2026-04-18T15:44:48.893Z"
+    "updatedAt": "2026-04-19T16:03:49.383Z"
   },
+  "tradeRecords": [],
   "sessions": [],
   "currentSessionId": null
 }
