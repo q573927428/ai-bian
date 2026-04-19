@@ -68,11 +68,14 @@ export interface IndicatorsConfig {
   // 计算指标所需K线数量
   requiredCandles: number
   
-  // EMA周期配置
-  emaPeriods: EMAPeriodsConfig
+  // ADX斜率计算周期
+  adxSlopePeriod: number
   
-  // 持仓量配置
-  openInterest: OpenInterestConfig
+  // EMA周期配置（保留但不使用）
+  emaPeriods?: EMAPeriodsConfig
+  
+  // 持仓量配置（保留但不使用）
+  openInterest?: OpenInterestConfig
 }
 
 // 系统配置
@@ -80,33 +83,15 @@ export interface BotConfig {
   // 交易对
   symbols: string[]
 
-  // 杠杆倍数
-  leverage: number
-
-  // 单笔最大风险比例（%）
-  maxRiskPercentage: number
-
-  // 止损ATR倍数
-  stopLossATRMultiplier: number
-
-  // 市场扫描间隔（秒）
-  scanInterval: number
-
-  // 策略模式
-  strategyMode: StrategyMode
-
-  // 风险配置
-  riskConfig: RiskConfig
-
   // 技术指标配置
   indicatorsConfig: IndicatorsConfig
 }
 
-// 风险配置
+// 风险配置（保留但不使用）
 export interface RiskConfig {
   // 止盈配置
-  takeProfit: {
-    adxSlopePeriod: number          // ADX斜率计算周期
+  takeProfit?: {
+    adxSlopePeriod?: number          // ADX斜率计算周期
   }
 }
 

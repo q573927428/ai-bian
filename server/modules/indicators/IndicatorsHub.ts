@@ -535,7 +535,7 @@ export class IndicatorsHub {
         try {
           const adxValues = ADX.calculate({ period: 14, high: highs, low: lows, close: closes })
           const currentADX = adxValues[adxValues.length - 1]?.adx ?? 0
-          const adxSlopePeriod = 3
+          const adxSlopePeriod = this.config.indicatorsConfig?.adxSlopePeriod ?? 3
           const previousADXIndex = Math.max(0, adxValues.length - 1 - adxSlopePeriod)
           const previousADX = adxValues[previousADXIndex]?.adx ?? currentADX
           const adxSlope = currentADX - previousADX
@@ -818,7 +818,7 @@ export class IndicatorsHub {
       // ADX和ADX斜率
       const adxValues = ADX.calculate({ period: 14, high: highs, low: lows, close: closes })
       const currentADX = adxValues[adxValues.length - 1]?.adx ?? 0
-      const adxSlopePeriod = 3
+      const adxSlopePeriod = this.config.indicatorsConfig?.adxSlopePeriod ?? 3
       const previousADXIndex = Math.max(0, adxValues.length - 1 - adxSlopePeriod)
       const previousADX = adxValues[previousADXIndex]?.adx ?? currentADX
       const adxSlope = currentADX - previousADX

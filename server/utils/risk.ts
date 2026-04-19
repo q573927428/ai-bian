@@ -19,7 +19,6 @@ export interface TakeProfitConfig {
   tp1MinProfitRatio: number
   rsiExtreme: { long: number; short: number }
   adxDecreaseThreshold: number
-  adxSlopePeriod: number
 }
 
 /**
@@ -237,8 +236,7 @@ export function convertStrategyRiskConfig(strategyRiskConfig: StrategyRiskConfig
       tp2RiskRewardRatio: strategyRiskConfig.takeProfitRatios?.[1] || 3.5,
       tp1MinProfitRatio: 1,
       rsiExtreme: { long: 80, short: 20 },
-      adxDecreaseThreshold: 2,
-      adxSlopePeriod: 3
+      adxDecreaseThreshold: 2
     },
     dailyTradeLimit: strategyRiskConfig.maxDailyTrades || 5
   }
