@@ -412,11 +412,11 @@ ${constraints}
       }
 
       // 只保存非IDLE的分析结果
-      if (analysis.direction !== 'IDLE') {
-        // 异步保存到文件，不阻塞主流程
-        this.saveAIAnalysisToFile(analysis).catch(() => {})
-      }
-      // this.saveAIAnalysisToFile(analysis).catch(() => {})
+      // if (analysis.direction !== 'IDLE') {
+      //   // 异步保存到文件，不阻塞主流程
+      //   this.saveAIAnalysisToFile(analysis).catch(() => {})
+      // }
+      this.saveAIAnalysisToFile(analysis).catch(() => {})
 
       logger.info('扫描结果', ` ${analysis.symbol} @${analysis.technicalData.price} ${analysis.direction} 置信度（${analysis.confidence}） 评分（${analysis.score}）[策略 - ${analysis.strategyId}]`);
 
