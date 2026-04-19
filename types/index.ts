@@ -288,16 +288,11 @@ export interface CircuitBreaker {
 
 // 机器人状态
 export interface BotState {
-  status: PositionStatus
-  currentPosition: Position | null
-  circuitBreaker: CircuitBreaker
-  dailyPnL: number
-  isRunning: boolean  // 是否正在运行（扫描循环）
-  lastTradeTime?: number   // 上次交易时间（用于冷却时间检查）
-  todayTrades: number
-  lastResetDate: string
-  monitoringSymbols: string[]
-  allowNewTrades: boolean
+  status: PositionStatus;
+  circuitBreaker: CircuitBreaker;
+  dailyPnL: number;
+  isRunning: boolean;
+  lastTradeTime?: number;
 }
 
 // 加密货币余额

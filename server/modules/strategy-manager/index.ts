@@ -58,7 +58,6 @@ export async function initStrategyManager(): Promise<StrategyManager> {
     const dateParts = new Date().toISOString().split('T')
     const defaultState: BotState = {
       status: PositionStatus.IDLE,
-      currentPosition: null,
       circuitBreaker: {
         isTriggered: false,
         reason: '',
@@ -66,12 +65,8 @@ export async function initStrategyManager(): Promise<StrategyManager> {
         dailyLoss: 0,
         consecutiveLosses: 0
       },
-      todayTrades: 0,
       dailyPnL: 0,
-      lastResetDate: dateParts[0] || new Date().toISOString().slice(0, 10),
-      monitoringSymbols: [],
-      isRunning: false,
-      allowNewTrades: true
+      isRunning: false
     }
 
     // 初始化策略执行引擎
