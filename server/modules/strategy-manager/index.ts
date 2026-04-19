@@ -37,7 +37,7 @@ export async function initStrategyManager(): Promise<StrategyManager> {
     const config = await loadBotConfig()
 
     // 初始化指标中心
-    const indicatorsHub = IndicatorsHub.getInstance(binanceService, config || undefined)
+    const indicatorsHub = IndicatorsHub.getInstance(binanceService, config)
 
     // 订阅 K线同步服务的更新事件
     const syncService = getSyncService()
@@ -80,7 +80,7 @@ export async function initStrategyManager(): Promise<StrategyManager> {
       indicatorsHub,
       positionMgr,
       binanceService,
-      config || undefined,
+      config,
       defaultState
     )
 

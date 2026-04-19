@@ -229,18 +229,31 @@ export async function loadBotState(): Promise<BotState | null> {
 /**
  * 加载机器人配置
  */
-export async function loadBotConfig(): Promise<BotConfig | null> {
+export async function loadBotConfig(): Promise<BotConfig> {
   try {
     if (!existsSync(BOT_CONFIG_FILE)) {
-      return null
+      return getDefaultBotConfig()
     }
     const data = await readFile(BOT_CONFIG_FILE, 'utf-8')
     if (!data.trim()) {
-      return null
+      return getDefaultBotConfig()
     }
     return JSON.parse(data)
   } catch (error: any) {
     console.error('加载机器人配置失败:', error.message)
-    return null
+    return getDefaultBotConfig()
+  }
+}
+
+/**
+ * 获取默认机器人配置
+ */
+function getDefaultBotConfig(): BotConfig {
+  return {
+    symbols: [],
+    indicatorsConfig: {
+      requiredCandles: 300,
+      adxSlopePeriod: 3
+    }
   }
 }
