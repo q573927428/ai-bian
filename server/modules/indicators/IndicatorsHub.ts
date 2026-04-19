@@ -540,17 +540,16 @@ export class IndicatorsHub {
           const previousADX = adxValues[previousADXIndex]?.adx ?? currentADX
           const adxSlope = currentADX - previousADX
 
-          const adxCacheKey = `${symbol}_${timeframe}_ADX`
-          symbolData.indicators.set(adxCacheKey, {
-            symbol,
-            timeframe,
-            timestamp: Date.now(),
-            values: {
-              adxMain: currentADX,
-              adxSlope: adxSlope,
-              adxPeriodLabels: { main: timeframe, secondary: '1h', tertiary: '4h' }
-            }
-          })
+           const adxCacheKey = `${symbol}_${timeframe}_ADX`
+           symbolData.indicators.set(adxCacheKey, {
+             symbol,
+             timeframe,
+             timestamp: Date.now(),
+             values: {
+               adxMain: currentADX,
+               adxSlope: adxSlope
+             }
+           })
         } catch (e) {
           // 忽略 ADX 计算错误
         }

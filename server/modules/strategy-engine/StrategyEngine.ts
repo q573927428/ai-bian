@@ -382,9 +382,19 @@ export class StrategyEngine {
         
          // 构造符合TechnicalIndicators格式的指标数据
          // 获取三个周期的ADX数据（如果策略配置了多个周期）
-         const timeframes = instance.strategy.marketData.timeframes || [mainTimeframe]
-         
-         // 从所有可用周期中获取ADX数据
+         let timeframes = instance.strategy.marketData.timeframes || [mainTimeframe]
+          
+         // 周期优先级排序（从大到小）
+         const timeframeOrder: Record<string, number> = {
+           '1d': 5,
+           '4h': 4,
+           '1h': 3,
+           '15m': 2,
+           '5m': 1
+         }
+         timeframes = [...timeframes].sort((a, b) => (timeframeOrder[b] || 0) - (timeframeOrder[a] || 0))
+          
+         // 从所有可用周期中获取ADX数据（按周期大小排序后的顺序）
          const adxMainData = indicatorsData.get(`${timeframes[0]}_ADX`)?.values || {}
          const adxSecondaryData = timeframes[1] ? indicatorsData.get(`${timeframes[1]}_ADX`)?.values : null
          const adxTertiaryData = timeframes[2] ? indicatorsData.get(`${timeframes[2]}_ADX`)?.values : null
