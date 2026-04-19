@@ -123,7 +123,7 @@ export class MultiStrategyAIAnalyzer {
             fast: indicators.emaList[0]?.value ?? 0,
             slow: indicators.emaList[indicators.emaList.length - 1]?.value ?? 0
           },
-          rsi: aiResult.technicalData.rsi,
+          rsi: aiResult.technicalData.rsi ?? 0,
           atr: indicators.atr
         },
         timestamp: new Date().toISOString()
@@ -150,23 +150,73 @@ export class MultiStrategyAIAnalyzer {
     volume: number,
     priceChange24h: number
   ): string {
-    const dynamicEmaLines = indicators.emaList
-      .map(item => `- ${item.name}: ${(item.value ?? 0).toFixed(4)}`)
-      .join('\n')
+    // 构建技术指标部分的提示词（根据指标启用状态）
+    const technicalIndicatorLines: string[] = []
+    
+    // 只在启用EMA时显示
+    if (indicators.enabledIndicators?.ema && indicators.emaList.length > 0) {
+      const dynamicEmaLines = indicators.emaList
+        .map(item => `- ${item.name}: ${(item.value ?? 0).toFixed(4)}`)
+        .join('\n')
+      technicalIndicatorLines.push(dynamicEmaLines)
+    }
+
+    // 只在启用RSI时显示
+    if (indicators.enabledIndicators?.rsi && indicators.rsi !== undefined) {
+      technicalIndicatorLines.push(`- RSI(14): ${indicators.rsi.toFixed(2)}`)
+    }
+
+    // 只在启用MACD时显示
+    if (indicators.enabledIndicators?.macd && indicators.macd) {
+      technicalIndicatorLines.push(`- MACD(12,26,9): MACD=${indicators.macd.macd.toFixed(4)}, Signal=${indicators.macd.signal.toFixed(4)}, Histogram=${indicators.macd.histogram.toFixed(4)}`)
+    }
+
+    // 只在启用ATR时显示
+    if (indicators.enabledIndicators?.atr && indicators.atr !== undefined) {
+      technicalIndicatorLines.push(`- ATR(14): ${indicators.atr.toFixed(4)}`)
+    }
 
     // 动态构建ADX显示行（根据实际配置的周期数量）
     const adxLines: string[] = []
-    adxLines.push(`- ADX(${indicators.adxPeriodLabels.main}): ${(indicators.adxMain ?? 0).toFixed(2)}`)
-    
-    // 只有当有第二个周期时才显示
-    if (indicators.adxSecondary && indicators.adxSecondary > 0) {
-      adxLines.push(`- ADX(${indicators.adxPeriodLabels.secondary}): ${(indicators.adxSecondary ?? 0).toFixed(2)}`)
+    if (indicators.enabledIndicators?.adx) {
+      if (indicators.adxMain !== undefined) {
+        adxLines.push(`- ADX(${indicators.adxPeriodLabels.main}): ${indicators.adxMain.toFixed(2)}`)
+      }
+      
+      // 只有当有第二个周期时才显示
+      if (indicators.adxSecondary !== undefined) {
+        adxLines.push(`- ADX(${indicators.adxPeriodLabels.secondary}): ${indicators.adxSecondary.toFixed(2)}`)
+      }
+      
+      // 只有当有第三个周期时才显示
+      if (indicators.adxTertiary !== undefined) {
+        adxLines.push(`- ADX(${indicators.adxPeriodLabels.tertiary}): ${indicators.adxTertiary.toFixed(2)}`)
+      }
     }
-    
-    // 只有当有第三个周期时才显示
-    if (indicators.adxTertiary && indicators.adxTertiary > 0) {
-      adxLines.push(`- ADX(${indicators.adxPeriodLabels.tertiary}): ${(indicators.adxTertiary ?? 0).toFixed(2)}`)
+
+    // 只在启用OI时显示
+    const oiLines: string[] = []
+    if (indicators.enabledIndicators?.oi) {
+      if (indicators.openInterest !== undefined) {
+        oiLines.push(`- OI: ${indicators.openInterest.toFixed(2)}`)
+      }
+      if (indicators.openInterestChangePercent !== undefined) {
+        oiLines.push(`- OI 变化: ${indicators.openInterestChangePercent.toFixed(2)}%`)
+      }
+      if (indicators.openInterestTrend) {
+        oiLines.push(`- OI 趋势: ${indicators.openInterestTrend}`)
+      }
     }
+
+    // 构建启用的指标列表说明
+    const enabledIndicatorsList = []
+    if (indicators.enabledIndicators?.ema) enabledIndicatorsList.push('EMA')
+    if (indicators.enabledIndicators?.rsi) enabledIndicatorsList.push('RSI')
+    if (indicators.enabledIndicators?.macd) enabledIndicatorsList.push('MACD')
+    if (indicators.enabledIndicators?.adx) enabledIndicatorsList.push('ADX')
+    if (indicators.enabledIndicators?.atr) enabledIndicatorsList.push('ATR')
+    if (indicators.enabledIndicators?.oi) enabledIndicatorsList.push('持仓量(OI)')
+    if (indicators.enabledIndicators?.volume) enabledIndicatorsList.push('成交量')
 
     // 👇 约束内容定义在这里
   const constraints = `
@@ -181,18 +231,19 @@ export class MultiStrategyAIAnalyzer {
  交易对: ${symbol}
  价格: ${(price ?? 0).toFixed(4)}
  24h 涨跌: ${(priceChange24h ?? 0).toFixed(2)}%
- 成交量: ${(volume ?? 0).toFixed(2)}
+ ${indicators.enabledIndicators?.volume ? `成交量: ${(volume ?? 0).toFixed(2)}` : ''}
  时间: ${new Date().toISOString()}
 
   ## 技术指标
-  ${dynamicEmaLines}
-  - RSI(14): ${(indicators.rsi ?? 0).toFixed(2)}
-  - MACD(12,26,9): MACD=${(indicators.macd?.macd ?? 0).toFixed(4)}, Signal=${(indicators.macd?.signal ?? 0).toFixed(4)}, Histogram=${(indicators.macd?.histogram ?? 0).toFixed(4)}
-  - ATR(14): ${(indicators.atr ?? 0).toFixed(4)}
-  ${adxLines.join('\n')}
- - OI: ${(indicators.openInterest ?? 0).toFixed(2)}
- - OI 变化: ${(indicators.openInterestChangePercent ?? 0).toFixed(2)}%
- - OI 趋势: ${indicators.openInterestTrend}
+  ${technicalIndicatorLines.join('\n')}
+  ${adxLines.length > 0 ? adxLines.join('\n') : ''}
+  ${oiLines.length > 0 ? oiLines.join('\n') : ''}
+
+${enabledIndicatorsList.length > 0 ? `
+---
+**重要提示**: 本次分析仅基于以下启用的指标: ${enabledIndicatorsList.join(', ')}
+请忽略未提供的指标，专注于分析可用的数据。
+` : ''}
 
 ## 交易逻辑
 ${promptConfig.userPrompt}
@@ -346,14 +397,14 @@ ${constraints}
           price,
           ...Object.fromEntries(emaEntries.map(item => [item.name, item.value])),
           ...(indicators.emaMap || {}),
-          rsi: indicators.rsi,
+          rsi: indicators.rsi ?? 0,
           macd: indicators.macd?.macd,
           macdSignal: indicators.macd?.signal,
           macdHistogram: indicators.macd?.histogram,
           volume,
-          adxMain: indicators?.adxMain || 0,
-          adxSecondary: indicators?.adxSecondary || 0,
-          adxTertiary: indicators?.adxTertiary || 0,
+          adxMain: indicators?.adxMain ?? 0,
+          adxSecondary: indicators?.adxSecondary ?? 0,
+          adxTertiary: indicators?.adxTertiary ?? 0,
           adxPeriodLabels: indicators?.adxPeriodLabels,
           support: aiResult.support,
           resistance: aiResult.resistance,
@@ -365,6 +416,7 @@ ${constraints}
         // 异步保存到文件，不阻塞主流程
         this.saveAIAnalysisToFile(analysis).catch(() => {})
       }
+      // this.saveAIAnalysisToFile(analysis).catch(() => {})
 
       logger.info('扫描结果', ` ${analysis.symbol} @${analysis.technicalData.price} ${analysis.direction} 置信度（${analysis.confidence}） 评分（${analysis.score}）[策略 - ${analysis.strategyId}]`);
 
@@ -386,7 +438,7 @@ ${constraints}
         technicalData: {
           price,
           ...Object.fromEntries(indicators.emaList.map(item => [item.name, item.value])),
-          rsi: indicators.rsi,
+          rsi: indicators.rsi ?? 0,
           volume,
         },
       }

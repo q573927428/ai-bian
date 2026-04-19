@@ -26,6 +26,7 @@ interface SymbolData {
   symbol: string
   klineData: Map<Timeframe, OHLCV[]>
   oiData?: { value: number; timestamp: number }
+  oiHistory?: Array<{ value: number; timestamp: number }>
   volumeData?: Map<Timeframe, { current: number; average: number; ratio: number; timestamp: number }>
   indicators: Map<string, IndicatorData>
 }
@@ -206,7 +207,7 @@ export class IndicatorsHub {
    */
   private async loadKlinesFromFile(symbol: string): Promise<void> {
     const symbolData = this.getOrCreateSymbolData(symbol)
-    const limit = this.config.indicatorsConfig?.requiredCandles || 300
+    const limit = this.config.indicatorsConfig?.requiredCandles || 500
 
     for (const timeframe of this.ALL_TIMEFRAMES) {
       const mappedTimeframe = this.TIMEFRAME_MAP[timeframe]
@@ -277,7 +278,7 @@ export class IndicatorsHub {
 
     // 如果文件已更新，重新加载
     if (currentMTime && currentMTime !== cachedMTime) {
-      const limit = this.config.indicatorsConfig?.requiredCandles || 300
+      const limit = this.config.indicatorsConfig?.requiredCandles || 500
       const klines = getSimpleKLineAsOHLCV(symbol, mappedTimeframe, limit)
       
       if (klines.length > 0) {
@@ -308,11 +309,32 @@ export class IndicatorsHub {
     const requestPromise = (async () => {
       try {
         const oiData = await this.binance.fetchOpenInterest(symbol)
+        const currentValue = oiData.openInterest
+        const currentTimestamp = Date.now()
+        
+        // 更新当前持仓量
         symbolData.oiData = {
-          value: oiData.openInterest,
-          timestamp: Date.now()
+          value: currentValue,
+          timestamp: currentTimestamp
         }
-        // logger.info('IndicatorsHub', `${symbol} OI已缓存: ${oiData.openInterest}`)
+        
+        // 初始化历史记录数组
+        if (!symbolData.oiHistory) {
+          symbolData.oiHistory = []
+        }
+        
+        // 添加到历史记录
+        symbolData.oiHistory.push({
+          value: currentValue,
+          timestamp: currentTimestamp
+        })
+        
+        // 保留最近100条记录（约5小时数据，每3分钟刷新一次）
+        if (symbolData.oiHistory.length > 100) {
+          symbolData.oiHistory = symbolData.oiHistory.slice(-100)
+        }
+        
+        // logger.info('IndicatorsHub', `${symbol} OI已缓存: ${oiData.openInterest}, 历史记录: ${symbolData.oiHistory.length}条`)
       } finally {
         this.pendingRequests.delete(cacheKey)
       }
@@ -436,14 +458,43 @@ export class IndicatorsHub {
       if (!oi) {
         throw new Error(`${symbol} OI数据未初始化`)
       }
+      
+      // 计算变化率和趋势
+      let changePercent = 0
+      let trend: 'increasing' | 'decreasing' | 'flat' = 'flat'
+      
+      // 如果有历史数据，计算变化率
+      if (symbolData.oiHistory && symbolData.oiHistory.length >= 2) {
+        const history = symbolData.oiHistory
+        const currentValue = history[history.length - 1]?.value ?? 0
+        
+        // 寻找5-10分钟前的历史数据（根据刷新间隔调整）
+        // 假设刷新间隔约60秒，找5-10条前的数据
+        const lookbackIndex = Math.max(0, history.length - 6) // 约5分钟前
+        const previousValue = history[lookbackIndex]?.value ?? 0
+        
+        if (previousValue > 0) {
+          changePercent = ((currentValue - previousValue) / previousValue) * 100
+          
+          // 确定趋势
+          if (changePercent > 0.1) {
+            trend = 'increasing'
+          } else if (changePercent < -0.1) {
+            trend = 'decreasing'
+          } else {
+            trend = 'flat'
+          }
+        }
+      }
+      
       return {
         symbol,
         timeframe,
         timestamp: oi.timestamp,
         values: {
           value: oi.value,
-          trend: 'flat',
-          changePercent: 0
+          trend: trend,
+          changePercent: changePercent
         }
       }
     }
