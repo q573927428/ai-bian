@@ -329,9 +329,9 @@ export class IndicatorsHub {
           timestamp: currentTimestamp
         })
         
-        // 保留最近100条记录（约5小时数据，每3分钟刷新一次）
-        if (symbolData.oiHistory.length > 100) {
-          symbolData.oiHistory = symbolData.oiHistory.slice(-100)
+        // 保留最近30条记录
+        if (symbolData.oiHistory.length > 30) {
+          symbolData.oiHistory = symbolData.oiHistory.slice(-30)
         }
         
         // logger.info('IndicatorsHub', `${symbol} OI已缓存: ${oiData.openInterest}, 历史记录: ${symbolData.oiHistory.length}条`)
