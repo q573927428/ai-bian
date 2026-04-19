@@ -125,15 +125,15 @@ export interface TechnicalIndicators {
   // ADX动态配置
   adxPeriodLabels: { main: string, secondary: string, tertiary: string }
   // ADX (多周期)
-  adxMain: number
-  adxSecondary: number
-  adxTertiary: number
+  adxMain?: number
+  adxSecondary?: number
+  adxTertiary?: number
   
   // ADX斜率（当前值 - N周期前的值，负值表示ADX下降）
-  adxSlope: number
+  adxSlope?: number
   
   // RSI
-  rsi: number
+  rsi?: number
   
   // MACD
   macd?: {
@@ -143,12 +143,23 @@ export interface TechnicalIndicators {
   }
   
   // ATR
-  atr: number
+  atr?: number
   
   // OI持仓量
-  openInterest: number // 当前持仓量
-  openInterestChangePercent: number // 持仓量变化率（%）
-  openInterestTrend: 'increasing' | 'decreasing' | 'flat' // OI趋势
+  openInterest?: number // 当前持仓量
+  openInterestChangePercent?: number // 持仓量变化率（%）
+  openInterestTrend?: 'increasing' | 'decreasing' | 'flat' // OI趋势
+  
+  // 指标启用状态标记
+  enabledIndicators: {
+    ema: boolean
+    rsi: boolean
+    macd: boolean
+    adx: boolean
+    atr: boolean
+    oi: boolean
+    volume: boolean
+  }
 }
 
 // AI分析结果

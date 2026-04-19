@@ -3,7 +3,7 @@
   "name": "策略03",
   "version": 1,
   "createdAt": "2026-04-19T16:14:17.182Z",
-  "updatedAt": "2026-04-19T16:19:10.398Z",
+  "updatedAt": "2026-04-19T16:22:07.252Z",
   "isActive": true,
   "marketData": {
     "symbols": [
@@ -73,6 +73,17 @@
       "params": {
         "trendPeriod": 12,
         "changePeriod": 24
+      },
+      "timeframes": [
+        "1h"
+      ],
+      "enabled": true
+    },
+    {
+      "id": "6",
+      "type": "Volume",
+      "params": {
+        "comparePeriod": 20
       },
       "timeframes": [
         "1h"

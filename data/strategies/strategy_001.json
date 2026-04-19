@@ -3,7 +3,7 @@
   "name": "策略01",
   "version": 1,
   "createdAt": "2026-04-19T16:03:49.383Z",
-  "updatedAt": "2026-04-19T16:19:06.638Z",
+  "updatedAt": "2026-04-19T16:41:53.693Z",
   "isActive": true,
   "marketData": {
     "symbols": [
@@ -33,8 +33,8 @@
         ]
       },
       "timeframes": [
-        "15m",
-        "5m"
+        "5m",
+        "15m"
       ],
       "enabled": true
     },
@@ -45,20 +45,32 @@
         "period": 14
       },
       "timeframes": [
-        "15m",
-        "5m"
+        "5m",
+        "15m"
       ],
       "enabled": true
     },
     {
       "id": "3",
+      "type": "ADX",
+      "params": {
+        "period": 14
+      },
+      "timeframes": [
+        "5m",
+        "15m"
+      ],
+      "enabled": true
+    },
+    {
+      "id": "4",
       "type": "ATR",
       "params": {
         "period": 14
       },
       "timeframes": [
-        "15m",
-        "5m"
+        "5m",
+        "15m"
       ],
       "enabled": true
     }

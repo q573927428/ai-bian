@@ -70,7 +70,7 @@
           <el-checkbox-group v-model="selectedIndicators">
             <el-checkbox label="EMA" disabled>EMA</el-checkbox>
             <el-checkbox label="RSI">RSI (14)</el-checkbox>
-            <el-checkbox label="ADX">ADX (14)</el-checkbox>
+            <el-checkbox label="ADX" disabled>ADX (14)</el-checkbox>
             <el-checkbox label="MACD">MACD (12,26,9)</el-checkbox>
             <el-checkbox label="ATR">ATR (14)</el-checkbox>
           </el-checkbox-group>

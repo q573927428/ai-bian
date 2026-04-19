@@ -399,30 +399,49 @@ export class StrategyEngine {
          const adxSecondaryData = timeframes[1] ? indicatorsData.get(`${timeframes[1]}_ADX`)?.values : null
          const adxTertiaryData = timeframes[2] ? indicatorsData.get(`${timeframes[2]}_ADX`)?.values : null
          
+         // 检查策略中哪些指标是启用的
+         const enabledEMAs = instance.strategy.indicators.some((i: any) => i.type === 'EMA' && i.enabled)
+         const enabledRSI = instance.strategy.indicators.some((i: any) => i.type === 'RSI' && i.enabled)
+         const enabledMACD = instance.strategy.indicators.some((i: any) => i.type === 'MACD' && i.enabled)
+         const enabledADX = instance.strategy.indicators.some((i: any) => i.type === 'ADX' && i.enabled)
+         const enabledATR = instance.strategy.indicators.some((i: any) => i.type === 'ATR' && i.enabled)
+         const enabledOI = instance.strategy.statistics.some((s: any) => s.type === 'OI' && s.enabled)
+         const enabledVolume = instance.strategy.statistics.some((s: any) => s.type === 'Volume' && s.enabled)
+         
          const indicators: any = {
-           emaList: Array.isArray(emaData.emaList) ? emaData.emaList : [],
-           emaMap: emaData.emaMap || {},
-           ...rsiData,
-           macd: macdData.macd !== undefined ? {
+           emaList: enabledEMAs && Array.isArray(emaData.emaList) ? emaData.emaList : [],
+           emaMap: enabledEMAs ? (emaData.emaMap || {}) : {},
+           rsi: enabledRSI ? rsiData.rsi : undefined,
+           macd: enabledMACD && macdData.macd !== undefined ? {
              macd: macdData.macd,
              signal: macdData.signal,
              histogram: macdData.histogram
            } : undefined,
            // 分别获取三个周期的ADX值
-           adxMain: adxMainData.adxMain || 0,
-           adxSecondary: adxSecondaryData?.adxMain || 0,
-           adxTertiary: adxTertiaryData?.adxMain || 0,
-           adxSlope: adxMainData.adxSlope || 0,
-           atr: indicatorsData.get(`${mainTimeframe}_ATR`)?.values?.atr || 0,
-           openInterest: indicatorsData.get('1h_OI')?.values?.value || 0,
-           openInterestChangePercent: indicatorsData.get('1h_OI')?.values?.changePercent || 0,
-           openInterestTrend: indicatorsData.get('1h_OI')?.values?.trend || 'flat',
-            adxPeriodLabels: { 
-              main: timeframes[0] || mainTimeframe, 
-              secondary: timeframes[1] || '', 
-              tertiary: timeframes[2] || '' 
+           adxMain: enabledADX ? adxMainData.adxMain : undefined,
+           adxSecondary: enabledADX && timeframes[1] ? adxSecondaryData?.adxMain : undefined,
+           adxTertiary: enabledADX && timeframes[2] ? adxTertiaryData?.adxMain : undefined,
+           adxSlope: enabledADX ? adxMainData.adxSlope : undefined,
+           atr: enabledATR ? indicatorsData.get(`${mainTimeframe}_ATR`)?.values?.atr : undefined,
+           openInterest: enabledOI ? indicatorsData.get('1h_OI')?.values?.value : undefined,
+           openInterestChangePercent: enabledOI ? indicatorsData.get('1h_OI')?.values?.changePercent : undefined,
+           openInterestTrend: enabledOI ? indicatorsData.get('1h_OI')?.values?.trend : undefined,
+           adxPeriodLabels: { 
+             main: timeframes[0] || mainTimeframe, 
+             secondary: timeframes[1] || '', 
+             tertiary: timeframes[2] || '' 
+           },
+           // 指标启用状态标记
+           enabledIndicators: {
+             ema: enabledEMAs,
+             rsi: enabledRSI,
+             macd: enabledMACD,
+             adx: enabledADX,
+             atr: enabledATR,
+             oi: enabledOI,
+             volume: enabledVolume
            }
-        }
+         }
       
       // 使用新的多策略AI分析器
       const signal = await this.aiAnalyzer.analyze(
