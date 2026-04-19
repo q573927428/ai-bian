@@ -1,5 +1,4 @@
 {
-  "strategyMode": "medium_term",
   "symbols": [
     "BTC/USDT",
     "ETH/USDT",
@@ -10,37 +9,7 @@
     "XAG/USDT",
     "BNB/USDT"
   ],
-  "leverage": 10,
-  "maxRiskPercentage": 20,
-  "stopLossATRMultiplier": 2.5,
-  "scanInterval": 60,
   "indicatorsConfig": {
-    "requiredCandles": 300,
-    "emaPeriods": {
-      "short_term": {
-        "fast": 14,
-        "medium": 30,
-        "slow": 60
-      },
-      "medium_term": {
-        "fast": 14,
-        "medium": 60,
-        "slow": 120
-      }
-    },
-    "openInterest": {
-      "enabled": true,
-      "trendPeriod": 12,
-      "changePeriod": {
-        "short_term": 96,
-        "medium_term": 24
-      },
-      "trendThresholdPercent": 0.5
-    }
-  },
-  "riskConfig": {
-    "takeProfit": {
-      "adxSlopePeriod": 3
-    }
+    "requiredCandles": 300
   }
 }
