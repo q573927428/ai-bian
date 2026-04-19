@@ -77,14 +77,14 @@
         </el-form-item>
 
         <el-form-item label="EMA 周期" v-if="selectedIndicators.includes('EMA')">
-          <el-checkbox-group v-model="emaPeriods">
+          <el-checkbox-group v-model="emaPeriods" :min="2" :max="3">
             <el-checkbox :label="7">7</el-checkbox>
             <el-checkbox :label="14">14</el-checkbox>
             <el-checkbox :label="20">20</el-checkbox>
             <el-checkbox :label="30">30</el-checkbox>
             <el-checkbox :label="50">50</el-checkbox>
             <el-checkbox :label="60">60</el-checkbox>
-            <el-checkbox :label="120" disabled>120</el-checkbox>
+            <el-checkbox :label="120">120</el-checkbox>
           </el-checkbox-group>
         </el-form-item>
       </el-card>
