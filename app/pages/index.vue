@@ -100,7 +100,6 @@
 import { ref, computed, onMounted } from 'vue'
 import { useBotStore } from '../stores/bot'
 import { useStrategiesStore } from '../stores/strategies'
-import type { Strategy, TradeRecord } from '../../types/strategy'
 
 // 导入组件
 import SystemLogs from '../components/SystemLogs.vue'
