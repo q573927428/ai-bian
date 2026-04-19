@@ -85,6 +85,9 @@ export interface BotConfig {
 
   // 技术指标配置
   indicatorsConfig: IndicatorsConfig
+
+  // AI分析缓存TTL（分钟），最小值为10分钟
+  aiCacheTtlMinutes?: number
 }
 
 // 风险配置（保留但不使用）

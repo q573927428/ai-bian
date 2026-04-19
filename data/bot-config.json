@@ -12,5 +12,6 @@
   "indicatorsConfig": {
     "requiredCandles": 300,
     "adxSlopePeriod": 3
-  }
+  },
+  "aiCacheTtlMinutes": 10
 }

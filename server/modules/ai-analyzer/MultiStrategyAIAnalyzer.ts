@@ -17,7 +17,6 @@ interface MultiStrategyAICache {
 }
 
 const aiCache = new Map<string, MultiStrategyAICache>()
-const AI_CACHE_TTL = 10 * 60 * 1000 // 10分钟
 
 /**
  * 多策略 AI 分析器
@@ -46,6 +45,15 @@ export class MultiStrategyAIAnalyzer {
   }
 
   /**
+   * 获取AI缓存TTL（毫秒），最小值为10分钟
+   */
+  private getAiCacheTtl(): number {
+    const configuredMinutes = this.config.aiCacheTtlMinutes ?? 10
+    const ttl = Math.max(configuredMinutes, 10) * 60 * 1000
+    return ttl
+  }
+
+  /**
    * 分析市场（支持多策略）
    */
   async analyze(
@@ -61,7 +69,7 @@ export class MultiStrategyAIAnalyzer {
       // 1. 检查缓存
       const cacheKey = this.buildCacheKey(strategyId, symbol, indicators, price)
       const cached = aiCache.get(cacheKey)
-      if (cached && (Date.now() - cached.timestamp < AI_CACHE_TTL)) {
+      if (cached && (Date.now() - cached.timestamp < this.getAiCacheTtl())) {
         logger.info('MultiStrategyAIAnalyzer', `使用 AI 缓存结果: ${symbol}`)
         return cached.signal
       }
@@ -425,8 +433,9 @@ const indicatorHash = [
    */
   cleanExpiredCache(): void {
     const now = Date.now()
+    const ttl = this.getAiCacheTtl()
     for (const [key, value] of aiCache) {
-      if (now - value.timestamp >= AI_CACHE_TTL) {
+      if (now - value.timestamp >= ttl) {
         aiCache.delete(key)
       }
     }
@@ -438,7 +447,7 @@ const indicatorHash = [
   getCacheStatus(): { size: number; ttl: number } {
     return {
       size: aiCache.size,
-      ttl: AI_CACHE_TTL
+      ttl: this.getAiCacheTtl()
     }
   }
 }
