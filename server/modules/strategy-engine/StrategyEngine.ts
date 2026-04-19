@@ -1,6 +1,6 @@
 // ==================== 策略执行引擎 ====================
 
-import type { Strategy, StrategyId} from '../../../types/strategy'
+import type { Strategy, StrategyId, Timeframe} from '../../../types/strategy'
 import type { TradeSignal } from '../../../types/signal'
 import type { BotConfig } from '../../../types'
 import { StrategyStore } from '../strategy-store/StrategyStore'
@@ -288,10 +288,20 @@ export class StrategyEngine {
       return
     }
 
-    // 2. 从指标中心获取基础数据
+    // 2. 收集所有需要的时间周期
+    const allTimeframes = new Set<Timeframe>(strategy.marketData.timeframes)
+    
+    // 添加统计数据配置的时间周期
+    strategy.statistics
+      .filter(s => s.enabled)
+      .forEach(s => {
+        s.timeframes?.forEach(tf => allTimeframes.add(tf))
+      })
+    
+    // 从指标中心获取基础数据
     const indicatorsData = await this.indicatorsHub.getBatchIndicators(
       symbol,
-      strategy.marketData.timeframes,
+      Array.from(allTimeframes),
       [
         ...strategy.indicators.filter(i => i.enabled && i.type !== 'EMA').map(i => i.type),
         ...strategy.statistics.filter(s => s.enabled).map(s => s.type)
@@ -373,7 +383,15 @@ export class StrategyEngine {
         const emaData = indicatorsData.get(`${mainTimeframe}_EMA`)?.values || {}
         const rsiData = indicatorsData.get(`${mainTimeframe}_RSI`)?.values || {}
         const macdData = indicatorsData.get(`${mainTimeframe}_MACD`)?.values || {}
-        const volumeData = indicatorsData.get('1h_Volume')?.values || {}
+        
+        // 从策略配置中动态获取 Volume 和 OI 的时间周期
+        const volumeStatConfig = instance.strategy.statistics.find((s: any) => s.type === 'Volume' && s.enabled)
+        const oiStatConfig = instance.strategy.statistics.find((s: any) => s.type === 'OI' && s.enabled)
+        
+        const volumeTimeframe = volumeStatConfig?.timeframes?.[0] || '1h'
+        const oiTimeframe = oiStatConfig?.timeframes?.[0] || '1h'
+        
+        const volumeData = indicatorsData.get(`${volumeTimeframe}_Volume`)?.values || {}
         
         const rsi = rsiData.rsi || 50
         const volume = volumeData.current || 0
@@ -423,9 +441,9 @@ export class StrategyEngine {
            adxTertiary: enabledADX && timeframes[2] ? adxTertiaryData?.adxMain : undefined,
            adxSlope: enabledADX ? adxMainData.adxSlope : undefined,
            atr: enabledATR ? indicatorsData.get(`${mainTimeframe}_ATR`)?.values?.atr : undefined,
-           openInterest: enabledOI ? indicatorsData.get('1h_OI')?.values?.value : undefined,
-           openInterestChangePercent: enabledOI ? indicatorsData.get('1h_OI')?.values?.changePercent : undefined,
-           openInterestTrend: enabledOI ? indicatorsData.get('1h_OI')?.values?.trend : undefined,
+           openInterest: enabledOI ? indicatorsData.get(`${oiTimeframe}_OI`)?.values?.value : undefined,
+           openInterestChangePercent: enabledOI ? indicatorsData.get(`${oiTimeframe}_OI`)?.values?.changePercent : undefined,
+           openInterestTrend: enabledOI ? indicatorsData.get(`${oiTimeframe}_OI`)?.values?.trend : undefined,
            adxPeriodLabels: { 
              main: timeframes[0] || mainTimeframe, 
              secondary: timeframes[1] || '', 
