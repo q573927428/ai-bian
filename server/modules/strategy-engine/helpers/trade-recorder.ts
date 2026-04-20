@@ -187,9 +187,9 @@ async function updateStrategyPerformance(strategyId: StrategyId): Promise<void> 
 
     // 保存更新后的策略
     const { writeFile } = await import('fs/promises')
-    const { join, resolve } = await import('path')
-    const PROJECT_ROOT = resolve(new URL('../../../', import.meta.url).pathname.replace(/^\/([A-Za-z]):\//, '$1:/'))
-    const STRATEGIES_DIR = join(PROJECT_ROOT, 'data', 'strategies')
+    const { join } = await import('path')
+    const DATA_DIR = join(process.cwd(), 'data')
+    const STRATEGIES_DIR = join(DATA_DIR, 'strategies')
     const filePath = join(STRATEGIES_DIR, `${strategyId}.json`)
     
     await writeFile(filePath, JSON.stringify(strategy, null, 2), 'utf-8')

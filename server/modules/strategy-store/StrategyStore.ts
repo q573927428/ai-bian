@@ -1,15 +1,15 @@
 // ==================== 策略数据存储系统 ====================
 
 import { readFile, writeFile, mkdir } from 'fs/promises'
-import { join, resolve } from 'path'
+import { join } from 'path'
 import { existsSync } from 'fs'
 import type { Strategy, StrategyId, CreateStrategyInput, UpdateStrategyInput } from '../../../types/strategy'
 import { logger } from '../../utils/logger'
 
-// 项目根目录（ES模块兼容）
-const PROJECT_ROOT = resolve(new URL('../../', import.meta.url).pathname.replace(/^\/([A-Za-z]):\//, '$1:/'))
-const STRATEGIES_DIR = join(PROJECT_ROOT, 'data', 'strategies')
-const TRADE_HISTORY_FILE = join(PROJECT_ROOT, 'data', 'trade-history.json')
+// 项目根目录
+const DATA_DIR = join(process.cwd(), 'data')
+const STRATEGIES_DIR = join(DATA_DIR, 'strategies')
+const TRADE_HISTORY_FILE = join(DATA_DIR, 'trade-history.json')
 
 /**
  * 确保策略数据目录存在
