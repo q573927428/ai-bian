@@ -3,7 +3,7 @@
   "name": "策略03",
   "version": 1,
   "createdAt": "2026-04-19T16:14:17.182Z",
-  "updatedAt": "2026-04-19T16:22:07.252Z",
+  "updatedAt": "2026-04-20T07:20:21.238Z",
   "isActive": true,
   "marketData": {
     "symbols": [
@@ -287,9 +287,8 @@
     "consecutiveLosses": 0,
     "maxConsecutiveWins": 0,
     "maxConsecutiveLosses": 0,
-    "updatedAt": "2026-04-19T16:14:17.182Z"
+    "updatedAt": "2026-04-20T07:20:21.238Z"
   },
-  "tradeRecords": [],
   "sessions": [],
   "currentSessionId": null
 }
