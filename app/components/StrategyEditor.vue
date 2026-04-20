@@ -283,9 +283,9 @@ const providerModels: Record<string, Array<{ label: string; value: string }>> = 
     { label: 'deepseek-reasoner', value: 'deepseek-reasoner' }
   ],
   doubao: [
-    { label: '豆包 Seed 2.0 Pro', value: 'doubao-seed-2-0-pro' },
-    { label: '豆包 Seed 2.0 Lite', value: 'doubao-seed-2-0-lite' },
-    { label: '豆包 Seed 2.0 Code', value: 'doubao-seed-2-0-code' }
+    { label: 'doubao-seed-2-0-pro', value: 'doubao-seed-2-0-pro' },
+    { label: 'doubao-seed-2-0-lite', value: 'doubao-seed-2-0-lite' },
+    { label: 'doubao-seed-2-0-code', value: 'doubao-seed-2-0-code' }
   ],
   qwen: [
     { label: 'qwen-plus', value: 'qwen-plus' },
