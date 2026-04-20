@@ -1,33 +1,18 @@
-export default defineEventHandler(async (event) => {
+export default defineEventHandler(async () => {
   try {
-    const query = getQuery(event)
-    const { password } = query
+    const config = useRuntimeConfig()
+    const configPassword = config.configEditPassword
     
-    if (!password) {
-      return {
-        success: false,
-        message: '密码不能为空'
-      }
-    }
-    
-    // 默认密码为202050，可根据需要修改
-    const correctPassword = '202050'
-    
-    if (password === correctPassword) {
-      return {
-        success: true,
-        message: '密码验证通过'
-      }
-    } else {
-      return {
-        success: false,
-        message: '密码错误'
-      }
+    // 检查是否需要密码保护
+    return {
+      success: true,
+      requiresPassword: !!configPassword && configPassword.length > 0,
     }
   } catch (error: any) {
     return {
       success: false,
-      message: error.message || '验证失败'
+      message: error.message || '检查密码配置失败',
+      requiresPassword: false,
     }
   }
 })

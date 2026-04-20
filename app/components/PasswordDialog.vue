@@ -51,7 +51,28 @@ const form = ref({
   password: ''
 })
 const loading = ref(false)
+const checkingPassword = ref(false)
 const passwordInput = ref()
+
+// 检查是否需要密码
+const checkRequiresPassword = async () => {
+  try {
+    checkingPassword.value = true
+    const res = await $fetch<any>('/api/bot/check-password')
+    if (res.success && !res.requiresPassword) {
+      // 不需要密码，直接成功
+      emit('success')
+      visible.value = false
+      return false
+    }
+    return true
+  } catch (error: any) {
+    ElMessage.error('检查密码配置失败: ' + (error.message || '未知错误'))
+    return true
+  } finally {
+    checkingPassword.value = false
+  }
+}
 
 const handleConfirm = async () => {
   if (!form.value.password.trim()) {
@@ -88,11 +109,15 @@ const handleClosed = () => {
   form.value.password = ''
 }
 
-watch(visible, (newVal) => {
+watch(visible, async (newVal) => {
   if (newVal) {
-    nextTick(() => {
-      passwordInput.value?.focus()
-    })
+    // 检查是否需要密码
+    const requiresPassword = await checkRequiresPassword()
+    if (requiresPassword) {
+      nextTick(() => {
+        passwordInput.value?.focus()
+      })
+    }
   }
 })
 </script>
