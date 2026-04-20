@@ -131,9 +131,10 @@ export class MultiStrategyAIAnalyzer {
       const aiResult = await this.callAI(fullPrompt, symbol, price, indicators, volume, priceChange24h, strategyId, promptConfig)
 
 
-      if (!aiResult || aiResult.direction === 'IDLE') {
-        return null
-      }
+      // 即使是 IDLE 也返回完整信息，以便统一记录日志
+      if (!aiResult) {
+         return null
+       }
 
       // 临时测试：针对不同策略和交易对强制返回信号
       // if (!aiResult) {
@@ -151,26 +152,26 @@ export class MultiStrategyAIAnalyzer {
       //   }
       // }
 
-      // 4. 转换为标准交易信号
-      const signal: TradeSignal = {
-        strategyId,
-        symbol,
-        direction: aiResult.direction === 'LONG' ? 'long' : 'short',
-        action: 'open',
-        price,
-        stopLoss: 0, // 后续计算
-        confidence: aiResult.confidence,
-        reasoning: aiResult.reasoning,
-        indicators: {
-          ema: {
-            fast: indicators.emaList[0]?.value ?? 0,
-            slow: indicators.emaList[indicators.emaList.length - 1]?.value ?? 0
-          },
-          rsi: aiResult.technicalData.rsi ?? 0,
-          atr: indicators.atr
-        },
-        timestamp: new Date().toISOString()
-      }
+      // 4. 转换为标准交易信号（支持 IDLE 状态）
+       const signal: TradeSignal = {
+         strategyId,
+         symbol,
+         direction: aiResult.direction === 'LONG' ? 'long' : aiResult.direction === 'SHORT' ? 'short' : 'idle',
+         action: aiResult.direction === 'IDLE' ? 'hold' : 'open',
+         price,
+         stopLoss: 0, // 后续计算
+         confidence: aiResult.confidence,
+         reasoning: aiResult.reasoning,
+         indicators: {
+           ema: {
+             fast: indicators.emaList[0]?.value ?? 0,
+             slow: indicators.emaList[indicators.emaList.length - 1]?.value ?? 0
+           },
+           rsi: aiResult.technicalData.rsi ?? 0,
+           atr: indicators.atr
+         },
+         timestamp: new Date().toISOString()
+       }
 
       // 5. 缓存结果
       aiCache.set(cacheKey, { signal, timestamp: Date.now() })
@@ -503,8 +504,7 @@ ${constraints}
       // 异步保存到文件，不阻塞主流程（是否保存由配置控制）
       this.saveAIAnalysisToFile(analysis).catch(() => {})
 
-      logger.info('扫描结果', ` ${analysis.symbol} @${analysis.technicalData.price} ${analysis.direction} 置信度（${analysis.confidence}）[策略 - ${analysis.strategyId}]`);
-
+      // 日志统一在 StrategyEngine 中处理，避免重复
       return analysis
     } catch (error: any) {
       logger.error('MultiStrategyAIAnalyzer', `AI API 调用失败: ${error.message}`)

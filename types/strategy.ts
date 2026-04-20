@@ -71,7 +71,7 @@ export type PositionMode = 'one-way' | 'hedge';
 export type LeverageType = number | 'dynamic';
 
 // 交易方向
-export type TradeDirection = 'long' | 'short';
+ export type TradeDirection = 'long' | 'short' | 'idle';
 
 // 交易动作
 export type TradeAction = 'open' | 'close' | 'hold';

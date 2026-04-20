@@ -473,23 +473,43 @@ export class StrategyEngine {
            }
          }
       
-      // 使用新的多策略AI分析器
-      const signal = await this.aiAnalyzer.analyze(
-        strategyId,
-        symbol,
-        promptConfig,
-        indicators,
-        price,
-        volume,
-        priceChange24h
-      )
+     // 使用新的多策略AI分析器
+       const signal = await this.aiAnalyzer.analyze(
+         strategyId,
+         symbol,
+         promptConfig,
+         indicators,
+         price,
+         volume,
+         priceChange24h
+       )
 
-      if (!signal) {
-        return null
-      }
+       if (!signal) {
+         return null
+       }
+       
+       // 统一记录扫描结果日志，避免重复
+       const strategyInstance = this.runningStrategies.get(strategyId)
+       const strategyName = strategyInstance ? strategyInstance.strategy.name : '未知策略'
+       const minConfidence = this.config.minConfidence ?? 70
+       
+       if (signal.direction === 'idle') {
+         // IDLE 状态
+         logger.info('扫描结果', ` ${signal.symbol} @${signal.price} IDLE 置信度（${signal.confidence} < ${minConfidence}）[${strategyName} - ${signal.strategyId}]`)
+         return null
+       } else if (signal.confidence < minConfidence) {
+         // 有方向但置信度不足的情况
+         logger.info('扫描结果', ` ${signal.symbol} @${signal.price} ${signal.direction.toUpperCase()} 置信度（${signal.confidence} < ${minConfidence}）[${strategyName} - ${signal.strategyId}]`)
+         return null
+       } else {
+         // 有方向且置信度足够的情况
+         logger.success('扫描结果', ` ${signal.symbol} @${signal.price} ${signal.direction.toUpperCase()} 置信度（${signal.confidence} ≥ ${minConfidence}）[${strategyName} - ${signal.strategyId}]`)
+       }
       
-      // 补充止损价
-      signal.stopLoss = this.calculateStopLoss(price, signal.direction)
+      // 补充止损价（仅对非 idle 方向）
+      if (signal.direction === 'long' || signal.direction === 'short') {
+        signal.stopLoss = this.calculateStopLoss(price, signal.direction)
+      }
 
       // 缓存结果
       this.aiCache.set(cacheKey, { signal, timestamp: Date.now() })
@@ -540,13 +560,9 @@ export class StrategyEngine {
       return false
     }
 
-    // 检查置信度
+    // 检查置信度（日志已在 callAI 中统一记录）
     const minConfidence = this.config.minConfidence ?? 70
     if (signal.confidence < minConfidence) {
-      // 获取策略名称
-      const strategyInstance = this.runningStrategies.get(signal.strategyId)
-      const strategyName = strategyInstance ? strategyInstance.strategy.name : '未知策略'
-      logger.info('扫描结果', ` ${signal.symbol} @${signal.price}  ${signal.direction} 置信度（${signal.confidence} < ${minConfidence}）[${strategyName} - ${signal.strategyId}]`);
       return false
     }
 

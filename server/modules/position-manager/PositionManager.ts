@@ -179,9 +179,16 @@ export class PositionManager {
    * 从 PositionInfo 构建 Position 对象
    */
   private buildPositionFromInfo(info: PositionInfo): any {
+    let direction: 'LONG' | 'SHORT' = 'LONG'
+    if (info.direction === 'short') {
+      direction = 'SHORT'
+    } else if (info.direction === 'idle') {
+      // idle 状态不应该有实际仓位，默认使用 LONG
+      direction = 'LONG'
+    }
     return {
       symbol: info.symbol,
-      direction: info.direction === 'long' ? 'LONG' : 'SHORT',
+      direction,
       entryPrice: info.entryPrice,
       quantity: info.quantity,
       leverage: info.leverage,
@@ -393,7 +400,16 @@ export class PositionManager {
       // 需要从仓位信息中获取策略ID（如果没有，标记为 'unknown'）
       const strategyId = (position as any).strategyId || 'unknown'
       const symbol = position.symbol
-      const direction = position.direction === 'LONG' ? 'long' as TradeDirection : 'short' as TradeDirection
+      // 将 Position.Direction (大写) 转换为 TradeDirection (小写)
+      let direction: TradeDirection
+      if (position.direction === 'LONG') {
+        direction = 'long'
+      } else if (position.direction === 'SHORT') {
+        direction = 'short'
+      } else {
+        // IDLE 不应该有实际仓位，默认使用 long
+        direction = 'long'
+      }
 
       const positionInfo: PositionInfo = {
         symbol,
