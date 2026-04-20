@@ -39,7 +39,7 @@ async function handleGetRequest(event: any) {
   }
   
   // 验证timeframe
-  const validTimeframes = ['15m', '1h', '4h', '1d', '1w']
+  const validTimeframes = ['5m', '15m', '1h', '4h', '1d', '1w']
   if (!validTimeframes.includes(timeframe as string)) {
     return createErrorResponse(`无效的timeframe: ${timeframe}，有效值: ${validTimeframes.join(', ')}`, 400)
   }

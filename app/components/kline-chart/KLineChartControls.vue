@@ -7,6 +7,14 @@
         <div class="timeframe-buttons">
           <el-button
             size="small"
+            :type="selectedTimeframe === '5m' ? 'primary' : 'default'"
+            @click="selectTimeframe('5m')"
+            class="timeframe-btn"
+          >
+            5m
+          </el-button>
+          <el-button
+            size="small"
             :type="selectedTimeframe === '15m' ? 'primary' : 'default'"
             @click="selectTimeframe('15m')"
             class="timeframe-btn"
@@ -44,6 +52,23 @@
             class="timeframe-btn"
           >
             1w
+          </el-button>
+        </div>
+      </div>
+
+      <!-- EMA周期选择器 -->
+      <div class="ema-period-selector">
+        <div class="ema-period-buttons">
+          <el-button
+            v-for="period in availableEmaPeriods"
+            :key="period"
+            size="small"
+            :type="selectedEmaPeriods.includes(period) ? 'primary' : 'default'"
+            @click="toggleEmaPeriod(period)"
+            :disabled="!selectedEmaPeriods.includes(period) && selectedEmaPeriods.length >= 3"
+            class="ema-period-btn"
+          >
+            {{ period }}
           </el-button>
         </div>
       </div>
@@ -124,6 +149,7 @@ interface Props {
   showEMAMarkers?: boolean
   showOrderMarkers?: boolean
   showEMALines?: boolean
+  emaPeriods?: number[]
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -133,7 +159,8 @@ const props = withDefaults(defineProps<Props>(), {
   loading: false,
   showEMAMarkers: false,
   showOrderMarkers: false,
-  showEMALines: true
+  showEMALines: true,
+  emaPeriods: () => [20, 200]
 })
 
 // 定义emits
@@ -144,10 +171,15 @@ const emit = defineEmits<{
   'ema-markers-change': [show: boolean]
   'order-markers-change': [show: boolean]
   'ema-lines-change': [show: boolean]
+  'ema-periods-change': [periods: number[]]
 }>()
+
+// 可用的EMA周期选项
+const availableEmaPeriods = [7, 14, 20, 30, 50, 60, 120, 200]
 
 // 响应式数据
 const selectedTimeframe = ref(props.timeframe)
+const selectedEmaPeriods = ref<number[]>([...props.emaPeriods])
 const showEMAMarkers = ref(props.showEMAMarkers)
 const showOrderMarkers = ref(props.showOrderMarkers)
 const showEMALines = ref(props.showEMALines)
@@ -162,6 +194,27 @@ const selectTimeframe = (timeframe: string) => {
   if (selectedTimeframe.value === timeframe) return
   selectedTimeframe.value = timeframe
   emit('timeframe-change', timeframe)
+}
+
+// 切换EMA周期
+const toggleEmaPeriod = (period: number) => {
+  const index = selectedEmaPeriods.value.indexOf(period)
+  
+  if (index > -1) {
+    // 已选择，取消选择（但确保至少保留2个）
+    if (selectedEmaPeriods.value.length > 2) {
+      selectedEmaPeriods.value.splice(index, 1)
+      emit('ema-periods-change', [...selectedEmaPeriods.value])
+    }
+  } else {
+    // 未选择，添加选择（最多3个）
+    if (selectedEmaPeriods.value.length < 3) {
+      selectedEmaPeriods.value.push(period)
+      // 排序
+      selectedEmaPeriods.value.sort((a, b) => a - b)
+      emit('ema-periods-change', [...selectedEmaPeriods.value])
+    }
+  }
 }
 
 // 处理EMA标记开关变化
@@ -185,6 +238,13 @@ watch(() => props.timeframe, (newTimeframe) => {
     selectedTimeframe.value = newTimeframe
   }
 })
+
+// 监听props.emaPeriods变化
+watch(() => props.emaPeriods, (newPeriods) => {
+  if (newPeriods) {
+    selectedEmaPeriods.value = [...newPeriods]
+  }
+}, { deep: true })
 
 // 监听props.showEMAMarkers变化
 watch(() => props.showEMAMarkers, (newValue) => {
@@ -309,6 +369,55 @@ watch(() => props.showEMALines, (newValue) => {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
+/* EMA周期选择器 */
+.ema-period-selector {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ema-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #909399;
+  padding: 2px 8px;
+  background: white;
+  border-radius: 4px;
+}
+
+.ema-period-buttons {
+  display: flex;
+  gap: 2px;
+  background: #e6f7ff;
+  border: 1px solid #91d5ff;
+  border-radius: 12px;
+  padding: 2px 8px;
+}
+
+.ema-period-btn {
+  padding: 1px 6px;
+  font-size: 12px;
+  border-radius: 10px;
+  transition: all 0.2s ease;
+}
+
+.ema-period-btn:deep(.el-button--default) {
+  border: none;
+  background: transparent;
+  box-shadow: none;
+  color: #409eff;
+}
+
+.ema-period-btn:deep(.el-button--primary) {
+  border-radius: 6px;
+  box-shadow: none;
+}
+
+.ema-period-btn:deep(.el-button.is-disabled) {
+  color: #c0c4cc;
+  cursor: not-allowed;
+}
+
 /* 操作按钮 */
 .action-buttons {
   display: flex;
@@ -325,8 +434,8 @@ watch(() => props.showEMALines, (newValue) => {
   
   .controls-left {
     width: 100%;
-    flex-direction: column;
-    align-items: stretch;
+    flex-wrap: wrap;
+    justify-content: center;
     gap: 8px;
   }
   
@@ -347,6 +456,11 @@ watch(() => props.showEMALines, (newValue) => {
     grid-template-columns: repeat(5, 1fr);
     gap: 2px;
     width: 100%;
+  }
+
+  .ema-period-selector {
+    width: 100%;
+    justify-content: center;
   }
   
   .controls-right {

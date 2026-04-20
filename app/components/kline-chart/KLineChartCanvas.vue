@@ -60,6 +60,7 @@ interface Props {
   showEmaMarkers?: boolean
   showOrderMarkers?: boolean
   showEmaLines?: boolean
+  emaPeriods?: number[]
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -72,17 +73,20 @@ const props = withDefaults(defineProps<Props>(), {
   error: '',
   showEmaMarkers: false,
   showOrderMarkers: false,
-  showEmaLines: true
+  showEmaLines: true,
+  emaPeriods: () => [20, 200]
 })
 
 // 使用Pinia store获取配置
 const botStore = useBotStore()
 
-// 计算EMA周期
+// 计算EMA周期 - 优先使用props.emaPeriods，否则从配置获取
 const emaPeriods = computed(() => {
-  const emaConfig = botStore.config?.emaConfig || { fast: 14, slow: 120 }
+  if (props.emaPeriods && props.emaPeriods.length >= 2) {
+    return props.emaPeriods
+  }
   
-  // 返回fast和slow两个周期
+  const emaConfig = botStore.config?.emaConfig || { fast: 20, slow: 200 }
   return [emaConfig.fast, emaConfig.slow]
 })
 
@@ -493,6 +497,7 @@ const alignToKlineTime = (timestamp: number, timeframe: string): number => {
 // 获取时间段的秒数
 const getTimeframeSeconds = (timeframe: string): number => {
   switch (timeframe) {
+    case '5m': return 5 * 60
     case '15m': return 15 * 60
     case '1h': return 60 * 60
     case '4h': return 4 * 60 * 60
@@ -1042,6 +1047,27 @@ watch(() => props.symbol, (newSymbol, oldSymbol) => {
     })
   }
 })
+
+// 监听emaPeriods变化，清理并重新初始化图表
+watch(() => emaPeriods.value, (newPeriods, oldPeriods) => {
+  // 检查周期是否真的变化了
+  const periodsChanged = newPeriods.length !== oldPeriods.length || 
+    newPeriods.some((p, i) => p !== oldPeriods[i])
+  
+  if (periodsChanged) {
+    console.log(`📈 EMA周期变化: ${oldPeriods.join(',')} -> ${newPeriods.join(',')}`)
+    
+    // 清理旧图表
+    cleanupChart()
+    
+    // 重新初始化图表
+    nextTick(() => {
+      if (chartContainer.value) {
+        initChart()
+      }
+    })
+  }
+}, { deep: true })
 
 // 监听timeframe变化，清理并重新初始化图表
 watch(() => computedTimeframe.value, (newTimeframe, oldTimeframe) => {

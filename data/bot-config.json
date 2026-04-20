@@ -14,9 +14,10 @@
     "adxSlopePeriod": 3
   },
   "emaConfig": {
-    "fast": 14,
-    "slow": 120
+    "fast": 20,
+    "slow": 200
   },
+  "emaPeriods": [20, 200],
   "aiCacheTtlMinutes": 10,
   "aiAnalysisSave": {
     "enabled": true,

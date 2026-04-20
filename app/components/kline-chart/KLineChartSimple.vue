@@ -9,12 +9,14 @@
       :show-ema-markers="showEMAMarkers"
       :show-order-markers="showOrderMarkers"
       :show-ema-lines="showEMALines"
+      :ema-periods="selectedEmaPeriods"
       @timeframe-change="selectTimeframe"
       @refresh="loadKLineData"
       @toggle-theme="toggleTheme"
       @ema-markers-change="handleEMAMarkersChange"
       @order-markers-change="handleOrderMarkersChange"
       @ema-lines-change="handleEMALinesChange"
+      @ema-periods-change="handleEmaPeriodsChange"
     />
 
     <!-- 图表容器 -->
@@ -31,6 +33,7 @@
         :show-ema-markers="showEMAMarkers"
         :show-order-markers="showOrderMarkers"
         :show-ema-lines="showEMALines"
+        :ema-periods="selectedEmaPeriods"
         @tooltip-update="handleTooltipUpdate"
         @retry="loadKLineData"
       />
@@ -136,6 +139,9 @@ const selectedTimeframe = ref(computedTimeframe.value)
 const showEMAMarkers = ref(false)
 const showOrderMarkers = ref(false)
 const showEMALines = ref(true)
+
+// EMA周期选择
+const selectedEmaPeriods = ref<number[]>(botStore.config?.emaPeriods || [20, 200])
 
 // 请求代次（用于防止过期响应覆盖）
 let requestGeneration = 0
@@ -339,6 +345,15 @@ const handleEMALinesChange = (show: boolean) => {
   showEMALines.value = show
 }
 
+// 处理EMA周期变化
+const handleEmaPeriodsChange = (periods: number[]) => {
+  selectedEmaPeriods.value = periods
+  // 更新botStore配置
+  if (botStore.config) {
+    botStore.config.emaPeriods = periods
+  }
+}
+
 // 处理tooltip更新
 const handleTooltipUpdate = (data: any, time: string) => {
   tooltipData.value = data
@@ -348,7 +363,7 @@ const handleTooltipUpdate = (data: any, time: string) => {
 
 // 计算EMA差值百分比
 const calculateLatestEmaDiff = (klineData: SimpleKLineData[]): number => {
-  const emaConfig = botStore.config?.emaConfig || { fast: 14, slow: 120 }
+  const emaConfig = botStore.config?.emaConfig || { fast: 20, slow: 200 }
   const fastPeriod = emaConfig.fast
   const slowPeriod = emaConfig.slow
   
@@ -468,6 +483,7 @@ const handlePriceUpdate = (priceData: PriceData) => {
 // 获取时间段的秒数
 const getTimeframeSeconds = (timeframe: string): number => {
   switch (timeframe) {
+    case '5m': return 5 * 60
     case '15m': return 15 * 60
     case '1h': return 60 * 60
     case '4h': return 4 * 60 * 60

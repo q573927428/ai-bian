@@ -102,12 +102,14 @@ export function calculateMultipleEMAs(
  */
 export function getEMAColor(period: number): string {
   const colorMap: Record<number, string> = {
-    14: '#298cf3', // 红色 - EMA14
-    20: '#4ECDC4', // 青色 - EMA20
-    30: '#FF6B6B', // 蓝色 - EMA30
-    60: '#DDA0DD', // 紫色 - EMA60
+    7: '#FF5252',   // 亮红色 - EMA7
+    14: '#298cf3',  // 蓝色 - EMA14
+    20: '#4ECDC4',  // 青色 - EMA20
+    30: '#FFA726',  // 橙色 - EMA30
+    50: '#AB47BC',  // 紫色 - EMA50
+    60: '#26A69A',  // 深青色 - EMA60
     120: '#f3ab23', // 黄色 - EMA120
-    200: '#96CEB4'  // 绿色 - EMA200
+    200: '#78909C'  // 灰色 - EMA200
   }
 
   return colorMap[period] || '#FFFFFF'
@@ -120,10 +122,12 @@ export function getEMAColor(period: number): string {
  */
 export function getEMAWidth(period: number): number {
   const widthMap: Record<number, number> = {
+    7: 1.3,
     14: 1.5,
-    20: 2,
+    20: 1.8,
     30: 2,
-    60: 2.5,
+    50: 2.2,
+    60: 2.3,
     120: 2.5,
     200: 3
   }

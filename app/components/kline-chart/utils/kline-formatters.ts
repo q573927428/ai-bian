@@ -64,6 +64,7 @@ export function formatPercent(percent: number): string {
  */
 export function getTimeframeSeconds(timeframe: string): number {
   switch (timeframe) {
+    case '5m': return 5 * 60
     case '15m': return 15 * 60
     case '1h': return 60 * 60
     case '4h': return 4 * 60 * 60

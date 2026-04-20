@@ -105,6 +105,9 @@ export interface BotConfig {
   // EMA配置
   emaConfig?: EMAConfig
 
+  // EMA周期数组（2-3个周期，可选值: 7,14,20,30,50,60,120,200）
+  emaPeriods?: number[]
+
   // AI分析缓存TTL（分钟），最小值为10分钟
   aiCacheTtlMinutes?: number
 
