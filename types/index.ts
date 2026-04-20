@@ -88,6 +88,12 @@ export interface AIAnalysisSaveConfig {
   saveIdle: boolean
 }
 
+// EMA配置
+export interface EMAConfig {
+  fast: number
+  slow: number
+}
+
 // 系统配置
 export interface BotConfig {
   // 交易对
@@ -95,6 +101,9 @@ export interface BotConfig {
 
   // 技术指标配置
   indicatorsConfig: IndicatorsConfig
+
+  // EMA配置
+  emaConfig?: EMAConfig
 
   // AI分析缓存TTL（分钟），最小值为10分钟
   aiCacheTtlMinutes?: number

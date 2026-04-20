@@ -78,12 +78,9 @@ const props = withDefaults(defineProps<Props>(), {
 // 使用Pinia store获取配置
 const botStore = useBotStore()
 
-// 计算EMA周期（根据当前策略模式）
+// 计算EMA周期
 const emaPeriods = computed(() => {
-  if (!botStore.config || !botStore.config.indicatorsConfig || !botStore.config.indicatorsConfig.emaPeriods) return [14, 120] // 默认值
-  
-  const strategyMode = botStore.config.strategyMode
-  const emaConfig = botStore.config.indicatorsConfig.emaPeriods[strategyMode] || { fast: 14, slow: 120 }
+  const emaConfig = botStore.config?.emaConfig || { fast: 14, slow: 120 }
   
   // 返回fast和slow两个周期
   return [emaConfig.fast, emaConfig.slow]

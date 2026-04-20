@@ -125,12 +125,8 @@ const computedTimeframe = computed(() => {
   // 如果props提供了timeframe，则使用提供的值
   if (props.timeframe) return props.timeframe
   
-  // 否则根据策略模式自动选择
-  if (!botStore.config) return '1h' // 默认值
-  
-  const strategyMode = botStore.config.strategyMode
-  // 默认使用 1h，除非明确是 short_term
-  return strategyMode === 'short_term' ? '15m' : '1h'
+  // 否则使用默认值 1h
+  return '1h'
 })
 
 // 响应式数据
@@ -352,10 +348,7 @@ const handleTooltipUpdate = (data: any, time: string) => {
 
 // 计算EMA差值百分比
 const calculateLatestEmaDiff = (klineData: SimpleKLineData[]): number => {
-  if (!botStore.config || !botStore.config.indicatorsConfig || !botStore.config.indicatorsConfig.emaPeriods) return 0
-  
-  const strategyMode = botStore.config.strategyMode
-  const emaConfig = botStore.config.indicatorsConfig.emaPeriods[strategyMode] || { fast: 14, slow: 120 }
+  const emaConfig = botStore.config?.emaConfig || { fast: 14, slow: 120 }
   const fastPeriod = emaConfig.fast
   const slowPeriod = emaConfig.slow
   

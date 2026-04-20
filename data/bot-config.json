@@ -13,6 +13,10 @@
     "requiredCandles": 500,
     "adxSlopePeriod": 3
   },
+  "emaConfig": {
+    "fast": 14,
+    "slow": 120
+  },
   "aiCacheTtlMinutes": 10,
   "aiAnalysisSave": {
     "enabled": true,
