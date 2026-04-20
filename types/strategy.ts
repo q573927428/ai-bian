@@ -55,6 +55,9 @@ export type IndicatorType = 'EMA' | 'RSI' | 'MACD' | 'ATR' | 'ADX';
 // 统计数据类型
 export type StatisticsType = 'OI' | 'Volume';
 
+// AI提供商类型
+export type AIProvider = 'deepseek' | 'doubao' | 'qwen' | 'openai';
+
 // AI模型类型
 export type AIModel = 'deepseek-chat' | 'deepseek-reasoner' | string;
 
@@ -142,6 +145,7 @@ export interface AIPromptConfig {
   temperature: number;                 // AI 温度 (0-1)
   maxTokens: number;                   // 最大token数
   model: AIModel;                      // AI模型
+  provider: AIProvider;                // AI提供商
 }
 
 // 风险管理配置

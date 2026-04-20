@@ -149,11 +149,16 @@ export class StrategyStore {
         strategy.sessions = []
       }
       
-      if (strategy.currentSessionId === undefined) {
-        strategy.currentSessionId = null
-      }
-      
-      return strategy
+       if (strategy.currentSessionId === undefined) {
+         strategy.currentSessionId = null
+       }
+       
+       // 防御性代码：确保 aiPrompt.provider 字段存在
+       if (!strategy.aiPrompt.provider) {
+         strategy.aiPrompt.provider = 'deepseek'
+       }
+       
+       return strategy
     } catch (error: any) {
       logger.error('StrategyStore', `获取策略失败 ${strategyId}: ${error.message}`)
       return null

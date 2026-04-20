@@ -122,26 +122,37 @@
             placeholder="当EMA金叉且RSI<30时，开多仓..."
           />
         </el-form-item>
-        <el-row :gutter="20">
-          <el-col :span="8">
-            <el-form-item label="AI模型">
-              <el-select v-model="form.aiPrompt.model">
-                <el-option label="deepseek-chat" value="deepseek-chat" />
-                <el-option label="deepseek-reasoner" value="deepseek-reasoner" />
-              </el-select>
-            </el-form-item>
-          </el-col>
-          <el-col :span="8">
-            <el-form-item label="温度">
-              <el-slider v-model="form.aiPrompt.temperature" :min="0" :max="1" :step="0.1" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="8">
-            <el-form-item label="最大Token">
-              <el-input-number v-model="form.aiPrompt.maxTokens" :min="500" :max="4000" :step="500" />
-            </el-form-item>
-          </el-col>
-        </el-row>
+         <el-row :gutter="20">
+           <el-col :span="6">
+             <el-form-item label="AI提供商">
+               <el-select v-model="form.aiPrompt.provider" @change="handleProviderChange">
+                 <el-option 
+                   v-for="provider in availableProviderOptions" 
+                   :key="provider.value" 
+                   :label="provider.label" 
+                   :value="provider.value" 
+                 />
+               </el-select>
+             </el-form-item>
+           </el-col>
+           <el-col :span="6">
+             <el-form-item label="AI模型">
+               <el-select v-model="form.aiPrompt.model">
+                 <el-option v-for="model in availableModels" :key="model.value" :label="model.label" :value="model.value" />
+               </el-select>
+             </el-form-item>
+           </el-col>
+           <el-col :span="6">
+             <el-form-item label="温度">
+               <el-slider v-model="form.aiPrompt.temperature" :min="0" :max="1" :step="0.1" />
+             </el-form-item>
+           </el-col>
+           <el-col :span="6">
+             <el-form-item label="最大Token">
+               <el-input-number v-model="form.aiPrompt.maxTokens" :min="500" :max="4000" :step="500" />
+             </el-form-item>
+           </el-col>
+         </el-row>
       </el-card>
 
       <!-- 风险管理配置 -->
@@ -248,7 +259,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, watch } from 'vue'
+import { ref, reactive, watch, computed } from 'vue'
 import type { Strategy, CreateStrategyInput } from '../../types/strategy'
 
 const props = defineProps<{
@@ -261,6 +272,82 @@ const emit = defineEmits<{
 }>()
 
 const saving = ref(false)
+
+// 已配置的 AI 提供商列表
+const configuredProviders = ref<Array<{ id: string; name: string; configured: boolean }>>([])
+
+// AI 提供商模型配置
+const providerModels: Record<string, Array<{ label: string; value: string }>> = {
+  deepseek: [
+    { label: 'deepseek-chat', value: 'deepseek-chat' },
+    { label: 'deepseek-reasoner', value: 'deepseek-reasoner' }
+  ],
+  doubao: [
+    { label: '豆包 Seed 2.0 Pro', value: 'doubao-seed-2-0-pro' },
+    { label: '豆包 Seed 2.0 Lite', value: 'doubao-seed-2-0-lite' },
+    { label: '豆包 Seed 2.0 Code', value: 'doubao-seed-2-0-code' }
+  ],
+  qwen: [
+    { label: 'qwen-plus', value: 'qwen-plus' },
+    { label: 'qwen-turbo', value: 'qwen-turbo' },
+    { label: 'qwen-max', value: 'qwen-max' }
+  ],
+  openai: [
+    { label: 'gpt-4o-mini', value: 'gpt-4o-mini' },
+    { label: 'gpt-4o', value: 'gpt-4o' },
+    { label: 'gpt-3.5-turbo', value: 'gpt-3.5-turbo' }
+  ]
+}
+
+// 已配置的提供商选项
+const availableProviderOptions = computed(() => {
+  return configuredProviders.value
+    .filter(p => p.configured)
+    .map(p => ({ label: p.name, value: p.id }))
+})
+
+// 当前可用模型
+const availableModels = computed(() => {
+  return providerModels[form.aiPrompt.provider] || []
+})
+
+// 处理提供商变更
+const handleProviderChange = (provider: string) => {
+  const models = providerModels[provider]
+  if (models && models.length > 0 && models[0]) {
+    form.aiPrompt.model = models[0].value
+  }
+}
+
+// 获取已配置的 AI 提供商
+const fetchConfiguredProviders = async () => {
+  try {
+    const response = await $fetch<{
+      success: boolean
+      data: Array<{ id: string; name: string; configured: boolean }>
+    }>('/api/ai/providers')
+    
+    if (response.success) {
+      configuredProviders.value = response.data
+      
+      // 确保当前选择的提供商是已配置的
+      const currentProvider = configuredProviders.value.find(p => p.id === form.aiPrompt.provider)
+      if (!currentProvider || !currentProvider.configured) {
+        // 当前提供商未配置，选择第一个已配置的
+        const firstConfigured = configuredProviders.value.find(p => p.configured)
+        if (firstConfigured) {
+          form.aiPrompt.provider = firstConfigured.id as any
+          handleProviderChange(firstConfigured.id)
+        }
+      }
+    }
+  } catch (error) {
+    console.error('获取 AI 提供商列表失败:', error)
+  }
+}
+
+// 组件挂载时获取
+fetchConfiguredProviders()
 
 // 周期优先级（从短到长）
 const timeframePriority: Record<string, number> = {
@@ -289,7 +376,8 @@ const form = reactive<CreateStrategyInput>({
     userPrompt: '请分析当前市场趋势，当技术指标显示明确的方向时给出开仓建议。\n\n要求：\n1. 趋势明确时才给出信号\n2. 严格控制风险\n3. 返回JSON格式：{direction: "long/short", confidence: 0-100, reasoning: "理由"}',
     temperature: 0.5,
     maxTokens: 2000,
-    model: 'deepseek-chat'
+    model: 'deepseek-chat',
+    provider: 'deepseek'
   },
   riskManagement: {
     maxRiskPercentage: 20,

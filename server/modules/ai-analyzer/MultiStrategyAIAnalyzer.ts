@@ -1,12 +1,55 @@
 // ==================== 多策略 AI 分析器 ====================
 
-import type { StrategyId, AIPromptConfig } from '../../../types/strategy'
+import type { StrategyId, AIPromptConfig, AIProvider } from '../../../types/strategy'
 import type { AIAnalysis, RiskLevel, TechnicalIndicators, BotConfig, Direction } from '../../../types'
 import type { TradeSignal } from '../../../types/signal'
 import { BinanceService } from '../../utils/binance'
 import { logger } from '../../utils/logger'
 import fs from 'node:fs/promises'
 import path from 'node:path'
+
+/**
+ * AI 提供商配置
+ */
+interface AIProviderConfig {
+  apiKey: string;
+  apiUrl: string;
+  model: string;
+}
+
+/**
+ * 获取 AI 提供商配置
+ */
+function getProviderConfig(provider: AIProvider, runtimeConfig: any): AIProviderConfig {
+  switch (provider) {
+    case 'deepseek':
+      return {
+        apiKey: runtimeConfig.deepseekApiKey,
+        apiUrl: runtimeConfig.deepseekApiUrl,
+        model: runtimeConfig.deepseekModel
+      };
+    case 'doubao':
+      return {
+        apiKey: runtimeConfig.doubaoApiKey,
+        apiUrl: runtimeConfig.doubaoApiUrl,
+        model: runtimeConfig.doubaoModel
+      };
+    case 'qwen':
+      return {
+        apiKey: runtimeConfig.qwenApiKey,
+        apiUrl: runtimeConfig.qwenApiUrl,
+        model: runtimeConfig.qwenModel
+      };
+    case 'openai':
+      return {
+        apiKey: runtimeConfig.openaiApiKey,
+        apiUrl: runtimeConfig.openaiApiUrl,
+        model: runtimeConfig.openaiModel
+      };
+    default:
+      throw new Error(`不支持的 AI 提供商: ${provider}`);
+  }
+}
 
 /**
  * AI 分析缓存
@@ -85,7 +128,7 @@ export class MultiStrategyAIAnalyzer {
       )
 
       // 3. 调用原有的 AI 分析函数
-      const aiResult = await this.callAI(fullPrompt, symbol, price, indicators, volume, priceChange24h, strategyId)
+      const aiResult = await this.callAI(fullPrompt, symbol, price, indicators, volume, priceChange24h, strategyId, promptConfig)
 
 
       if (!aiResult || aiResult.direction === 'IDLE') {
@@ -350,7 +393,7 @@ ${constraints}
   }
 
   /**
-   * 调用 AI API（直接实现原有逻辑）
+   * 调用 AI API（支持多提供商）
    */
   private async callAI(
     prompt: string,
@@ -359,24 +402,37 @@ ${constraints}
     indicators: TechnicalIndicators,
     volume: number = 0,
     priceChange24h: number = 0,
-    strategyId: StrategyId
+    strategyId: StrategyId,
+    promptConfig?: AIPromptConfig
   ): Promise<AIAnalysis | null> {
     try {
       const emaEntries = indicators.emaList
       const runtimeConfig = useRuntimeConfig()
 
+      // 获取 AI 提供商配置（优先使用策略配置，否则使用默认配置）
+      const provider = promptConfig?.provider || (runtimeConfig.aiProvider as AIProvider) || 'deepseek'
+      const providerConfig = getProviderConfig(provider, runtimeConfig)
+      
+      // 检查 API Key 是否配置
+      if (!providerConfig.apiKey) {
+        throw new Error(`${provider} API Key 未配置`)
+      }
+
       // 构建系统提示词
       const systemPrompt = await this.buildSystemPrompt()
       
-      // 调用DeepSeek API
-      const response = await fetch(`${runtimeConfig.deepseekApiUrl}/chat/completions`, {
+      // 选择模型（优先使用策略配置，否则使用提供商默认）
+      const model = promptConfig?.model || providerConfig.model
+      
+      // 调用 AI API（OpenAI 兼容格式）
+      const response = await fetch(`${providerConfig.apiUrl}/chat/completions`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${runtimeConfig.deepseekApiKey}`,
+          'Authorization': `Bearer ${providerConfig.apiKey}`,
         },
         body: JSON.stringify({
-          model: 'deepseek-chat',
+          model: model,
           messages: [
             {
               role: 'system',
@@ -387,14 +443,14 @@ ${constraints}
               content: prompt,
             },
           ],
-          temperature: 0.5,
-          max_tokens: 1000,
+          temperature: promptConfig?.temperature ?? 0.5,
+          max_tokens: promptConfig?.maxTokens ?? 1000,
           response_format: { type: "json_object" }
         }),
       })
 
       if (!response.ok) {
-        throw new Error(`DeepSeek API请求失败: ${response.statusText}`)
+        throw new Error(`${provider} API请求失败: ${response.statusText}`)
       }
 
       const result = await response.json()
