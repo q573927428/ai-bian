@@ -26,7 +26,7 @@
 
       <el-table :data="strategies" v-loading="loading" stripe>
         <el-table-column prop="name" label="策略" width="100" />
-        <el-table-column label="交易对" width="200" >
+        <el-table-column label="交易对" width="300" >
           <template #default="{ row }">
             <el-tag
               v-for="symbol in row.marketData.symbols.slice(0, 3)"
@@ -36,7 +36,7 @@
             >
               {{ symbol }}
             </el-tag>
-            <el-tag v-if="row.marketData.symbols.length > 3" size="small">
+            <el-tag v-if="row.marketData.symbols.length > 3" size="small" class="symbol-tag">
               +{{ row.marketData.symbols.length - 3 }}
             </el-tag>
           </template>
@@ -74,7 +74,7 @@
             >
               {{ row.isActive ? '停用' : '激活' }}
             </el-button>
-            <el-button 
+            <!-- <el-button 
               size="small" 
               type="success" 
               @click="testStrategy(row)" 
@@ -82,7 +82,7 @@
               :loading="testingStrategies.has(row.id)"
             >
               分析
-            </el-button>
+            </el-button> -->
             <el-button size="small" @click="showVersionHistory(row)">版本</el-button>
             <el-button size="small" type="danger" @click="deleteStrategy(row)">删除</el-button>
           </template>
