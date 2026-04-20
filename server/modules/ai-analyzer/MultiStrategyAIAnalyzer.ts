@@ -113,7 +113,6 @@ export class MultiStrategyAIAnalyzer {
       const cacheKey = this.buildCacheKey(strategyId, symbol, indicators, price)
       const cached = aiCache.get(cacheKey)
       if (cached && (Date.now() - cached.timestamp < this.getAiCacheTtl())) {
-        logger.info('扫描结果', ` ${symbol} @${cached.signal.price} 使用 AI 缓存结果 [${strategyId}]`)
         return cached.signal
       }
 
