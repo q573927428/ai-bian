@@ -13,5 +13,10 @@
     "requiredCandles": 500,
     "adxSlopePeriod": 3
   },
-  "aiCacheTtlMinutes": 10
+  "aiCacheTtlMinutes": 10,
+  "aiAnalysisSave": {
+    "enabled": true,
+    "maxRecordsPerDay": 3000,
+    "saveIdle": true
+  }
 }

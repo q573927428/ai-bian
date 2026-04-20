@@ -78,6 +78,16 @@ export interface IndicatorsConfig {
   openInterest?: OpenInterestConfig
 }
 
+// AI分析保存配置
+export interface AIAnalysisSaveConfig {
+  // 是否启用保存
+  enabled: boolean
+  // 每天最大保存记录数量
+  maxRecordsPerDay: number
+  // 是否保存 IDLE 状态的分析
+  saveIdle: boolean
+}
+
 // 系统配置
 export interface BotConfig {
   // 交易对
@@ -88,6 +98,9 @@ export interface BotConfig {
 
   // AI分析缓存TTL（分钟），最小值为10分钟
   aiCacheTtlMinutes?: number
+
+  // AI分析保存配置
+  aiAnalysisSave?: AIAnalysisSaveConfig
 }
 
 // 风险配置（保留但不使用）

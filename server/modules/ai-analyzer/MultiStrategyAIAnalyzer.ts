@@ -272,10 +272,34 @@ ${constraints}
   }
 
   /**
+   * 获取AI分析保存配置（带默认值）
+   */
+  private getAiAnalysisSaveConfig() {
+    const config = this.config.aiAnalysisSave
+    return {
+      enabled: config?.enabled ?? true,
+      maxRecordsPerDay: config?.maxRecordsPerDay ?? 1000,
+      saveIdle: config?.saveIdle ?? false
+    }
+  }
+
+  /**
    * 保存AI分析结果到每日JSON文件
    */
   private async saveAIAnalysisToFile(analysis: AIAnalysis): Promise<void> {
     try {
+      const saveConfig = this.getAiAnalysisSaveConfig()
+      
+      // 检查是否启用保存
+      if (!saveConfig.enabled) {
+        return
+      }
+      
+      // 检查是否需要保存IDLE状态
+      if (analysis.direction === 'IDLE' && !saveConfig.saveIdle) {
+        return
+      }
+      
       // 确保目录存在
       const saveDir = path.join(process.cwd(), 'data', 'ai-analysis')
       await fs.mkdir(saveDir, { recursive: true })
@@ -308,9 +332,17 @@ ${constraints}
          }
          records = []
        }
-      
-      // 添加新记录并写入文件
+       
+      // 添加新记录
       records.push(analysis)
+      
+      // 如果超过最大数量限制，删除最早的记录
+      if (records.length > saveConfig.maxRecordsPerDay) {
+        const excessCount = records.length - saveConfig.maxRecordsPerDay
+        records = records.slice(excessCount)
+      }
+      
+      // 写入文件
       await fs.writeFile(filePath, JSON.stringify(records, null, 2), 'utf-8')
     } catch (error: any) {
       logger.error('MultiStrategyAIAnalyzer', '保存AI分析结果失败:', error.message)
@@ -414,11 +446,7 @@ ${constraints}
         },
       }
 
-      // 只保存非IDLE的分析结果
-      // if (analysis.direction !== 'IDLE') {
-      //   // 异步保存到文件，不阻塞主流程
-      //   this.saveAIAnalysisToFile(analysis).catch(() => {})
-      // }
+      // 异步保存到文件，不阻塞主流程（是否保存由配置控制）
       this.saveAIAnalysisToFile(analysis).catch(() => {})
 
       logger.info('扫描结果', ` ${analysis.symbol} @${analysis.technicalData.price} ${analysis.direction} 置信度（${analysis.confidence}） 评分（${analysis.score}）[策略 - ${analysis.strategyId}]`);
