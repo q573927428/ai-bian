@@ -26,7 +26,7 @@
 
       <el-table :data="strategies" v-loading="loading" stripe>
         <el-table-column prop="name" label="策略" width="100" />
-        <el-table-column label="交易对" >
+        <el-table-column label="交易对" width="200" >
           <template #default="{ row }">
             <el-tag
               v-for="symbol in row.marketData.symbols.slice(0, 3)"
@@ -63,7 +63,7 @@
             {{ formatDate(row.createdAt) }}
           </template>
         </el-table-column>
-        <el-table-column label="操作" fixed="right" width="380">
+        <el-table-column label="操作" fixed="right" >
           <template #default="{ row }">
             <el-button size="small" @click="viewStrategyDetail(row)">详情</el-button>
             <el-button size="small" @click="editStrategy(row)">编辑</el-button>
