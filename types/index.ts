@@ -197,7 +197,6 @@ export interface AIAnalysis {
   strategyId?: string
   direction: Direction
   confidence: number        // 0-100
-  score: number            // 0-100
   riskLevel: RiskLevel
   isBullish: boolean
   reasoning: string

@@ -141,10 +141,10 @@ export class MultiStrategyAIAnalyzer {
       // }
       // if (strategyId === 'strategy_001' && symbol === 'ETH/USDT') { 
       //   aiResult.direction = 'LONG'
-      //   aiResult.score = 80 // 确保置信度足够
+      //   aiResult.confidence = 80 // 确保置信度足够
       // } else if (strategyId === 'strategy_002' && symbol === 'SOL/USDT') {
       //   aiResult.direction = 'LONG'
-      //   aiResult.score = 80 // 确保置信度足够
+      //   aiResult.confidence = 80 // 确保置信度足够
       // } else {
       //   if (aiResult.direction === 'IDLE') {
       //     return null
@@ -159,7 +159,7 @@ export class MultiStrategyAIAnalyzer {
         action: 'open',
         price,
         stopLoss: 0, // 后续计算
-        confidence: aiResult.score,
+        confidence: aiResult.confidence,
         reasoning: aiResult.reasoning,
         indicators: {
           ema: {
@@ -295,7 +295,6 @@ ${promptConfig.userPrompt}
 {
   "direction": "LONG" | "SHORT" | "IDLE",
   "confidence": 0-100,
-  "score": 0-100,
   "reasoning": "分析理由"
 }
 ${constraints}
@@ -477,7 +476,6 @@ ${constraints}
         strategyId,
         direction: direction,
         confidence: Math.min(100, Math.max(0, aiResult.confidence || 0)),
-        score: Math.min(100, Math.max(0, aiResult.score || 0)),
         riskLevel: (aiResult.riskLevel || 'MEDIUM') as RiskLevel,
         isBullish: direction === 'LONG',
         reasoning: reasoning,
@@ -505,7 +503,7 @@ ${constraints}
       // 异步保存到文件，不阻塞主流程（是否保存由配置控制）
       this.saveAIAnalysisToFile(analysis).catch(() => {})
 
-      logger.info('扫描结果', ` ${analysis.symbol} @${analysis.technicalData.price} ${analysis.direction} 置信度（${analysis.confidence}） 评分（${analysis.score}）[策略 - ${analysis.strategyId}]`);
+      logger.info('扫描结果', ` ${analysis.symbol} @${analysis.technicalData.price} ${analysis.direction} 置信度（${analysis.confidence}）[策略 - ${analysis.strategyId}]`);
 
       return analysis
     } catch (error: any) {
@@ -518,7 +516,6 @@ ${constraints}
         strategyId,
         direction: 'IDLE',
         confidence: 0,
-        score: 0,
         riskLevel: 'HIGH',
         isBullish: false,
         reasoning: `AI分析暂时不可用: ${error.message}`,
