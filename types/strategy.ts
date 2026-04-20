@@ -110,7 +110,7 @@ export interface Strategy {
 
   // 运行数据
   performance: StrategyPerformance;    // 策略整体表现统计
-  tradeRecords: TradeRecord[];         // 所有交易记录
+  tradeRecords?: TradeRecord[];        // 所有交易记录（已移至全局文件，不再在策略文件中保存）
   sessions: StrategySession[];         // 所有运行会话
   currentSessionId?: string;           // 当前运行会话ID
 }

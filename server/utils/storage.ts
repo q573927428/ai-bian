@@ -277,8 +277,8 @@ function getDefaultBotConfig(): BotConfig {
     },
     aiAnalysisConfig: {
       enabled: true,
-      maxRecords: 1000,
-      saveIdle: false
+      maxRecords: 3000,
+      saveIdle: true
     }
   }
 }

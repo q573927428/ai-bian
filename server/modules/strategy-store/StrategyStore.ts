@@ -77,7 +77,6 @@ export class StrategyStore {
         maxConsecutiveLosses: 0,
         updatedAt: now
       },
-      tradeRecords: [],
       sessions: [],
       currentSessionId: undefined
     }
@@ -92,8 +91,7 @@ export class StrategyStore {
     })
 
     // 保存策略文件
-    const filePath = getStrategyFilePath(strategyId)
-    await writeFile(filePath, JSON.stringify(strategy, null, 2), 'utf-8')
+    await this.saveStrategyWithoutTradeRecords(strategy)
 
     logger.info('StrategyStore', `策略已创建: ${strategy.name} (${strategyId})`)
     return strategy
@@ -116,36 +114,32 @@ export class StrategyStore {
       // 防御性代码：确保必需字段存在
       const now = new Date().toISOString()
       
-      if (!strategy.performance) {
-        strategy.performance = {
-          strategyId: strategy.id,
-          totalTrades: 0,
-          totalWins: 0,
-          totalLosses: 0,
-          winRate: 0,
-          totalProfit: 0,
-          totalLoss: 0,
-          netProfit: 0,
-          profitFactor: 0,
-          maxDrawdown: 0,
-          averageProfitPerTrade: 0,
-          averageLossPerTrade: 0,
-          largestWin: 0,
-          largestLoss: 0,
-          averageHoldTime: 0,
-          consecutiveWins: 0,
-          consecutiveLosses: 0,
-          maxConsecutiveWins: 0,
-          maxConsecutiveLosses: 0,
-          updatedAt: now
-        }
-      }
-      
-      if (!strategy.tradeRecords || !Array.isArray(strategy.tradeRecords)) {
-        strategy.tradeRecords = []
-      }
-      
-      if (!strategy.sessions || !Array.isArray(strategy.sessions)) {
+       if (!strategy.performance) {
+         strategy.performance = {
+           strategyId: strategy.id,
+           totalTrades: 0,
+           totalWins: 0,
+           totalLosses: 0,
+           winRate: 0,
+           totalProfit: 0,
+           totalLoss: 0,
+           netProfit: 0,
+           profitFactor: 0,
+           maxDrawdown: 0,
+           averageProfitPerTrade: 0,
+           averageLossPerTrade: 0,
+           largestWin: 0,
+           largestLoss: 0,
+           averageHoldTime: 0,
+           consecutiveWins: 0,
+           consecutiveLosses: 0,
+           maxConsecutiveWins: 0,
+           maxConsecutiveLosses: 0,
+           updatedAt: now
+         }
+       }
+       
+       if (!strategy.sessions || !Array.isArray(strategy.sessions)) {
         strategy.sessions = []
       }
       
@@ -232,7 +226,7 @@ export class StrategyStore {
 
       // 保存更新后的策略
       const filePath = getStrategyFilePath(strategyId)
-      await writeFile(filePath, JSON.stringify(strategy, null, 2), 'utf-8')
+      await this.saveStrategyWithoutTradeRecords(strategy)
 
       logger.info('StrategyStore', `策略已更新（无版本）: ${strategy.name}`)
       return strategy
@@ -285,8 +279,7 @@ export class StrategyStore {
       })
 
       // 保存更新后的策略
-      const filePath = getStrategyFilePath(strategyId)
-      await writeFile(filePath, JSON.stringify(strategy, null, 2), 'utf-8')
+      await this.saveStrategyWithoutTradeRecords(strategy)
 
       logger.info('StrategyStore', `策略已更新: ${strategy.name} (v${newVersion})`)
       return strategy
@@ -341,8 +334,7 @@ export class StrategyStore {
       }
 
       // 保存回滚后的策略
-      const filePath = getStrategyFilePath(strategyId)
-      await writeFile(filePath, JSON.stringify(rolledBackStrategy, null, 2), 'utf-8')
+      await this.saveStrategyWithoutTradeRecords(rolledBackStrategy)
 
       logger.info('StrategyStore', `策略已回滚: ${strategy.name} (v${targetVersion} -> v${newVersion})`)
       return rolledBackStrategy
@@ -397,8 +389,7 @@ export class StrategyStore {
       strategy.isActive = active
       strategy.updatedAt = new Date().toISOString()
 
-      const filePath = getStrategyFilePath(strategyId)
-      await writeFile(filePath, JSON.stringify(strategy, null, 2), 'utf-8')
+      await this.saveStrategyWithoutTradeRecords(strategy)
 
       logger.info('StrategyStore', `策略已${active ? '激活' : '停用'}: ${strategy.name}`)
       return strategy
@@ -514,212 +505,29 @@ export class StrategyStore {
    */
 
   /**
-   * 添加交易记录
+   * 添加交易记录（已弃用，使用全局交易历史文件）
    */
   async addTradeRecord(strategyId: StrategyId, record: Omit<import('../../../types/strategy').TradeRecord, 'id' | 'strategyId' | 'strategyVersion'>): Promise<string | null> {
-    try {
-      const strategy = await this.getStrategy(strategyId)
-      if (!strategy) {
-        logger.warn('StrategyStore', `策略不存在: ${strategyId}`)
-        return null
-      }
-
-      const recordId = `trade_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`
-      const newRecord: import('../../../types/strategy').TradeRecord = {
-        id: recordId,
-        strategyId,
-        strategyVersion: strategy.version,
-        ...record
-      }
-
-      strategy.tradeRecords.push(newRecord)
-      strategy.updatedAt = new Date().toISOString()
-
-      // 如果是平仓单，自动更新性能统计
-      if (record.status === 'closed' && record.profitLoss !== undefined) {
-        await this.recalculatePerformance(strategy)
-      }
-
-
-      // 保存更新
-      const filePath = getStrategyFilePath(strategyId)
-      await writeFile(filePath, JSON.stringify(strategy, null, 2), 'utf-8')
-
-      logger.info('StrategyStore', `交易记录已添加: ${record.symbol} ${record.direction} ${record.action} (${recordId})`)
-      return recordId
-    } catch (error: any) {
-      logger.error('StrategyStore', `添加交易记录失败 ${strategyId}: ${error.message}`)
-      return null
-    }
+    logger.warn('StrategyStore', 'addTradeRecord 已弃用，使用全局交易历史文件')
+    return null
   }
 
   /**
-   * 更新交易记录（平仓时调用）
+   * 更新交易记录（已弃用，使用全局交易历史文件）
    */
   async updateTradeRecord(strategyId: StrategyId, recordId: string, updates: Partial<import('../../../types/strategy').TradeRecord>): Promise<boolean> {
-    try {
-      const strategy = await this.getStrategy(strategyId)
-      if (!strategy) {
-        logger.warn('StrategyStore', `策略不存在: ${strategyId}`)
-        return false
-      }
-
-      const recordIndex = strategy.tradeRecords.findIndex(r => r.id === recordId)
-      if (recordIndex === -1) {
-        logger.warn('StrategyStore', `交易记录不存在: ${recordId}`)
-        return false
-      }
-
-      // 更新记录（禁止修改不可变字段）
-      const { id, strategyId: _, strategyVersion: __, ...safeUpdates } = updates
-      strategy.tradeRecords[recordIndex] = {
-        ...strategy.tradeRecords[recordIndex],
-        ...safeUpdates
-      } as import('../../../types/strategy').TradeRecord
-      strategy.updatedAt = new Date().toISOString()
-
-      // 如果是平仓操作，重新计算性能
-      if (updates.status === 'closed' && updates.profitLoss !== undefined) {
-        await this.recalculatePerformance(strategy)
-      }
-
-      // 保存更新
-      const filePath = getStrategyFilePath(strategyId)
-      await writeFile(filePath, JSON.stringify(strategy, null, 2), 'utf-8')
-
-      logger.info('StrategyStore', `交易记录已更新: ${recordId}`)
-      return true
-    } catch (error: any) {
-      logger.error('StrategyStore', `更新交易记录失败 ${recordId}: ${error.message}`)
-      return false
-    }
+    logger.warn('StrategyStore', 'updateTradeRecord 已弃用，使用全局交易历史文件')
+    return false
   }
 
   /**
-   * 重新计算策略性能统计
+   * 保存策略时不包含 tradeRecords
    */
-  private async recalculatePerformance(strategy: Strategy): Promise<void> {
-    const closedTrades = strategy.tradeRecords.filter(t => t.status === 'closed')
-    const totalTrades = closedTrades.length
-
-    if (totalTrades === 0) {
-      strategy.performance = {
-        strategyId: strategy.id,
-        totalTrades: 0,
-        totalWins: 0,
-        totalLosses: 0,
-        winRate: 0,
-        totalProfit: 0,
-        totalLoss: 0,
-        netProfit: 0,
-        profitFactor: 0,
-        maxDrawdown: 0,
-        averageProfitPerTrade: 0,
-        averageLossPerTrade: 0,
-        largestWin: 0,
-        largestLoss: 0,
-        averageHoldTime: 0,
-        consecutiveWins: 0,
-        consecutiveLosses: 0,
-        maxConsecutiveWins: 0,
-        maxConsecutiveLosses: 0,
-        updatedAt: new Date().toISOString()
-      }
-      return
-    }
-
-    // 计算基础统计
-    const winningTrades = closedTrades.filter(t => (t.profitLoss || 0) > 0)
-    const losingTrades = closedTrades.filter(t => (t.profitLoss || 0) <= 0)
-    const totalWins = winningTrades.length
-    const totalLosses = losingTrades.length
-
-    const totalProfit = winningTrades.reduce((sum, t) => sum + (t.profitLoss || 0), 0)
-    const totalLoss = Math.abs(losingTrades.reduce((sum, t) => sum + (t.profitLoss || 0), 0))
-    const netProfit = totalProfit - totalLoss
-
-    const winRate = totalTrades > 0 ? (totalWins / totalTrades) * 100 : 0
-    const profitFactor = totalLoss > 0 ? totalProfit / totalLoss : Infinity
-
-    // 计算最大盈利/亏损
-    const largestWin = winningTrades.length > 0 ? Math.max(...winningTrades.map(t => t.profitLoss || 0)) : 0
-    const largestLoss = losingTrades.length > 0 ? Math.max(...losingTrades.map(t => Math.abs(t.profitLoss || 0))) : 0
-
-    // 平均盈亏
-    const averageProfitPerTrade = totalWins > 0 ? totalProfit / totalWins : 0
-    const averageLossPerTrade = totalLosses > 0 ? totalLoss / totalLosses : 0
-
-    // 平均持仓时间
-    const totalHoldTime = closedTrades.reduce((sum, t) => {
-      if (t.openTime && t.closeTime) {
-        const open = new Date(t.openTime).getTime()
-        const close = new Date(t.closeTime).getTime()
-        return sum + (close - open) / (1000 * 60) // 转换为分钟
-      }
-      return sum
-    }, 0)
-    const averageHoldTime = totalTrades > 0 ? totalHoldTime / totalTrades : 0
-
-    // 计算连续盈亏
-    let consecutiveWins = 0
-    let consecutiveLosses = 0
-    let maxConsecutiveWins = 0
-    let maxConsecutiveLosses = 0
-
-    // 按时间排序交易
-    const sortedTrades = [...closedTrades].sort((a, b) => 
-      new Date(a.closeTime || a.openTime).getTime() - new Date(b.closeTime || b.openTime).getTime()
-    )
-
-    for (const trade of sortedTrades) {
-      const profit = trade.profitLoss || 0
-      if (profit > 0) {
-        consecutiveWins++
-        consecutiveLosses = 0
-        maxConsecutiveWins = Math.max(maxConsecutiveWins, consecutiveWins)
-      } else {
-        consecutiveLosses++
-        consecutiveWins = 0
-        maxConsecutiveLosses = Math.max(maxConsecutiveLosses, consecutiveLosses)
-      }
-    }
-
-    // 计算最大回撤（简化版，可后续优化）
-    let peak = 0
-    let maxDrawdown = 0
-    let cumulativeProfit = 0
-    for (const trade of sortedTrades) {
-      cumulativeProfit += trade.profitLoss || 0
-      if (cumulativeProfit > peak) {
-        peak = cumulativeProfit
-      }
-      const drawdown = peak > 0 ? ((peak - cumulativeProfit) / peak) * 100 : 0
-      maxDrawdown = Math.max(maxDrawdown, drawdown)
-    }
-
-    // 更新性能数据
-    strategy.performance = {
-      strategyId: strategy.id,
-      totalTrades,
-      totalWins,
-      totalLosses,
-      winRate,
-      totalProfit,
-      totalLoss,
-      netProfit,
-      profitFactor,
-      maxDrawdown,
-      averageProfitPerTrade,
-      averageLossPerTrade,
-      largestWin,
-      largestLoss,
-      averageHoldTime,
-      consecutiveWins,
-      consecutiveLosses,
-      maxConsecutiveWins,
-      maxConsecutiveLosses,
-      updatedAt: new Date().toISOString()
-    }
+  private async saveStrategyWithoutTradeRecords(strategy: Strategy): Promise<void> {
+    // 创建不包含 tradeRecords 的副本
+    const { tradeRecords, ...strategyWithoutRecords } = strategy as any
+    const filePath = getStrategyFilePath(strategy.id)
+    await writeFile(filePath, JSON.stringify(strategyWithoutRecords, null, 2), 'utf-8')
   }
 
   /**
@@ -764,29 +572,14 @@ export class StrategyStore {
   }
 
   /**
-   * 获取策略交易记录
+   * 获取策略交易记录（仅从全局文件读取）
    */
   async getTradeRecords(strategyId: StrategyId, limit?: number, symbol?: string): Promise<import('../../../types/strategy').TradeRecord[]> {
     try {
-      const strategy = await this.getStrategy(strategyId)
-      if (!strategy) {
-        return []
-      }
-
-      // 从策略文件和全局文件同时读取记录
-      const strategyRecords = [...strategy.tradeRecords]
+      // 仅从全局文件读取记录
       const globalRecords = await this.getGlobalTradeRecords(strategyId)
 
-      // 合并并去重（按id）
-      const recordMap = new Map<string, import('../../../types/strategy').TradeRecord>()
-      for (const record of strategyRecords) {
-        recordMap.set(record.id, record)
-      }
-      for (const record of globalRecords) {
-        recordMap.set(record.id, record)
-      }
-
-      let records = Array.from(recordMap.values()).sort((a, b) => 
+      let records = globalRecords.sort((a, b) => 
         new Date(b.openTime).getTime() - new Date(a.openTime).getTime()
       )
 
