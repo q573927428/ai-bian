@@ -75,6 +75,7 @@ export class StrategyEngine {
   private positionCloser: StrategyPositionCloser
   private positionMonitor: StrategyPositionMonitor
   private state: BotState
+  private config: BotConfig
 
   constructor(
     store: StrategyStore,
@@ -89,6 +90,7 @@ export class StrategyEngine {
     this.positionManager = positionManager
     this.binance = binance
     this.state = state
+    this.config = config
     
     // 初始化AI分析器
     this.aiAnalyzer = new MultiStrategyAIAnalyzer(binance, config)
@@ -101,6 +103,16 @@ export class StrategyEngine {
     this.positionMonitor.start()
 
     // logger.info('StrategyEngine', '策略执行引擎已初始化')
+  }
+
+  /**
+   * 更新配置
+   */
+  updateConfig(config: BotConfig): void {
+    this.config = config
+    this.aiAnalyzer.updateConfig(config)
+    this.indicatorsHub.updateConfig(config)
+    logger.info('StrategyEngine', '配置已更新')
   }
 
   /**

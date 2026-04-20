@@ -230,6 +230,13 @@ export async function loadBotState(): Promise<BotState | null> {
  * 加载机器人配置
  */
 export async function loadBotConfig(): Promise<BotConfig> {
+  return await getBotConfig()
+}
+
+/**
+ * 获取机器人配置（loadBotConfig的别名）
+ */
+export async function getBotConfig(): Promise<BotConfig> {
   try {
     if (!existsSync(BOT_CONFIG_FILE)) {
       return getDefaultBotConfig()
@@ -246,6 +253,19 @@ export async function loadBotConfig(): Promise<BotConfig> {
 }
 
 /**
+ * 保存机器人配置
+ */
+export async function saveBotConfig(config: BotConfig): Promise<void> {
+  try {
+    await ensureDataDir()
+    await safeWriteFile(BOT_CONFIG_FILE, JSON.stringify(config, null, 2))
+  } catch (error: any) {
+    console.error('保存机器人配置失败:', error.message)
+    throw error
+  }
+}
+
+/**
  * 获取默认机器人配置
  */
 function getDefaultBotConfig(): BotConfig {
@@ -254,6 +274,11 @@ function getDefaultBotConfig(): BotConfig {
     indicatorsConfig: {
       requiredCandles: 300,
       adxSlopePeriod: 3
+    },
+    aiAnalysisConfig: {
+      enabled: true,
+      maxRecords: 1000,
+      saveIdle: false
     }
   }
 }

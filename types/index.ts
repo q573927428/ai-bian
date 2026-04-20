@@ -82,8 +82,8 @@ export interface IndicatorsConfig {
 export interface AIAnalysisSaveConfig {
   // 是否启用保存
   enabled: boolean
-  // 每天最大保存记录数量
-  maxRecordsPerDay: number
+  // 最大保存记录数量（文件级别）
+  maxRecords: number
   // 是否保存 IDLE 状态的分析
   saveIdle: boolean
 }
@@ -100,7 +100,7 @@ export interface BotConfig {
   aiCacheTtlMinutes?: number
 
   // AI分析保存配置
-  aiAnalysisSave?: AIAnalysisSaveConfig
+  aiAnalysisConfig?: AIAnalysisSaveConfig
 }
 
 // 风险配置（保留但不使用）

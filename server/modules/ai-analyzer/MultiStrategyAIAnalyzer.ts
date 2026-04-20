@@ -275,10 +275,10 @@ ${constraints}
    * 获取AI分析保存配置（带默认值）
    */
   private getAiAnalysisSaveConfig() {
-    const config = this.config.aiAnalysisSave
+    const config = this.config.aiAnalysisConfig
     return {
       enabled: config?.enabled ?? true,
-      maxRecordsPerDay: config?.maxRecordsPerDay ?? 1000,
+      maxRecords: config?.maxRecords ?? 1000,
       saveIdle: config?.saveIdle ?? false
     }
   }
@@ -337,8 +337,8 @@ ${constraints}
       records.push(analysis)
       
       // 如果超过最大数量限制，删除最早的记录
-      if (records.length > saveConfig.maxRecordsPerDay) {
-        const excessCount = records.length - saveConfig.maxRecordsPerDay
+      if (records.length > saveConfig.maxRecords) {
+        const excessCount = records.length - saveConfig.maxRecords
         records = records.slice(excessCount)
       }
       

@@ -7,10 +7,12 @@ import type {
   UpdateStrategyInput,
   StrategyStatus
 } from '../../../types/strategy'
+import type { BotConfig } from '../../../types'
 import { StrategyStore } from '../strategy-store/StrategyStore'
 import { StrategyEngine } from '../strategy-engine/StrategyEngine'
 import { IndicatorsHub } from '../indicators/IndicatorsHub'
 import { logger } from '../../utils/logger'
+import { saveBotConfig } from '../../utils/storage'
 
 /**
  * 策略管理器
@@ -324,6 +326,27 @@ export class StrategyManager {
     }
 
     return statuses
+  }
+
+  // ==================== 配置管理 ====================
+
+  /**
+   * 更新系统配置
+   */
+  async updateConfig(config: BotConfig): Promise<void> {
+    if (!this.engine) {
+      throw new Error('执行引擎未设置')
+    }
+
+    logger.info('StrategyManager', '更新系统配置')
+    
+    // 保存配置到文件
+    await saveBotConfig(config)
+    
+    // 通知引擎更新配置
+    this.engine.updateConfig(config)
+    
+    logger.success('StrategyManager', '系统配置已更新')
   }
 
   // ==================== 策略测试 ====================
