@@ -8,7 +8,7 @@
       <div class="card-header">
         <span>⚙️ 系统配置</span>
           <div class="header-actions">
-            <el-button size="small" type="primary" @click="showCreateDialog = true">
+            <el-button size="small" type="primary" @click="createStrategy">
               <el-icon><ElIconPlus /></el-icon>
               创建新策略
             </el-button>
@@ -131,6 +131,9 @@
         </el-button>
       </template>
     </el-dialog>
+
+    <!-- 密码验证对话框 -->
+    <PasswordDialog v-model="showPasswordDialog" @success="handlePasswordSuccess" />
 
     <!-- 策略详情对话框 -->
     <el-dialog v-model="showDetailDialog" :title="`${detailStrategy?.name} 运行详情`" width="90%" :close-on-click-modal="false">
@@ -333,6 +336,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import type { Strategy } from '../../types/strategy'
 import StrategyEditor from '../components/StrategyEditor.vue'
 import StrategyVersionHistory from '../components/StrategyVersionHistory.vue'
+import PasswordDialog from '../components/PasswordDialog.vue'
 
 const strategies = ref<Strategy[]>([])
 const loading = ref(false)
@@ -352,10 +356,52 @@ const saveAsNewVersion = ref(false)
 const versionChanges = ref('')
 const pendingSaveData = ref<any>(null)
 
+// 密码验证相关
+const showPasswordDialog = ref(false)
+const pendingAction = ref<{ type: string; data?: any } | null>(null)
+
 // 详情数据
 const performance = ref<any>({})
 const tradeRecords = ref<any[]>([])
 
+
+// 密码验证成功回调
+const handlePasswordSuccess = () => {
+  if (!pendingAction.value) return
+  
+  const { type, data } = pendingAction.value
+  
+  switch (type) {
+    case 'create':
+      showCreateDialog.value = true
+      break
+    case 'edit':
+      editingStrategy.value = data as Strategy
+      showCreateDialog.value = true
+      break
+    case 'toggle':
+      doToggleStrategy(data as Strategy)
+      break
+    case 'test':
+      doTestStrategy(data as Strategy)
+      break
+    case 'version':
+      viewingStrategy.value = data as Strategy
+      showVersionHistoryDialog.value = true
+      break
+    case 'delete':
+      doDeleteStrategy(data as Strategy)
+      break
+  }
+  
+  pendingAction.value = null
+}
+
+// 创建策略
+const createStrategy = () => {
+  pendingAction.value = { type: 'create' }
+  showPasswordDialog.value = true
+}
 
 // 加载策略列表
 const loadStrategies = async () => {
@@ -372,8 +418,8 @@ const loadStrategies = async () => {
 
 // 编辑策略
 const editStrategy = (strategy: Strategy) => {
-  editingStrategy.value = strategy
-  showCreateDialog.value = true
+  pendingAction.value = { type: 'edit', data: strategy }
+  showPasswordDialog.value = true
 }
 
 // 保存策略
@@ -425,7 +471,13 @@ const confirmSaveStrategy = async () => {
 }
 
 // 切换策略状态
-const toggleStrategy = async (strategy: Strategy) => {
+const toggleStrategy = (strategy: Strategy) => {
+  pendingAction.value = { type: 'toggle', data: strategy }
+  showPasswordDialog.value = true
+}
+
+// 实际执行切换策略状态
+const doToggleStrategy = async (strategy: Strategy) => {
   try {
     await ElMessageBox.confirm(
       `确定要${strategy.isActive ? '停用' : '激活'}策略 "${strategy.name}" 吗？`,
@@ -448,7 +500,13 @@ const toggleStrategy = async (strategy: Strategy) => {
 }
 
 // 删除策略
-const deleteStrategy = async (strategy: Strategy) => {
+const deleteStrategy = (strategy: Strategy) => {
+  pendingAction.value = { type: 'delete', data: strategy }
+  showPasswordDialog.value = true
+}
+
+// 实际执行删除策略
+const doDeleteStrategy = async (strategy: Strategy) => {
   try {
     await ElMessageBox.confirm(
       `确定要删除策略 "${strategy.name}" 吗？此操作不可撤销。`,
@@ -471,8 +529,8 @@ const deleteStrategy = async (strategy: Strategy) => {
 
 // 显示版本历史
 const showVersionHistory = (strategy: Strategy) => {
-  viewingStrategy.value = strategy
-  showVersionHistoryDialog.value = true
+  pendingAction.value = { type: 'version', data: strategy }
+  showPasswordDialog.value = true
 }
 
 // 查看策略详情
@@ -516,7 +574,13 @@ const formatDate = (dateStr: string) => {
 }
 
 // 手动测试策略
-const testStrategy = async (strategy: Strategy) => {
+const testStrategy = (strategy: Strategy) => {
+  pendingAction.value = { type: 'test', data: strategy }
+  showPasswordDialog.value = true
+}
+
+// 实际执行手动测试策略
+const doTestStrategy = async (strategy: Strategy) => {
   try {
     let symbol = strategy.marketData.symbols[0]
     

@@ -10,8 +10,8 @@ export default defineEventHandler(async (event) => {
       }
     }
     
-    // 默认密码为123456，可根据需要修改
-    const correctPassword = '123456'
+    // 默认密码为202050，可根据需要修改
+    const correctPassword = '202050'
     
     if (password === correctPassword) {
       return {
