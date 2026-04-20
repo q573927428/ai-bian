@@ -1,6 +1,6 @@
 // ==================== 策略执行引擎 ====================
 
-import type { Strategy, StrategyId, Timeframe} from '../../../types/strategy'
+import type { Strategy, StrategyId, Timeframe, AIPromptConfig } from '../../../types/strategy'
 import type { TradeSignal } from '../../../types/signal'
 import type { BotConfig } from '../../../types'
 import { StrategyStore } from '../strategy-store/StrategyStore'
@@ -370,7 +370,7 @@ export class StrategyEngine {
     instance: StrategyInstance,
     strategyId: StrategyId,
     symbol: string,
-     promptConfig: { userPrompt: string; temperature: number; maxTokens: number; model: string },
+    promptConfig: AIPromptConfig,
     indicatorsData: Map<string, any>
   ): Promise<TradeSignal | null> {
     try {
