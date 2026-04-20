@@ -81,7 +81,7 @@
           <el-switch
             v-model="showEMAMarkers"
             size="small"
-            inactive-text="交叉信号"
+            inactive-text="交叉"
             @change="handleEMAMarkersChange"
             class="marker-switch"
           />
@@ -333,14 +333,14 @@ watch(() => props.showEMALines, (newValue) => {
   display: flex;
   align-items: center;
   gap: 8px;
+  background: #eee;
+  border: 1px solid #ccc;
+  border-radius: 15px;
 }
 
 .timeframe-buttons {
   display: flex;
   gap: 2px;
-  background: #eeeeee;
-  border: 1px solid #cccccc;
-  border-radius: 15px;
   padding: 3px 10px;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
 }
@@ -374,6 +374,9 @@ watch(() => props.showEMALines, (newValue) => {
   display: flex;
   align-items: center;
   gap: 6px;
+  background: #e6f7ff;
+  border: 1px solid #91d5ff;
+  border-radius: 12px;
 }
 
 .ema-label {
@@ -388,9 +391,6 @@ watch(() => props.showEMALines, (newValue) => {
 .ema-period-buttons {
   display: flex;
   gap: 2px;
-  background: #e6f7ff;
-  border: 1px solid #91d5ff;
-  border-radius: 12px;
   padding: 2px 8px;
 }
 
@@ -449,18 +449,23 @@ watch(() => props.showEMALines, (newValue) => {
   
   .timeframe-selector {
     width: 100%;
-  }
+    justify-content: center;
+    background: #eee;
+    border: 1px solid #ccc;
+    border-radius: 15px;
+}
   
   .timeframe-buttons {
-    display: grid;
-    grid-template-columns: repeat(5, 1fr);
+    display: flex;
     gap: 2px;
-    width: 100%;
   }
 
   .ema-period-selector {
     width: 100%;
     justify-content: center;
+    background: #e6f7ff;
+    border: 1px solid #91d5ff;
+    border-radius: 15px
   }
   
   .controls-right {

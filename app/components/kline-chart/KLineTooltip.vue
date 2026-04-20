@@ -254,8 +254,9 @@ const isDOGE = computed(() => isDOGESymbol(props.symbol))
 /* 响应式设计 - 手机端 (480px以下) */
 @media (max-width: 480px) {
   .kline-tooltip {
-    left: 10px !important;
+    left: 20px !important;
     top: 10px !important;
+    margin-right: 70px;
   }
   
   .tooltip-content {
