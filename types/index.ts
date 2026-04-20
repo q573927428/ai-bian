@@ -113,6 +113,9 @@ export interface BotConfig {
 
   // AI分析保存配置
   aiAnalysisConfig?: AIAnalysisSaveConfig
+
+  // 最小信号置信度阈值（0-100）
+  minConfidence?: number
 }
 
 // 风险配置（保留但不使用）

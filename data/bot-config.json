@@ -21,7 +21,8 @@
   "aiCacheTtlMinutes": 10,
   "aiAnalysisConfig": {
     "enabled": true,
-    "maxRecords": 3000,
+    "maxRecords": 3500,
     "saveIdle": true
-  }
+  },
+  "minConfidence": 70
 }

@@ -541,11 +541,12 @@ export class StrategyEngine {
     }
 
     // 检查置信度
-    if (signal.confidence < 70) {
+    const minConfidence = this.config.minConfidence ?? 70
+    if (signal.confidence < minConfidence) {
       // 获取策略名称
       const strategyInstance = this.runningStrategies.get(signal.strategyId)
       const strategyName = strategyInstance ? strategyInstance.strategy.name : '未知策略'
-      logger.info('扫描结果', ` ${signal.symbol} @${signal.price}  ${signal.direction} 置信度（${signal.confidence} < 70）[${strategyName} - ${signal.strategyId}]`);
+      logger.info('扫描结果', ` ${signal.symbol} @${signal.price}  ${signal.direction} 置信度（${signal.confidence} < ${minConfidence}）[${strategyName} - ${signal.strategyId}]`);
       return false
     }
 
