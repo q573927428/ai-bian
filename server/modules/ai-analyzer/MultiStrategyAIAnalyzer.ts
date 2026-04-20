@@ -113,7 +113,7 @@ export class MultiStrategyAIAnalyzer {
       const cacheKey = this.buildCacheKey(strategyId, symbol, indicators, price)
       const cached = aiCache.get(cacheKey)
       if (cached && (Date.now() - cached.timestamp < this.getAiCacheTtl())) {
-        logger.info('MultiStrategyAIAnalyzer', `使用 AI 缓存结果: ${symbol}`)
+        logger.info('扫描结果', ` ${symbol} @${cached.signal.price} 使用 AI 缓存结果 [${strategyId}]`)
         return cached.signal
       }
 
@@ -268,7 +268,14 @@ export class MultiStrategyAIAnalyzer {
   - 必须使用 JSON 格式，不要包含 Markdown 代码块标记（如 \`\`\`json）。
   - "direction" 必须是 "LONG", "SHORT", "IDLE" 之一。
   - "reasoning" 必须引用提供的具体数值（如：RSI 数值、EMA 排列情况），严禁使用模糊描述。
-  - 若判断为 IDLE，confidence 不得高于 20。`
+  - confidence 必须反映信号强度：
+    - 0-15：完全无机会（震荡 / 无趋势 / 指标混乱）
+    - 15-30：有结构但不完整（缺动量 / 缺确认）
+    - 30-50：接近入场条件（临界状态）
+    - 50-70：中等质量信号
+    - 70-90：高质量信号
+    - 90-100：极强信号（极少出现）
+  - 若为 IDLE，confidence 必须在 0-40 之间，并体现“接近机会的程度”，禁止固定值。`
 
      return `
 ## 当前市场数据
@@ -288,6 +295,26 @@ ${enabledIndicatorsList.length > 0 ? `
 **重要提示**: 本次分析仅基于以下启用的指标: ${enabledIndicatorsList.join(', ')}
 请忽略未提供的指标，专注于分析可用的数据。
 ` : ''}
+
+## 指标优先级（必须遵守）
+
+1. 价格行为（最高优先级）
+   - 是否突破前高/前低
+   - 是否回踩EMA
+   - 是否连续上涨/下跌
+2. EMA结构（趋势方向）
+3. 成交量（确认动量）
+4. RSI（辅助过滤）
+5. ADX（仅用于过滤震荡，不用于触发交易）
+6. OI（仅作为加分项，不是必须条件）
+
+## 禁止行为（非常重要）
+
+- 不允许仅因为 EMA 多头排列 就做多
+- 不允许仅因为 RSI 在区间内 就开单
+- 不允许因为 OI flat 就拒绝交易
+- 不允许使用 ADX 作为入场触发条件
+- 如果没有“价格行为确认”（突破 / 回调 / 动量），必须返回 IDLE
 
 ## 交易逻辑
 ${promptConfig.userPrompt}
