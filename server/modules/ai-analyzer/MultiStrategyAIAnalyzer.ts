@@ -259,111 +259,115 @@ export class MultiStrategyAIAnalyzer {
     if (indicators.enabledIndicators?.oi) enabledIndicatorsList.push('持仓量(OI)')
     if (indicators.enabledIndicators?.volume) enabledIndicatorsList.push('成交量')
 
-    // 👇 约束内容定义在这里
-  const constraints = `
-  ## 重要输出约束
-  - 必须使用 JSON 格式，不要包含 Markdown 代码块标记（如 \`\`\`json）。
-  - "direction" 必须是 "LONG", "SHORT", "IDLE" 之一。
-  - "reasoning" 必须引用提供的具体数值（如：RSI 数值、EMA 排列情况），严禁使用模糊描述。
-  - confidence 必须反映信号强度：
-    - 0-15：完全无机会（震荡 / 无趋势 / 指标混乱）
-    - 15-30：有结构但不完整（缺动量 / 缺确认）
-    - 30-50：接近入场条件（临界状态）
-    - 50-70：中等质量信号
-    - 70-90：高质量信号
-    - 90-100：极强信号（极少出现）`
 
      return `
-## 当前市场数据
- 交易对: ${symbol}
- 价格: ${(price ?? 0).toFixed(5)}
- 24h 涨跌: ${(priceChange24h ?? 0).toFixed(2)}%
- 时间: ${new Date().toISOString()}
- K线进度: ${(candleProgress * 100).toFixed(1)}% (当前K线已走 ${(candleProgress * 100).toFixed(1)}%)
- ${indicators.enabledIndicators?.volume ? `成交量: ${(volume ?? 0).toFixed(2)}` : ''}
- 预计最终成交量: K线进度 ${(candleProgress * 100).toFixed(1)}%，预计最终成交量 = 当前成交量 / ${candleProgress.toFixed(2)}
+## 一、当前市场真实数据（仅使用以下数据）
+交易对: ${symbol}
+当前价格: ${(price ?? 0).toFixed(5)} USDT
+24小时涨跌幅: ${(priceChange24h ?? 0).toFixed(2)}%
+当前时间: ${new Date().toISOString()}
+K线完成进度: ${(candleProgress * 100).toFixed(1)}%
+${indicators.enabledIndicators?.volume ? `当前成交量: ${(volume ?? 0).toFixed(2)}` : ''}
+预计K线结束成交量: ${(volume / candleProgress).toFixed(2)}（ you must use this ）
 
-## 最新和前一根K线数据
+## 二、K线形态数据
 ${indicators.lastCandle ? `
-- 最新K线:
+- 最新K线
   开盘: ${indicators.lastCandle.open.toFixed(5)}
   最高: ${indicators.lastCandle.high.toFixed(5)}
   最低: ${indicators.lastCandle.low.toFixed(5)}
   收盘: ${indicators.lastCandle.close.toFixed(5)}
   成交量: ${indicators.lastCandle.volume.toFixed(2)}
-  ${indicators.lastCandle.close > indicators.lastCandle.open ? '阳线' : '阴线'}
-  实体大小: ${Math.abs(indicators.lastCandle.close - indicators.lastCandle.open).toFixed(4)}
-  上影线: ${(indicators.lastCandle.high - Math.max(indicators.lastCandle.open, indicators.lastCandle.close)).toFixed(4)}
-  下影线: ${(Math.min(indicators.lastCandle.open, indicators.lastCandle.close) - indicators.lastCandle.low).toFixed(4)}
+  阴阳: ${indicators.lastCandle.close > indicators.lastCandle.open ? '阳线' : '阴线'}
 ` : ''}
+
 ${indicators.prevCandle ? `
-- 前一根K线:
+- 前一根K线
   开盘: ${indicators.prevCandle.open.toFixed(5)}
   最高: ${indicators.prevCandle.high.toFixed(5)}
   最低: ${indicators.prevCandle.low.toFixed(5)}
   收盘: ${indicators.prevCandle.close.toFixed(5)}
   成交量: ${indicators.prevCandle.volume.toFixed(2)}
-  ${indicators.prevCandle.close > indicators.prevCandle.open ? '阳线' : '阴线'}
+  阴阳: ${indicators.prevCandle.close > indicators.prevCandle.open ? '阳线' : '阴线'}
 ` : ''}
 
-  ## 技术指标
-  ${technicalIndicatorLines.join('\n')}
-  ${adxLines.length > 0 ? adxLines.join('\n') : ''}
-  ${oiLines.length > 0 ? oiLines.join('\n') : ''}
+## 三、技术指标（仅启用的指标有效，未启用/值为0/未提供的指标直接忽略）
+${technicalIndicatorLines.join('\n')}
+${adxLines.length > 0 ? adxLines.join('\n') : ''}
+${oiLines.length > 0 ? oiLines.join('\n') : ''}
 
 ${enabledIndicatorsList.length > 0 ? `
----
-**重要提示**: 本次分析仅基于以下启用的指标: ${enabledIndicatorsList.join(', ')}
+本次分析**仅使用**以下指标：${enabledIndicatorsList.join(', ')}
+未启用的指标一律不参与判断。
 ` : ''}
 
-## 指标优先级（必须遵守）
+--------------------------
+## 四、分析优先级（必须严格遵守）
+1. 价格行为与K线形态（最高）
+2. 均线结构（EMA）→ 趋势方向
+3. 成交量（必须使用**预计最终成交量**）
+4. 震荡指标（RSI）→ 过滤信号
+5. 趋势强度（ADX）→ 只判断是否震荡，不产生信号
+6. 持仓量（OI）→ 辅助确认，非必要条件
 
-1. 价格行为（最高优先级）
-2. EMA结构（趋势方向）
-3. 成交量（优先使用预计最终成交量 确认动量）
-4. RSI（辅助过滤）
-5. ADX（仅用于过滤震荡，不用于触发交易）
-6. OI（仅作为加分项，不是必须条件）
-
-## 交易逻辑
+--------------------------
+## 五、你的核心交易规则（用户自定义策略，优先级最高）
+以下是用户指定的**唯一有效策略**，你必须 100% 执行，不得偏离：
+----------------------------------------
 ${promptConfig.userPrompt}
+----------------------------------------
 
-**重要提示**: 请聚焦于已提供的指标数据进行分析，对于未提供的指标及数值为 0 的指标，直接忽略，无需纳入判定与评分流程，且不得在分析结果中体现。
+⚠️ 重要规则：
+- 无论策略是激进、保守、短线、长线，都严格按上面文字执行。
+- 只根据提供的数据判断，不预测、不假设、不脑补。
+- 数据不满足 → 一律输出 IDLE。
+- 满足策略条件 → 输出对应方向。
 
-请返回 JSON 格式的交易信号，格式如下：
+--------------------------
+## 六、输出格式（必须严格遵守）
+请返回**纯JSON**，格式如下：
 {
   "direction": "LONG" | "SHORT" | "IDLE",
-  "confidence": 0-100,
-  "reasoning": "分析理由"
+  "confidence": 0~100,
+  "reasoning": "方向、简洁、基于数据、引用具体指标值的分析理由"
 }
-${constraints}
-`
+
+--------------------------
+## 七、强制输出约束（不可违反）
+- 必须使用纯 JSON 格式，不要包含 Markdown 代码块标记（如 \`\`\`json）。
+- "direction" 必须是 "LONG", "SHORT", "IDLE" 之一。
+- 无论方向是 LONG / SHORT / IDLE，**都必须正常计算并填写置信度，禁止IDLE默认填0**
+- IDLE 含义：条件不足、不适合开仓、无交易机会，但依然按照策略匹配度打分
+- "reasoning" 必须引用提供的具体数值（如：RSI 数值、EMA 排列情况），严禁使用模糊描述。
+- confidence 全程统一标准打分，不分多空、不分空仓，统一0-100：
+  - 0-15：完全无机会（震荡杂乱、指标背离、结构混乱、完全不满足策略）
+  - 15-30：结构残缺，条件缺失多项，绝对不入场
+  - 30-50：临界行情，部分满足策略，依然判定IDLE不交易
+  - 50-70：中等信号，满足大部分条件
+  - 70-90：高质量入场信号
+  - 90-100：完美信号
+- IDLE 只代表**不执行开仓**，不代表信号强度=0
+`;
   }
 
   /**
    * 构建系统提示词（包含历史学习经验）
    */
   private async buildSystemPrompt(): Promise<string> {
-    const basePrompt = `
-  你是一个严格执行交易策略的量化分析助手。
-  
-  你的任务：
-  1. 严格按照用户提供的策略规则进行市场分析。
-  2. 严格依据提供的市场数据、K线数据、技术指标进行判断。
-  
-  输出要求：
-  - 只输出符合要求的纯JSON，不添加任何解释、无关文字、markdown、代码块。
-  - 严格遵循用户给出的输出格式、评分规则、约束条件。
-  - 方向只能是 LONG / SHORT / IDLE。
-  - 置信度必须真实反映信号强度与策略匹配度。
-  
-  分析原则：
-  - 以数据为唯一依据。
-  - 以策略规则为唯一判断标准。
-  - 清晰、严谨、客观、稳定。
-  `
-  
-    return basePrompt;
+    return `
+你是一个专业、严格、稳定的量化交易策略执行引擎。
+
+你的核心使命：
+1. 只执行用户提供的策略规则，不加入任何个人观点。
+2. 只使用用户提供的数据，不预测、不脑补、不编造。
+3. 无论策略风格（激进/保守/趋势/波段/网格），均完全遵守。
+4. 永远输出干净、标准、可解析的JSON。
+
+输出铁律：
+- 只返回JSON，无任何多余内容。
+- 严格按指令输出 direction / confidence / reasoning。
+- 客观、机械、稳定、一致。
+`;
   }
 
   /**
