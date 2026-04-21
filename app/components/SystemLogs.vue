@@ -125,6 +125,7 @@ onUnmounted(() => {
   font-size: 13px;
   display: flex;
   gap: 8px;
+  flex-wrap: wrap;
 }
 
 .log-info {
@@ -158,9 +159,36 @@ onUnmounted(() => {
 
 .log-message {
   flex: 1;
+  flex-basis: 100%;
   display: flex;
   flex-direction: column;
   gap: 4px;
+  min-width: 0;
+}
+
+/* 响应式优化 - 手机端 */
+@media (max-width: 768px) {
+  .log-item {
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .log-time,
+  .log-category {
+    font-size: 12px;
+  }
+
+  .log-message {
+    flex-basis: auto;
+    margin-top: 2px;
+  }
+}
+
+/* 平板和桌面端 */
+@media (min-width: 769px) {
+  .log-message {
+    flex-basis: 0;
+  }
 }
 
 .log-summary-line {

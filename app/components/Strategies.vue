@@ -10,7 +10,7 @@
           <div class="header-actions">
             <el-button size="small" type="primary" @click="createStrategy">
               <el-icon><ElIconPlus /></el-icon>
-              创建新策略
+              创建
             </el-button>
             <el-button size="small" @click="loadStrategies">
               <el-icon><ElIconRefresh /></el-icon>
@@ -18,7 +18,7 @@
             </el-button>
             <el-button size="small" type="warning" @click="clearAICache">
               <el-icon><ElIconDelete /></el-icon>
-              清理AI缓存
+              清理
             </el-button>
           </div>
       </div>
@@ -63,7 +63,7 @@
             {{ formatDate(row.createdAt) }}
           </template>
         </el-table-column>
-        <el-table-column label="操作" fixed="right" width="330">
+        <el-table-column label="操作" width="330">
           <template #default="{ row }">
             <el-button size="small" @click="viewStrategyDetail(row)">详情</el-button>
             <el-button size="small" @click="editStrategy(row)">编辑</el-button>
