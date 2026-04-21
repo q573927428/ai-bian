@@ -129,6 +129,31 @@ export class StrategyEngine {
     return this.binance
   }
 
+  /**
+   * 将时间周期字符串转换为毫秒数
+   */
+  private timeframeToMs(timeframe: string): number {
+    const unit = timeframe.slice(-1)
+    const value = parseInt(timeframe.slice(0, -1))
+    switch (unit) {
+      case 'm': return value * 60 * 1000
+      case 'h': return value * 60 * 60 * 1000
+      case 'd': return value * 24 * 60 * 60 * 1000
+      default: return 15 * 60 * 1000 // 默认 15m
+    }
+  }
+
+  /**
+   * 计算当前K线已走的时间比例 (0-1)
+   */
+  private calculateCandleProgress(candleTimestamp: number, timeframe: string): number {
+    const timeframeMs = this.timeframeToMs(timeframe)
+    const now = Date.now()
+    const elapsed = now - candleTimestamp
+    const progress = Math.min(Math.max(elapsed / timeframeMs, 0), 1)
+    return progress
+  }
+
   // ==================== 策略生命周期 ====================
 
   /**
@@ -426,10 +451,15 @@ export class StrategyEngine {
           
         // 获取K线数据用于价格行为分析
         let lastCandle, prevCandle
+        let candleProgress = this.config.defaultCandleProgress ?? 0.1 // 使用配置的默认值
         const klines = this.indicatorsHub.getKlines(symbol, mainTimeframe)
         if (klines && klines.length >= 2) {
           lastCandle = klines[klines.length - 1]
           prevCandle = klines[klines.length - 2]
+          // 计算当前K线已走的时间比例
+          if (lastCandle && lastCandle.timestamp) {
+            candleProgress = this.calculateCandleProgress(lastCandle.timestamp, mainTimeframe)
+          }
         }
           
         const indicators: any = {
@@ -472,7 +502,8 @@ export class StrategyEngine {
          indicators,
          price,
          volume,
-         priceChange24h
+         priceChange24h,
+         candleProgress
        )
 
        if (!signal) {

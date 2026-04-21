@@ -100,13 +100,14 @@ export class MultiStrategyAIAnalyzer {
    * 分析市场（支持多策略）
    */
   async analyze(
-    strategyId: StrategyId,
+    strategyId: string,
     symbol: string,
     promptConfig: AIPromptConfig,
-    indicators: TechnicalIndicators,
+    indicators: any,
     price: number,
-    volume: number = 0,
-    priceChange24h: number = 0
+    volume: number,
+    priceChange24h: number,
+    candleProgress: number = 0.5
   ): Promise<TradeSignal | null> {
     try {
       // 1. 检查缓存
@@ -123,7 +124,8 @@ export class MultiStrategyAIAnalyzer {
         price,
         indicators,
         volume,
-        priceChange24h
+        priceChange24h,
+        candleProgress
       )
 
       // 3. 调用原有的 AI 分析函数
@@ -191,7 +193,8 @@ export class MultiStrategyAIAnalyzer {
     price: number,
     indicators: TechnicalIndicators,
     volume: number,
-    priceChange24h: number
+    priceChange24h: number,
+    candleProgress: number = 0.1
   ): string {
     // 构建技术指标部分的提示词（根据指标启用状态）
     const technicalIndicatorLines: string[] = []
@@ -278,6 +281,8 @@ export class MultiStrategyAIAnalyzer {
  24h 涨跌: ${(priceChange24h ?? 0).toFixed(2)}%
  ${indicators.enabledIndicators?.volume ? `成交量: ${(volume ?? 0).toFixed(2)}` : ''}
  时间: ${new Date().toISOString()}
+ K线进度: ${(candleProgress * 100).toFixed(1)}% (当前K线已走 ${(candleProgress * 100).toFixed(1)}%)
+ 成交量预判提示: K线进度 ${(candleProgress * 100).toFixed(1)}%，预计最终成交量 = 当前成交量 / ${candleProgress.toFixed(2)}
 
 ## 价格行为K线数据
 ${indicators.lastCandle ? `
@@ -310,31 +315,21 @@ ${indicators.prevCandle ? `
 ${enabledIndicatorsList.length > 0 ? `
 ---
 **重要提示**: 本次分析仅基于以下启用的指标: ${enabledIndicatorsList.join(', ')}
-请忽略未提供的指标，专注于分析可用的数据。
 ` : ''}
 
 ## 指标优先级（必须遵守）
 
 1. 价格行为（最高优先级）
-   - 是否突破前高/前低
-   - 是否回踩EMA
-   - 是否连续上涨/下跌
 2. EMA结构（趋势方向）
-3. 成交量（确认动量）
+3. 成交量（优先使用预计最终成交量 确认动量）
 4. RSI（辅助过滤）
 5. ADX（仅用于过滤震荡，不用于触发交易）
 6. OI（仅作为加分项，不是必须条件）
 
-## 禁止行为（非常重要）
-
-- 不允许仅因为 EMA 多头排列 就做多
-- 不允许仅因为 RSI 在区间内 就开单
-- 不允许因为 OI flat 就拒绝交易
-- 不允许使用 ADX 作为入场触发条件
-- 如果没有“价格行为确认”（突破 / 回调 / 动量），必须返回 IDLE
-
 ## 交易逻辑
 ${promptConfig.userPrompt}
+
+**重要提示**: 请聚焦于已提供的指标数据进行分析，对于未提供的指标及数值为 0 的指标，直接忽略，无需纳入判定与评分流程，且不得在分析结果中体现。
 
 请返回 JSON 格式的交易信号，格式如下：
 {

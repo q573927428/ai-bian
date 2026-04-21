@@ -24,5 +24,6 @@
     "maxRecords": 3500,
     "saveIdle": true
   },
-  "minConfidence": 70
+  "minConfidence": 70,
+  "defaultCandleProgress": 0.1
 }

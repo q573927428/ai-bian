@@ -280,6 +280,7 @@ function getDefaultBotConfig(): BotConfig {
       maxRecords: 1000,
       saveIdle: true
     },
-    minConfidence: 70
+    minConfidence: 70,
+    defaultCandleProgress: 0.1
   }
 }

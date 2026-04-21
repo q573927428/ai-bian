@@ -116,6 +116,9 @@ export interface BotConfig {
 
   // 最小信号置信度阈值（0-100）
   minConfidence?: number
+
+  // 默认K线进度（0-1），当无法获取K线时使用的默认值
+  defaultCandleProgress?: number
 }
 
 // 风险配置（保留但不使用）
