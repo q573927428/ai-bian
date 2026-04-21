@@ -14,7 +14,27 @@
       >
         <span class="log-time">{{ formatTime(log.timestamp) }}</span>
         <span class="log-category">[{{ log.category }}]</span>
-        <span class="log-message">{{ log.message }}</span>
+        <div class="log-message">
+          <template v-if="hasDetailedLog(log.message)">
+            <div class="log-summary-line">
+              <span>{{ getLogSummary(log.message) }}</span>
+              <el-link
+                type="primary"
+                :underline="false"
+                class="toggle-btn"
+                @click="toggleLog(index)"
+              >
+                <el-icon><component :is="expandedLogs.has(index) ? 'ElIconArrowDown' : 'ElIconArrowRight'" /></el-icon>
+                {{ expandedLogs.has(index) ? '收起' : '展开' }}详细
+              </el-link>
+            </div>
+            <div v-if="expandedLogs.has(index)" class="detailed-log">
+              <div class="detailed-log-header">=== 详细AI日志 ===</div>
+              <div class="detailed-log-content">{{ getDetailedLog(log.message) }}</div>
+            </div>
+          </template>
+          <span v-else>{{ log.message }}</span>
+        </div>
       </div>
       <el-empty v-if="botStore.logs.length === 0" description="暂无日志" />
     </div>
@@ -22,7 +42,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useBotStore } from '../stores/bot'
 import dayjs from 'dayjs'
 
@@ -31,8 +51,35 @@ const botStore = useBotStore()
 // 倒序显示日志，最新的在最上面
 const reversedLogs = computed(() => [...botStore.logs].reverse())
 
+// 记录展开状态的日志索引
+const expandedLogs = ref<Set<number>>(new Set())
+
+const DETAILED_LOG_SEPARATOR = '===详细AI日志==='
+
 function formatTime(timestamp: number): string {
   return dayjs(timestamp).format('HH:mm:ss')
+}
+
+function hasDetailedLog(message: string): boolean {
+  return message.includes(DETAILED_LOG_SEPARATOR)
+}
+
+function getLogSummary(message: string): string {
+  const index = message.indexOf(DETAILED_LOG_SEPARATOR)
+  return index > 0 ? message.substring(0, index).trim() : message
+}
+
+function getDetailedLog(message: string): string {
+  const index = message.indexOf(DETAILED_LOG_SEPARATOR)
+  return index > 0 ? message.substring(index + DETAILED_LOG_SEPARATOR.length).trim() : ''
+}
+
+function toggleLog(index: number): void {
+  if (expandedLogs.value.has(index)) {
+    expandedLogs.value.delete(index)
+  } else {
+    expandedLogs.value.add(index)
+  }
 }
 
 // 组件加载时获取日志并订阅共享轮询
@@ -108,5 +155,47 @@ onUnmounted(() => {
 
 .log-message {
   flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.log-summary-line {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.toggle-btn {
+  font-size: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: 8px;
+  flex-shrink: 0;
+}
+
+.detailed-log {
+  margin-top: 8px;
+  padding: 10px;
+  background: rgba(0, 0, 0, 0.03);
+  border-radius: 4px;
+  border-left: 3px solid #409eff;
+  width: 100%;
+}
+
+.detailed-log-header {
+  font-weight: 600;
+  color: #409eff;
+  margin-bottom: 6px;
+  font-size: 12px;
+}
+
+.detailed-log-content {
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #606266;
 }
 </style>
