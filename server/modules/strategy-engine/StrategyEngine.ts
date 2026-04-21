@@ -300,29 +300,31 @@ export class StrategyEngine {
       return
     }
 
-    // 2. 收集所有需要的时间周期
-    const allTimeframes = new Set<Timeframe>(strategy.marketData.timeframes)
+    // 2. 确定主周期（使用配置的第一个周期，即最小的周期）
+    const mainTimeframe = strategy.marketData.timeframes[0] || '15m'
+    
+    // 收集需要的时间周期：主周期 + 统计数据配置的周期
+    const neededTimeframes = new Set<Timeframe>([mainTimeframe])
     
     // 添加统计数据配置的时间周期
     strategy.statistics
       .filter(s => s.enabled)
       .forEach(s => {
-        s.timeframes?.forEach(tf => allTimeframes.add(tf))
+        s.timeframes?.forEach(tf => neededTimeframes.add(tf))
       })
     
-    // 从指标中心获取基础数据
+    // 从指标中心获取基础数据（只获取主周期的技术指标 + 统计数据配置的周期）
     const indicatorsData = await this.indicatorsHub.getBatchIndicators(
       symbol,
-      Array.from(allTimeframes),
+      Array.from(neededTimeframes),
       [
         ...strategy.indicators.filter(i => i.enabled && i.type !== 'EMA').map(i => i.type),
         ...strategy.statistics.filter(s => s.enabled).map(s => s.type)
       ]
     )
 
-    // 3. 根据策略配置动态获取 EMA（由 IndicatorsHub 统一计算和缓存）
+    // 3. 根据策略配置动态获取 EMA（只计算主周期）
     const emaPeriods = this.getEMAPeriodsFromStrategy(strategy)
-    const mainTimeframe = strategy.marketData.timeframes[0] || '15m'
 
     try {
       const emaData = await this.indicatorsHub.getEMAByPeriods(symbol, mainTimeframe, emaPeriods)
@@ -388,7 +390,7 @@ export class StrategyEngine {
       const price = await this.binance.fetchPrice(symbol)
 
       // 调用 AI API（复用现有的 analyzeMarketWithAI 函数）
-      // 从指标数据中提取所需参数（主时间框架取第一个配置的时间周期
+      // 主时间框架取配置的第一个周期（最小的周期）
       const mainTimeframe = instance.strategy.marketData.timeframes[0] || '15m'
       
       // 正确提取指标数据，匹配IndicatorsHub返回的key格式：${timeframe}_${type}
@@ -409,25 +411,9 @@ export class StrategyEngine {
         const volume = volumeData.current || 0
         // 暂时使用默认涨跌幅，后续集成fetchTicker方法
         const priceChange24h = 0
-        
-         // 构造符合TechnicalIndicators格式的指标数据
-         // 获取三个周期的ADX数据（如果策略配置了多个周期）
-         let timeframes = instance.strategy.marketData.timeframes || [mainTimeframe]
-          
-         // 周期优先级排序（从大到小）
-         const timeframeOrder: Record<string, number> = {
-           '1d': 5,
-           '4h': 4,
-           '1h': 3,
-           '15m': 2,
-           '5m': 1
-         }
-         timeframes = [...timeframes].sort((a, b) => (timeframeOrder[b] || 0) - (timeframeOrder[a] || 0))
-          
-         // 从所有可用周期中获取ADX数据（按周期大小排序后的顺序）
-         const adxMainData = indicatorsData.get(`${timeframes[0]}_ADX`)?.values || {}
-         const adxSecondaryData = timeframes[1] ? indicatorsData.get(`${timeframes[1]}_ADX`)?.values : null
-         const adxTertiaryData = timeframes[2] ? indicatorsData.get(`${timeframes[2]}_ADX`)?.values : null
+      
+        // 只从主周期获取ADX数据
+        const adxData = indicatorsData.get(`${mainTimeframe}_ADX`)?.values || {}
          
          // 检查策略中哪些指标是启用的
          const enabledEMAs = instance.strategy.indicators.some((i: any) => i.type === 'EMA' && i.enabled)
@@ -455,20 +441,14 @@ export class StrategyEngine {
             signal: macdData.signal,
             histogram: macdData.histogram
           } : undefined,
-          // 分别获取三个周期的ADX值
-          adxMain: enabledADX ? adxMainData.adxMain : undefined,
-          adxSecondary: enabledADX && timeframes[1] ? adxSecondaryData?.adxMain : undefined,
-          adxTertiary: enabledADX && timeframes[2] ? adxTertiaryData?.adxMain : undefined,
-          adxSlope: enabledADX ? adxMainData.adxSlope : undefined,
+          // 只获取主周期的ADX值
+          adx: enabledADX ? adxData.adx : undefined,
+          adxSlope: enabledADX ? adxData.adxSlope : undefined,
           atr: enabledATR ? indicatorsData.get(`${mainTimeframe}_ATR`)?.values?.atr : undefined,
           openInterest: enabledOI ? indicatorsData.get(`${oiTimeframe}_OI`)?.values?.value : undefined,
           openInterestChangePercent: enabledOI ? indicatorsData.get(`${oiTimeframe}_OI`)?.values?.changePercent : undefined,
           openInterestTrend: enabledOI ? indicatorsData.get(`${oiTimeframe}_OI`)?.values?.trend : undefined,
-          adxPeriodLabels: { 
-            main: timeframes[0] || mainTimeframe, 
-            secondary: timeframes[1] || '', 
-            tertiary: timeframes[2] || '' 
-          },
+          adxPeriodLabel: mainTimeframe,
           // 指标启用状态标记
           enabledIndicators: {
             ema: enabledEMAs,

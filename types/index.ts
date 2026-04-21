@@ -150,12 +150,10 @@ export interface TechnicalIndicators {
   emaMap: Record<string, number>
   emaList: Array<{ period: number; name: string; value: number }>
   
-  // ADX动态配置
-  adxPeriodLabels: { main: string, secondary: string, tertiary: string }
-  // ADX (多周期)
-  adxMain?: number
-  adxSecondary?: number
-  adxTertiary?: number
+  // ADX配置
+  adxPeriodLabel: string
+  // ADX
+  adx?: number
   
   // ADX斜率（当前值 - N周期前的值，负值表示ADX下降）
   adxSlope?: number
@@ -210,10 +208,8 @@ export interface AIAnalysis {
     ema60?: number
     rsi: number
     volume: number
-    adxMain?: number
-    adxSecondary?: number
-    adxTertiary?: number
-    adxPeriodLabels?: { main: string, secondary: string, tertiary: string }
+    adx?: number
+    adxPeriodLabel?: string
     support?: number
     resistance?: number
     [key: string]: any // 允许动态EMA字段

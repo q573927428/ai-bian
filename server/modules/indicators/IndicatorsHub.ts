@@ -596,7 +596,7 @@ export class IndicatorsHub {
           const previousADX = adxValues[previousADXIndex]?.adx ?? currentADX
           const adxSlope = currentADX - previousADX
           indicatorData.values = {
-            adxMain: currentADX,
+            adx: currentADX,
             adxSlope: adxSlope
           }
           break

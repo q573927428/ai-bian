@@ -219,21 +219,11 @@ export class MultiStrategyAIAnalyzer {
       technicalIndicatorLines.push(`- ATR(14): ${indicators.atr.toFixed(4)}`)
     }
 
-    // 动态构建ADX显示行（根据实际配置的周期数量）
+    // 构建ADX显示行
     const adxLines: string[] = []
     if (indicators.enabledIndicators?.adx) {
-      if (indicators.adxMain !== undefined) {
-        adxLines.push(`- ADX(${indicators.adxPeriodLabels.main}): ${indicators.adxMain.toFixed(2)}`)
-      }
-      
-      // 只有当有第二个周期时才显示
-      if (indicators.adxSecondary !== undefined) {
-        adxLines.push(`- ADX(${indicators.adxPeriodLabels.secondary}): ${indicators.adxSecondary.toFixed(2)}`)
-      }
-      
-      // 只有当有第三个周期时才显示
-      if (indicators.adxTertiary !== undefined) {
-        adxLines.push(`- ADX(${indicators.adxPeriodLabels.tertiary}): ${indicators.adxTertiary.toFixed(2)}`)
+      if (indicators.adx !== undefined) {
+        adxLines.push(`- ADX(${indicators.adxPeriodLabel}): ${indicators.adx.toFixed(2)}`)
       }
       
       // ADX斜率
@@ -561,10 +551,8 @@ ${constraints}
           openInterest: indicators.enabledIndicators?.oi ? indicators.openInterest : undefined,
           openInterestChangePercent: indicators.enabledIndicators?.oi ? indicators.openInterestChangePercent : undefined,
           openInterestTrend: indicators.enabledIndicators?.oi ? indicators.openInterestTrend : undefined,
-          adxMain: indicators?.adxMain ?? 0,
-          adxSecondary: indicators?.adxSecondary ?? 0,
-          adxTertiary: indicators?.adxTertiary ?? 0,
-          adxPeriodLabels: indicators?.adxPeriodLabels,
+          adx: indicators?.adx ?? 0,
+          adxPeriodLabel: indicators?.adxPeriodLabel,
           adxSlope: indicators?.adxSlope,
           support: aiResult.support,
           resistance: aiResult.resistance,
