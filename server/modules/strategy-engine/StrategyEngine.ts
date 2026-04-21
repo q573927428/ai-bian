@@ -437,41 +437,52 @@ export class StrategyEngine {
          const enabledATR = instance.strategy.indicators.some((i: any) => i.type === 'ATR' && i.enabled)
          const enabledOI = instance.strategy.statistics.some((s: any) => s.type === 'OI' && s.enabled)
          const enabledVolume = instance.strategy.statistics.some((s: any) => s.type === 'Volume' && s.enabled)
-         
-         const indicators: any = {
-           emaList: enabledEMAs && Array.isArray(emaData.emaList) ? emaData.emaList : [],
-           emaMap: enabledEMAs ? (emaData.emaMap || {}) : {},
-           rsi: enabledRSI ? rsiData.rsi : undefined,
-           macd: enabledMACD && macdData.macd !== undefined ? {
-             macd: macdData.macd,
-             signal: macdData.signal,
-             histogram: macdData.histogram
-           } : undefined,
-           // 分别获取三个周期的ADX值
-           adxMain: enabledADX ? adxMainData.adxMain : undefined,
-           adxSecondary: enabledADX && timeframes[1] ? adxSecondaryData?.adxMain : undefined,
-           adxTertiary: enabledADX && timeframes[2] ? adxTertiaryData?.adxMain : undefined,
-           adxSlope: enabledADX ? adxMainData.adxSlope : undefined,
-           atr: enabledATR ? indicatorsData.get(`${mainTimeframe}_ATR`)?.values?.atr : undefined,
-           openInterest: enabledOI ? indicatorsData.get(`${oiTimeframe}_OI`)?.values?.value : undefined,
-           openInterestChangePercent: enabledOI ? indicatorsData.get(`${oiTimeframe}_OI`)?.values?.changePercent : undefined,
-           openInterestTrend: enabledOI ? indicatorsData.get(`${oiTimeframe}_OI`)?.values?.trend : undefined,
-           adxPeriodLabels: { 
-             main: timeframes[0] || mainTimeframe, 
-             secondary: timeframes[1] || '', 
-             tertiary: timeframes[2] || '' 
-           },
-           // 指标启用状态标记
-           enabledIndicators: {
-             ema: enabledEMAs,
-             rsi: enabledRSI,
-             macd: enabledMACD,
-             adx: enabledADX,
-             atr: enabledATR,
-             oi: enabledOI,
-             volume: enabledVolume
-           }
-         }
+          
+        // 获取K线数据用于价格行为分析
+        let lastCandle, prevCandle
+        const klines = this.indicatorsHub.getKlines(symbol, mainTimeframe)
+        if (klines && klines.length >= 2) {
+          lastCandle = klines[klines.length - 1]
+          prevCandle = klines[klines.length - 2]
+        }
+          
+        const indicators: any = {
+          emaList: enabledEMAs && Array.isArray(emaData.emaList) ? emaData.emaList : [],
+          emaMap: enabledEMAs ? (emaData.emaMap || {}) : {},
+          rsi: enabledRSI ? rsiData.rsi : undefined,
+          macd: enabledMACD && macdData.macd !== undefined ? {
+            macd: macdData.macd,
+            signal: macdData.signal,
+            histogram: macdData.histogram
+          } : undefined,
+          // 分别获取三个周期的ADX值
+          adxMain: enabledADX ? adxMainData.adxMain : undefined,
+          adxSecondary: enabledADX && timeframes[1] ? adxSecondaryData?.adxMain : undefined,
+          adxTertiary: enabledADX && timeframes[2] ? adxTertiaryData?.adxMain : undefined,
+          adxSlope: enabledADX ? adxMainData.adxSlope : undefined,
+          atr: enabledATR ? indicatorsData.get(`${mainTimeframe}_ATR`)?.values?.atr : undefined,
+          openInterest: enabledOI ? indicatorsData.get(`${oiTimeframe}_OI`)?.values?.value : undefined,
+          openInterestChangePercent: enabledOI ? indicatorsData.get(`${oiTimeframe}_OI`)?.values?.changePercent : undefined,
+          openInterestTrend: enabledOI ? indicatorsData.get(`${oiTimeframe}_OI`)?.values?.trend : undefined,
+          adxPeriodLabels: { 
+            main: timeframes[0] || mainTimeframe, 
+            secondary: timeframes[1] || '', 
+            tertiary: timeframes[2] || '' 
+          },
+          // 指标启用状态标记
+          enabledIndicators: {
+            ema: enabledEMAs,
+            rsi: enabledRSI,
+            macd: enabledMACD,
+            adx: enabledADX,
+            atr: enabledATR,
+            oi: enabledOI,
+            volume: enabledVolume
+          },
+          // K线数据（价格行为分析）
+          lastCandle,
+          prevCandle
+        }
       
      // 使用新的多策略AI分析器
        const signal = await this.aiAnalyzer.analyze(

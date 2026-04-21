@@ -284,10 +284,33 @@ export class MultiStrategyAIAnalyzer {
      return `
 ## 当前市场数据
  交易对: ${symbol}
- 价格: ${(price ?? 0).toFixed(4)}
+ 价格: ${(price ?? 0).toFixed(5)}
  24h 涨跌: ${(priceChange24h ?? 0).toFixed(2)}%
  ${indicators.enabledIndicators?.volume ? `成交量: ${(volume ?? 0).toFixed(2)}` : ''}
  时间: ${new Date().toISOString()}
+
+## 价格行为K线数据
+${indicators.lastCandle ? `
+- 最新K线:
+  开盘: ${indicators.lastCandle.open.toFixed(5)}
+  最高: ${indicators.lastCandle.high.toFixed(5)}
+  最低: ${indicators.lastCandle.low.toFixed(5)}
+  收盘: ${indicators.lastCandle.close.toFixed(5)}
+  成交量: ${indicators.lastCandle.volume.toFixed(2)}
+  ${indicators.lastCandle.close > indicators.lastCandle.open ? '阳线' : '阴线'}
+  实体大小: ${Math.abs(indicators.lastCandle.close - indicators.lastCandle.open).toFixed(4)}
+  上影线: ${(indicators.lastCandle.high - Math.max(indicators.lastCandle.open, indicators.lastCandle.close)).toFixed(4)}
+  下影线: ${(Math.min(indicators.lastCandle.open, indicators.lastCandle.close) - indicators.lastCandle.low).toFixed(4)}
+` : ''}
+${indicators.prevCandle ? `
+- 前一根K线:
+  开盘: ${indicators.prevCandle.open.toFixed(5)}
+  最高: ${indicators.prevCandle.high.toFixed(5)}
+  最低: ${indicators.prevCandle.low.toFixed(5)}
+  收盘: ${indicators.prevCandle.close.toFixed(5)}
+  成交量: ${indicators.prevCandle.volume.toFixed(2)}
+  ${indicators.prevCandle.close > indicators.prevCandle.open ? '阳线' : '阴线'}
+` : ''}
 
   ## 技术指标
   ${technicalIndicatorLines.join('\n')}

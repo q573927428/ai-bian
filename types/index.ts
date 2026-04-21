@@ -188,6 +188,10 @@ export interface TechnicalIndicators {
     oi: boolean
     volume: boolean
   }
+  
+  // K线数据（价格行为分析）
+  lastCandle?: OHLCV  // 最新K线
+  prevCandle?: OHLCV  // 前一根K线
 }
 
 // AI分析结果
