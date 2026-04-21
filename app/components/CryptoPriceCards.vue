@@ -303,7 +303,7 @@ function formatPrice(price: number): string {
   if (price === 0) return '0'
   
   if (price < 0.001) {
-    return price.toFixed(6)
+    return price.toFixed(4)
   } else if (price < 1) {
     return price.toFixed(3)
   } else if (price < 1000) {
@@ -477,7 +477,7 @@ interface WebSocketStatusResponse {
   position: relative;
   overflow: hidden;
   min-height: 70px;
-  min-width: 138px;
+  min-width: 130px;
   flex-shrink: 0;
   flex: 1 0 calc(12.5% - 8px); /* 默认一行显示8个 (100% / 8 = 12.5%) */
 }
