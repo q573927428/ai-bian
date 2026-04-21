@@ -235,6 +235,11 @@ export class MultiStrategyAIAnalyzer {
       if (indicators.adxTertiary !== undefined) {
         adxLines.push(`- ADX(${indicators.adxPeriodLabels.tertiary}): ${indicators.adxTertiary.toFixed(2)}`)
       }
+      
+      // ADX斜率
+      if (indicators.adxSlope !== undefined) {
+        adxLines.push(`- ADX斜率: ${indicators.adxSlope.toFixed(4)}`)
+      }
     }
 
     // 只在启用OI时显示
@@ -537,6 +542,7 @@ ${constraints}
           adxSecondary: indicators?.adxSecondary ?? 0,
           adxTertiary: indicators?.adxTertiary ?? 0,
           adxPeriodLabels: indicators?.adxPeriodLabels,
+          adxSlope: indicators?.adxSlope,
           support: aiResult.support,
           resistance: aiResult.resistance,
         },
