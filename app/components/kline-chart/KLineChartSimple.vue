@@ -77,7 +77,7 @@ const chartCanvasRef = ref<InstanceType<typeof KLineChartCanvas> | null>(null)
 
 // 导入工具函数
 import { formatTime } from './utils/kline-formatters'
-import { generateClientId, isDOGESymbol } from './utils/kline-helpers'
+import { generateClientId } from './utils/kline-helpers'
 import { calculateEMASeries, calculateATRSeries, calculateATRPercent } from '../../utils/ema-calculator'
 import { calculateRSISeries } from '../../utils/rsi-calculator'
 import { calculateADXSeries } from '../../utils/adx-calculator'

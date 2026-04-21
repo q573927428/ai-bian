@@ -44,8 +44,7 @@ import {
 } from '../../utils/ema-calculator'
 import { calculateRSISeries } from '../../utils/rsi-calculator'
 import { calculateADXSeries } from '../../utils/adx-calculator'
-import { prepareCandlestickData, prepareVolumeData, getChartOptions } from './utils/kline-helpers'
-import { isDOGESymbol } from './utils/kline-helpers'
+import { prepareCandlestickData, prepareVolumeData, getChartOptions, isDOGESymbol } from './utils/kline-helpers'
 import { useBotStore } from '../../stores/bot'
 
 // 定义props
