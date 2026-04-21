@@ -27,14 +27,13 @@
       "type": "EMA",
       "params": {
         "periods": [
-          120,
           20,
-          50
+          50,
+          120
         ]
       },
       "timeframes": [
-        "15m",
-        "1h"
+        "15m"
       ],
       "enabled": true
     },
@@ -45,8 +44,7 @@
         "period": 14
       },
       "timeframes": [
-        "15m",
-        "1h"
+        "15m"
       ],
       "enabled": true
     },
@@ -57,8 +55,7 @@
         "period": 14
       },
       "timeframes": [
-        "15m",
-        "1h"
+        "15m"
       ],
       "enabled": true
     },
@@ -71,8 +68,7 @@
         "signalPeriod": 9
       },
       "timeframes": [
-        "15m",
-        "1h"
+        "15m"
       ],
       "enabled": true
     },
@@ -83,8 +79,7 @@
         "period": 14
       },
       "timeframes": [
-        "15m",
-        "1h"
+        "15m"
       ],
       "enabled": true
     }
@@ -98,7 +93,7 @@
         "changePeriod": 24
       },
       "timeframes": [
-        "1h"
+        "15m"
       ],
       "enabled": true
     },
@@ -109,7 +104,7 @@
         "comparePeriod": 20
       },
       "timeframes": [
-        "1h"
+        "15m"
       ],
       "enabled": true
     }
@@ -177,14 +172,13 @@
             "type": "EMA",
             "params": {
               "periods": [
-                120,
                 20,
-                50
+                50,
+                120
               ]
             },
             "timeframes": [
-              "15m",
-              "1h"
+              "15m"
             ],
             "enabled": true
           },
@@ -195,8 +189,7 @@
               "period": 14
             },
             "timeframes": [
-              "15m",
-              "1h"
+              "15m"
             ],
             "enabled": true
           },
@@ -207,8 +200,7 @@
               "period": 14
             },
             "timeframes": [
-              "15m",
-              "1h"
+              "15m"
             ],
             "enabled": true
           },
@@ -221,8 +213,7 @@
               "signalPeriod": 9
             },
             "timeframes": [
-              "15m",
-              "1h"
+              "15m"
             ],
             "enabled": true
           },
@@ -233,8 +224,7 @@
               "period": 14
             },
             "timeframes": [
-              "15m",
-              "1h"
+              "15m"
             ],
             "enabled": true
           }
@@ -248,7 +238,7 @@
               "changePeriod": 24
             },
             "timeframes": [
-              "1h"
+              "15m"
             ],
             "enabled": true
           },
@@ -259,7 +249,7 @@
               "comparePeriod": 20
             },
             "timeframes": [
-              "1h"
+              "15m"
             ],
             "enabled": true
           }

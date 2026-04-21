@@ -416,7 +416,7 @@ watch([selectedIndicators, emaPeriods, () => form.marketData.timeframes], () => 
     newIndicators.push({
       id: String(id++),
       type: 'EMA',
-      params: { periods: emaPeriods.value },
+      params: { periods: [...emaPeriods.value].sort((a, b) => a - b) },
       timeframes: smallestTimeframe,
       enabled: true
     })
@@ -511,7 +511,7 @@ watch(() => props.strategy, (newVal) => {
     // 同步 EMA 周期
     const emaIndicator = newVal.indicators.find(i => i.type === 'EMA')
     if (emaIndicator && emaIndicator.params && emaIndicator.params.periods) {
-      emaPeriods.value = emaIndicator.params.periods
+      emaPeriods.value = [...emaIndicator.params.periods].sort((a, b) => a - b)
     }
     
     // 同步统计数据
