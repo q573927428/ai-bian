@@ -401,17 +401,23 @@ const form = reactive<CreateStrategyInput>({
   }
 })
 
-// 同步 indicators 数据 - 使用市场数据配置的周期
+// 同步 indicators 数据 - 使用市场数据配置的最小周期
 watch([selectedIndicators, emaPeriods, () => form.marketData.timeframes], () => {
   const newIndicators: any[] = []
   let id = 1
+
+  // 获取最小周期
+  const sortedTimeframes = [...form.marketData.timeframes].sort((a, b) => 
+    (timeframePriority[a] || 99) - (timeframePriority[b] || 99)
+  )
+  const smallestTimeframe = sortedTimeframes[0] ? [sortedTimeframes[0]] : []
 
   if (selectedIndicators.value.includes('EMA')) {
     newIndicators.push({
       id: String(id++),
       type: 'EMA',
       params: { periods: emaPeriods.value },
-      timeframes: [...form.marketData.timeframes],
+      timeframes: smallestTimeframe,
       enabled: true
     })
   }
@@ -420,7 +426,7 @@ watch([selectedIndicators, emaPeriods, () => form.marketData.timeframes], () => 
       id: String(id++),
       type: 'RSI',
       params: { period: 14 },
-      timeframes: [...form.marketData.timeframes],
+      timeframes: smallestTimeframe,
       enabled: true
     })
   }
@@ -429,7 +435,7 @@ watch([selectedIndicators, emaPeriods, () => form.marketData.timeframes], () => 
       id: String(id++),
       type: 'ADX',
       params: { period: 14 },
-      timeframes: [...form.marketData.timeframes],
+      timeframes: smallestTimeframe,
       enabled: true
     })
   }
@@ -438,7 +444,7 @@ watch([selectedIndicators, emaPeriods, () => form.marketData.timeframes], () => 
       id: String(id++),
       type: 'MACD',
       params: { fastPeriod: 12, slowPeriod: 26, signalPeriod: 9 },
-      timeframes: [...form.marketData.timeframes],
+      timeframes: smallestTimeframe,
       enabled: true
     })
   }
@@ -447,7 +453,7 @@ watch([selectedIndicators, emaPeriods, () => form.marketData.timeframes], () => 
       id: String(id++),
       type: 'ATR',
       params: { period: 14 },
-      timeframes: [...form.marketData.timeframes],
+      timeframes: smallestTimeframe,
       enabled: true
     })
   }
@@ -455,17 +461,23 @@ watch([selectedIndicators, emaPeriods, () => form.marketData.timeframes], () => 
   form.indicators = newIndicators
 }, { immediate: true, deep: true })
 
-// 同步 statistics 数据
-watch(selectedStatistics, () => {
+// 同步 statistics 数据 - 使用市场数据配置的最小周期
+watch([selectedStatistics, () => form.marketData.timeframes], () => {
   const newStatistics: any[] = []
   let id = 5
+
+  // 获取最小周期
+  const sortedTimeframes = [...form.marketData.timeframes].sort((a, b) => 
+    (timeframePriority[a] || 99) - (timeframePriority[b] || 99)
+  )
+  const smallestTimeframe = sortedTimeframes[0] ? [sortedTimeframes[0]] : ['1h']
 
   if (selectedStatistics.value.includes('OI')) {
     newStatistics.push({
       id: String(id++),
       type: 'OI',
       params: { trendPeriod: 12, changePeriod: 24 },
-      timeframes: ['1h'],
+      timeframes: smallestTimeframe,
       enabled: true
     })
   }
@@ -474,13 +486,13 @@ watch(selectedStatistics, () => {
       id: String(id++),
       type: 'Volume',
       params: { comparePeriod: 20 },
-      timeframes: ['1h'],
+      timeframes: smallestTimeframe,
       enabled: true
     })
   }
 
   form.statistics = newStatistics
-}, { immediate: true })
+}, { immediate: true, deep: true })
 
 // 如果有编辑的策略，加载数据
 watch(() => props.strategy, (newVal) => {

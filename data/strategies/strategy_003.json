@@ -3,7 +3,7 @@
   "name": "策略03",
   "version": 1,
   "createdAt": "2026-04-19T16:14:17.182Z",
-  "updatedAt": "2026-04-20T07:20:21.238Z",
+  "updatedAt": "2026-04-21T02:27:28.977Z",
   "isActive": true,
   "marketData": {
     "symbols": [
@@ -11,12 +11,15 @@
       "ETH/USDT",
       "SOL/USDT",
       "DOGE/USDT",
-      "HYPE/USDT"
+      "HYPE/USDT",
+      "XAU/USDT",
+      "XAG/USDT",
+      "BNB/USDT"
     ],
     "timeframes": [
+      "15m",
       "1h",
-      "4h",
-      "1d"
+      "4h"
     ]
   },
   "indicators": [
@@ -25,33 +28,46 @@
       "type": "EMA",
       "params": {
         "periods": [
-          120,
           50,
-          200
+          200,
+          120
         ]
       },
       "timeframes": [
+        "15m",
         "1h",
-        "4h",
-        "1d"
+        "4h"
       ],
       "enabled": true
     },
     {
       "id": "2",
-      "type": "ADX",
+      "type": "RSI",
       "params": {
         "period": 14
       },
       "timeframes": [
+        "15m",
         "1h",
-        "4h",
-        "1d"
+        "4h"
       ],
       "enabled": true
     },
     {
       "id": "3",
+      "type": "ADX",
+      "params": {
+        "period": 14
+      },
+      "timeframes": [
+        "15m",
+        "1h",
+        "4h"
+      ],
+      "enabled": true
+    },
+    {
+      "id": "4",
       "type": "MACD",
       "params": {
         "fastPeriod": 12,
@@ -59,9 +75,22 @@
         "signalPeriod": 9
       },
       "timeframes": [
+        "15m",
         "1h",
-        "4h",
-        "1d"
+        "4h"
+      ],
+      "enabled": true
+    },
+    {
+      "id": "5",
+      "type": "ATR",
+      "params": {
+        "period": 14
+      },
+      "timeframes": [
+        "15m",
+        "1h",
+        "4h"
       ],
       "enabled": true
     }
@@ -92,10 +121,11 @@
     }
   ],
   "aiPrompt": {
-    "userPrompt": "你是一个保守型趋势交易员，目标是捕捉中长线趋势，避免频繁交易。\n\n请重点分析：\n\n1. 大趋势方向（EMA50/120/200）\n   - 多头趋势：价格在EMA120上方，且EMA多头排列\n   - 空头趋势：价格在EMA120下方，且EMA空头排列\n\n2. 趋势强度（ADX）\n   - ADX > 25：趋势成立\n   - ADX > 30：强趋势优先考虑入场\n   - ADX < 20：绝不交易\n\n3. MACD确认趋势延续\n   - 多头：MACD > Signal 且 Histogram为正\n   - 空头：MACD < Signal 且 Histogram为负\n\n4. OI判断主力行为\n   - 趋势方向 + OI持续增加 → 强趋势\n   - OI下降 → 可能趋势结束\n\n5. 风险控制\n   - 不追高，不抄底\n   - 只在趋势明确且回调确认后考虑入场\n\n只有在“趋势明确 + 强度足够 + 资金支持”的情况下才给出LONG或SHORT。\n\n否则一律返回IDLE。",
+    "userPrompt": "# 你是一个量化交易执行引擎，不是分析师。\n你的所有决策必须严格基于「评分制模型+固定参数阈值」，禁止任何主观判断，100%沿用截图内参数规则执行。\n\n---\n\n# 一、前置条件（最高优先级）\n【ADX斜率过滤】\n* 如果 ADX斜率 ≤ 0\n  → 方向**强制锁定为IDLE**，置信度强制≤20分，完整走完所有评分流程、不跳过任何分项、保留标准输出格式，不中断计算\n* 只有当 ADX斜率 > 0 才正常参与全维度趋势判定与高分结算\n\n---\n\n# 二、趋势方向判断（必要条件，不计分）\n使用 EMA 快慢线：\n* EMA快线 > EMA慢线 → direction = LONG\n* EMA快线 < EMA慢线 → direction = SHORT\n* 否则 → direction = IDLE\n\nreasoning 必须写明：\n* EMA具体数值，例如：EMA50(102.5) > EMA200(100.2)\n---\n\n# 三、评分系统（总分 = confidence，满分100）\n必须逐项计算，不可跳过、不可漏项\n## 固定参数阈值全程严格匹配：\nEMA偏离阈值1.00%、EMA200价格偏离阈值1.60%、RSI区间35-65、K线影线阈值0.90%、成交量12周期均量×1.8倍\n\n---\n\n【1. OI趋势匹配（25分）】\n多头：\n* OI非下降 且 OI变化 > 0 → +25\n空头：\n* OI非下降 且 OI变化 < 0 → +25\n否则：\n* +0（必须说明 OI趋势 + 变化率）\n\n---\n\n【2. EMA接近（10分）】\n* 当前价格与EMA快线/慢线偏离 ≤ 0.010，价格贴近EMA → +10\n否则 +0（说明价格超出EMA回踩阈值，偏离过大）\n\n---\n\n【3. EMA偏离度（22分）】\n* 价格与EMA慢线偏离 ≤ 0.016，未超出EMA200乖离阈值、不过度远离均线 → +22\n否则 +0（说明价格偏离EMA200阈值过大，乖离超标）\n\n---\n\n【4. RSI区间（10分）】\n多头：\n* RSI 在 **35~65** 区间 且有向上倾向 → +10\n空头：\n* RSI 在 **35~65** 区间 且有向下倾向 → +10\n否则：\n* +0（必须写明当前RSI具体数值，说明是否超出35-65上下限）\n\n---\n\n【5. 成交量（23分）】\n* 当前成交量 ≥ 12周期EMA成交量 × 1.8倍 → +23\n否则 +0（说明未达到放量倍数要求，未放量）\n\n---\n\n【6. K线确认（10分）】\n同时满足2个条件才算有效加分：\n1.  K线方向与趋势一致 / 存在明显动量K线\n2.  多头K线下影线幅度≤0.009、空头K线上影线幅度≤0.009\n满足全部 → +10\n否则 +0\n\n---\n\n# 四、最终开仓规则\n1.  ADX斜率 ≤ 0：**强制direction=IDLE，confidence≤20**，无视总分阈值\n2.  ADX斜率 > 0 时：\n* 总分 ≥ **70分** → 允许开仓\n* 总分 < 70分 → 返回 IDLE\n\n---\n\n# 五、输出格式（必须严格一字不差遵循）\n{\n\"direction\": \"LONG\" | \"SHORT\" | \"IDLE\",\n\"confidence\": 0-100,\n\"reasoning\": \"总分=XX，OI +XX（OI变化XX%），EMA接近 +XX（价格偏离EMAXX%≤0.010），EMA偏离 +XX（价格偏离EMA200XX%≤0.016），RSI=XX(+XX)，成交量 +XX（当前量/12周期均量=XX倍≥1.80），K线确认 +XX（影线幅度XX%≤0.009）\"\n}\n\n---\n\n# 六、禁止行为\n* 不允许主观判断 confidence\n* 不允许跳过任何评分项、不允许篡改固定阈值参数\n* 不允许使用模糊描述\n* 不允许忽略 ADX斜率最高优先级规则\n* ADX斜率≤0时不得输出非IDLE方向，总分绝对不得超过20",
     "temperature": 0.5,
     "maxTokens": 2000,
-    "model": "deepseek-chat"
+    "model": "deepseek-chat",
+    "provider": "deepseek"
   },
   "riskManagement": {
     "maxRiskPercentage": 10,

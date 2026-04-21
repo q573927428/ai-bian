@@ -3,7 +3,7 @@
   "name": "策略01",
   "version": 1,
   "createdAt": "2026-04-19T16:03:49.383Z",
-  "updatedAt": "2026-04-20T07:20:21.235Z",
+  "updatedAt": "2026-04-21T02:27:50.554Z",
   "isActive": true,
   "marketData": {
     "symbols": [
@@ -12,9 +12,7 @@
       "SOL/USDT",
       "DOGE/USDT",
       "HYPE/USDT",
-      "XAU/USDT",
-      "XAG/USDT",
-      "BNB/USDT"
+      "XAU/USDT"
     ],
     "timeframes": [
       "5m",
@@ -104,7 +102,8 @@
     "userPrompt": "你是一个偏激进的短线交易员，目标是捕捉快速波动机会。\n\n请重点关注以下因素：\n1. EMA短期结构（7/20/50）是否形成多头或空头排列\n2. RSI是否处于超买或超卖区（>70 或 <30）\n3. 价格是否刚刚突破EMA关键线（20或50）\n4. OI是否同步增加（代表有新资金进场）\n5. 成交量是否放大（确认突破有效）\n\n做多条件偏好：\n- EMA多头排列（7 > 20 > 50）\n- RSI低位反弹（30~50区间向上）\n- OI增加 + 成交量放大\n\n做空条件偏好：\n- EMA空头排列（7 < 20 < 50）\n- RSI高位回落（50~70向下）\n- OI增加 + 成交量放大\n\n允许在信号不完全确认时提前入场，但必须说明风险。\n\n如果没有明显动量或结构混乱，返回IDLE。",
     "temperature": 0.5,
     "maxTokens": 2000,
-    "model": "deepseek-chat"
+    "model": "deepseek-chat",
+    "provider": "deepseek"
   },
   "riskManagement": {
     "maxRiskPercentage": 20,
