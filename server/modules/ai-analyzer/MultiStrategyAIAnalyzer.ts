@@ -329,7 +329,7 @@ ${promptConfig.userPrompt}
 {
   "direction": "LONG" | "SHORT" | "IDLE",
   "confidence": 0~100,
-  "reasoning": "方向、简洁、基于数据、引用具体指标值的分析理由"
+  "reasoning": "简洁、基于数据、引用具体指标值的分析理由"
 }
 
 --------------------------
@@ -338,7 +338,7 @@ ${promptConfig.userPrompt}
 - "direction" 必须是 "LONG", "SHORT", "IDLE" 之一。
 - 无论方向是 LONG / SHORT / IDLE，**都必须正常计算并填写置信度，禁止IDLE默认填0**
 - IDLE 含义：条件不足、不适合开仓、无交易机会，但依然按照策略匹配度打分
-- "reasoning" 必须引用提供的具体数值（如：RSI 数值、EMA 排列情况），严禁使用模糊描述。
+- "reasoning" 必须引用提供的具体数值（如：方向 RSI 数值、EMA 排列情况），严禁使用模糊描述。
 - confidence 全程统一标准打分，不分多空、不分空仓，统一0-100：
   - 0-15：完全无机会（震荡杂乱、指标背离、结构混乱、完全不满足策略）
   - 15-30：结构残缺，条件缺失多项，绝对不入场
