@@ -486,15 +486,15 @@ export class StrategyEngine {
        
        if (signal.direction === 'idle') {
          // IDLE 状态
-         logger.info('扫描结果', ` ${signal.symbol} @${signal.price} IDLE 置信度（${signal.confidence} < ${minConfidence}）[${strategyName} - ${signal.strategyId}] ===详细日志开始=== ${signal.reasoning}`)
+         logger.info('扫描结果', ` ${signal.symbol} @${signal.price} IDLE 置信度（${signal.confidence} < ${minConfidence}）[${strategyName} - ${signal.strategyId}] ===详细AI日志=== ${signal.reasoning}`)
          return null
        } else if (signal.confidence < minConfidence) {
          // 有方向但置信度不足的情况
-         logger.info('扫描结果', ` ${signal.symbol} @${signal.price} ${signal.direction.toUpperCase()} 置信度（${signal.confidence} < ${minConfidence}）[${strategyName} - ${signal.strategyId}] ===详细日志开始=== ${signal.reasoning}`)
+         logger.info('扫描结果', ` ${signal.symbol} @${signal.price} ${signal.direction.toUpperCase()} 置信度（${signal.confidence} < ${minConfidence}）[${strategyName} - ${signal.strategyId}] ===详细AI日志=== ${signal.reasoning}`)
          return null
        } else {
          // 有方向且置信度足够的情况
-         logger.success('扫描结果', ` ${signal.symbol} @${signal.price} ${signal.direction.toUpperCase()} 置信度（${signal.confidence} ≥ ${minConfidence}）[${strategyName} - ${signal.strategyId}] ===详细日志开始=== ${signal.reasoning}`)
+         logger.success('扫描结果', ` ${signal.symbol} @${signal.price} ${signal.direction.toUpperCase()} 置信度（${signal.confidence} ≥ ${minConfidence}）[${strategyName} - ${signal.strategyId}] ===详细AI日志=== ${signal.reasoning}`)
        }
       
       // 补充止损价（仅对非 idle 方向）
