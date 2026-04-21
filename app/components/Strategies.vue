@@ -25,8 +25,8 @@
     </template>
 
       <el-table :data="strategies" v-loading="loading" stripe>
-        <el-table-column prop="name" label="策略" width="100" />
-        <el-table-column label="交易对" width="300" >
+        <el-table-column prop="name" label="策略" width="90" />
+        <el-table-column label="交易对" width="290" >
           <template #default="{ row }">
             <el-tag
               v-for="symbol in row.marketData.symbols.slice(0, 3)"
