@@ -24,7 +24,10 @@
                 class="toggle-btn"
                 @click="toggleLog(index)"
               >
-                <el-icon><component :is="expandedLogs.has(index) ? 'ElIconArrowDown' : 'ElIconArrowRight'" /></el-icon>
+                <el-icon>
+                  <ElIconArrowDown v-if="expandedLogs.has(index)" />
+                  <ElIconArrowRight v-else />
+                </el-icon>
                 {{ expandedLogs.has(index) ? '收起' : '展开' }}详细
               </el-link>
             </div>
