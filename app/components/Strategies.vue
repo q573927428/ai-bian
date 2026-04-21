@@ -51,19 +51,19 @@
             v{{ row.version }}
           </template>
         </el-table-column>
-        <el-table-column label="状态" width="100">
+        <el-table-column label="状态" width="80">
           <template #default="{ row }">
             <el-tag :type="getStatusType(row)">
               {{ getStatusText(row) }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="时间" width="180">
+        <el-table-column label="时间" width="160">
           <template #default="{ row }">
             {{ formatDate(row.createdAt) }}
           </template>
         </el-table-column>
-        <el-table-column label="操作" fixed="right" >
+        <el-table-column label="操作" fixed="right" width="330">
           <template #default="{ row }">
             <el-button size="small" @click="viewStrategyDetail(row)">详情</el-button>
             <el-button size="small" @click="editStrategy(row)">编辑</el-button>
