@@ -271,20 +271,19 @@ export class MultiStrategyAIAnalyzer {
     - 30-50：接近入场条件（临界状态）
     - 50-70：中等质量信号
     - 70-90：高质量信号
-    - 90-100：极强信号（极少出现）
-  - 若为 IDLE，confidence 必须在 0-40 之间，并体现“接近机会的程度”，禁止固定值。`
+    - 90-100：极强信号（极少出现）`
 
      return `
 ## 当前市场数据
  交易对: ${symbol}
  价格: ${(price ?? 0).toFixed(5)}
  24h 涨跌: ${(priceChange24h ?? 0).toFixed(2)}%
- ${indicators.enabledIndicators?.volume ? `成交量: ${(volume ?? 0).toFixed(2)}` : ''}
  时间: ${new Date().toISOString()}
  K线进度: ${(candleProgress * 100).toFixed(1)}% (当前K线已走 ${(candleProgress * 100).toFixed(1)}%)
- 成交量预判提示: K线进度 ${(candleProgress * 100).toFixed(1)}%，预计最终成交量 = 当前成交量 / ${candleProgress.toFixed(2)}
+ ${indicators.enabledIndicators?.volume ? `成交量: ${(volume ?? 0).toFixed(2)}` : ''}
+ 预计最终成交量: K线进度 ${(candleProgress * 100).toFixed(1)}%，预计最终成交量 = 当前成交量 / ${candleProgress.toFixed(2)}
 
-## 价格行为K线数据
+## 最新和前一根K线数据
 ${indicators.lastCandle ? `
 - 最新K线:
   开盘: ${indicators.lastCandle.open.toFixed(5)}
@@ -345,27 +344,27 @@ ${constraints}
    * 构建系统提示词（包含历史学习经验）
    */
   private async buildSystemPrompt(): Promise<string> {
-    let basePrompt = `
-你是一位专业的量化交易员，而不是普通分析师。
-
-你的决策流程必须严格遵守：
-
-1. 先判断市场状态（趋势 / 震荡 / 启动 / 延续）
-2. 再判断是否存在“价格行为机会”（突破 / 回调 / 动量）
-3. 最后用指标进行确认（EMA / RSI / 成交量 / OI）
-
-核心原则：
-
-- 价格行为 > 指标
-- 结构 > 信号
-- 动量 > 滞后指标
-
-你必须像真实交易员一样思考，而不是逐条解释指标。
-
-如果没有优势，必须返回 IDLE。
-`
-
-    return basePrompt
+    const basePrompt = `
+  你是一个严格执行交易策略的量化分析助手。
+  
+  你的任务：
+  1. 严格按照用户提供的策略规则进行市场分析。
+  2. 严格依据提供的市场数据、K线数据、技术指标进行判断。
+  3. 不添加主观想象、不猜测未提供的数据。
+  
+  输出要求：
+  - 只输出符合要求的纯JSON，不添加任何解释、无关文字、markdown、代码块。
+  - 严格遵循用户给出的输出格式、评分规则、约束条件。
+  - 方向只能是 LONG / SHORT / IDLE。
+  - 置信度必须真实反映信号强度与策略匹配度。
+  
+  分析原则：
+  - 以数据为唯一依据。
+  - 以策略规则为唯一判断标准。
+  - 清晰、严谨、客观、稳定。
+  `
+  
+    return basePrompt;
   }
 
   /**
