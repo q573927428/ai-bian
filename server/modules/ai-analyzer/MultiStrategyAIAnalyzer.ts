@@ -107,7 +107,7 @@ export class MultiStrategyAIAnalyzer {
     price: number,
     volume: number,
     priceChange24h: number,
-    candleProgress: number = 0.5
+    candleProgress: number = 0.1
   ): Promise<TradeSignal | null> {
     try {
       // 1. 检查缓存
