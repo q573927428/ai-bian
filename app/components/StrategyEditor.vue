@@ -374,7 +374,7 @@ const form = reactive<CreateStrategyInput>({
   statistics: [],
   aiPrompt: {
     userPrompt: '请分析当前市场趋势，当技术指标显示明确的方向时给出开仓建议。\n\n要求：\n1. 趋势明确时才给出信号\n2. 严格控制风险\n3. 返回JSON格式：{direction: "long/short", confidence: 0-100, reasoning: "理由"}',
-    temperature: 0.5,
+    temperature: 0.3,
     maxTokens: 2000,
     model: 'deepseek-chat',
     provider: 'deepseek'
