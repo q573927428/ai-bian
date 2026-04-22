@@ -1,0 +1,207 @@
+{
+  "id": "strategy_004",
+  "name": "策略04",
+  "version": 1,
+  "createdAt": "2026-04-22T09:40:30.913Z",
+  "updatedAt": "2026-04-22T10:04:52.370Z",
+  "isActive": true,
+  "marketData": {
+    "symbols": [
+      "SOL/USDT",
+      "DOGE/USDT",
+      "HYPE/USDT"
+    ],
+    "timeframes": [
+      "15m"
+    ]
+  },
+  "indicators": [
+    {
+      "id": "1",
+      "type": "EMA",
+      "params": {
+        "periods": [
+          7,
+          120
+        ]
+      },
+      "timeframes": [
+        "15m"
+      ],
+      "enabled": true
+    },
+    {
+      "id": "2",
+      "type": "ADX",
+      "params": {
+        "period": 14
+      },
+      "timeframes": [
+        "15m"
+      ],
+      "enabled": true
+    }
+  ],
+  "statistics": [],
+  "aiPrompt": {
+    "userPrompt": "## 一、死叉预判 · 开多信号\n满足**全部以下条件**，判定预判死叉，直接开多，信号置信度80\n1. 当前价格＜EMA120均线\n2. EMA7均线＞EMA120均线\n3. EMA7与EMA120价格差值距离＜0.2%\n\n## 二、金叉预判 · 开空信号\n满足**全部以下条件**，判定预判金叉，直接开空，信号置信度80\n1. 当前价格＞EMA120均线\n2. EMA7均线＜EMA120均线\n3. EMA7与EMA120价格差值距离＜0.2%\n\n## 三、执行规则\n- **任意一条条件不满足 → 直接输出 IDLE，置信度=0**\n- 信号同时触发严格按上述方向开仓，不做额外主观过滤\n- 如果满足金叉死叉信号，置信度给80，不浮动调整\n- 仅贴合EMA7、EMA120价格位置与间距阈值判定，不叠加其他指标\n- 禁止脑补多空方向、禁止额外补充行情逻辑\n- 无完全匹配信号，绝不生成开仓指令",
+    "temperature": 0.3,
+    "maxTokens": 2000,
+    "model": "deepseek-chat",
+    "provider": "deepseek"
+  },
+  "riskManagement": {
+    "maxRiskPercentage": 10,
+    "stopLossATRMultiplier": 2.5,
+    "takeProfitRatios": [
+      3,
+      5
+    ],
+    "maxDailyTrades": 2,
+    "maxDailyLoss": 10,
+    "maxHoldTimeMinutes": 1440,
+    "trailingStop": {
+      "enabled": false,
+      "activationRatio": 1,
+      "trailDistance": 1.2,
+      "minMoveDistance": 0.16
+    }
+  },
+  "executionConfig": {
+    "scanInterval": 900,
+    "leverage": 3,
+    "marginMode": "cross",
+    "positionMode": "one-way"
+  },
+  "versionHistory": [
+    {
+      "version": 1,
+      "updatedAt": "2026-04-22T09:40:30.913Z",
+      "changes": "初始版本创建",
+      "snapshot": {
+        "id": "strategy_004",
+        "name": "策略04",
+        "version": 1,
+        "createdAt": "2026-04-22T09:40:30.913Z",
+        "updatedAt": "2026-04-22T09:40:30.913Z",
+        "isActive": false,
+        "marketData": {
+          "symbols": [
+            "SOL/USDT",
+            "DOGE/USDT",
+            "HYPE/USDT"
+          ],
+          "timeframes": [
+            "15m"
+          ]
+        },
+        "indicators": [
+          {
+            "id": "1",
+            "type": "EMA",
+            "params": {
+              "periods": [
+                7,
+                120
+              ]
+            },
+            "timeframes": [
+              "15m"
+            ],
+            "enabled": true
+          },
+          {
+            "id": "2",
+            "type": "ADX",
+            "params": {
+              "period": 14
+            },
+            "timeframes": [
+              "15m"
+            ],
+            "enabled": true
+          }
+        ],
+        "statistics": [],
+        "aiPrompt": {
+          "userPrompt": "## 一、死叉预判 · 开多信号\n满足**全部以下条件**，判定预判死叉，直接开多，信号置信度80\n1. 当前价格＜EMA120均线\n2. EMA7均线＞EMA120均线\n3. EMA7与EMA120价格差值距离＜0.2%\n\n## 二、金叉预判 · 开空信号\n满足**全部以下条件**，判定预判金叉，直接开空，信号置信度80\n1. 当前价格＞EMA120均线\n2. EMA7均线＜EMA120均线\n3. EMA7与EMA120价格差值距离＜0.2%\n\n## 三、执行规则\n- 信号同时触发严格按上述方向开仓，不做额外主观过滤\n- 固定置信度统一80，不浮动调整\n- 仅贴合EMA7、EMA120价格位置与间距阈值判定，不叠加其他指标\n\n需要我帮你精简成**量化指令纯文本版**，直接粘贴进策略脚本吗？",
+          "temperature": 0.3,
+          "maxTokens": 2000,
+          "model": "deepseek-chat",
+          "provider": "deepseek"
+        },
+        "riskManagement": {
+          "maxRiskPercentage": 10,
+          "stopLossATRMultiplier": 2.5,
+          "takeProfitRatios": [
+            2,
+            3
+          ],
+          "maxDailyTrades": 3,
+          "maxDailyLoss": 10,
+          "maxHoldTimeMinutes": 360,
+          "trailingStop": {
+            "enabled": true,
+            "activationRatio": 1,
+            "trailDistance": 1.2,
+            "minMoveDistance": 0.16
+          }
+        },
+        "executionConfig": {
+          "scanInterval": 900,
+          "leverage": 3,
+          "marginMode": "cross",
+          "positionMode": "one-way"
+        },
+        "versionHistory": [],
+        "performance": {
+          "strategyId": "strategy_004",
+          "totalTrades": 0,
+          "totalWins": 0,
+          "totalLosses": 0,
+          "winRate": 0,
+          "totalProfit": 0,
+          "totalLoss": 0,
+          "netProfit": 0,
+          "profitFactor": 0,
+          "maxDrawdown": 0,
+          "averageProfitPerTrade": 0,
+          "averageLossPerTrade": 0,
+          "largestWin": 0,
+          "largestLoss": 0,
+          "averageHoldTime": 0,
+          "consecutiveWins": 0,
+          "consecutiveLosses": 0,
+          "maxConsecutiveWins": 0,
+          "maxConsecutiveLosses": 0,
+          "updatedAt": "2026-04-22T09:40:30.913Z"
+        },
+        "sessions": []
+      }
+    }
+  ],
+  "performance": {
+    "strategyId": "strategy_004",
+    "totalTrades": 0,
+    "totalWins": 0,
+    "totalLosses": 0,
+    "winRate": 0,
+    "totalProfit": 0,
+    "totalLoss": 0,
+    "netProfit": 0,
+    "profitFactor": 0,
+    "maxDrawdown": 0,
+    "averageProfitPerTrade": 0,
+    "averageLossPerTrade": 0,
+    "largestWin": 0,
+    "largestLoss": 0,
+    "averageHoldTime": 0,
+    "consecutiveWins": 0,
+    "consecutiveLosses": 0,
+    "maxConsecutiveWins": 0,
+    "maxConsecutiveLosses": 0,
+    "updatedAt": "2026-04-22T09:40:30.913Z"
+  },
+  "sessions": [],
+  "currentSessionId": null
+}

@@ -6,9 +6,15 @@
       </div>
     </template>
 
+    <el-tabs v-model="activeTab" class="log-tabs">
+      <el-tab-pane label="全部" name="all" />
+      <el-tab-pane label="扫描结果" name="scan" />
+      <el-tab-pane label="持仓监控" name="position" />
+    </el-tabs>
+
     <div class="logs-container">
       <div
-        v-for="(log, index) in reversedLogs"
+        v-for="(log, index) in filteredLogs"
         :key="`${log.timestamp}-${index}`"
         :class="['log-item', `log-${log.level.toLowerCase()}`]"
       >
@@ -39,7 +45,7 @@
           <span v-else>{{ log.message }}</span>
         </div>
       </div>
-      <el-empty v-if="botStore.logs.length === 0" description="暂无日志" />
+      <el-empty v-if="filteredLogs.length === 0" description="暂无日志" />
     </div>
   </el-card>
 </template>
@@ -51,8 +57,29 @@ import dayjs from 'dayjs'
 
 const botStore = useBotStore()
 
+// 当前选中的标签
+const activeTab = ref<string>('all')
+
 // 倒序显示日志，最新的在最上面
 const reversedLogs = computed(() => [...botStore.logs].reverse())
+
+// 筛选后的日志
+const filteredLogs = computed(() => {
+  if (activeTab.value === 'all') {
+    return reversedLogs.value
+  }
+  return reversedLogs.value.filter(log => {
+    if (activeTab.value === 'scan') {
+      return log.category.toLowerCase().includes('扫描') || 
+             log.category.toLowerCase().includes('信号') 
+    }
+    if (activeTab.value === 'position') {
+      return log.category.toLowerCase().includes('持仓') || 
+             log.category.toLowerCase().includes('监控') 
+    }
+    return true
+  })
+})
 
 // 记录展开状态的日志索引
 const expandedLogs = ref<Set<number>>(new Set())
@@ -107,6 +134,10 @@ onUnmounted(() => {
   justify-content: space-between;
   align-items: center;
   font-weight: 600;
+}
+
+.log-tabs {
+  margin-bottom: 10px;
 }
 
 .logs-container {

@@ -346,7 +346,7 @@ watch(() => props.showEMALines, (newValue) => {
 }
 
 .timeframe-btn {
-  padding: 2px 8px;
+  padding: 2px 5px;
   font-size: 13px;
   border-radius: 15px;
   transition: all 0.2s ease;
@@ -395,7 +395,7 @@ watch(() => props.showEMALines, (newValue) => {
 }
 
 .ema-period-btn {
-  padding: 1px 6px;
+  padding: 2px 5px;
   font-size: 12px;
   border-radius: 10px;
   transition: all 0.2s ease;

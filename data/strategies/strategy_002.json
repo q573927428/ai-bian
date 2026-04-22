@@ -3,7 +3,7 @@
   "name": "策略02",
   "version": 1,
   "createdAt": "2026-04-19T16:06:46.003Z",
-  "updatedAt": "2026-04-21T15:26:53.571Z",
+  "updatedAt": "2026-04-22T13:11:31.506Z",
   "isActive": true,
   "marketData": {
     "symbols": [
@@ -17,8 +17,7 @@
       "BNB/USDT"
     ],
     "timeframes": [
-      "15m",
-      "1h"
+      "15m"
     ]
   },
   "indicators": [
@@ -110,8 +109,8 @@
     }
   ],
   "aiPrompt": {
-    "userPrompt": "你是一个理性的中短线交易员，追求稳定胜率和趋势交易机会。\n\n请重点分析：\n\n1. 趋势方向（EMA20/120排列）\n   - 多头：20 > 120 → direction = LONG\n   - 空头：20 < 120 → direction = SHORT\n\n2. 趋势强度（ADX）\n   - ADX > 20：趋势有效\n   - ADX > 25：趋势较强\n   - ADX < 20：震荡，避免交易\n\n3. 回调入场机会\n   - 多头趋势中价格回踩EMA20或50\n   - 空头趋势中价格反弹至EMA20或50\n\n4. RSI辅助判断\n   - 多头：RSI不应过高（<70）\n   - 空头：RSI不应过低（>30）\n\n5. OI资金确认\n   - 趋势方向 + OI增加 → 强确认\n   - OI减少 → 警惕假突破\n\n交易原则：\n- 只做顺势单，不做逆势抄底/摸顶\n- 趋势不明确（EMA缠绕 / ADX低）直接IDLE\n- 必须有“趋势 + 回调 + 资金确认”三要素\n\n否则返回IDLE。",
-    "temperature": 0.2,
+    "userPrompt": "你是一个理性的中短线交易员，追求稳定胜率和趋势交易机会。\n\n请重点分析：\n\n1. 趋势方向（EMA20/120排列）\n   - 多头：EMA20 > EMA120 → direction = LONG\n   - 空头：EMA20 < EMA120 → direction = SHORT\n\n2. 趋势强度（ADX）\n   - ADX > 20：趋势有效\n   - ADX > 25：趋势较强\n   - ADX < 20：震荡，避免交易\n\n3. 回调入场机会\n   - 多头趋势中价格回踩EMA20或EMA50\n   - 空头趋势中价格反弹至EMA20或EMA50\n\n4. RSI辅助判断\n   - 多头：RSI不应过高（<70）\n   - 空头：RSI不应过低（>30）\n\n5. OI资金确认\n   - 趋势方向 + OI增加 → 强确认\n   - OI减少 → 警惕假突破\n\n交易原则：\n- 只做顺势单，不做逆势抄底/摸顶\n- 必须有“趋势 + 回调 + 资金确认”三要素",
+    "temperature": 0.3,
     "maxTokens": 2000,
     "model": "deepseek-chat",
     "provider": "deepseek"
@@ -257,7 +256,7 @@
         ],
         "aiPrompt": {
           "userPrompt": "你是一个理性的中短线交易员，追求稳定胜率和趋势交易机会。\n\n请重点分析：\n\n1. 趋势方向（EMA20/50/120排列）\n   - 多头：20 > 50 > 120\n   - 空头：20 < 50 < 120\n\n2. 趋势强度（ADX）\n   - ADX > 20：趋势有效\n   - ADX > 25：趋势较强\n   - ADX < 20：震荡，避免交易\n\n3. 回调入场机会\n   - 多头趋势中价格回踩EMA20或50\n   - 空头趋势中价格反弹至EMA20或50\n\n4. RSI辅助判断\n   - 多头：RSI不应过高（<70）\n   - 空头：RSI不应过低（>30）\n\n5. OI资金确认\n   - 趋势方向 + OI增加 → 强确认\n   - OI减少 → 警惕假突破\n\n交易原则：\n- 只做顺势单，不做逆势抄底/摸顶\n- 趋势不明确（EMA缠绕 / ADX低）直接IDLE\n- 必须有“趋势 + 回调 + 资金确认”三要素\n\n否则返回IDLE。",
-          "temperature": 0.5,
+          "temperature": 0.3,
           "maxTokens": 2000,
           "model": "deepseek-chat"
         },

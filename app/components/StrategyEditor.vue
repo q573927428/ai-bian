@@ -118,7 +118,7 @@
           <el-input
             v-model="form.aiPrompt.userPrompt"
             type="textarea"
-            :rows="12"
+            :rows="18"
             placeholder="当EMA金叉且RSI<30时，开多仓..."
           />
         </el-form-item>
@@ -135,13 +135,19 @@
                </el-select>
              </el-form-item>
            </el-col>
-           <el-col :span="6">
-             <el-form-item label="AI模型">
-               <el-select v-model="form.aiPrompt.model">
-                 <el-option v-for="model in availableModels" :key="model.value" :label="model.label" :value="model.value" />
-               </el-select>
-             </el-form-item>
-           </el-col>
+            <el-col :span="6">
+              <el-form-item label="AI模型">
+                <el-select 
+                  v-model="form.aiPrompt.model" 
+                  filterable 
+                  allow-create 
+                  placeholder="选择或输入模型名称"
+                  style="width: 100%"
+                >
+                  <el-option v-for="model in availableModels" :key="model.value" :label="model.label" :value="model.value" />
+                </el-select>
+              </el-form-item>
+            </el-col>
            <el-col :span="6">
              <el-form-item label="温度">
                <el-slider v-model="form.aiPrompt.temperature" :min="0" :max="1" :step="0.1" />
@@ -283,14 +289,14 @@ const providerModels: Record<string, Array<{ label: string; value: string }>> = 
     { label: 'deepseek-reasoner', value: 'deepseek-reasoner' }
   ],
   doubao: [
-    { label: 'doubao-seed-2-0-pro', value: 'doubao-seed-2-0-pro' },
-    { label: 'doubao-seed-2-0-lite', value: 'doubao-seed-2-0-lite' },
-    { label: 'doubao-seed-2-0-code', value: 'doubao-seed-2-0-code' }
+    { label: 'doubao-seed-2-0-pro-260215', value: 'doubao-seed-2-0-pro-260215' },
+    { label: 'doubao-seed-2-0-lite-260215', value: 'doubao-seed-2-0-lite-260215' },
+    { label: 'doubao-seed-2-0-mini-260215', value: 'doubao-seed-2-0-mini-260215' }
   ],
   qwen: [
-    { label: 'qwen-plus', value: 'qwen-plus' },
-    { label: 'qwen-turbo', value: 'qwen-turbo' },
-    { label: 'qwen-max', value: 'qwen-max' }
+    { label: 'qwen3.6-plus', value: 'qwen3.6-plus' },
+    { label: 'qwen3.6-flash', value: 'qwen3.6-flash' },
+    { label: 'qwen3.6-max-preview', value: 'qwen3.6-max-preview' }
   ],
   openai: [
     { label: 'gpt-4o-mini', value: 'gpt-4o-mini' },
