@@ -2,15 +2,13 @@
   <el-card class="card" shadow="hover" style="margin-top: 20px">
     <template #header>
       <div class="card-header">
-        <span>📝 系统日志</span>
+        <el-tabs v-model="activeTab" class="log-tabs">
+          <el-tab-pane label="全部日志" name="all" />
+          <el-tab-pane label="扫描结果" name="scan" />
+          <el-tab-pane label="持仓监控" name="position" />
+        </el-tabs>
       </div>
     </template>
-
-    <el-tabs v-model="activeTab" class="log-tabs">
-      <el-tab-pane label="全部" name="all" />
-      <el-tab-pane label="扫描结果" name="scan" />
-      <el-tab-pane label="持仓监控" name="position" />
-    </el-tabs>
 
     <div class="logs-container">
       <div
@@ -131,13 +129,23 @@ onUnmounted(() => {
 
 .card-header {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
+  flex-direction: column;
+  gap: 12px;
+  align-items: flex-start;
+  margin-bottom: -18px;
+}
+
+.card-header span {
   font-weight: 600;
+  font-size: 15px;
 }
 
 .log-tabs {
-  margin-bottom: 10px;
+  width: 100%;
+}
+
+.log-tabs :deep(.el-tabs__header) {
+  margin: 0;
 }
 
 .logs-container {
