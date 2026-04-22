@@ -69,7 +69,6 @@ export class StrategyEngine {
   private aiAnalyzer: MultiStrategyAIAnalyzer
   // AI 分析缓存: cacheKey -> {signal, timestamp}
   private aiCache: Map<string, { signal: TradeSignal; timestamp: number }> = new Map()
-  private readonly AI_CACHE_TTL = 10 * 60 * 1000 // 10分钟
 
   // 持仓相关模块
   private positionCloser: StrategyPositionCloser
@@ -152,6 +151,36 @@ export class StrategyEngine {
     const elapsed = now - candleTimestamp
     const progress = Math.min(Math.max(elapsed / timeframeMs, 0), 1)
     return progress
+  }
+
+  /**
+   * 时间周期转分钟数
+   */
+  private timeframeToMinutes(timeframe: string): number {
+    return Math.max(1, Math.floor(this.timeframeToMs(timeframe) / (60 * 1000)))
+  }
+
+  /**
+   * 非IDLE信号缓存TTL（毫秒）
+   */
+  private getAiCacheTtl(): number {
+    const minutes = Math.max(1, Number(this.config.aiCacheTtlMinutes ?? 10))
+    return minutes * 60 * 1000
+  }
+
+  /**
+   * IDLE信号缓存TTL（毫秒）
+   */
+  private getAiIdleCacheTtl(): number {
+    const minutes = Math.max(1, Number(this.config.aiIdleCacheTtlMinutes ?? 2))
+    return minutes * 60 * 1000
+  }
+
+  /**
+   * 根据缓存信号方向获取TTL
+   */
+  private getAICacheTtlBySignal(signal: TradeSignal): number {
+    return signal.direction === 'idle' ? this.getAiIdleCacheTtl() : this.getAiCacheTtl()
   }
 
   // ==================== 策略生命周期 ====================
@@ -338,15 +367,35 @@ export class StrategyEngine {
         s.timeframes?.forEach(tf => neededTimeframes.add(tf))
       })
     
-    // 从指标中心获取基础数据（只获取主周期的技术指标 + 统计数据配置的周期）
+    const oiStatConfig = strategy.statistics.find((s: any) => s.type === 'OI' && s.enabled)
+
+    // 从指标中心获取基础数据（OI单独获取，便于使用策略参数）
     const indicatorsData = await this.indicatorsHub.getBatchIndicators(
       symbol,
       Array.from(neededTimeframes),
       [
         ...strategy.indicators.filter(i => i.enabled && i.type !== 'EMA').map(i => i.type),
-        ...strategy.statistics.filter(s => s.enabled).map(s => s.type)
+        ...strategy.statistics.filter(s => s.enabled && s.type !== 'OI').map(s => s.type)
       ]
     )
+
+    // OI按策略参数单独计算（避免固定窗口导致长期flat）
+    if (oiStatConfig) {
+      const oiTimeframe = oiStatConfig?.timeframes?.[0] || mainTimeframe
+      const changePeriod = Number(oiStatConfig?.params?.changePeriod ?? 6)
+      const trendThresholdPercent = Number(oiStatConfig?.params?.trendThresholdPercent ?? 0.05)
+      const lookbackMinutes = Math.max(1, changePeriod) * this.timeframeToMinutes(oiTimeframe)
+
+      try {
+        const oiData = await this.indicatorsHub.getIndicators(symbol, oiTimeframe, 'OI', {
+          lookbackMinutes,
+          trendThresholdPercent
+        })
+        indicatorsData.set(`${oiTimeframe}_OI`, oiData)
+      } catch (error: any) {
+        logger.warn('StrategyEngine', `获取OI失败 ${symbol} ${oiTimeframe}: ${error.message}`)
+      }
+    }
 
     // 3. 根据策略配置动态获取 EMA（只计算主周期）
     const emaPeriods = this.getEMAPeriodsFromStrategy(strategy)
@@ -406,7 +455,7 @@ export class StrategyEngine {
 
       // 检查缓存
       const cached = this.aiCache.get(cacheKey)
-      if (cached && (Date.now() - cached.timestamp < this.AI_CACHE_TTL)) {
+      if (cached && (Date.now() - cached.timestamp < this.getAICacheTtlBySignal(cached.signal))) {
         // logger.info('StrategyEngine', `使用 AI 缓存结果: ${symbol}`)
         return cached.signal
       }
@@ -434,8 +483,6 @@ export class StrategyEngine {
         
         const rsi = rsiData.rsi || 50
         const volume = volumeData.current || 0
-        // 暂时使用默认涨跌幅，后续集成fetchTicker方法
-        const priceChange24h = 0
       
         // 只从主周期获取ADX数据
         const adxData = indicatorsData.get(`${mainTimeframe}_ADX`)?.values || {}
@@ -502,7 +549,6 @@ export class StrategyEngine {
          indicators,
          price,
          volume,
-         priceChange24h,
          candleProgress
        )
 

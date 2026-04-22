@@ -96,7 +96,7 @@
   ],
   "aiPrompt": {
     "userPrompt": "激进短线交易策略（带明确direction=LONG/SHORT）\n核心目标：捕捉市场启动和动量机会，不等待完美确认，优先把握即时动量\n\n## 一、市场状态判定\n1. **多头趋势**：EMA7＞EMA20＞EMA50 顺向多头排列\n2. **空头趋势**：EMA7＜EMA20＜EMA50 顺向空头排列\n3. **震荡行情**：EMA7/20/50相互缠绕、无明显有序排列\n4. **趋势启动**：价格刚向上突破EMA20/EMA50 → 多头启动；价格刚向下跌破EMA20/EMA50 → 空头启动\n\n## 二、入场触发信号（满足任意1项即可）\n1. 价格向上突破EMA20/EMA50\n2. 价格向下跌破EMA20/EMA50\n3. 出现大实体动量单边K线\n4. 价格回踩EMA20后强势反弹\n5. 价格反弹触碰EMA20后承压回落\n\n## 三、多空分项评分（每项+1分）\n### 多头 LONG 评分项\n- RSI处于30~50区间且持续向上\n- 持仓量OI同步增加\n- 成交量明显放大\n- EMA多头排列/多头启动结构\n\n### 空头 SHORT 评分项\n- RSI处于50~70区间且持续向下\n- 持仓量OI同步增加\n- 成交量明显放大\n- EMA空头排列/空头启动结构\n\n## 四、开仓方向与执行规则\n1. 多头触发成立 + 总分≥3 → **direction = LONG**，强制开多\n2. 多头触发成立 + 总分≥2 → **direction = LONG**，允许开多\n3. 空头触发成立 + 总分≥3 → **direction = SHORT**，强制开空\n4. 空头触发成立 + 总分≥2 → **direction = SHORT**，允许开空\n5. 无触发条件 / 总分不足 → **direction = IDLE**，空仓观望\n",
-    "temperature": 0.5,
+    "temperature": 0.2,
     "maxTokens": 2000,
     "model": "deepseek-chat",
     "provider": "deepseek"

@@ -111,6 +111,9 @@ export interface BotConfig {
   // AI分析缓存TTL（分钟），最小值为10分钟
   aiCacheTtlMinutes?: number
 
+  // AI分析IDLE缓存TTL（分钟）
+  aiIdleCacheTtlMinutes?: number
+
   // AI分析保存配置
   aiAnalysisConfig?: AIAnalysisSaveConfig
 

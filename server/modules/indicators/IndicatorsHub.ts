@@ -94,6 +94,20 @@ export class IndicatorsHub {
   }
 
   /**
+   * 时间周期转分钟
+   */
+  private timeframeToMinutes(timeframe: Timeframe): number {
+    switch (timeframe) {
+      case '5m': return 5
+      case '15m': return 15
+      case '1h': return 60
+      case '4h': return 240
+      case '1d': return 1440
+      default: return 15
+    }
+  }
+
+  /**
    * 私有构造函数（单例模式）
    */
   private constructor(binance: BinanceService, config: BotConfig) {
@@ -445,7 +459,11 @@ export class IndicatorsHub {
   async getIndicators(
     symbol: string,
     timeframe: Timeframe,
-    type: IndicatorType | StatisticsType
+    type: IndicatorType | StatisticsType,
+    options?: {
+      lookbackMinutes?: number
+      trendThresholdPercent?: number
+    }
   ): Promise<IndicatorData> {
     const symbolData = this.getOrCreateSymbolData(symbol)
 
@@ -467,19 +485,26 @@ export class IndicatorsHub {
       if (symbolData.oiHistory && symbolData.oiHistory.length >= 2) {
         const history = symbolData.oiHistory
         const currentValue = history[history.length - 1]?.value ?? 0
-        
-        // 寻找5-10分钟前的历史数据（根据刷新间隔调整）
-        // 假设刷新间隔约60秒，找5-10条前的数据
-        const lookbackIndex = Math.max(0, history.length - 6) // 约5分钟前
-        const previousValue = history[lookbackIndex]?.value ?? 0
+
+        const defaultLookbackMinutes = this.timeframeToMinutes(timeframe)
+        const lookbackMinutes = Math.max(1, Math.floor(options?.lookbackMinutes ?? defaultLookbackMinutes))
+        const trendThresholdPercent = Math.max(0.001, Number(options?.trendThresholdPercent ?? 0.05))
+        const targetTimestamp = Date.now() - lookbackMinutes * 60 * 1000
+
+        // 优先选择目标时间点之前最近的一条，保证变化率窗口稳定
+        let previousPoint = [...history].reverse().find(item => item.timestamp <= targetTimestamp)
+        if (!previousPoint) {
+          previousPoint = history[0]
+        }
+        const previousValue = previousPoint?.value ?? 0
         
         if (previousValue > 0) {
           changePercent = ((currentValue - previousValue) / previousValue) * 100
           
           // 确定趋势
-          if (changePercent > 0.1) {
+          if (changePercent > trendThresholdPercent) {
             trend = 'increasing'
-          } else if (changePercent < -0.1) {
+          } else if (changePercent < -trendThresholdPercent) {
             trend = 'decreasing'
           } else {
             trend = 'flat'

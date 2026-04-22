@@ -97,6 +97,32 @@ export class MultiStrategyAIAnalyzer {
   }
 
   /**
+   * 获取IDLE缓存TTL（毫秒）
+   */
+  private getIdleCacheTtl(): number {
+    const configuredMinutes = this.config.aiIdleCacheTtlMinutes ?? 2
+    return Math.max(configuredMinutes, 1) * 60 * 1000
+  }
+
+  /**
+   * 按信号方向返回缓存TTL
+   */
+  private getCacheTtlBySignal(signal: TradeSignal): number {
+    return signal.direction === 'idle' ? this.getIdleCacheTtl() : this.getAiCacheTtl()
+  }
+
+  /**
+   * 归一化置信度（缺失时给IDLE保守分）
+   */
+  private normalizeConfidence(rawConfidence: any, direction: Direction): number {
+    const parsed = Number(rawConfidence)
+    if (Number.isFinite(parsed)) {
+      return Math.min(100, Math.max(0, Math.round(parsed)))
+    }
+    return direction === 'IDLE' ? 20 : 0
+  }
+
+  /**
    * 分析市场（支持多策略）
    */
   async analyze(
@@ -106,14 +132,13 @@ export class MultiStrategyAIAnalyzer {
     indicators: any,
     price: number,
     volume: number,
-    priceChange24h: number,
     candleProgress: number = 0.1
   ): Promise<TradeSignal | null> {
     try {
       // 1. 检查缓存
       const cacheKey = this.buildCacheKey(strategyId, symbol, indicators, price)
       const cached = aiCache.get(cacheKey)
-      if (cached && (Date.now() - cached.timestamp < this.getAiCacheTtl())) {
+      if (cached && (Date.now() - cached.timestamp < this.getCacheTtlBySignal(cached.signal))) {
         return cached.signal
       }
 
@@ -124,12 +149,11 @@ export class MultiStrategyAIAnalyzer {
         price,
         indicators,
         volume,
-        priceChange24h,
         candleProgress
       )
 
       // 3. 调用原有的 AI 分析函数
-      const aiResult = await this.callAI(fullPrompt, symbol, price, indicators, volume, priceChange24h, strategyId, promptConfig)
+      const aiResult = await this.callAI(fullPrompt, symbol, price, indicators, volume, strategyId, promptConfig)
 
 
       // 即使是 IDLE 也返回完整信息，以便统一记录日志
@@ -161,7 +185,7 @@ export class MultiStrategyAIAnalyzer {
          action: aiResult.direction === 'IDLE' ? 'hold' : 'open',
          price,
          stopLoss: 0, // 后续计算
-         confidence: aiResult.confidence,
+          confidence: this.normalizeConfidence(aiResult.confidence, aiResult.direction),
          reasoning: aiResult.reasoning,
          indicators: {
            ema: {
@@ -193,7 +217,6 @@ export class MultiStrategyAIAnalyzer {
     price: number,
     indicators: TechnicalIndicators,
     volume: number,
-    priceChange24h: number,
     candleProgress: number = 0.1
   ): string {
     // 构建技术指标部分的提示词（根据指标启用状态）
@@ -264,7 +287,6 @@ export class MultiStrategyAIAnalyzer {
 ## 一、当前市场真实数据（仅使用以下数据）
 交易对: ${symbol}
 当前价格: ${(price ?? 0).toFixed(5)} USDT
-24小时涨跌幅: ${(priceChange24h ?? 0).toFixed(2)}%
 当前时间: ${new Date().toISOString()}
 K线完成进度: ${(candleProgress * 100).toFixed(1)}%
 ${indicators.enabledIndicators?.volume ? `当前成交量: ${(volume ?? 0).toFixed(2)}` : ''}
@@ -457,7 +479,6 @@ ${promptConfig.userPrompt}
     price: number,
     indicators: TechnicalIndicators,
     volume: number = 0,
-    priceChange24h: number = 0,
     strategyId: StrategyId,
     promptConfig?: AIPromptConfig
   ): Promise<AIAnalysis | null> {
@@ -532,7 +553,7 @@ ${promptConfig.userPrompt}
         timestamp: Date.now(),
         strategyId,
         direction: direction,
-        confidence: Math.min(100, Math.max(0, aiResult.confidence || 0)),
+        confidence: this.normalizeConfidence(aiResult.confidence, direction),
         riskLevel: (aiResult.riskLevel || 'MEDIUM') as RiskLevel,
         isBullish: direction === 'LONG',
         reasoning: reasoning,
@@ -570,7 +591,7 @@ ${promptConfig.userPrompt}
         timestamp: Date.now(),
         strategyId,
         direction: 'IDLE',
-        confidence: 0,
+        confidence: 5,
         riskLevel: 'HIGH',
         isBullish: false,
         reasoning: `AI分析暂时不可用: ${error.message}`,

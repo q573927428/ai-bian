@@ -19,6 +19,7 @@
   },
   "emaPeriods": [20, 200],
   "aiCacheTtlMinutes": 10,
+  "aiIdleCacheTtlMinutes": 2,
   "aiAnalysisConfig": {
     "enabled": true,
     "maxRecords": 3500,
