@@ -228,7 +228,7 @@ export class StrategyStore {
       const filePath = getStrategyFilePath(strategyId)
       await this.saveStrategyWithoutTradeRecords(strategy)
 
-      logger.info('StrategyStore', `策略已更新（无版本）: ${strategy.name}`)
+      logger.info('StrategyStore', `策略已更新（普通更新）: ${strategy.name}`)
       return strategy
     } catch (error: any) {
       logger.error('StrategyStore', `更新策略失败 ${strategyId}: ${error.message}`)

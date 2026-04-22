@@ -108,12 +108,12 @@ export class StrategyManager {
     strategyId: StrategyId,
     updates: UpdateStrategyInput
   ): Promise<Strategy | null> {
-    logger.info('StrategyManager', `开始更新策略（无版本）: ${strategyId}`)
+    logger.info('StrategyManager', `开始更新策略（普通更新）: ${strategyId}`)
 
     const strategy = await this.store.updateStrategyWithoutVersion(strategyId, updates)
 
     if (strategy) {
-      logger.success('StrategyManager', `策略更新成功（无版本）: ${strategy.name}`)
+      logger.success('StrategyManager', `策略更新成功（普通更新）: ${strategy.name}`)
 
       // 如果策略正在运行，需要重启以应用新配置
       if (this.engine && strategy.isActive) {
