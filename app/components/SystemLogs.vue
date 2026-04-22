@@ -2,11 +2,22 @@
   <el-card class="card" shadow="hover" style="margin-top: 20px">
     <template #header>
       <div class="card-header">
-        <el-tabs v-model="activeTab" class="log-tabs">
-          <el-tab-pane label="全部日志" name="all" />
-          <el-tab-pane label="扫描结果" name="scan" />
-          <el-tab-pane label="持仓监控" name="position" />
-        </el-tabs>
+        <div class="header-top">
+          <el-tabs v-model="activeTab" class="log-tabs">
+            <el-tab-pane label="全部" name="all" />
+            <el-tab-pane label="扫描" name="scan" />
+            <el-tab-pane label="持仓" name="position" />
+          </el-tabs>
+          <el-select v-model="selectedStrategy" placeholder="策略筛选" clearable class="strategy-select">
+            <el-option label="全部" value="" />
+            <el-option 
+              v-for="strategy in strategies" 
+              :key="strategy.id" 
+              :label="strategy.name" 
+              :value="strategy.id" 
+            />
+          </el-select>
+        </div>
       </div>
     </template>
 
@@ -17,11 +28,10 @@
         :class="['log-item', `log-${log.level.toLowerCase()}`]"
       >
         <span class="log-time">{{ formatTime(log.timestamp) }}</span>
-        <span class="log-category">[{{ log.category }}]</span>
         <div class="log-message">
           <template v-if="hasDetailedLog(log.message)">
             <div class="log-summary-line">
-              <span>{{ getLogSummary(log.message) }}</span>
+              <span><b>[{{ log.category }}]</b> {{ getLogSummary(log.message) }}</span>
               <el-link
                 type="primary"
                 :underline="false"
@@ -32,7 +42,7 @@
                   <ElIconArrowDown v-if="expandedLogs.has(index)" />
                   <ElIconArrowRight v-else />
                 </el-icon>
-                {{ expandedLogs.has(index) ? '收起' : '展开' }}详细
+                {{ expandedLogs.has(index) ? '收起' : '展开' }}
               </el-link>
             </div>
             <div v-if="expandedLogs.has(index)" class="detailed-log">
@@ -40,7 +50,7 @@
               <div class="detailed-log-content">{{ getDetailedLog(log.message) }}</div>
             </div>
           </template>
-          <span v-else>{{ log.message }}</span>
+          <span v-else><b>[{{ log.category }}]</b> {{ log.message }}</span>
         </div>
       </div>
       <el-empty v-if="filteredLogs.length === 0" description="暂无日志" />
@@ -57,27 +67,62 @@ const botStore = useBotStore()
 
 // 当前选中的标签
 const activeTab = ref<string>('all')
+// 当前选中的策略
+const selectedStrategy = ref<string>('')
+// 策略列表
+const strategies = ref<Array<{ id: string; name: string }>>([])
 
 // 倒序显示日志，最新的在最上面
 const reversedLogs = computed(() => [...botStore.logs].reverse())
 
 // 筛选后的日志
 const filteredLogs = computed(() => {
-  if (activeTab.value === 'all') {
-    return reversedLogs.value
+  let logs = reversedLogs.value
+  
+  // 先按标签筛选
+  if (activeTab.value !== 'all') {
+    logs = logs.filter(log => {
+      if (activeTab.value === 'scan') {
+        return log.category.toLowerCase().includes('扫描') || 
+               log.category.toLowerCase().includes('信号') 
+      }
+      if (activeTab.value === 'position') {
+        return log.category.toLowerCase().includes('持仓') || 
+               log.category.toLowerCase().includes('监控') 
+      }
+      return true
+    })
   }
-  return reversedLogs.value.filter(log => {
-    if (activeTab.value === 'scan') {
-      return log.category.toLowerCase().includes('扫描') || 
-             log.category.toLowerCase().includes('信号') 
+  
+  // 再按策略筛选
+  if (selectedStrategy.value) {
+    const strategyName = strategies.value.find(s => s.id === selectedStrategy.value)?.name
+    if (strategyName) {
+      logs = logs.filter(log => 
+        log.message.includes(strategyName) || 
+        log.category.includes(strategyName) ||
+        (log.data?.strategyId === selectedStrategy.value)
+      )
     }
-    if (activeTab.value === 'position') {
-      return log.category.toLowerCase().includes('持仓') || 
-             log.category.toLowerCase().includes('监控') 
-    }
-    return true
-  })
+  }
+  
+  return logs
 })
+
+// 获取策略列表
+async function fetchStrategies() {
+  try {
+    const response = await $fetch('/api/strategies')
+    if (response.success && response.data) {
+      strategies.value = response.data.map((s: any) => ({
+        id: s.id,
+        name: s.name
+      }))
+    }
+  } catch (error) {
+    console.error('获取策略列表失败:', error)
+  }
+}
 
 // 记录展开状态的日志索引
 const expandedLogs = ref<Set<number>>(new Set())
@@ -112,6 +157,8 @@ function toggleLog(index: number): void {
 
 // 组件加载时获取日志并订阅共享轮询
 onMounted(async () => {
+  // 获取策略列表
+  await fetchStrategies()
   // 订阅共享轮询
   botStore.subscribeToPolling('system-logs')
 })
@@ -135,6 +182,19 @@ onUnmounted(() => {
   margin-bottom: -18px;
 }
 
+.header-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  gap: 16px;
+}
+
+.strategy-select {
+  width: 120px;
+  flex-shrink: 0;
+}
+
 .card-header span {
   font-weight: 600;
   font-size: 15px;
@@ -149,11 +209,29 @@ onUnmounted(() => {
 }
 
 .logs-container {
-  max-height: 445px;
+  max-height: 376px;
   overflow-y: auto;
   padding: 10px;
   background: #fafafa;
   border-radius: 4px;
+}
+
+.logs-container::-webkit-scrollbar {
+  width: 6px;
+}
+
+.logs-container::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 3px;
+}
+
+.logs-container::-webkit-scrollbar-thumb {
+  background: #c0c4cc;
+  border-radius: 3px;
+}
+
+.logs-container::-webkit-scrollbar-thumb:hover {
+  background: #909399;
 }
 
 .log-item {
@@ -233,7 +311,14 @@ onUnmounted(() => {
 .log-summary-line {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  gap: 8px;
+}
+
+.log-summary-line > span {
+  flex: 1;
+  min-width: 0;
+  word-break: break-word;
 }
 
 .toggle-btn {
@@ -241,8 +326,8 @@ onUnmounted(() => {
   display: inline-flex;
   align-items: center;
   gap: 2px;
-  margin-left: 8px;
   flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .detailed-log {

@@ -66,14 +66,6 @@
       </el-card>
     </div>
   </el-card>
-  <el-card v-else class="positions-card">
-    <template #header>
-      <div class="card-header">
-        <span>📊 当前持仓</span>
-      </div>
-    </template>
-    <div class="empty-message">暂无持仓</div>
-  </el-card>
 </template>
 
 <script setup lang="ts">

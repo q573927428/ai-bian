@@ -14,6 +14,20 @@
       <!-- 主体 -->
       <el-main class="main">
         <el-row :gutter="20">
+          <!-- 中间 - 持仓和交易历史 -->
+          <el-col :xs="24" :sm="24" :md="16" :lg="16">
+            
+            <!-- 加密货币价格卡片组件 -->
+            <ClientOnly>
+              <CryptoPriceCards />
+            </ClientOnly>
+
+            <!-- 策略组件 -->
+            <ClientOnly>
+              <Strategies />
+            </ClientOnly>
+
+          </el-col>
           <!-- 左侧 - 控制面板 -->
           <el-col :xs="24" :sm="24" :md="8" :lg="8">
             <el-card class="card" shadow="hover">
@@ -70,26 +84,13 @@
             <ClientOnly>
               <ActivePositions />
             </ClientOnly>
-          </el-col>
-
-          <!-- 中间 - 持仓和交易历史 -->
-          <el-col :xs="24" :sm="24" :md="16" :lg="16">
-            
-            <!-- 加密货币价格卡片组件 -->
-            <ClientOnly>
-              <CryptoPriceCards />
-            </ClientOnly>
-
-            <!-- 策略组件 -->
-            <ClientOnly>
-              <Strategies />
-            </ClientOnly>
 
             <!-- 系统日志组件 -->
             <ClientOnly>
               <SystemLogs />
             </ClientOnly>
           </el-col>
+
         </el-row>
       </el-main>
     </el-container>
