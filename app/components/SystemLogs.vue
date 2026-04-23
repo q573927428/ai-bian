@@ -88,7 +88,11 @@ const filteredLogs = computed(() => {
       }
       if (activeTab.value === 'position') {
         return log.category.toLowerCase().includes('持仓') || 
-               log.category.toLowerCase().includes('监控') 
+               log.category.toLowerCase().includes('监控') || 
+               log.category.toLowerCase().includes('极值') || 
+               log.category.toLowerCase().includes('移动') || 
+               log.category.toLowerCase().includes('止盈') || 
+               log.category.toLowerCase().includes('止损') 
       }
       return true
     })
