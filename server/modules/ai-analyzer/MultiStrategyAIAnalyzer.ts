@@ -368,12 +368,7 @@ export class MultiStrategyAIAnalyzer {
       - ❌ 禁止在已有 direction 后重新推导
       - ❌ 禁止用“倾向分析”替代策略结果
 
-      4. IDLE 规则：
-      - 若策略或 fallback 判断为“无触发”
-        → 必须返回 IDLE
-      - 禁止强行给出 LONG / SHORT
-
-      5. 执行流程（必须严格顺序执行）：
+      4. 执行流程（必须严格顺序执行）：
       1）先执行用户策略
       2）检查是否缺失关键规则（方向 / 趋势 / 触发）
       3）仅对缺失部分使用 fallback 补全
@@ -396,17 +391,11 @@ export class MultiStrategyAIAnalyzer {
       confidence 表示“策略匹配程度”，不是方向强弱：
       
       - 0-15：完全无机会
-      - 15-30：条件缺失（通常为IDLE）
+      - 15-30：条件缺失
       - 30-50：部分满足
       - 50-70：中等信号
       - 70-90：高质量信号
       - 90-100：完美信号
-      
-      ⚠️ IDLE 特别规则：
-      - 若 direction = IDLE：
-        - confidence 必须 ≤ 30
-        - 仅表示“当前无交易机会”
-        - ❌ 禁止用来反推出方向
       
       --------------------------
       ## 九、最终强制约束（不可违反）
@@ -448,10 +437,6 @@ export class MultiStrategyAIAnalyzer {
         - 仅用于补充“缺失规则”
         - ❌ 禁止覆盖用户策略
         - 一旦策略中已定义对应逻辑 → fallback 立即失效
-      
-      3. IDLE 规则：
-        - 若策略或 fallback 判断为无触发 → 必须返回 IDLE
-        - ❌ 禁止强行给出 LONG / SHORT
       
       --------------------------
       【输出铁律】
