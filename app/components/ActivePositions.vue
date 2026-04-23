@@ -55,7 +55,7 @@
             <span class="value">{{ pos.takeProfit2 ? pos.takeProfit2.toFixed(2) : '--' }}</span>
           </div>
           <div class="info-item" :class="{ 'trailing': isTrailingStopLoss(pos) }">
-            <span class="label">{{ isTrailingStopLoss(pos) ? '当前止损' : '初始止损' }}:</span>
+            <span class="label">{{ isTrailingStopLoss(pos) ? '移动止损' : '初始止损' }}:</span>
             <span class="value">{{ pos.stopLoss ? pos.stopLoss.toFixed(2) : '--' }}</span>
           </div>
           <div class="info-item">
@@ -162,7 +162,7 @@ function formatOpenTime(openTime: string | number | Date): string {
   })
 }
 
-// 判断是否为移动止损（当前止损与初始止损不同）
+// 判断是否为移动止损（移动止损与初始止损不同）
 function isTrailingStopLoss(position: any): boolean {
   if (!position.stopLoss || !position.initialStopLoss) return false
   return position.stopLoss !== position.initialStopLoss

@@ -257,7 +257,7 @@ export class MultiStrategyAIAnalyzer {
     if (indicators.enabledIndicators?.volume) enabledIndicatorsList.push('成交量')
 
 
-      return `
+    return `
       ## 一、当前市场真实数据（仅使用以下数据）
       交易对：${symbol}
       当前价格：${(price ?? 0).toFixed(5)} USDT
