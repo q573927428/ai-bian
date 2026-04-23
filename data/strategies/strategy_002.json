@@ -3,7 +3,7 @@
   "name": "策略02",
   "version": 1,
   "createdAt": "2026-04-19T16:06:46.003Z",
-  "updatedAt": "2026-04-23T04:38:59.997Z",
+  "updatedAt": "2026-04-23T11:12:08.201Z",
   "isActive": true,
   "marketData": {
     "symbols": [
@@ -109,8 +109,8 @@
     }
   ],
   "aiPrompt": {
-    "userPrompt": "你是一个理性的中短线交易员，追求稳定胜率和趋势交易机会。\n\n请重点分析：\n\n1. 趋势方向（EMA20/120排列）\n   - 多头：EMA20 > EMA120 → direction = LONG\n   - 空头：EMA20 < EMA120 → direction = SHORT\n\n2. 趋势强度（ADX）\n   - ADX > 20：趋势有效\n   - ADX > 25：趋势较强\n   - ADX < 20：震荡，避免交易\n\n3. 回调入场机会\n   - 多头趋势中价格回踩EMA20或EMA50\n   - 空头趋势中价格反弹至EMA20或EMA50\n\n4. RSI辅助判断\n   - 多头：RSI不应过高（<70）\n   - 空头：RSI不应过低（>30）\n\n5. OI资金确认\n   - 趋势方向 + OI增加 → 强确认\n   - OI减少 → 警惕假突破\n\n交易原则：\n- 只做顺势单，不做逆势抄底/摸顶\n- 必须有“趋势 + 回调 + 资金入场”三要素",
-    "temperature": 0.3,
+    "userPrompt": "你是一个理性的中短线交易员，追求稳定胜率和趋势交易机会。\n\n请重点分析：\n\n1. 趋势方向（EMA20/120排列）\n   - 多头：EMA20 > EMA120 → direction = LONG\n   - 空头：EMA20 < EMA120 → direction = SHORT\n\n2. 趋势强度（ADX）\n   - ADX > 25：趋势有效\n   - ADX > 30：趋势较强\n   - ADX < 20：震荡，避免交易\n\n3. 回调入场机会\n   - 多头趋势中价格回踩EMA20或EMA50\n   - 空头趋势中价格反弹至EMA20或EMA50\n  - 严格规则：价格必须在EMA50附近（±0.5%以内）\n\n4. RSI辅助判断\n   - 多头：RSI不应过高（<65）\n   - 空头：RSI不应过低（>35）\n\n5. OI资金确认\n   - 趋势方向 + OI增加 → 强确认\n   - OI减少 → 警惕假突破\n\n交易原则：\n- 只做顺势单，不做逆势抄底/摸顶\n- 必须有“趋势 + 回调 + 资金确认”三要素\n- 当三要素不同时满足时，宁可错过，不可开仓",
+    "temperature": 0.2,
     "maxTokens": 2000,
     "model": "deepseek-chat",
     "provider": "deepseek"
@@ -313,25 +313,25 @@
   ],
   "performance": {
     "strategyId": "strategy_002",
-    "totalTrades": 0,
-    "totalWins": 0,
-    "totalLosses": 0,
-    "winRate": 0,
-    "totalProfit": 0,
-    "totalLoss": 0,
-    "netProfit": 0,
-    "profitFactor": 0,
-    "maxDrawdown": 0,
-    "averageProfitPerTrade": 0,
-    "averageLossPerTrade": 0,
-    "largestWin": 0,
-    "largestLoss": 0,
-    "averageHoldTime": 0,
-    "consecutiveWins": 0,
+    "totalTrades": 11,
+    "totalWins": 9,
+    "totalLosses": 2,
+    "winRate": 81.81818181818183,
+    "totalProfit": 0.8611400000000131,
+    "totalLoss": 0.07239999999999878,
+    "netProfit": 0.7887400000000143,
+    "profitFactor": 11.894198895028005,
+    "maxDrawdown": 8.736786214219995,
+    "averageProfitPerTrade": 0.09568222222222368,
+    "averageLossPerTrade": 0.03619999999999939,
+    "largestWin": 0.390239999999998,
+    "largestLoss": 0.06339999999999418,
+    "averageHoldTime": 34.476425757575754,
+    "consecutiveWins": 2,
     "consecutiveLosses": 0,
-    "maxConsecutiveWins": 0,
-    "maxConsecutiveLosses": 0,
-    "updatedAt": "2026-04-20T07:20:21.237Z"
+    "maxConsecutiveWins": 7,
+    "maxConsecutiveLosses": 2,
+    "updatedAt": "2026-04-23T10:30:04.682Z"
   },
   "sessions": [],
   "currentSessionId": null
