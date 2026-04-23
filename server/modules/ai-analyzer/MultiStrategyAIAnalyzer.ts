@@ -258,157 +258,131 @@ export class MultiStrategyAIAnalyzer {
 
 
     return `
-      ## 一、当前市场真实数据（仅使用以下数据）
-      交易对：${symbol}
-      当前价格：${(price ?? 0).toFixed(5)} USDT
-      当前时间：${new Date().toISOString()}
-      K线完成进度：${(candleProgress * 100).toFixed(1)}%
-      ${indicators.enabledIndicators?.volume ? `当前成交量：${(volume ?? 0).toFixed(2)}` : ''}
-      预计K线结束成交量：${(volume / candleProgress).toFixed(2)}（you must use this）
-      
-      ## 二、K线形态数据
-      ${indicators.lastCandle ? `
-      - 最新K线
-        开盘：${indicators.lastCandle.open.toFixed(5)}
-        最高：${indicators.lastCandle.high.toFixed(5)}
-        最低：${indicators.lastCandle.low.toFixed(5)}
-        收盘：${indicators.lastCandle.close.toFixed(5)}
-        成交量：${indicators.lastCandle.volume.toFixed(2)}
-        阴阳：${indicators.lastCandle.close > indicators.lastCandle.open ? '阳线' : '阴线'}
-      ` : ''}
-      
-      ${indicators.prevCandle ? `
-      - 前一根K线
-        开盘：${indicators.prevCandle.open.toFixed(5)}
-        最高：${indicators.prevCandle.high.toFixed(5)}
-        最低：${indicators.prevCandle.low.toFixed(5)}
-        收盘：${indicators.prevCandle.close.toFixed(5)}
-        成交量：${indicators.prevCandle.volume.toFixed(2)}
-        阴阳：${indicators.prevCandle.close > indicators.prevCandle.open ? '阳线' : '阴线'}
-      ` : ''}
-      
-      ## 三、技术指标（仅启用的指标有效）
-      ${technicalIndicatorLines.join('\n')}
-      ${adxLines.length > 0 ? adxLines.join('\n') : ''}
-      ${oiLines.length > 0 ? oiLines.join('\n') : ''}
-      
-      ${enabledIndicatorsList.length > 0 ? `
-      本次分析仅使用：${enabledIndicatorsList.join(', ')}
-      未启用指标全部忽略
-      ` : ''}
-      
-      --------------------------
-      ## 四、用户策略（唯一有效）
-      ----------------------------------------
-      ${promptConfig.userPrompt}
-      ----------------------------------------
-      
-      --------------------------
-      ## 五、动态评分模型（核心）
-      
-      你必须仅基于“已启用指标”进行分析和评分：
-      
-      已启用指标：
-      ${enabledIndicatorsList.join(', ')}
-      
-      ⚠️ 规则：
-      - 未启用指标 → 禁止使用、禁止推理、禁止出现在结果中
-      - 所有评分必须来自已提供的数据
-      
-      ---
-      
-      ### 1️⃣ direction 判定
-      
-      - 优先使用用户策略中的 direction
-      - 若未定义：
-        - 短周期EMA > 长周期EMA → LONG
-        - 短周期EMA < 长周期EMA → SHORT
-      
-      ⚠️ direction 表示“方向倾向”，不是是否触发
-      
-      ---
-      
-      ### 2️⃣ confidence（匹配度 0~100）
-      
-      只对“已启用指标”逐项评分：
-      
-      评分原则：
-      - 满足策略条件 → 加分
-      - 不满足 → 不加分
-      - 每个指标权重默认相同
-      - 自动归一化为 0~100
-      
-      ---
-      
-      ### 3️⃣ 各指标评分逻辑（仅在启用时生效）
-      
-      【EMA】
-      - 顺向排列（多头或空头） → 高分
-      - 混乱 → 低分
-      
-      【RSI】
-      - 在策略合理区间 → 高分
-      - 超买/超卖或不符合 → 低分
-      
-      【成交量】
-      （必须使用预测成交量）
-      - 放大 → 高分
-      - 缩量 → 低分
-      
-      【OI】
-      - 与方向一致 → 高分
-      - 不一致 → 低分
-      
-      【ADX】
-      - 趋势强 → 高分
-      - 震荡 → 低分
-      
-      【MACD】
-      - 同方向 → 高分
-      - 背离/混乱 → 低分
-      
-      【K线】
-      - 动量明显 → 高分
-      - 无明显结构 → 低分
-      
-      ---
-      
-      ### 4️⃣ 硬条件限制（仅针对策略中出现的条件）
-      
-      若用户策略中明确要求某些条件（如 EMA / RSI / OI / 成交量等）：
-      
-      - 任意一个未满足 → 
-        confidence ≤ ${this.config.minConfidence ?? 60}
-      
-      ⚠️ 未出现在策略中的指标：
-      → 不得作为硬条件
-      
-      ---
-      
-      ### 5️⃣ 一致性约束（防止乱方向）
-      
-      - 多数启用指标偏多 → 禁止输出 SHORT
-      - 多数启用指标偏空 → 禁止输出 LONG
-      
-      ---
-      
-      --------------------------
-      ## 六、输出格式（必须严格）
-      
-      {
-        "direction": "LONG" | "SHORT" | "IDLE",
-        "confidence": 0~100,
-        "reasoning": "必须引用具体数值（EMA/RSI/价格/OI等），说明每个指标是否满足"
-      }
-      
-      --------------------------
-      ## 七、强制规则
-      
-      - 禁止使用未启用指标
-      - 禁止主观判断
-      - 禁止模糊描述
-      - 必须逐项分析
-      `;
+## 一、当前市场真实数据（仅使用以下数据）
+交易对：${symbol}
+当前价格：${(price ?? 0).toFixed(5)} USDT
+当前时间：${new Date().toISOString()}
+K线完成进度：${(candleProgress * 100).toFixed(1)}%
+${indicators.enabledIndicators?.volume ? `当前成交量：${(volume ?? 0).toFixed(2)}` : ''}
+预计K线结束成交量：${(volume / candleProgress).toFixed(2)}（you must use this）
+
+## 二、K线形态数据
+${indicators.lastCandle ? `- 最新K线
+  开盘：${indicators.lastCandle.open.toFixed(5)}
+  最高：${indicators.lastCandle.high.toFixed(5)}
+  最低：${indicators.lastCandle.low.toFixed(5)}
+  收盘：${indicators.lastCandle.close.toFixed(5)}
+  成交量：${indicators.lastCandle.volume.toFixed(2)}
+  阴阳：${indicators.lastCandle.close > indicators.lastCandle.open ? '阳线' : '阴线'}` : ''}
+${indicators.prevCandle ? `- 前一根K线
+  开盘：${indicators.prevCandle.open.toFixed(5)}
+  最高：${indicators.prevCandle.high.toFixed(5)}
+  最低：${indicators.prevCandle.low.toFixed(5)}
+  收盘：${indicators.prevCandle.close.toFixed(5)}
+  成交量：${indicators.prevCandle.volume.toFixed(2)}
+  阴阳：${indicators.prevCandle.close > indicators.prevCandle.open ? '阳线' : '阴线'}` : ''}
+
+## 三、技术指标（仅启用的指标有效）
+${technicalIndicatorLines.join('\n')}
+${adxLines.length > 0 ? adxLines.join('\n') : ''}
+${oiLines.length > 0 ? oiLines.join('\n') : ''}
+${enabledIndicatorsList.length > 0 ? `本次分析仅使用：${enabledIndicatorsList.join(', ')}
+未启用指标全部忽略` : ''}
+
+--------------------------
+## 四、用户策略（唯一有效）
+----------------------------------------
+${promptConfig.userPrompt}
+----------------------------------------
+
+--------------------------
+## 五、动态评分模型（核心）
+仅基于已启用指标进行分析与评分：
+已启用指标：${enabledIndicatorsList.join(', ')}
+⚠️ 未启用指标禁止参与任何分析
+
+---
+
+### 1️⃣ direction 判定
+- 优先使用用户策略中的 direction
+- 若未定义：
+  - 短周期EMA > 长周期EMA → LONG
+  - 短周期EMA < 长周期EMA → SHORT
+⚠️ direction 表示"方向倾向"，不是是否触发
+
+---
+
+### 2️⃣ 原始评分（rawScore）
+对每个启用指标逐项判断：
+- 满足条件 → 得分
+- 不满足 → 不得分
+- 权重默认平均
+rawScore ∈ [0,100]
+
+---
+
+### 3️⃣ 硬条件处理
+定义：hardMatchRatio = 已满足硬条件数量 / 硬条件总数
+最终置信度：confidence = rawScore × hardMatchRatio
+
+---
+
+### ❗强制限制（防止虚高）
+- 若存在任意硬条件未满足：
+  → confidence 必须显著下降  
+  → 严禁接近高分区（≥${this.config.minConfidence ?? 60}）
+- 最终上限限制：
+  IF hardMatchRatio < 1：confidence ≤ ${this.config.minConfidence ?? 60}
+  IF 计算结果超过上限：→ 强制截断为上限
+
+---
+
+### ❗禁止行为：
+- ❌ 禁止直接输出 confidence = 0
+- ❌ 禁止因为“多个条件不满足”就归零
+- ❌ 禁止跳过评分过程直接给0
+
+---
+
+### ✅ 正确示例：
+- 少量条件满足 → confidence 10~30
+- 部分满足 → confidence 30~60
+- 高匹配 → confidence 60+
+
+
+---
+
+### 4️⃣ 指标评分逻辑（仅启用时）
+【EMA】- 顺向排列（多头或空头）→ 高分；- 混乱 → 低分
+【RSI】- 在策略合理区间 → 高分；- 超买/超卖或不符合 → 低分
+【成交量】（必须使用预测成交量）- 放大 → 高分；- 缩量 → 低分
+【OI】- 与方向一致 → 高分；- 不一致 → 低分
+【ADX】- 趋势强 → 高分；- 震荡 → 低分
+【MACD】- 同方向 → 高分；- 背离/混乱 → 低分
+【K线】- 动量明显 → 高分；- 无明显结构 → 低分
+
+---
+
+### 5️⃣ 一致性约束
+- 多数指标偏多 → 禁止 SHORT
+- 多数指标偏空 → 禁止 LONG
+
+---
+
+--------------------------
+## 六、输出格式
+{
+  "direction": "LONG" | "SHORT" | "IDLE",
+  "confidence": 0~100,
+  "reasoning": "必须包含具体数值，示例：EMA50(4710) > EMA120(4700)，RSI(62.3)处于区间内，预计成交量（652.12 对比前k 未放大），OI(+0.12%)"
+}
+
+--------------------------
+## 七、强制规则
+- 禁止使用未启用指标
+- 禁止主观判断
+- 禁止模糊描述
+- 必须引用具体数据`;
   }
 
   /**
@@ -416,65 +390,71 @@ export class MultiStrategyAIAnalyzer {
    */
   private async buildSystemPrompt(): Promise<string> {
     return `
-      你是一个严格的量化交易“策略执行引擎”。
+你是一个量化交易"策略执行引擎"。
 
-      核心要求：
-      1. 只执行用户策略，不得修改或优化
-      2. 只使用提供的数据，不预测、不编造
-      3. 仅使用“已启用指标”进行分析
-      4. 输出必须为标准JSON
+--------------------------
+【核心原则】
+1. 只执行用户策略
+2. 只使用提供的数据
+3. 仅使用已启用指标
+4. 输出必须为JSON
+6. reasoning 必须是“结果描述”，不是“推理过程”
 
-      --------------------------
-      【核心逻辑】
+--------------------------
+【执行逻辑】
+1. direction：
+   - 优先使用策略定义
+   - 未定义 → EMA判断
+   - 仅表示方向倾向
 
-      1. direction（方向）：
-      - 优先使用用户策略定义
-      - 若未定义 → 使用EMA判断（短EMA > 长EMA 为LONG，反之为SHORT）
-      - 表示“方向倾向”，不是是否开仓
+---
 
-      2. confidence（匹配度 0~100）：
-      - 表示“当前数据与策略的匹配程度”
-      - 只基于“已启用指标”逐项评分：
-        - 满足条件 → 加分
-        - 不满足 → 不加分
-      - 自动归一化为 0~100
+2. 评分机制：
+   confidence = rawScore × hardMatchRatio
+   说明：
+   - rawScore：指标匹配程度（0~100）
+   - hardMatchRatio：硬条件满足比例（0~1）
 
-      3. 指标使用规则：
-      - 仅允许使用已提供且启用的指标
-      - 未启用指标：
-        - ❌ 禁止参与分析
-        - ❌ 禁止影响结果
-        - ❌ 禁止出现在reasoning中
+---
 
-      4. 硬条件限制：
-      - 若用户策略中明确要求某些条件（如EMA / RSI / OI / 成交量等）
-      - 任意一个未满足 → confidence 必须受限（不得超过${this.config.minConfidence ?? 60}）
+3. 硬条件规则（关键）
+   - 若存在未满足硬条件：
+     → 必须降低confidence  
+     → 严禁 ≥ ${this.config.minConfidence ?? 60} 
+   - 同时：
+     confidence ≤ ${this.config.minConfidence ?? 60}
 
-      5. 一致性约束：
-      - 多数已启用指标偏多 → 禁止输出 SHORT
-      - 多数已启用指标偏空 → 禁止输出 LONG
+---
 
-      6. IDLE 使用：
-      - 仅当策略明确要求或方向完全不明确时使用
-      - ❌ 不得因为条件不足就强制 IDLE
+4. 指标限制：
+   - 仅允许使用启用指标
+   - 未启用指标：❌ 禁止使用；❌ 禁止推理；❌ 禁止出现在结果中
 
-      --------------------------
-      【输出格式】
+---
 
-      {
-        "direction": "LONG" | "SHORT" | "IDLE",
-        "confidence": 0~100,
-        "reasoning": "必须引用具体数值（EMA/RSI/价格/OI等），说明各指标满足情况"
-      }
+5. 一致性约束：
+   - 多数指标偏多 → 禁止 SHORT
+   - 多数指标偏空 → 禁止 LONG
 
-      --------------------------
-      【限制】
+---
 
-      - 禁止主观判断
-      - 禁止忽略策略
-      - 禁止使用未提供数据
-      - 禁止模糊描述
-    `;
+6. IDLE规则：
+   - 仅在策略要求或无方向时使用
+   - 不得因低匹配强制IDLE
+
+--------------------------
+【输出格式】
+{
+  "direction": "LONG" | "SHORT" | "IDLE",
+  "confidence": 0~100,
+  "reasoning": "必须引用具体数值（EMA/RSI/价格/OI等），说明各指标满足情况，禁止使用英文描述，必须要清晰流畅，禁止输出任何计算过程或规则推导"
+}
+
+--------------------------
+【禁止行为】
+- 禁止忽略策略
+- 禁止使用未提供数据
+- 禁止输出模糊结论`;
   }
 
   /**
