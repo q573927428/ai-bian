@@ -448,7 +448,7 @@ export class MultiStrategyAIAnalyzer {
 
       4. 硬条件限制：
       - 若用户策略中明确要求某些条件（如EMA / RSI / OI / 成交量等）
-      - 任意一个未满足 → confidence 必须受限（不得达到高分）
+      - 任意一个未满足 → confidence 必须受限（不得超过${this.config.minConfidence ?? 60}）
 
       5. 一致性约束：
       - 多数已启用指标偏多 → 禁止输出 SHORT
