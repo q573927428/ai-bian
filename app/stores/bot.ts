@@ -9,8 +9,17 @@ import type {
 
 export const useBotStore = defineStore('bot', {
   state: () => ({
-    state: null as BotState | null,
-    config: null as BotConfig | null,
+    state: null as {
+      isRunning: boolean
+      runningStrategies: string[]
+      totalStrategies: number
+      activeStrategies: number
+      currentPositions: number
+    } | null,
+    statusConfig: null as {
+      strategies: any[]
+    } | null,
+    botConfig: null as BotConfig | null,
     logs: [] as LogEntry[],
     cryptoBalances: [] as CryptoBalance[],
     isLoading: false,
@@ -24,13 +33,17 @@ export const useBotStore = defineStore('bot', {
 
   getters: {
     isRunning: (state) => {
-      return state.state?.status === 'MONITORING' || state.state?.status === 'POSITION'
+      return state.state?.isRunning || false
     },
     hasPosition: (state) => {
-      return state.state?.status === 'POSITION'
+      return (state.state?.currentPositions || 0) > 0
     },
-    isHalted: (state) => {
-      return state.state?.status === 'HALTED'
+    isHalted: () => {
+      return false
+    },
+    // 兼容旧代码，返回 botConfig 如果可用，否则返回 statusConfig
+    config: (state) => {
+      return (state.botConfig || state.statusConfig) as any
     },
   },
 
@@ -40,11 +53,14 @@ export const useBotStore = defineStore('bot', {
         this.isLoading = true
         this.error = null
 
+        // 同时获取 bot 配置
+        this.fetchBotConfig()
+
         const response = await $fetch<StatusResponse>('/api/bot/status')
         
         if (response.success) {
           this.state = response.data!.state
-          this.config = response.data!.config
+          this.statusConfig = response.data!.config
           this.logs = response.data!.logs
           // 更新加密货币余额
           if (response.data!.cryptoBalances) {
@@ -57,6 +73,17 @@ export const useBotStore = defineStore('bot', {
         this.error = error.message || '获取状态失败'
       } finally {
         this.isLoading = false
+      }
+    },
+
+    async fetchBotConfig() {
+      try {
+        const response = await $fetch<{ success: boolean, data: BotConfig }>('/api/bot/config')
+        if (response.success) {
+          this.botConfig = response.data
+        }
+      } catch (error) {
+        console.error('获取 bot config 失败:', error)
       }
     },
 

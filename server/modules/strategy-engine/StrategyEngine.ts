@@ -161,26 +161,11 @@ export class StrategyEngine {
   }
 
   /**
-   * 非IDLE信号缓存TTL（毫秒）
+   * AI缓存TTL（毫秒）
    */
   private getAiCacheTtl(): number {
     const minutes = Math.max(1, Number(this.config.aiCacheTtlMinutes ?? 10))
     return minutes * 60 * 1000
-  }
-
-  /**
-   * IDLE信号缓存TTL（毫秒）
-   */
-  private getAiIdleCacheTtl(): number {
-    const minutes = Math.max(1, Number(this.config.aiIdleCacheTtlMinutes ?? 2))
-    return minutes * 60 * 1000
-  }
-
-  /**
-   * 根据缓存信号方向获取TTL
-   */
-  private getAICacheTtlBySignal(signal: TradeSignal): number {
-    return signal.direction === 'idle' ? this.getAiIdleCacheTtl() : this.getAiCacheTtl()
   }
 
   // ==================== 策略生命周期 ====================
@@ -455,7 +440,7 @@ export class StrategyEngine {
 
       // 检查缓存
       const cached = this.aiCache.get(cacheKey)
-      if (cached && (Date.now() - cached.timestamp < this.getAICacheTtlBySignal(cached.signal))) {
+      if (cached && (Date.now() - cached.timestamp < this.getAiCacheTtl())) {
         // logger.info('StrategyEngine', `使用 AI 缓存结果: ${symbol}`)
         return cached.signal
       }

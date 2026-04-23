@@ -1,144 +1,22 @@
+// ==================== 核心类型定义 ====================
+
 // 交易方向
 export type Direction = 'LONG' | 'SHORT' | 'IDLE'
 
 // 风险等级
 export type RiskLevel = 'LOW' | 'MEDIUM' | 'HIGH'
 
-// 策略模式
-export type StrategyMode = 'short_term' | 'medium_term'
-
 // 仓位状态
 export enum PositionStatus {
-  IDLE = 'IDLE',           // 空仓
-  MONITORING = 'MONITORING', // 监控中
-  OPENING = 'OPENING',      // 开仓中
-  POSITION = 'POSITION',    // 持仓中
-  CLOSING = 'CLOSING',      // 平仓中
-  HALTED = 'HALTED'        // 熔断停机
+  IDLE = 'IDLE',
+  MONITORING = 'MONITORING',
+  OPENING = 'OPENING',
+  POSITION = 'POSITION',
+  CLOSING = 'CLOSING',
+  HALTED = 'HALTED'
 }
 
-// 移动止损配置（简化版）
-export interface TrailingStopConfig {
-  enabled: boolean                // 是否启用移动止损
-  activationRatio: number         // 激活盈亏比（默认 0.5，即盈利达到风险的50%时启用）
-  trailingDistance: number        // 跟踪距离（ATR倍数，默认 1.5）
-  minMovePercent: number          // 最小移动幅度百分比（默认0.2，止损移动超过这个值才更新）
-}
-
-// 移动止损数据（简化版，只保存最后一次移动止损信息）
-export interface TrailingStopData {
-  enabled: boolean                    // 是否启用移动止损
-  activationRatio: number             // 激活盈亏比
-  trailingDistance: number            // 跟踪距离（ATR倍数）
-  minMovePercent: number              // 最小移动幅度百分比
-  lastTrailingStopPrice?: number      // 最后一次移动止损价格
-  lastTrailingStopUpdateTime?: number // 最后一次移动止损更新时间
-  trailingStopCount: number           // 移动止损总次数
-}
-
-// EMA周期配置
-export interface EMAPeriodsConfig {
-  // 短期策略EMA周期
-  short_term: {
-    fast: number    // 快速EMA周期 (默认 20)
-    medium: number  // 中速EMA周期 (默认 30)
-    slow: number    // 慢速EMA周期 (默认 60)
-  }
-  // 中长期策略EMA周期
-  medium_term: {
-    fast: number    // 快速EMA周期 (默认 50)
-    medium: number  // 中速EMA周期 (默认 100)
-    slow: number    // 慢速EMA周期 (默认 200)
-  }
-}
-
-// 持仓量配置
-export interface OpenInterestConfig {
-  enabled: boolean
-  trendPeriod: number
-  changePeriod: {
-    short_term: number
-    medium_term: number
-  }
-  trendThresholdPercent: number
-}
-
-// 技术指标配置
-export interface IndicatorsConfig {
-  // 计算指标所需K线数量
-  requiredCandles: number
-  
-  // ADX斜率计算周期
-  adxSlopePeriod: number
-  
-  // EMA周期配置（保留但不使用）
-  emaPeriods?: EMAPeriodsConfig
-  
-  // 持仓量配置（保留但不使用）
-  openInterest?: OpenInterestConfig
-}
-
-// AI分析保存配置
-export interface AIAnalysisSaveConfig {
-  // 是否启用保存
-  enabled: boolean
-  // 最大保存记录数量（文件级别）
-  maxRecords: number
-  // 是否保存 IDLE 状态的分析
-  saveIdle: boolean
-}
-
-// EMA配置
-export interface EMAConfig {
-  fast: number
-  slow: number
-}
-
-// 系统配置
-export interface BotConfig {
-  // 交易对
-  symbols: string[]
-
-  // 技术指标配置
-  indicatorsConfig: IndicatorsConfig
-
-  // EMA配置
-  emaConfig?: EMAConfig
-
-  // EMA周期数组（2-3个周期，可选值: 7,14,20,30,50,60,120,200）
-  emaPeriods?: number[]
-
-  // AI分析缓存TTL（分钟），最小值为10分钟
-  aiCacheTtlMinutes?: number
-
-  // AI分析IDLE缓存TTL（分钟）
-  aiIdleCacheTtlMinutes?: number
-
-  // AI分析保存配置
-  aiAnalysisConfig?: AIAnalysisSaveConfig
-
-  // 最小信号置信度阈值（0-100）
-  minConfidence?: number
-
-  // 默认K线进度（0-1），当无法获取K线时使用的默认值
-  defaultCandleProgress?: number
-}
-
-// 风险配置（保留但不使用）
-export interface RiskConfig {
-  // 止盈配置
-  takeProfit?: {
-    adxSlopePeriod?: number          // ADX斜率计算周期
-  }
-}
-
-// 市场数据
-export interface MarketData {
-  symbol: string
-  price: number
-  timestamp: number
-  volume: number
-}
+// ==================== K线与技术指标 ====================
 
 // K线数据
 export interface OHLCV {
@@ -152,37 +30,21 @@ export interface OHLCV {
 
 // 技术指标
 export interface TechnicalIndicators {
-  // EMA（动态数量，由策略决定，最少1个）
   emaMap: Record<string, number>
   emaList: Array<{ period: number; name: string; value: number }>
-  
-  // ADX配置
   adxPeriodLabel: string
-  // ADX
   adx?: number
-  
-  // ADX斜率（当前值 - N周期前的值，负值表示ADX下降）
   adxSlope?: number
-  
-  // RSI
   rsi?: number
-  
-  // MACD
   macd?: {
-    macd: number;
-    signal: number;
-    histogram: number;
+    macd: number
+    signal: number
+    histogram: number
   }
-  
-  // ATR
   atr?: number
-  
-  // OI持仓量
-  openInterest?: number // 当前持仓量
-  openInterestChangePercent?: number // 持仓量变化率（%）
-  openInterestTrend?: 'increasing' | 'decreasing' | 'flat' // OI趋势
-  
-  // 指标启用状态标记
+  openInterest?: number
+  openInterestChangePercent?: number
+  openInterestTrend?: 'increasing' | 'decreasing' | 'flat'
   enabledIndicators: {
     ema: boolean
     rsi: boolean
@@ -192,11 +54,11 @@ export interface TechnicalIndicators {
     oi: boolean
     volume: boolean
   }
-  
-  // K线数据（价格行为分析）
-  lastCandle?: OHLCV  // 最新K线
-  prevCandle?: OHLCV  // 前一根K线
+  lastCandle?: OHLCV
+  prevCandle?: OHLCV
 }
+
+// ==================== AI分析结果 ====================
 
 // AI分析结果
 export interface AIAnalysis {
@@ -204,65 +66,65 @@ export interface AIAnalysis {
   timestamp: number
   strategyId?: string
   direction: Direction
-  confidence: number        // 0-100
+  confidence: number
   riskLevel: RiskLevel
   isBullish: boolean
   reasoning: string
   technicalData: {
     price: number
-    ema20?: number
-    ema60?: number
     rsi: number
     volume: number
+    macd?: number
+    macdSignal?: number
+    macdHistogram?: number
+    openInterest?: number
+    openInterestChangePercent?: number
+    openInterestTrend?: 'increasing' | 'decreasing' | 'flat'
     adx?: number
     adxPeriodLabel?: string
+    adxSlope?: number
     support?: number
     resistance?: number
-    [key: string]: any // 允许动态EMA字段
+    [key: string]: any
   }
 }
 
-// 统一交易信号接口（所有信号函数返回格式）
-export interface TradingSignal {
-  // 核心必填字段
-  type: string                              // 信号类型，支持任意扩展
-  triggered: boolean                        // 是否触发有效信号
-  direction: 'LONG' | 'SHORT' | null        // 信号方向，无方向时为null
-  reason: string                            // 信号描述/原因
-  
-  // 扩展字段，所有信号特有数据都放这里
-  data?: Record<string, any>                // 任意自定义扩展数据
+// ==================== 机器人配置 ====================
+
+// AI分析保存配置
+export interface AIAnalysisSaveConfig {
+  enabled: boolean
+  maxRecords: number
+  saveIdle: boolean
 }
 
-// 分析检查点结果
-export interface AnalysisCheckpoint {
-  name: string
-  passed: boolean
-  details: string
-  data?: any
+// EMA配置
+export interface EMAConfig {
+  fast: number
+  slow: number
 }
 
-// 分析结果
-export interface AnalysisResult {
-  symbol: string
-  timestamp: number
-  passed: boolean
-  checkpoints: AnalysisCheckpoint[]
-  finalSignal?: TradeSignal
-  summary: string
+// 技术指标配置
+export interface IndicatorsConfig {
+  requiredCandles: number
+  adxSlopePeriod: number
+  emaPeriods?: any
+  openInterest?: any
 }
 
-// 交易信号
-export interface TradeSignal {
-  symbol: string
-  direction: Direction
-  price: number
-  confidence: number
-  indicators: TechnicalIndicators
-  aiAnalysis?: AIAnalysis
-  timestamp: number
-  reason: string
+// 机器人系统配置
+export interface BotConfig {
+  symbols: string[]
+  indicatorsConfig: IndicatorsConfig
+  emaConfig: EMAConfig
+  emaPeriods: number[]
+  aiCacheTtlMinutes: number
+  aiAnalysisConfig: AIAnalysisSaveConfig
+  minConfidence: number
+  defaultCandleProgress: number
 }
+
+// ==================== 仓位与订单 ====================
 
 // 仓位信息
 export interface Position {
@@ -272,24 +134,23 @@ export interface Position {
   quantity: number
   leverage: number
   stopLoss: number
-  initialStopLoss: number  // 初始止损价格（用于TP条件计算）
+  initialStopLoss: number
   takeProfit1: number
   takeProfit2: number
   openTime: number
-  highestPrice?: number    // 持仓期间的最高价（多头追踪止损使用）
-  lowestPrice?: number     // 持仓期间的最低价（空头追踪止损使用）
+  highestPrice?: number
+  lowestPrice?: number
   orderId?: string
   stopLossOrderId?: string
-  takeProfitOrderId?: string
   stopLossOrderSymbol?: string
   stopLossOrderSide?: 'BUY' | 'SELL'
-  stopLossOrderType?: 'STOP_MARKET' | 'STOP_LIMIT' | 'TAKE_PROFIT_MARKET'  | 'MARKET' | 'LIMIT'
+  stopLossOrderType?: string
   stopLossOrderQuantity?: number
   stopLossOrderStopPrice?: number
   stopLossOrderStatus?: string
   stopLossOrderTimestamp?: number
-  lastStopLossUpdate?: number  // 上次止损更新时间（用于移动止损）
-  trailingStopData?: TrailingStopData  // 移动止损数据
+  lastStopLossUpdate?: number
+  trailingStopData?: any
 }
 
 // 订单信息
@@ -297,20 +158,84 @@ export interface Order {
   orderId: string
   symbol: string
   side: 'BUY' | 'SELL'
-  type: 'MARKET' | 'LIMIT' | 'STOP_MARKET' | 'STOP_LIMIT' | 'TAKE_PROFIT_MARKET'
+  type: string
   quantity: number
   price?: number
-  average?: number  // 平均成交价（对于已成交的订单）
+  average?: number
   stopPrice?: number
   status: string
   timestamp: number
   info?: any
 }
 
-// 交易记录
+// ==================== 账户信息 ====================
+
+// 账户信息
+export interface AccountInfo {
+  balance: number
+  availableBalance: number
+  totalPnL: number
+  positions: any[]
+}
+
+// 加密货币余额
+export interface CryptoBalance {
+  asset: string
+  free: number
+  locked: number
+  total: number
+}
+
+// ==================== 日志 ====================
+
+// 日志条目
+export interface LogEntry {
+  timestamp: number
+  level: 'INFO' | 'WARN' | 'ERROR' | 'SUCCESS'
+  category: string
+  message: string
+  data?: any
+}
+
+// ==================== API响应 ====================
+
+// 通用API响应
+export interface ApiResponse<T = any> {
+  success: boolean
+  message?: string
+  data?: T
+}
+
+// 机器人状态响应数据
+interface StatusResponseData {
+  state: {
+    isRunning: boolean
+    runningStrategies: string[]
+    totalStrategies: number
+    activeStrategies: number
+    currentPositions: number
+  }
+  config: {
+    strategies: any[]
+  }
+  logs: LogEntry[]
+  cryptoBalances: CryptoBalance[]
+  positions: Position[]
+}
+
+// 机器人状态响应
+export interface StatusResponse {
+  success: boolean
+  message?: string
+  data?: StatusResponseData
+}
+
+// ==================== 交易历史 ====================
+
+// 交易历史记录
 export interface TradeHistory {
   id: string
-  strategyId?: string  // 所属策略ID
+  strategyId?: string
   symbol: string
   direction: Direction
   entryPrice: number
@@ -324,6 +249,8 @@ export interface TradeHistory {
   reason: string
 }
 
+// ==================== 机器人状态 ====================
+
 // 熔断状态
 export interface CircuitBreaker {
   isTriggered: boolean
@@ -335,97 +262,9 @@ export interface CircuitBreaker {
 
 // 机器人状态
 export interface BotState {
-  status: PositionStatus;
-  circuitBreaker: CircuitBreaker;
-  dailyPnL: number;
-  isRunning: boolean;
-  lastTradeTime?: number;
-}
-
-// 加密货币余额
-export interface CryptoBalance {
-  asset: string
-  free: number
-  locked: number
-  total: number
-  usdValue?: number
-}
-
-// 账户信息
-export interface AccountInfo {
-  balance: number
-  availableBalance: number
-  totalPnL: number
-  positions: Position[]
-  cryptoBalances?: CryptoBalance[]
-}
-
-// 日志条目
-export interface LogEntry {
-  timestamp: number
-  level: 'INFO' | 'WARN' | 'ERROR' | 'SUCCESS'
-  category: string
-  message: string
-  data?: any
-}
-
-// API 响应类型
-export interface ApiResponse<T = any> {
-  success: boolean
-  message?: string
-  data?: T
-  state?: BotState
-  config?: BotConfig
-}
-
-// 状态响应数据
-export interface StatusResponseData {
-  state: BotState
-  config: BotConfig
-  logs: LogEntry[]
-  cryptoBalances?: CryptoBalance[]
-}
-
-// 历史统计数据
-export interface HistoryStats {
-  totalTrades: number
-  totalPnL: number
-  winRate: number
-}
-
-// 历史响应数据
-export interface HistoryResponseData extends Array<TradeHistory> {}
-
-// 分页信息
-export interface PaginationInfo {
-  page: number
-  pageSize: number
-  total: number
-  totalPages: number
-}
-
-// 状态响应
-export type StatusResponse = ApiResponse<StatusResponseData>
-
-// 历史响应
-export interface HistoryResponse {
-  success: boolean
-  message?: string
-  data?: HistoryResponseData
-  stats?: HistoryStats
-  pagination?: PaginationInfo
-}
-
-// 启动/停止响应
-export interface StartStopResponse {
-  success: boolean
-  message?: string
-  state?: BotState
-}
-
-// 配置更新响应
-export interface ConfigResponse {
-  success: boolean
-  message?: string
-  config?: BotConfig
+  status: PositionStatus
+  circuitBreaker: CircuitBreaker
+  dailyPnL: number
+  isRunning: boolean
+  lastTradeTime?: number
 }

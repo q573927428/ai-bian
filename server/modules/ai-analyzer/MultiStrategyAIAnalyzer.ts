@@ -97,32 +97,6 @@ export class MultiStrategyAIAnalyzer {
   }
 
   /**
-   * 获取IDLE缓存TTL（毫秒）
-   */
-  private getIdleCacheTtl(): number {
-    const configuredMinutes = this.config.aiIdleCacheTtlMinutes ?? 2
-    return Math.max(configuredMinutes, 1) * 60 * 1000
-  }
-
-  /**
-   * 按信号方向返回缓存TTL
-   */
-  private getCacheTtlBySignal(signal: TradeSignal): number {
-    return signal.direction === 'idle' ? this.getIdleCacheTtl() : this.getAiCacheTtl()
-  }
-
-  /**
-   * 归一化置信度（缺失时给IDLE保守分）
-   */
-  private normalizeConfidence(rawConfidence: any, direction: Direction): number {
-    const parsed = Number(rawConfidence)
-    if (Number.isFinite(parsed)) {
-      return Math.min(100, Math.max(0, Math.round(parsed)))
-    }
-    return direction === 'IDLE' ? 20 : 0
-  }
-
-  /**
    * 分析市场（支持多策略）
    */
   async analyze(
@@ -138,7 +112,7 @@ export class MultiStrategyAIAnalyzer {
       // 1. 检查缓存
       const cacheKey = this.buildCacheKey(strategyId, symbol, indicators, price)
       const cached = aiCache.get(cacheKey)
-      if (cached && (Date.now() - cached.timestamp < this.getCacheTtlBySignal(cached.signal))) {
+      if (cached && (Date.now() - cached.timestamp < this.getAiCacheTtl())) {
         return cached.signal
       }
 
@@ -178,25 +152,25 @@ export class MultiStrategyAIAnalyzer {
       // }
 
       // 4. 转换为标准交易信号（支持 IDLE 状态）
-       const signal: TradeSignal = {
-         strategyId,
-         symbol,
-         direction: aiResult.direction === 'LONG' ? 'long' : aiResult.direction === 'SHORT' ? 'short' : 'idle',
-         action: aiResult.direction === 'IDLE' ? 'hold' : 'open',
-         price,
-         stopLoss: 0, // 后续计算
-          confidence: this.normalizeConfidence(aiResult.confidence, aiResult.direction),
-         reasoning: aiResult.reasoning,
-         indicators: {
-           ema: {
-             fast: indicators.emaList[0]?.value ?? 0,
-             slow: indicators.emaList[indicators.emaList.length - 1]?.value ?? 0
-           },
-           rsi: aiResult.technicalData.rsi ?? 0,
-           atr: indicators.atr
-         },
-         timestamp: new Date().toISOString()
-       }
+      const signal: TradeSignal = {
+        strategyId,
+        symbol,
+        direction: aiResult.direction === 'LONG' ? 'long' : aiResult.direction === 'SHORT' ? 'short' : 'idle',
+        action: aiResult.direction === 'IDLE' ? 'hold' : 'open',
+        price,
+        stopLoss: 0, // 后续计算
+        confidence: aiResult.confidence,
+        reasoning: aiResult.reasoning,
+        indicators: {
+          ema: {
+            fast: indicators.emaList[0]?.value ?? 0,
+            slow: indicators.emaList[indicators.emaList.length - 1]?.value ?? 0
+          },
+          rsi: aiResult.technicalData.rsi ?? 0,
+          atr: indicators.atr
+        },
+        timestamp: new Date().toISOString()
+      }
 
       // 5. 缓存结果
       aiCache.set(cacheKey, { signal, timestamp: Date.now() })
@@ -343,34 +317,68 @@ export class MultiStrategyAIAnalyzer {
       
       --------------------------
       ## 六、策略执行强约束（核心规则）
-      
+
       ⚠️【策略优先锁 - 最高级规则】
-      
-      1. direction 的唯一来源：
-         - 必须完全由“用户策略”决定
-         - 一旦用户策略已给出 direction，禁止修改
-      
-      2. 禁止行为：
-         - ❌ 禁止基于“倾向分析”改变 direction
-         - ❌ 禁止基于“评分结果”反推 direction
-         - ❌ 禁止在 IDLE 时强行改为 LONG / SHORT
-      
-      3. IDLE 强约束：
-         - 若用户策略中出现：
-           “无触发 → IDLE” 或类似规则
-         - 👉 必须直接返回 IDLE
-         - 👉 禁止继续做多空倾向分析
-      
-      4. fallback 限制：
-         - 仅当用户策略“没有定义方向规则”时
-         - 才允许使用通用逻辑（如倾向判断）
-         - 若存在冲突：始终以用户策略为准
-      
-      5. 执行身份：
-         - 你是“策略执行引擎”
-         - ❌ 禁止优化策略
-         - ❌ 禁止补充策略
-         - ❌ 禁止解释策略合理性
+
+      1. direction 的来源规则：
+        - 若用户策略已明确定义 direction → 必须使用该结果
+        - 若用户策略未定义 → 才允许使用 fallback 判断
+
+      2. fallback（动态补全机制，仅在缺失时启用）：
+
+      👉 仅当用户策略“未提供对应规则”时，才允许使用当前数据进行补全：
+
+      （1）趋势 / 方向判断（动态使用当前EMA）：
+      - 使用当前已提供的 EMA 数据判断趋势方向：
+        - 短周期EMA > 长周期EMA → 多头趋势（LONG）
+        - 短周期EMA < 长周期EMA → 空头趋势（SHORT）
+
+      ⚠️ 注意：
+      - EMA周期必须使用当前数据中实际提供的周期（如 EMA7 / EMA20 / EMA50）
+      - 禁止假设不存在的EMA周期
+
+      （2）市场状态判断（趋势 / 震荡）：
+      - 若提供 ADX：
+        - ADX 较高 → 趋势行情
+        - ADX 较低 → 震荡行情
+      - 若未提供 ADX：
+        - 使用价格是否持续沿EMA单边运行作为替代判断
+
+      （3）入场方向（顺势原则）：
+      - 默认顺应当前EMA结构方向交易
+      - 不逆势交易（除非用户策略明确允许）
+
+      （4）入场触发（基于当前K线结构）：
+      - 使用以下“价格行为”信号判断（必须基于当前数据）：
+        - 突破关键均线（如已提供的EMA）
+        - 回踩均线后的反弹/承压
+        - 明显动量K线（实体放大）
+
+      ⚠️ fallback 使用规则（极其重要）：
+      - 只能补充“缺失规则”，不能覆盖用户策略
+      - 一旦用户策略中定义了：
+        - direction / 趋势 / 入场 / 触发
+        → fallback 对应部分立即失效
+      - 禁止使用 fallback 推翻策略已有结论
+
+      3. 严格禁止行为：
+      - ❌ 禁止覆盖用户策略结果
+      - ❌ 禁止使用固定参数（如EMA50/200）
+      - ❌ 禁止假设未提供的指标
+      - ❌ 禁止在已有 direction 后重新推导
+      - ❌ 禁止用“倾向分析”替代策略结果
+
+      4. IDLE 规则：
+      - 若策略或 fallback 判断为“无触发”
+        → 必须返回 IDLE
+      - 禁止强行给出 LONG / SHORT
+
+      5. 执行流程（必须严格顺序执行）：
+      1）先执行用户策略
+      2）检查是否缺失关键规则（方向 / 趋势 / 触发）
+      3）仅对缺失部分使用 fallback 补全
+      4）输出最终结果
+      ❌ 禁止重复推理或推翻结论
       
       --------------------------
       ## 七、输出格式（必须严格遵守）
@@ -419,18 +427,44 @@ export class MultiStrategyAIAnalyzer {
    */
   private async buildSystemPrompt(): Promise<string> {
     return `
-      你是一个专业、严格、稳定的量化交易策略执行引擎。
-
+      你是一个专业、严格、稳定的量化交易“策略执行引擎”。
+      
       你的核心使命：
-      1. 只执行用户提供的策略规则，不加入任何个人观点。
-      2. 只使用用户提供的数据，不预测、不脑补、不编造。
-      3. 无论策略风格（激进/保守/趋势/波段/网格），均完全遵守。
+      1. 优先执行用户提供的策略规则，不得修改或优化策略。
+      2. 只使用提供的数据，不预测、不脑补、不编造。
+      3. 在策略未定义关键规则时，允许使用系统提供的 fallback 逻辑进行补全。
       4. 永远输出干净、标准、可解析的JSON。
-
-      输出铁律：
-      - 只返回JSON，无任何多余内容。
-      - 严格按指令输出 direction / confidence / reasoning。
-      - 客观、机械、稳定、一致。
+      
+      --------------------------
+      【关键执行规则】
+      
+      1. direction 控制：
+        - 若用户策略已定义 direction → 必须使用，不得修改
+        - 若未定义 → 才允许使用 fallback 判断
+        - ❌ 禁止在已有 direction 后再次推导或修改
+      
+      2. fallback 使用原则：
+        - 仅用于补充“缺失规则”
+        - ❌ 禁止覆盖用户策略
+        - 一旦策略中已定义对应逻辑 → fallback 立即失效
+      
+      3. IDLE 规则：
+        - 若策略或 fallback 判断为无触发 → 必须返回 IDLE
+        - ❌ 禁止强行给出 LONG / SHORT
+      
+      --------------------------
+      【输出铁律】
+      
+      - 只返回JSON，无任何多余内容
+      - 严格包含：
+        direction / confidence / reasoning
+      - 必须基于数据，且包含具体数值
+      - 客观、机械、稳定、一致
+      
+      --------------------------
+      【身份限制】
+      
+      你不是交易员，不做主观判断，只执行规则。
     `;
   }
 
@@ -595,7 +629,7 @@ export class MultiStrategyAIAnalyzer {
         timestamp: Date.now(),
         strategyId,
         direction: direction,
-        confidence: this.normalizeConfidence(aiResult.confidence, direction),
+        confidence: aiResult.confidence,
         riskLevel: (aiResult.riskLevel || 'MEDIUM') as RiskLevel,
         isBullish: direction === 'LONG',
         reasoning: reasoning,

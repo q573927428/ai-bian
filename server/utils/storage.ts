@@ -270,21 +270,31 @@ export async function saveBotConfig(config: BotConfig): Promise<void> {
  */
 function getDefaultBotConfig(): BotConfig {
   return {
-    symbols: [], // 默认监控交易对（空数组表示由外部配置决定）
+    symbols: [
+      "BTC/USDT",
+      "ETH/USDT",
+      "SOL/USDT",
+      "DOGE/USDT",
+      "HYPE/USDT",
+      "XAU/USDT",
+      "XAG/USDT",
+      "BNB/USDT"
+    ], // 默认监控交易对列表
     indicatorsConfig: {
-      requiredCandles: 300, // 指标计算所需最少K线数量
+      requiredCandles: 500, // 指标计算所需最少K线数量
       adxSlopePeriod: 3 // ADX斜率计算回看周期
     },
-
-    aiCacheTtlMinutes: 10, // AI非IDLE信号缓存时间（分钟）
-    aiIdleCacheTtlMinutes: 2, // AI IDLE信号缓存时间（分钟）
-
+    emaConfig: {
+      fast: 20, // 快速EMA周期
+      slow: 200 // 慢速EMA周期
+    },
+    emaPeriods: [20, 200], // EMA周期数组
+    aiCacheTtlMinutes: 10, // AI缓存时间（分钟）
     aiAnalysisConfig: {
       enabled: true, // 是否启用AI分析保存
-      maxRecords: 1000, // 单文件最大保存条数
+      maxRecords: 3500, // 单文件最大保存条数
       saveIdle: true // 是否保存IDLE分析记录
     },
-
     minConfidence: 70, // 信号最小置信度阈值
     defaultCandleProgress: 0.1 // 默认K线进度（用于无法获取最新K线时兜底）
   }
