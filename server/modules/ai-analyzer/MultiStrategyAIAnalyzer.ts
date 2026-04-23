@@ -387,7 +387,7 @@ export class MultiStrategyAIAnalyzer {
       {
         "direction": "LONG" | "SHORT" | "IDLE",
         "confidence": 0~100,
-        "reasoning": "必须引用具体数值（EMA/RSI/价格等）"
+        "reasoning": "必须引用具体数值（EMA/RSI/价格等），禁止使用英文描述，确保流畅逻辑清晰"
       }
       
       --------------------------
