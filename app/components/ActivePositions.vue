@@ -143,7 +143,8 @@ function calculateUnrealizedPnlPercentage(position: any): number {
     ? ((currentPrice - position.entryPrice) / position.entryPrice) * 100
     : ((position.entryPrice - currentPrice) / position.entryPrice) * 100
   
-  return percentage
+  // 盈亏%乘以杠杆
+  return percentage * (position.leverage || 1)
 }
 
 // 格式化开仓时间
