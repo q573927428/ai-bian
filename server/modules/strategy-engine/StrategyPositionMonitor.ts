@@ -180,11 +180,15 @@ export class StrategyPositionMonitor {
     const updates: Partial<PositionInfo> = {}
 
     if (currentPrice > (position.highestPrice || position.entryPrice)) {
+      const previousHighest = position.highestPrice || position.entryPrice
       updates.highestPrice = currentPrice
+      logger.info('极值追踪', `${position.symbol} 多头最高价更新: ${previousHighest.toFixed(4)} → ${currentPrice.toFixed(4)}`)
     }
 
     if (currentPrice < (position.lowestPrice || position.entryPrice)) {
+      const previousLowest = position.lowestPrice || position.entryPrice
       updates.lowestPrice = currentPrice
+      logger.info('极值追踪', `${position.symbol} 空头最低价更新: ${previousLowest.toFixed(4)} → ${currentPrice.toFixed(4)}`)
     }
 
     if (Object.keys(updates).length > 0) {
