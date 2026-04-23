@@ -46,15 +46,15 @@
             <span class="label">盈亏%:</span>
             <span class="value">{{ calculateUnrealizedPnlPercentage(pos).toFixed(2) }}%</span>
           </div>
-          <div class="info-item take-profit">
+          <div class="info-item">
             <span class="label">TP1止盈:</span>
             <span class="value">{{ pos.takeProfit1 ? pos.takeProfit1.toFixed(2) : '--' }}</span>
           </div>
-          <div class="info-item take-profit">
+          <div class="info-item">
             <span class="label">TP2止盈:</span>
             <span class="value">{{ pos.takeProfit2 ? pos.takeProfit2.toFixed(2) : '--' }}</span>
           </div>
-          <div class="info-item stop-loss" :class="{ 'trailing': isTrailingStopLoss(pos) }">
+          <div class="info-item" :class="{ 'trailing': isTrailingStopLoss(pos) }">
             <span class="label">{{ isTrailingStopLoss(pos) ? '当前止损' : '初始止损' }}:</span>
             <span class="value">{{ pos.stopLoss ? pos.stopLoss.toFixed(2) : '--' }}</span>
           </div>
@@ -290,24 +290,6 @@ onUnmounted(() => {
 
 .info-item.profit.negative .value {
   color: #f56c6c;
-}
-
-.info-item.take-profit .label {
-  color: #67c23a;
-}
-
-.info-item.take-profit .value {
-  color: #67c23a;
-  font-weight: 600;
-}
-
-.info-item.stop-loss .label {
-  color: #f56c6c;
-}
-
-.info-item.stop-loss .value {
-  color: #f56c6c;
-  font-weight: 600;
 }
 
 .info-item.stop-loss.trailing .label {
