@@ -349,7 +349,6 @@ rawScore ∈ [0,100]
 - 部分满足 → confidence 30~60
 - 高匹配 → confidence 60+
 
-
 ---
 
 ### 4️⃣ 指标评分逻辑（仅启用时）
@@ -371,6 +370,7 @@ rawScore ∈ [0,100]
 
 --------------------------
 ## 六、输出格式
+最终输出json的时候，confidence 必须是与“计算结果”一致，严禁主观给值或直接输出固定数值。
 {
   "direction": "LONG" | "SHORT" | "IDLE",
   "confidence": 0~100,
