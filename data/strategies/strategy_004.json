@@ -3,7 +3,7 @@
   "name": "策略04",
   "version": 1,
   "createdAt": "2026-04-22T09:40:30.913Z",
-  "updatedAt": "2026-04-24T06:44:23.036Z",
+  "updatedAt": "2026-04-24T08:19:55.224Z",
   "isActive": true,
   "marketData": {
     "symbols": [
@@ -49,7 +49,7 @@
     "maxTokens": 2000,
     "model": "deepseek-chat",
     "provider": "deepseek",
-    "dsl": "{\n  \"version\": \"2.0\",\n  \"type\": \"signal\",\n  \"indicators\": {\n    \"ema\": {\n      \"enabled\": true,\n      \"periods\": [\n        7,\n        120\n      ]\n    },\n    \"rsi\": {\n      \"enabled\": false,\n      \"period\": 14\n    },\n    \"volume\": {\n      \"enabled\": false\n    },\n    \"oi\": {\n      \"enabled\": false\n    },\n    \"adx\": {\n      \"enabled\": false\n    },\n    \"macd\": {\n      \"enabled\": false\n    }\n  },\n  \"signals\": [\n    {\n      \"name\": \"死叉预判开多\",\n      \"direction\": \"LONG\",\n      \"confidence\": 80,\n      \"conditions\": [\n        {\n          \"indicator\": \"ema\",\n          \"type\": \"price_vs_slow\",\n          \"params\": {\n            \"operator\": \"<\",\n            \"period\": 120\n          }\n        },\n        {\n          \"indicator\": \"ema\",\n          \"type\": \"fast_vs_slow\",\n          \"params\": {\n            \"operator\": \">\",\n            \"fast\": 7,\n            \"slow\": 120\n          }\n        },\n        {\n          \"indicator\": \"ema\",\n          \"type\": \"distance_percent\",\n          \"params\": {\n            \"max\": 0.2,\n            \"fast\": 7,\n            \"slow\": 120\n          }\n        }\n      ]\n    },\n    {\n      \"name\": \"金叉预判开空\",\n      \"direction\": \"SHORT\",\n      \"confidence\": 80,\n      \"conditions\": [\n        {\n          \"indicator\": \"ema\",\n          \"type\": \"price_vs_slow\",\n          \"params\": {\n            \"operator\": \">\",\n            \"period\": 120\n          }\n        },\n        {\n          \"indicator\": \"ema\",\n          \"type\": \"fast_vs_slow\",\n          \"params\": {\n            \"operator\": \"<\",\n            \"fast\": 7,\n            \"slow\": 120\n          }\n        },\n        {\n          \"indicator\": \"ema\",\n          \"type\": \"distance_percent\",\n          \"params\": {\n            \"max\": 0.2,\n            \"fast\": 7,\n            \"slow\": 120\n          }\n        }\n      ]\n    }\n  ],\n  \"fallback\": {\n    \"direction\": \"IDLE\",\n    \"confidence\": 0\n  },\n  \"metadata\": {\n    \"createdAt\": \"2026-04-24T06:44:23.035Z\"\n  }\n}"
+    "dsl": "{\n  \"version\": \"2.0\",\n  \"type\": \"signal\",\n  \"indicators\": {\n    \"ema\": {\n      \"enabled\": true,\n      \"periods\": [\n        7,\n        120\n      ]\n    }\n  },\n  \"signals\": [\n    {\n      \"name\": \"死叉预判开多\",\n      \"direction\": \"LONG\",\n      \"confidence\": 80,\n      \"conditions\": [\n        {\n          \"indicator\": \"price\",\n          \"type\": \"less_than\",\n          \"params\": {\n            \"value\": \"ema_120\"\n          }\n        },\n        {\n          \"indicator\": \"ema_cross\",\n          \"type\": \"greater_than\",\n          \"params\": {\n            \"fast\": 7,\n            \"slow\": 120\n          }\n        },\n        {\n          \"indicator\": \"ema_distance\",\n          \"type\": \"less_than\",\n          \"params\": {\n            \"fast\": 7,\n            \"slow\": 120,\n            \"threshold\": 0.002\n          }\n        }\n      ]\n    },\n    {\n      \"name\": \"金叉预判开空\",\n      \"direction\": \"SHORT\",\n      \"confidence\": 80,\n      \"conditions\": [\n        {\n          \"indicator\": \"price\",\n          \"type\": \"greater_than\",\n          \"params\": {\n            \"value\": \"ema_120\"\n          }\n        },\n        {\n          \"indicator\": \"ema_cross\",\n          \"type\": \"less_than\",\n          \"params\": {\n            \"fast\": 7,\n            \"slow\": 120\n          }\n        },\n        {\n          \"indicator\": \"ema_distance\",\n          \"type\": \"less_than\",\n          \"params\": {\n            \"fast\": 7,\n            \"slow\": 120,\n            \"threshold\": 0.002\n          }\n        }\n      ]\n    }\n  ],\n  \"fallback\": {\n    \"direction\": \"IDLE\",\n    \"confidence\": 0\n  },\n  \"metadata\": {\n    \"createdAt\": \"2026-04-24T08:19:55.222Z\"\n  }\n}"
   },
   "riskManagement": {
     "maxRiskPercentage": 10,
@@ -187,21 +187,21 @@
     "totalWins": 2,
     "totalLosses": 0,
     "winRate": 100,
-    "totalProfit": 1.5660800000000028,
+    "totalProfit": 0.30350000000000193,
     "totalLoss": 0,
-    "netProfit": 1.5660800000000028,
+    "netProfit": 0.30350000000000193,
     "profitFactor": null,
     "maxDrawdown": 0,
-    "averageProfitPerTrade": 0.7830400000000014,
+    "averageProfitPerTrade": 0.15175000000000097,
     "averageLossPerTrade": 0,
-    "largestWin": 1.1855999999999993,
+    "largestWin": 0.29769999999999897,
     "largestLoss": 0,
-    "averageHoldTime": 1313.1465083333333,
+    "averageHoldTime": 130.43260833333335,
     "consecutiveWins": 2,
     "consecutiveLosses": 0,
     "maxConsecutiveWins": 2,
     "maxConsecutiveLosses": 0,
-    "updatedAt": "2026-04-23T10:02:30.931Z"
+    "updatedAt": "2026-04-24T08:22:19.384Z"
   },
   "sessions": [],
   "currentSessionId": null

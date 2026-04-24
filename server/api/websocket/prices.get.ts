@@ -20,21 +20,8 @@ export default defineEventHandler(async (event) => {
     // 确保WebSocket已连接
     await webSocketManager.initialize()
 
-    // 如果没有订阅，先订阅这些交易对
-    if (symbolList.length > 0) {
-      // 创建一个临时的回调函数来订阅价格
-      const tempCallback = (priceData: any) => {
-        // 临时回调，不做任何事情
-      }
-      
-      // 订阅所有请求的交易对
-      symbolList.forEach(symbol => {
-        if (!webSocketManager.getPrice(symbol)) {
-          // 如果还没有这个交易对的价格，订阅它
-          webSocketManager.subscribePrice(symbol, tempCallback)
-        }
-      })
-    }
+    // 注意：不要在这里添加订阅！订阅应该由专门的 subscribe 接口处理
+    // 这里只获取已订阅的价格数据
 
     const allPrices = webSocketManager.getAllPrices()
     const state = webSocketManager.getWebSocketState()

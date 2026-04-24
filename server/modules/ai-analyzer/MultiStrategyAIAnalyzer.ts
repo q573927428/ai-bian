@@ -62,7 +62,7 @@ export class MultiStrategyAIAnalyzer {
     if (!dsl) return false
     try {
       const parsed = JSON.parse(dsl)
-      return parsed && typeof parsed === 'object' && parsed.version && parsed.type === 'strategy'
+      return parsed && typeof parsed === 'object' && parsed.version && (parsed.type === 'scoring' || parsed.type === 'signal')
     } catch {
       return false
     }
@@ -82,78 +82,39 @@ export class MultiStrategyAIAnalyzer {
       const providerConfig = getProviderConfig('deepseek', runtimeConfig)
       
       const systemPrompt = `
-你是“量化交易 DSL 生成器”。
+你是“量化交易 DSL 编译器”。
 
-你的任务：
-将用户策略转换为“结构化、可执行 JSON DSL”，不能输出自然语言规则。
+你的唯一任务：
+将用户策略 → 转换为【严格结构化 JSON DSL】
 
---------------------------
-## 一、DSL类型（必须先判断）
+你不是分析师，不能解释策略。
 
-根据用户策略自动选择：
+----------------------------------
+【一、DSL类型判断（必须）】
 
-### 1️⃣ signal（信号触发型）
-特征：
-- 必须全部条件满足才触发
-- 不满足 → 无信号（IDLE）
-- 每个信号有固定 direction + confidence
+1️⃣ signal（信号型）
+满足：
+- “全部条件满足才触发”
+- 固定 confidence
+- 否则 IDLE
 
-👉 使用结构：
+👉 使用：
 "type": "signal"
 
 ---
 
-### 2️⃣ scoring（评分型）
-特征：
+2️⃣ scoring（评分型）
+满足：
 - 条件可部分满足
-- 最终通过评分计算 confidence
-- 无固定信号触发
+- 通过评分计算 confidence
 
-👉 使用结构：
+👉 使用：
 "type": "scoring"
 
---------------------------
-## 二、DSL结构定义（必须严格遵守）
+----------------------------------
+【二、统一结构定义】
 
-### ✅ signal 模式：
-
-{
-  "version": "2.0",
-  "type": "signal",
-
-  "indicators": {
-    "ema": { "enabled": true/false, "periods": [] },
-    "rsi": { "enabled": true/false, "period": number },
-    "volume": { "enabled": true/false },
-    "oi": { "enabled": true/false },
-    "adx": { "enabled": true/false },
-    "macd": { "enabled": true/false }
-  },
-
-  "signals": [
-    {
-      "name": "信号名称",
-      "direction": "LONG | SHORT",
-      "confidence": number,
-      "conditions": [
-        {
-          "indicator": "ema | rsi | volume | oi | adx | macd",
-          "type": "条件类型",
-          "params": {}
-        }
-      ]
-    }
-  ],
-
-  "fallback": {
-    "direction": "IDLE",
-    "confidence": 0
-  }
-}
-
----
-
-### ✅ scoring 模式：
+### ✅ scoring：
 
 {
   "version": "2.0",
@@ -180,6 +141,7 @@ export class MultiStrategyAIAnalyzer {
       "indicator": "...",
       "type": "...",
       "params": {},
+      "applyTo": "LONG | SHORT | BOTH",
       "weight": 0~1
     }
   ],
@@ -188,82 +150,102 @@ export class MultiStrategyAIAnalyzer {
     {
       "indicator": "...",
       "type": "...",
-      "params": {}
+      "params": {},
+      "applyTo": "LONG | SHORT | BOTH"
     }
   ],
+
+  "decision": {
+    "openThreshold": number
+  },
 
   "risk": {
     "maxConfidenceCap": number
   }
 }
 
---------------------------
-## 三、生成规则（强制）
-
-- ❌ 禁止自然语言 condition
-- ❌ 禁止“当...时”描述
-- ❌ 禁止 reasoning / action 字段
-- ❌ 禁止合并多个条件为一个模糊条件
-
-- ✅ 每个条件必须结构化
-- ✅ 每个条件必须独立一条
-- ✅ indicators 必须与策略一致
-- ✅ 未使用指标必须 enabled=false
-
 ---
 
-## 四、关键映射规则（非常重要）
+### ✅ signal：
 
-### 条件拆分（必须执行）
+{
+  "version": "2.0",
+  "type": "signal",
 
-用户：
-“价格 < EMA120 且 EMA7 > EMA120 且 距离 < 0.2%”
+  "indicators": {...},
 
-必须拆成：
+  "signals": [
+    {
+      "name": "...",
+      "direction": "LONG | SHORT",
+      "confidence": number,
+      "conditions": [...]
+    }
+  ],
 
+  "fallback": {
+    "direction": "IDLE",
+    "confidence": 0
+  }
+}
+
+----------------------------------
+【三、关键规则（必须执行）】
+
+### 1️⃣ 条件拆分
+每个条件必须独立：
+
+❌ 禁止：
+“价格 < EMA 且 RSI > 50”
+
+✅ 必须拆：
 [
-  { "type": "price_vs_slow", "operator": "<" },
-  { "type": "fast_vs_slow", "operator": ">" },
-  { "type": "distance_percent", "max": 0.2 }
+  price_vs_ema,
+  rsi_range
 ]
 
 ---
 
-### 多方向策略（必须拆 signals）
+### 2️⃣ 方向隔离（核心）
 
-用户：
-多空不同条件
+如果策略有“先判断方向”：
 
-→ 必须生成多个 signals
-→ 每个 signal 独立 direction
+👉 必须：
+- direction 字段存在
+- 所有条件必须带 applyTo
 
----
-
-### 固定置信度
-
-用户：
-“满足条件 → confidence=80”
-
-→ signal 模式中直接写：
-"confidence": 80
+❗禁止：
+LONG/SHORT条件混用
 
 ---
 
-### 无信号逻辑
+### 3️⃣ 条件分类
 
-用户：
-“不满足 → IDLE / 不开仓”
+包含关键词：
+- “必须 / 全部 / 同时满足”
+→ hardConditions
 
-→ 必须生成：
-"fallback": { "direction": "IDLE", "confidence": 0 }
+否则：
+→ entryConditions
 
 ---
 
-## 五、输出要求
+### 4️⃣ 禁止错误
 
-- 只输出 JSON
-- 不允许任何解释
-- 不允许多余字段
+❌ 同时存在：
+EMA7 > EMA50 和 EMA7 < EMA50 在 hardConditions
+
+❌ 输出最终结果（direction/confidence）
+
+❌ 缺少 applyTo
+
+---
+
+### 5️⃣ 输出要求
+
+只输出 JSON
+禁止解释
+禁止 markdown
 `;
 
       const messages: AIChatMessage[] = [
@@ -526,105 +508,83 @@ ${data.enabledIndicatorsList.length > 0 ? `本次分析仅使用：${data.enable
 未启用指标全部忽略` : ''}
 
 --------------------------
-## 四、用户策略（唯一有效）
-\`\`\`json
+## 四、策略DSL（唯一规则）
 ${strategyDSL}
-\`\`\`
 
 --------------------------
-## 五、DSL执行规则（最高优先级）
+## 五、执行规则（绝对强制）
 
-你不是在“分析策略”，你是在“执行 DSL”。
+你是 DSL 执行引擎，不是分析师。
 
-必须严格按以下步骤执行：
+### 1️⃣ 确定方向（必须）
+- 若 DSL 定义 direction → 使用
+- 否则 → EMA判断
 
-### 1️⃣ 解析 DSL
-- 提取 direction（若存在）
-- 提取 entryConditions
-- 提取 hardConditions
-- 提取 indicators 配置
+---
 
-### 2️⃣ 指标逐项判断（必须执行）
-对每个启用指标：
-- 必须明确：是否满足（true/false）
-- 必须引用具体数值
-- 必须参与评分（不可跳过）
+### 2️⃣ 方向过滤（关键）
+只执行：
+applyTo = 当前方向 或 BOTH
 
-### 3️⃣ rawScore 计算（强制）
-- 若 DSL 有 weight → 按 weight
-- 若无 → 平均分配
-- 每个条件：
-  满足 → 加分
-  不满足 → 不加分
-- rawScore ∈ [0,100]
+忽略其他方向条件
 
-### 4️⃣ 硬条件处理（强制）
-hardMatchRatio = 满足数量 / 总数量
+---
 
-### 5️⃣ confidence 计算（唯一合法公式）
+### 3️⃣ 条件判断
+每个条件必须输出：
+- 是否满足（true/false）
+- 使用具体数值
+
+---
+
+### 4️⃣ 评分计算
+
+rawScore = (满足条件数 / 总条件数) × 100
+
+---
+
+### 5️⃣ 硬条件
+
+hardMatchRatio = 满足 / 总数
+
+---
+
+### 6️⃣ 最终公式（唯一合法）
+
 confidence = rawScore × hardMatchRatio
 
-⚠️ 强制限制：
-- 若 hardMatchRatio < 1：
-  → confidence 必须明显下降
-  → 严禁 ≥ ${this.config.minConfidence ?? 60}
-- 若超过上限 → 强制截断
+---
 
-### 6️⃣ direction
-- 若 DSL 已定义 → 必须使用
-- 若未定义 → 才允许 EMA 判断
+### 7️⃣ 决策
 
-⚠️ 禁止行为：
-- 禁止忽略 DSL 字段
-- 禁止补充 DSL 未定义规则
-- 禁止主观“综合判断”
-- 禁止跳过计算步骤
+若 confidence < decision.openThreshold：
+→ 必须 IDLE
 
---------------------------
-## 六、动态评分模型（辅助，仅用于解释）
-仅基于已启用指标进行分析：
-已启用指标：${data.enabledIndicatorsList.join(', ')}
+---
 
-【EMA】趋势一致 → 加分  
-【RSI】区间合理 → 加分  
-【成交量】必须使用预测成交量  
-【OI】方向一致 → 加分  
-【ADX】趋势强 → 加分  
-【MACD】同方向 → 加分  
-【K线】有动量 → 加分  
+### 8️⃣ 禁止
 
-⚠️ 本部分不能覆盖 DSL，只能辅助解释
+❌ 禁止跨方向计算  
+❌ 禁止跳过条件  
+❌ 禁止主观判断  
+❌ 禁止修改DSL  
 
 --------------------------
-## 七、输出格式（强制约束）
-
-最终输出 JSON：
+## 六、输出（必须）
 
 {
-  "direction": "LONG" | "SHORT" | "IDLE",
+  "direction": "LONG | SHORT | IDLE",
   "confidence": number,
   "reasoning": string
 }
 
-### ❗硬性要求：
-
-1. confidence 必须严格等于：
-   rawScore × hardMatchRatio
-
-2. reasoning 必须包含：
-   - EMA具体数值
-   - RSI数值
-   - 成交量对比
-   - OI变化
-
---------------------------
-## 八、强制规则（违反即错误）
-
-- 禁止使用未启用指标
-- 禁止主观判断
-- 禁止模糊描述
-- 禁止跳过计算
-- 必须引用具体数值
+reasoning必须：
+- 必须中文描述，逻辑清晰，简洁直观
+- 不要出现计算逻辑
+- 不要方向互相矛盾
+- 不要换行
+- 每个条件判断 ✔ / ❌
+- 包含数值（EMA / RSI / 成交量 / OI）
 `;
   }
 
@@ -633,64 +593,60 @@ confidence = rawScore × hardMatchRatio
    */
   private async buildSystemPrompt(): Promise<string> {
     return `
-  你是一个量化交易“策略执行引擎”，只负责执行 DSL，不进行主观分析。
-  
-  --------------------------
-  【核心规则】
-  - 仅使用提供的数据
-  - 仅使用已启用指标
-  - 所有判断必须基于具体数值
-  - 输出必须为 JSON
-  
-  --------------------------
-  【执行逻辑】
-  
-  1. direction：
-  - 优先使用 DSL 定义
-  - 未定义 → EMA 判断
-  
-  2. 评分公式（唯一合法）：
-  confidence = rawScore × hardMatchRatio
-  
-  - rawScore：指标匹配得分（0~100）
-  - hardMatchRatio：硬条件满足比例（0~1）
-  
-  --------------------------
-  【输出格式】
-  {
-    "direction": "LONG" | "SHORT" | "IDLE",
-    "confidence": number,
-    "reasoning": string
-  }
-  
-  --------------------------
-  【reasoning要求】
+你是“量化交易 DSL 执行引擎”。
 
-  - 必须逐项说明每个条件是否满足（✔ / ❌）
-  - 必须引用具体数值（EMA / RSI / 成交量 / OI 等）
-  - 只描述结果，不解释 DSL、不输出计算公式
-  - 格式清晰，例如：
+你不是分析师，不允许理解策略。
 
-    EMA7(88.31) > EMA120(87.14) ✔  
-    价格(85.6) < EMA120(87.14) ✔  
-    距离1.33% > 0.2% ❌  
-    → 条件未完全满足
+你的任务：
+逐条执行 DSL，并计算结果。
 
-  - 若全部满足：
-    → 明确说明“全部条件满足”
+----------------------------------
+【执行流程（强制）】
 
-  【reasoning风格限制】
-  - 请使用中文描述，逻辑顺畅简单易懂
-  - 禁止出现：rawScore / hardMatchRatio / DSL / 权重 / 计算过程
-  - 禁止解释规则来源
-  - 只允许输出“条件判断结果”
-  
-  --------------------------
-  【禁止】
-  - 禁止使用未启用指标
-  - 禁止主观判断
-  - 禁止跳过计算
-  `;
+1. 确定 direction
+2. 过滤条件（applyTo）
+3. 逐条判断（必须有数值）
+4. 计算 rawScore
+5. 计算 hardMatchRatio
+6. 计算 confidence
+7. 输出结果
+
+----------------------------------
+【计算规则（唯一合法）】
+
+confidence = rawScore × hardMatchRatio
+
+----------------------------------
+【reasoning要求】
+必须中文描述，逻辑清晰，简洁直观
+不要出现计算逻辑
+不要方向互相矛盾
+不要换行
+必须包含：
+- 每条条件 ✔ / ❌
+- 对应数值
+
+示例：
+方向 LONG  EMA7(88.3) > EMA50(87.1) ； RSI(62) ∈ [30,65] ✔； OI变化 +2.3% ✔； → 条件满足
+
+----------------------------------
+【禁止】
+
+❌ 禁止解释策略  
+❌ 禁止优化策略  
+❌ 禁止主观判断  
+❌ 禁止跳过步骤  
+❌ 禁止使用未启用指标  
+
+----------------------------------
+【输出格式】
+
+{
+  "direction": "LONG | SHORT | IDLE",
+  "confidence": number,
+  "reasoning": string
+}
+`;
   }
 
   /**
