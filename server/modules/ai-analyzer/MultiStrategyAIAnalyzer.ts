@@ -183,20 +183,37 @@ export class MultiStrategyAIAnalyzer {
   }
 
   /**
-   * 构建完整提示词
+   * 将用户策略转换为 DSL JSON 格式
    */
-  private buildFullPrompt(
-    promptConfig: AIPromptConfig,
+  private convertStrategyToDSL(userPrompt: string): string {
+    // 这里可以扩展为更复杂的解析逻辑
+    // 目前先简单包装成 JSON 格式
+    const dsl = {
+      version: "1.0",
+      type: "strategy",
+      description: userPrompt.trim(),
+      rules: [],
+      metadata: {
+        createdAt: new Date().toISOString()
+      }
+    }
+    return JSON.stringify(dsl, null, 2)
+  }
+
+  /**
+   * 准备提示词数据
+   */
+  private preparePromptData(
     symbol: string,
     price: number,
     indicators: TechnicalIndicators,
     volume: number,
-    candleProgress: number = 0.1
-  ): string {
-    // 构建技术指标部分的提示词（根据指标启用状态）
+    candleProgress: number
+  ) {
+    // 技术指标行
     const technicalIndicatorLines: string[] = []
     
-    // 只在启用EMA时显示
+    // EMA
     if (indicators.enabledIndicators?.ema && indicators.emaList.length > 0) {
       const dynamicEmaLines = indicators.emaList
         .map(item => `- ${item.name}: ${(item.value ?? 0).toFixed(4)}`)
@@ -204,35 +221,33 @@ export class MultiStrategyAIAnalyzer {
       technicalIndicatorLines.push(dynamicEmaLines)
     }
 
-    // 只在启用RSI时显示
+    // RSI
     if (indicators.enabledIndicators?.rsi && indicators.rsi !== undefined) {
       technicalIndicatorLines.push(`- RSI(14): ${indicators.rsi.toFixed(2)}`)
     }
 
-    // 只在启用MACD时显示
+    // MACD
     if (indicators.enabledIndicators?.macd && indicators.macd) {
       technicalIndicatorLines.push(`- MACD(12,26,9): MACD=${indicators.macd.macd.toFixed(4)}, Signal=${indicators.macd.signal.toFixed(4)}, Histogram=${indicators.macd.histogram.toFixed(4)}`)
     }
 
-    // 只在启用ATR时显示
+    // ATR
     if (indicators.enabledIndicators?.atr && indicators.atr !== undefined) {
       technicalIndicatorLines.push(`- ATR(14): ${indicators.atr.toFixed(4)}`)
     }
 
-    // 构建ADX显示行
+    // ADX行
     const adxLines: string[] = []
     if (indicators.enabledIndicators?.adx) {
       if (indicators.adx !== undefined) {
         adxLines.push(`- ADX(${indicators.adxPeriodLabel}): ${indicators.adx.toFixed(2)}`)
       }
-      
-      // ADX斜率
       if (indicators.adxSlope !== undefined) {
         adxLines.push(`- ADX斜率: ${indicators.adxSlope.toFixed(4)}`)
       }
     }
 
-    // 只在启用OI时显示
+    // OI行
     const oiLines: string[] = []
     if (indicators.enabledIndicators?.oi) {
       if (indicators.openInterest !== undefined) {
@@ -246,8 +261,8 @@ export class MultiStrategyAIAnalyzer {
       }
     }
 
-    // 构建启用的指标列表说明
-    const enabledIndicatorsList = []
+    // 启用指标列表
+    const enabledIndicatorsList: string[] = []
     if (indicators.enabledIndicators?.ema) enabledIndicatorsList.push('EMA')
     if (indicators.enabledIndicators?.rsi) enabledIndicatorsList.push('RSI')
     if (indicators.enabledIndicators?.macd) enabledIndicatorsList.push('MACD')
@@ -256,49 +271,77 @@ export class MultiStrategyAIAnalyzer {
     if (indicators.enabledIndicators?.oi) enabledIndicatorsList.push('持仓量(OI)')
     if (indicators.enabledIndicators?.volume) enabledIndicatorsList.push('成交量')
 
+    // K线数据
+    const formatCandle = (candle: any) => {
+      if (!candle) return ''
+      return `  开盘：${candle.open.toFixed(5)}
+        最高：${candle.high.toFixed(5)}
+        最低：${candle.low.toFixed(5)}
+        收盘：${candle.close.toFixed(5)}
+        成交量：${candle.volume.toFixed(2)}
+        阴阳：${candle.close > candle.open ? '阳线' : '阴线'}`
+    }
 
+    return {
+      symbol,
+      price: (price ?? 0).toFixed(5),
+      currentTime: new Date().toISOString(),
+      candleProgressPercent: (candleProgress * 100).toFixed(1),
+      currentVolume: indicators.enabledIndicators?.volume ? (volume ?? 0).toFixed(2) : '',
+      estimatedVolume: (volume / candleProgress).toFixed(2),
+      lastCandle: indicators.lastCandle ? formatCandle(indicators.lastCandle) : '',
+      prevCandle: indicators.prevCandle ? formatCandle(indicators.prevCandle) : '',
+      technicalIndicatorLines,
+      adxLines,
+      oiLines,
+      enabledIndicatorsList
+    }
+  }
+
+  /**
+   * 构建完整提示词
+   */
+  private buildFullPrompt(
+    promptConfig: AIPromptConfig,
+    symbol: string,
+    price: number,
+    indicators: TechnicalIndicators,
+    volume: number,
+    candleProgress: number = 0.1
+  ): string {
+    const data = this.preparePromptData(symbol, price, indicators, volume, candleProgress)
+    const strategyDSL = this.convertStrategyToDSL(promptConfig.userPrompt)
+    
     return `
 ## 一、当前市场真实数据（仅使用以下数据）
-交易对：${symbol}
-当前价格：${(price ?? 0).toFixed(5)} USDT
-当前时间：${new Date().toISOString()}
-K线完成进度：${(candleProgress * 100).toFixed(1)}%
-${indicators.enabledIndicators?.volume ? `当前成交量：${(volume ?? 0).toFixed(2)}` : ''}
-预计K线结束成交量：${(volume / candleProgress).toFixed(2)}（you must use this）
+交易对：${data.symbol}
+当前价格：${data.price} USDT
+当前时间：${data.currentTime}
+K线完成进度：${data.candleProgressPercent}%
+${data.currentVolume ? `当前成交量：${data.currentVolume}` : ''}
+预计K线结束成交量：${data.estimatedVolume}（you must use this）
 
 ## 二、K线形态数据
-${indicators.lastCandle ? `- 最新K线
-  开盘：${indicators.lastCandle.open.toFixed(5)}
-  最高：${indicators.lastCandle.high.toFixed(5)}
-  最低：${indicators.lastCandle.low.toFixed(5)}
-  收盘：${indicators.lastCandle.close.toFixed(5)}
-  成交量：${indicators.lastCandle.volume.toFixed(2)}
-  阴阳：${indicators.lastCandle.close > indicators.lastCandle.open ? '阳线' : '阴线'}` : ''}
-${indicators.prevCandle ? `- 前一根K线
-  开盘：${indicators.prevCandle.open.toFixed(5)}
-  最高：${indicators.prevCandle.high.toFixed(5)}
-  最低：${indicators.prevCandle.low.toFixed(5)}
-  收盘：${indicators.prevCandle.close.toFixed(5)}
-  成交量：${indicators.prevCandle.volume.toFixed(2)}
-  阴阳：${indicators.prevCandle.close > indicators.prevCandle.open ? '阳线' : '阴线'}` : ''}
+${data.lastCandle ? `- 最新K线\n${data.lastCandle}` : ''}
+${data.prevCandle ? `- 前一根K线\n${data.prevCandle}` : ''}
 
 ## 三、技术指标（仅启用的指标有效）
-${technicalIndicatorLines.join('\n')}
-${adxLines.length > 0 ? adxLines.join('\n') : ''}
-${oiLines.length > 0 ? oiLines.join('\n') : ''}
-${enabledIndicatorsList.length > 0 ? `本次分析仅使用：${enabledIndicatorsList.join(', ')}
+${data.technicalIndicatorLines.join('\n')}
+${data.adxLines.length > 0 ? data.adxLines.join('\n') : ''}
+${data.oiLines.length > 0 ? data.oiLines.join('\n') : ''}
+${data.enabledIndicatorsList.length > 0 ? `本次分析仅使用：${data.enabledIndicatorsList.join(', ')}
 未启用指标全部忽略` : ''}
 
 --------------------------
 ## 四、用户策略（唯一有效）
-----------------------------------------
-${promptConfig.userPrompt}
-----------------------------------------
+\`\`\`json
+${strategyDSL}
+\`\`\`
 
 --------------------------
 ## 五、动态评分模型（核心）
 仅基于已启用指标进行分析与评分：
-已启用指标：${enabledIndicatorsList.join(', ')}
+已启用指标：${data.enabledIndicatorsList.join(', ')}
 ⚠️ 未启用指标禁止参与任何分析
 
 ---
@@ -339,7 +382,7 @@ rawScore ∈ [0,100]
 
 ### ❗禁止行为：
 - ❌ 禁止直接输出 confidence = 0
-- ❌ 禁止因为“多个条件不满足”就归零
+- ❌ 禁止因为"多个条件不满足"就归零
 - ❌ 禁止跳过评分过程直接给0
 
 ---
@@ -370,7 +413,7 @@ rawScore ∈ [0,100]
 
 --------------------------
 ## 六、输出格式
-最终输出json的时候，confidence 必须是与“计算结果”一致，严禁主观给值或直接输出固定数值。
+最终输出json的时候，confidence 必须是与"计算结果"一致，严禁主观给值或直接输出固定数值。
 {
   "direction": "LONG" | "SHORT" | "IDLE",
   "confidence": 0~100,
