@@ -3,8 +3,8 @@
   "name": "策略04",
   "version": 1,
   "createdAt": "2026-04-22T09:40:30.913Z",
-  "updatedAt": "2026-04-24T08:19:55.224Z",
-  "isActive": true,
+  "updatedAt": "2026-04-24T09:00:54.218Z",
+  "isActive": false,
   "marketData": {
     "symbols": [
       "SOL/USDT",
@@ -183,10 +183,10 @@
   ],
   "performance": {
     "strategyId": "strategy_004",
-    "totalTrades": 2,
+    "totalTrades": 3,
     "totalWins": 2,
-    "totalLosses": 0,
-    "winRate": 100,
+    "totalLosses": 1,
+    "winRate": 66.66666666666666,
     "totalProfit": 0.30350000000000193,
     "totalLoss": 0,
     "netProfit": 0.30350000000000193,
@@ -196,12 +196,12 @@
     "averageLossPerTrade": 0,
     "largestWin": 0.29769999999999897,
     "largestLoss": 0,
-    "averageHoldTime": 130.43260833333335,
-    "consecutiveWins": 2,
-    "consecutiveLosses": 0,
+    "averageHoldTime": 88.0821888888889,
+    "consecutiveWins": 0,
+    "consecutiveLosses": 1,
     "maxConsecutiveWins": 2,
-    "maxConsecutiveLosses": 0,
-    "updatedAt": "2026-04-24T08:22:19.384Z"
+    "maxConsecutiveLosses": 1,
+    "updatedAt": "2026-04-24T09:00:45.959Z"
   },
   "sessions": [],
   "currentSessionId": null
