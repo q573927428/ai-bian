@@ -3,7 +3,7 @@
   "name": "策略03",
   "version": 1,
   "createdAt": "2026-04-19T16:14:17.182Z",
-  "updatedAt": "2026-04-24T08:20:29.031Z",
+  "updatedAt": "2026-04-24T08:29:24.685Z",
   "isActive": true,
   "marketData": {
     "symbols": [
@@ -109,12 +109,12 @@
     }
   ],
   "aiPrompt": {
-    "userPrompt": "## 角色\n你是一个理性的稳健型趋势交易员，只能基于规则做机械决策，禁止主观判断或自我推翻。\n\n## 方向判断（硬规则，先给明确方向）\n- LONG: EMA50 > EMA200\n- SHORT: EMA50< EMA200\n- reasoning 必须写具体数值，例：EMA50(102.5) > EMA200(100.2)\n\n## 入场条件，更具方向判断给的方向来判断\n### 必须全部满足\n1. **OI趋势匹配**：\n   - LONG: OI变化率 > 0 且 OI趋势为 increasing 或 flat（不能为 decreasing）\n   - SHORT: OI变化率 < 0 且 OI趋势为 decreasing 或 flat（不能为 increasing）\n   - 需说明：变化率（+2.5% / -1.8%）、趋势状态\n2. **EMA200偏离 ≤ 1.60%**：需说明偏离百分比\n3. **预计成交量 ≥ 前一根K线 × 1.8倍**：需说明倍数\n\n### 辅助条件（至少满足1项）\n- A. **EMA50接近**：价格偏离 ≤ 1.00%（需说明偏离）\n- B. **RSI有效区间**：\n  - LONG: RSI 35~65 \n  - SHORT: RSI 35~65\n  - （需说明数值）\n- C. **K线确认**（同时满足）：\n  - 方向一致（阳/阴）\n  - 影线：LONG下影线 ≤ 0.90%；SHORT上影线 ≤ 0.90%\n  - （需说明K线类型+影线比例）\n\n## 决策\n硬条件全满足 + 辅助条件≥1 → 允许交易\n\n## 输出格式（JSON，必须评分）\n{\n  \"direction\": \"LONG | SHORT | IDLE\",\n  \"confidence\": 0-100,\n  \"reasoning\": \"方向：LONG，EMA50(102.5)>EMA200(100.2)，OI变化+2.3%（trend=flat），EMA200偏离1.2%≤1.6%，成交量2.1倍≥1.8；辅助：EMA50接近（偏离0.6%≤1%）\"\n}\n",
+    "userPrompt": "## 角色\n你是一个理性的稳健型趋势交易员，只能基于规则做机械决策，禁止主观判断或自我推翻。\n\n## 方向判断（硬规则，先给明确方向）\n- LONG: EMA50 > EMA200\n- SHORT: EMA50< EMA200\n- reasoning 必须写具体数值，例：EMA50(102.5) > EMA200(100.2)\n\n## 入场条件，更具方向判断给的方向来判断\n### 必须全部满足\n1. **OI趋势匹配**：\n   - LONG: OI变化率 > 0 且 OI趋势为 increasing 或 flat（不能为 decreasing）\n   - SHORT: OI变化率 < 0 且 OI趋势为 decreasing 或 flat（不能为 increasing）\n   - 需说明：变化率（+2.5% / -1.8%）、趋势状态\n2. **EMA200偏离 ≤ 1.60%**：需说明偏离百分比\n3. **预计成交量 ≥ 前一根K线 × 1.8倍**：需说明倍数\n\n### 辅助条件（至少满足1项）\n- A. **EMA50接近**：价格偏离 ≤ 1.00%（需说明偏离）\n- B. **RSI有效区间**：\n  - LONG: RSI 35~65 \n  - SHORT: RSI 35~65\n  - （需说明数值）\n- C. **K线确认**（同时满足）：\n  - 方向一致（阳/阴）\n  - 影线：LONG下影线 ≤ 0.90%；SHORT上影线 ≤ 0.90%\n  - （需说明K线类型+影线比例）\n\n## 决策\n硬条件全满足 + 辅助条件≥1 → 允许交易\n",
     "temperature": 0.3,
     "maxTokens": 2000,
     "model": "deepseek-chat",
     "provider": "deepseek",
-    "dsl": "{\n  \"direction\": \"LONG\",\n  \"confidence\": 85,\n  \"reasoning\": \"方向：LONG，EMA50(102.5)>EMA200(100.2)，OI变化+2.3%（trend=flat），EMA200偏离1.2%≤1.6%，成交量2.1倍≥1.8；辅助：EMA50接近（偏离0.6%≤1%）\",\n  \"metadata\": {\n    \"createdAt\": \"2026-04-24T08:20:29.029Z\"\n  }\n}"
+    "dsl": "{\n  \"version\": \"2.0\",\n  \"type\": \"scoring\",\n  \"direction\": {\n    \"type\": \"ema_cross\",\n    \"fast\": 50,\n    \"slow\": 200,\n    \"value\": \"LONG\"\n  },\n  \"indicators\": {\n    \"ema\": {\n      \"enabled\": true,\n      \"periods\": [\n        50,\n        200\n      ]\n    },\n    \"rsi\": {\n      \"enabled\": true,\n      \"period\": 14\n    },\n    \"volume\": {\n      \"enabled\": true\n    },\n    \"oi\": {\n      \"enabled\": true\n    },\n    \"adx\": {\n      \"enabled\": false\n    },\n    \"macd\": {\n      \"enabled\": false\n    }\n  },\n  \"entryConditions\": [\n    {\n      \"indicator\": \"ema\",\n      \"type\": \"price_vs_ema\",\n      \"params\": {\n        \"period\": 50,\n        \"maxDeviationPct\": 1\n      },\n      \"applyTo\": \"LONG\",\n      \"weight\": 0.4\n    },\n    {\n      \"indicator\": \"rsi\",\n      \"type\": \"range\",\n      \"params\": {\n        \"min\": 35,\n        \"max\": 65\n      },\n      \"applyTo\": \"LONG\",\n      \"weight\": 0.3\n    },\n    {\n      \"indicator\": \"candle\",\n      \"type\": \"confirmation\",\n      \"params\": {\n        \"direction\": \"LONG\",\n        \"maxShadowPct\": 0.9\n      },\n      \"applyTo\": \"LONG\",\n      \"weight\": 0.3\n    }\n  ],\n  \"hardConditions\": [\n    {\n      \"indicator\": \"oi\",\n      \"type\": \"trend_match\",\n      \"params\": {\n        \"direction\": \"LONG\",\n        \"changeRateThreshold\": 0,\n        \"trendAllowed\": [\n          \"increasing\",\n          \"flat\"\n        ]\n      },\n      \"applyTo\": \"LONG\"\n    },\n    {\n      \"indicator\": \"ema\",\n      \"type\": \"price_vs_ema\",\n      \"params\": {\n        \"period\": 200,\n        \"maxDeviationPct\": 1.6\n      },\n      \"applyTo\": \"LONG\"\n    },\n    {\n      \"indicator\": \"volume\",\n      \"type\": \"volume_ratio\",\n      \"params\": {\n        \"minRatio\": 1.8\n      },\n      \"applyTo\": \"LONG\"\n    }\n  ],\n  \"decision\": {\n    \"openThreshold\": 0.3\n  },\n  \"risk\": {\n    \"maxConfidenceCap\": 1\n  },\n  \"metadata\": {\n    \"createdAt\": \"2026-04-24T08:29:24.552Z\"\n  }\n}"
   },
   "riskManagement": {
     "maxRiskPercentage": 10,
