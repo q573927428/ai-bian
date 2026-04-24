@@ -491,7 +491,15 @@ EMA7 > EMA50 和 EMA7 < EMA50 在 hardConditions
   ): string {
     const data = this.preparePromptData(symbol, price, indicators, volume, candleProgress)
     // 使用预计算的 DSL（策略创建/更新时已生成）
-    const strategyDSL = promptConfig.dsl
+    const strategyDSL = promptConfig.dsl ?? '{}'
+    // 自动解析 DSL 类型
+    let dslType = "scoring"
+    try {
+      const parsed = JSON.parse(strategyDSL)
+      if (parsed.type === 'signal' || parsed.type === 'scoring') {
+        dslType = parsed.type
+      }
+    } catch {}
     
     return `
 ## 一、当前市场真实数据（仅使用以下数据）
@@ -519,16 +527,18 @@ ${data.enabledIndicatorsList.length > 0 ? `本次分析仅使用：${data.enable
 ${strategyDSL}
 \`\`\`
 --------------------------
-## 五、分析执行规则
-1. 根据DSL规则客观判断方向
-2. 计算真实置信度（0~100）
+## 五、分析要求（重要）
+当前策略类型：${dslType}
+
+1. 根据 DSL 规则，客观判断方向
+2. 客观计算真实置信度（0~100）
 3. 不强制置信度为0
 4. 不强制输出IDLE
-5. 所有条件必须逐条验证并写入reasoning
-6. 只输出标准JSON，禁止解释
+5. 所有条件必须逐条验证并写入 reasoning
+6. 只输出JSON，无任何解释
 
 --------------------------
-## 输出格式（必须严格遵守）
+## 输出（必须严格JSON）
 {
   "direction": "LONG | SHORT | IDLE",
   "confidence": number,
