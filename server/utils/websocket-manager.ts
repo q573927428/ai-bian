@@ -57,7 +57,14 @@ export class WebSocketManager {
     if (!this.subscribers.has(symbol)) {
       this.subscribers.set(symbol, [])
     }
-    this.subscribers.get(symbol)!.push(callback)
+    const callbacks = this.subscribers.get(symbol)!
+    
+    // 检查是否已经订阅过，避免重复
+    if (callbacks.includes(callback)) {
+      return
+    }
+    
+    callbacks.push(callback)
 
     // 如果已经有缓存数据，立即通知
     const cachedPrice = this.priceCache.get(symbol)
@@ -68,7 +75,7 @@ export class WebSocketManager {
     // 订阅WebSocket
     this.wsService.subscribePrices([symbol])
     
-    console.log(`📡 添加价格订阅: ${symbol}, 订阅者数量: ${this.subscribers.get(symbol)!.length}`)
+    console.log(`📡 添加价格订阅: ${symbol}, 订阅者数量: ${callbacks.length}`)
   }
 
   /**
