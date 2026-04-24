@@ -61,8 +61,14 @@ export class MultiStrategyAIAnalyzer {
   private isStructuredDSL(dsl: string | undefined): boolean {
     if (!dsl) return false
     try {
-      const parsed = JSON.parse(dsl)
-      return parsed && typeof parsed === 'object' && parsed.version && (parsed.type === 'scoring' || parsed.type === 'signal')
+      const trimmed = dsl.trim()
+      // 快速检查：如果不以 { 开头，直接返回 false
+      if (!trimmed.startsWith('{')) return false
+      
+      const parsed = JSON.parse(trimmed)
+      return parsed && 
+             typeof parsed === 'object' && 
+             !Array.isArray(parsed)
     } catch {
       return false
     }
