@@ -25,10 +25,16 @@ export const useBotStore = defineStore('bot', {
     isLoading: false,
     error: null as string | null,
     
-  // 共享轮询管理
-  pollingSubscribers: new Map<string, () => void>(), // 改为Map，存储订阅者ID和回调函数
-  pollingTimer: null as NodeJS.Timeout | null,
-  isPollingActive: false,
+    // 共享轮询管理
+    pollingSubscribers: new Map<string, () => void>(), // 改为Map，存储订阅者ID和回调函数
+    pollingTimer: null as NodeJS.Timeout | null,
+    isPollingActive: false,
+
+    // 共享价格管理
+    prices: {} as Record<string, any>, // 存储所有交易对的价格数据
+    priceSubscribers: new Set<string>(), // 价格订阅者
+    priceTimer: null as NodeJS.Timeout | null,
+    lastPriceUpdate: 0,
   }),
 
   getters: {
@@ -48,6 +54,105 @@ export const useBotStore = defineStore('bot', {
   },
 
   actions: {
+    // ========== 共享价格管理 ==========
+
+    // 获取需要订阅的所有交易对
+    getPriceSymbols() {
+      const symbols = new Set<string>()
+
+      // 从配置中获取所有交易对
+      if (this.botConfig?.symbols && Array.isArray(this.botConfig.symbols)) {
+        this.botConfig.symbols.forEach((symbol: string) => {
+          symbols.add(symbol.replace('/', ''))
+        })
+      }
+
+      return Array.from(symbols)
+    },
+
+    // 获取价格数据
+    async fetchPrices() {
+      const symbols = this.getPriceSymbols()
+      if (symbols.length === 0) return
+
+      try {
+        const response = await $fetch<any>('/api/websocket/prices', {
+          params: { symbols: symbols.join(',') }
+        })
+
+        if (response.success && response.data?.prices) {
+          this.prices = response.data.prices
+          this.lastPriceUpdate = Date.now()
+        }
+      } catch (error) {
+        console.error('[Price] 获取价格失败:', error)
+      }
+    },
+
+    // 订阅价格更新
+    subscribeToPrices(subscriberId: string) {
+      this.priceSubscribers.add(subscriberId)
+
+      if (this.priceSubscribers.size === 1 && !this.priceTimer) {
+        this.startPricePolling()
+      }
+
+      console.log(`[Price] 订阅者 ${subscriberId} 加入，当前订阅者: ${this.priceSubscribers.size}`)
+
+      // 立即获取一次价格
+      if (Object.keys(this.prices).length === 0) {
+        this.fetchPrices()
+      }
+    },
+
+    // 取消订阅价格更新
+    unsubscribeFromPrices(subscriberId: string) {
+      this.priceSubscribers.delete(subscriberId)
+
+      if (this.priceSubscribers.size === 0 && this.priceTimer) {
+        this.stopPricePolling()
+      }
+
+      console.log(`[Price] 订阅者 ${subscriberId} 离开，当前订阅者: ${this.priceSubscribers.size}`)
+    },
+
+    // 启动价格轮询
+    startPricePolling() {
+      if (this.priceTimer) {
+        return
+      }
+
+      console.log('[Price] 启动共享价格轮询，间隔: 5000ms')
+
+      this.priceTimer = setInterval(() => {
+        this.fetchPrices()
+      }, 5000)
+
+      // 立即执行一次
+      this.fetchPrices()
+    },
+
+    // 停止价格轮询
+    stopPricePolling() {
+      if (this.priceTimer) {
+        clearInterval(this.priceTimer)
+        this.priceTimer = null
+        console.log('[Price] 停止共享价格轮询')
+      }
+    },
+
+    // 获取单个交易对的价格
+    getPrice(symbol: string) {
+      return this.prices[symbol] || null
+    },
+
+    // 获取所有价格
+    getAllPrices() {
+      return this.prices
+    },
+
+    // ========== 状态管理 ==========
+
     async fetchStatus() {
       try {
         this.isLoading = true

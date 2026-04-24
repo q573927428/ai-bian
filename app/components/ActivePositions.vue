@@ -69,19 +69,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { useBotStore } from '../stores/bot'
 
 const botStore = useBotStore()
 const positions = ref<any[]>([])
-const prices = ref<Record<string, any>>({})
-const pricePollingTimer = ref<NodeJS.Timeout | null>(null)
-const PRICE_POLLING_INTERVAL = 3000 // 3秒快速轮询价格
-
-// 获取持仓符号列表
-const positionSymbols = computed(() => {
-  return positions.value.map(pos => pos.symbol.replace('/', '')).join(',')
-})
 
 // 加载持仓信息
 const loadPositions = async () => {
@@ -95,29 +87,10 @@ const loadPositions = async () => {
   }
 }
 
-// 加载实时价格
-const loadPrices = async () => {
-  if (positionSymbols.value.length === 0) return
-  
-  try {
-    const response = await $fetch('/api/websocket/prices', {
-      params: {
-        symbols: positionSymbols.value
-      }
-    })
-    const apiResponse = response as any
-    if (apiResponse.success && apiResponse.data && apiResponse.data.prices) {
-      prices.value = apiResponse.data.prices
-    }
-  } catch (error) {
-    console.error('加载价格失败:', error)
-  }
-}
-
-// 获取持仓的当前价格
+// 获取持仓的当前价格（从 bot store 共享价格中读取）
 function getCurrentPrice(symbol: string): number {
   const cleanSymbol = symbol.replace('/', '')
-  return prices.value[cleanSymbol]?.price || 0
+  return botStore.prices[cleanSymbol]?.price || 0
 }
 
 // 计算未实现盈亏
@@ -129,8 +102,6 @@ function calculateUnrealizedPnl(position: any): number {
     ? currentPrice - position.entryPrice 
     : position.entryPrice - currentPrice
   
-  // 正确的计算方式：价格差 * 数量（不应该再乘以杠杆）
-  // 因为在期货交易中，盈亏已经反映在价格变化中
   return priceDiff * position.quantity
 }
 
@@ -143,7 +114,6 @@ function calculateUnrealizedPnlPercentage(position: any): number {
     ? ((currentPrice - position.entryPrice) / position.entryPrice) * 100
     : ((position.entryPrice - currentPrice) / position.entryPrice) * 100
   
-  // 盈亏%乘以杠杆
   return percentage * (position.leverage || 1)
 }
 
@@ -168,44 +138,12 @@ function isTrailingStopLoss(position: any): boolean {
   return position.stopLoss !== position.initialStopLoss
 }
 
-// 启动价格轮询
-function startPricePolling() {
-  if (pricePollingTimer.value) {
-    return
-  }
-  
-  console.log('[ActivePositions] 启动价格快速轮询，间隔:', PRICE_POLLING_INTERVAL, 'ms')
-  
-  // 立即加载一次价格
-  loadPrices()
-  
-  pricePollingTimer.value = setInterval(() => {
-    loadPrices()
-  }, PRICE_POLLING_INTERVAL)
-}
-
-// 停止价格轮询
-function stopPricePolling() {
-  if (pricePollingTimer.value) {
-    console.log('[ActivePositions] 停止价格快速轮询')
-    clearInterval(pricePollingTimer.value)
-    pricePollingTimer.value = null
-  }
-}
-
-// 监听持仓变化，动态启动/停止价格轮询
-watch(positions, (newPositions) => {
-  if (newPositions && newPositions.length > 0) {
-    startPricePolling()
-  } else {
-    stopPricePolling()
-  }
-}, { immediate: true })
-
 onMounted(() => {
   loadPositions()
-  loadPrices()
   
+  // 订阅共享价格更新
+  botStore.subscribeToPrices('active-positions')
+
   // 订阅共享轮询（只用于更新持仓信息）
   botStore.subscribeToPolling('active-positions', () => {
     loadPositions()
@@ -213,10 +151,10 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  // 取消订阅共享价格更新
+  botStore.unsubscribeFromPrices('active-positions')
   // 取消订阅轮询
   botStore.unsubscribeFromPolling('active-positions')
-  // 停止价格轮询
-  stopPricePolling()
 })
 </script>
 

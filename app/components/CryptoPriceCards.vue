@@ -131,7 +131,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import dayjs from 'dayjs'
 import TradingViewChartModal from './TradingViewChartModal.vue'
 import KLineChartSimple from '../components/kline-chart/KLineChartSimple.vue'
@@ -181,27 +181,19 @@ async function fetchWebSocketStatus() {
   }
 }
 
-// 获取价格数据
-async function fetchPrices() {
-  isLoading.value = true
-  try {
-    const response = await $fetch<ApiResponse>('/api/websocket/prices', {
-      params: {
-        symbols: DEFAULT_CRYPTOS.value.join(',')
-      }
-    })
-
-    if (response.success && response.data?.prices) {
-      updateCryptoPrices(response.data.prices)
-    } else {
-      ElMessage.warning('获取价格数据失败')
-    }
-  } catch (error: any) {
-    console.error('获取价格失败:', error)
-    ElMessage.error(`获取价格失败: ${error.message}`)
-  } finally {
-    isLoading.value = false
+// 从 botStore 共享价格获取数据（自动更新）
+function syncPricesFromStore() {
+  const prices = botStore.prices
+  if (Object.keys(prices).length > 0) {
+    updateCryptoPrices(prices)
   }
+}
+
+// 手动刷新价格（触发 botStore 重新拉取）
+function fetchPrices() {
+  isLoading.value = true
+  syncPricesFromStore()
+  isLoading.value = false
 }
 
 // 更新加密货币价格
@@ -268,10 +260,16 @@ function triggerPriceAnimation(symbol: string, direction: 'up' | 'down') {
   }
 }
 
-// 刷新价格
+// 刷新价格（触发 botStore 重新拉取）
 function refreshPrices() {
-  fetchPrices()
-  ElMessage.success('正在刷新价格数据...')
+  isLoading.value = true
+  // 触发 botStore 的共享价格拉取
+  botStore.fetchPrices()
+  // 等待一小段时间后同步数据
+  setTimeout(() => {
+    syncPricesFromStore()
+    isLoading.value = false
+  }, 500)
 }
 
 // 显示WebSocket状态
@@ -361,42 +359,17 @@ function getCryptoIcon(symbol: string): string {
 }
 
 
-// 定时刷新
-let refreshInterval: NodeJS.Timeout | null = null
-
-function startAutoRefresh() {
-  if (refreshInterval) {
-    clearInterval(refreshInterval)
-  }
-  
-  // 每10秒刷新一次价格
-  refreshInterval = setInterval(() => {
-    if (!isLoading.value) {
-      fetchPrices()
-    }
-  }, 10000)
-}
-
 // 组件生命周期
 onMounted(() => {
   fetchWebSocketStatus()
-  fetchPrices()
-  startAutoRefresh()
-  
-  // 订阅共享轮询，自动更新配置
-  botStore.subscribeToPolling('crypto-price-cards', () => {
-    // 配置变化时重新获取价格
-    fetchPrices()
-  })
+  // 订阅 botStore 共享价格更新，自动同步价格
+  botStore.subscribeToPrices('crypto-price-cards')
+  // 首次加载
+  syncPricesFromStore()
 })
 
 onUnmounted(() => {
-  if (refreshInterval) {
-    clearInterval(refreshInterval)
-    refreshInterval = null
-  }
-  // 取消订阅轮询
-  botStore.unsubscribeFromPolling('crypto-price-cards')
+  botStore.unsubscribeFromPrices('crypto-price-cards')
 })
 
 // 类型定义
