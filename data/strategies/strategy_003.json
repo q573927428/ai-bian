@@ -3,7 +3,7 @@
   "name": "策略03",
   "version": 1,
   "createdAt": "2026-04-19T16:14:17.182Z",
-  "updatedAt": "2026-04-23T04:15:08.041Z",
+  "updatedAt": "2026-04-24T06:44:40.307Z",
   "isActive": true,
   "marketData": {
     "symbols": [
@@ -113,7 +113,8 @@
     "temperature": 0.3,
     "maxTokens": 2000,
     "model": "deepseek-chat",
-    "provider": "deepseek"
+    "provider": "deepseek",
+    "dsl": "{\n  \"direction\": \"LONG\",\n  \"confidence\": 80,\n  \"reasoning\": \"方向：LONG，EMA50(102.5)>EMA200(100.2)，OI变化+2.3%（trend=flat），EMA200偏离1.2%≤1.6%，成交量2.1倍≥1.8；辅助：EMA50接近（偏离0.6%≤1%）\",\n  \"metadata\": {\n    \"createdAt\": \"2026-04-24T06:44:40.305Z\"\n  }\n}"
   },
   "riskManagement": {
     "maxRiskPercentage": 10,

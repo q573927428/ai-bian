@@ -5,51 +5,10 @@ import type { AIAnalysis, RiskLevel, TechnicalIndicators, BotConfig, Direction }
 import type { TradeSignal } from '../../../types/signal'
 import { BinanceService } from '../../utils/binance'
 import { logger } from '../../utils/logger'
+import { strategyStore } from '../strategy-store/StrategyStore'
+import { getProviderConfig, callAIAPI, extractJSONContent, type AIChatMessage } from '../../utils/ai-service'
 import fs from 'node:fs/promises'
 import path from 'node:path'
-
-/**
- * AI 提供商配置
- */
-interface AIProviderConfig {
-  apiKey: string;
-  apiUrl: string;
-  model: string;
-}
-
-/**
- * 获取 AI 提供商配置
- */
-function getProviderConfig(provider: AIProvider, runtimeConfig: any): AIProviderConfig {
-  switch (provider) {
-    case 'deepseek':
-      return {
-        apiKey: runtimeConfig.deepseekApiKey,
-        apiUrl: runtimeConfig.deepseekApiUrl,
-        model: runtimeConfig.deepseekModel
-      };
-    case 'doubao':
-      return {
-        apiKey: runtimeConfig.doubaoApiKey,
-        apiUrl: runtimeConfig.doubaoApiUrl,
-        model: runtimeConfig.doubaoModel
-      };
-    case 'qwen':
-      return {
-        apiKey: runtimeConfig.qwenApiKey,
-        apiUrl: runtimeConfig.qwenApiUrl,
-        model: runtimeConfig.qwenModel
-      };
-    case 'openai':
-      return {
-        apiKey: runtimeConfig.openaiApiKey,
-        apiUrl: runtimeConfig.openaiApiUrl,
-        model: runtimeConfig.openaiModel
-      };
-    default:
-      throw new Error(`不支持的 AI 提供商: ${provider}`);
-  }
-}
 
 /**
  * AI 分析缓存
@@ -97,6 +56,246 @@ export class MultiStrategyAIAnalyzer {
   }
 
   /**
+   * 检查 DSL 是否已经结构化（是 JSON 格式）
+   */
+  private isStructuredDSL(dsl: string | undefined): boolean {
+    if (!dsl) return false
+    try {
+      const parsed = JSON.parse(dsl)
+      return parsed && typeof parsed === 'object' && parsed.version && parsed.type === 'strategy'
+    } catch {
+      return false
+    }
+  }
+
+  /**
+   * 生成结构化 DSL（首次使用时调用）
+   */
+  private async generateStructuredDSL(
+    userPrompt: string,
+    strategyId: string
+  ): Promise<string | null> {
+    try {
+      logger.info('MultiStrategyAIAnalyzer', `首次使用策略 ${strategyId}，正在生成结构化 DSL...`)
+      
+      const runtimeConfig = useRuntimeConfig()
+      const providerConfig = getProviderConfig('deepseek', runtimeConfig)
+      
+      const systemPrompt = `
+你是“量化交易 DSL 生成器”。
+
+你的任务：
+将用户策略转换为“结构化、可执行 JSON DSL”，不能输出自然语言规则。
+
+--------------------------
+## 一、DSL类型（必须先判断）
+
+根据用户策略自动选择：
+
+### 1️⃣ signal（信号触发型）
+特征：
+- 必须全部条件满足才触发
+- 不满足 → 无信号（IDLE）
+- 每个信号有固定 direction + confidence
+
+👉 使用结构：
+"type": "signal"
+
+---
+
+### 2️⃣ scoring（评分型）
+特征：
+- 条件可部分满足
+- 最终通过评分计算 confidence
+- 无固定信号触发
+
+👉 使用结构：
+"type": "scoring"
+
+--------------------------
+## 二、DSL结构定义（必须严格遵守）
+
+### ✅ signal 模式：
+
+{
+  "version": "2.0",
+  "type": "signal",
+
+  "indicators": {
+    "ema": { "enabled": true/false, "periods": [] },
+    "rsi": { "enabled": true/false, "period": number },
+    "volume": { "enabled": true/false },
+    "oi": { "enabled": true/false },
+    "adx": { "enabled": true/false },
+    "macd": { "enabled": true/false }
+  },
+
+  "signals": [
+    {
+      "name": "信号名称",
+      "direction": "LONG | SHORT",
+      "confidence": number,
+      "conditions": [
+        {
+          "indicator": "ema | rsi | volume | oi | adx | macd",
+          "type": "条件类型",
+          "params": {}
+        }
+      ]
+    }
+  ],
+
+  "fallback": {
+    "direction": "IDLE",
+    "confidence": 0
+  }
+}
+
+---
+
+### ✅ scoring 模式：
+
+{
+  "version": "2.0",
+  "type": "scoring",
+
+  "direction": {
+    "type": "ema_cross | fixed | none",
+    "fast": number,
+    "slow": number,
+    "value": "LONG | SHORT"
+  },
+
+  "indicators": {
+    "ema": { "enabled": true/false, "periods": [] },
+    "rsi": { "enabled": true/false, "period": number },
+    "volume": { "enabled": true/false },
+    "oi": { "enabled": true/false },
+    "adx": { "enabled": true/false },
+    "macd": { "enabled": true/false }
+  },
+
+  "entryConditions": [
+    {
+      "indicator": "...",
+      "type": "...",
+      "params": {},
+      "weight": 0~1
+    }
+  ],
+
+  "hardConditions": [
+    {
+      "indicator": "...",
+      "type": "...",
+      "params": {}
+    }
+  ],
+
+  "risk": {
+    "maxConfidenceCap": number
+  }
+}
+
+--------------------------
+## 三、生成规则（强制）
+
+- ❌ 禁止自然语言 condition
+- ❌ 禁止“当...时”描述
+- ❌ 禁止 reasoning / action 字段
+- ❌ 禁止合并多个条件为一个模糊条件
+
+- ✅ 每个条件必须结构化
+- ✅ 每个条件必须独立一条
+- ✅ indicators 必须与策略一致
+- ✅ 未使用指标必须 enabled=false
+
+---
+
+## 四、关键映射规则（非常重要）
+
+### 条件拆分（必须执行）
+
+用户：
+“价格 < EMA120 且 EMA7 > EMA120 且 距离 < 0.2%”
+
+必须拆成：
+
+[
+  { "type": "price_vs_slow", "operator": "<" },
+  { "type": "fast_vs_slow", "operator": ">" },
+  { "type": "distance_percent", "max": 0.2 }
+]
+
+---
+
+### 多方向策略（必须拆 signals）
+
+用户：
+多空不同条件
+
+→ 必须生成多个 signals
+→ 每个 signal 独立 direction
+
+---
+
+### 固定置信度
+
+用户：
+“满足条件 → confidence=80”
+
+→ signal 模式中直接写：
+"confidence": 80
+
+---
+
+### 无信号逻辑
+
+用户：
+“不满足 → IDLE / 不开仓”
+
+→ 必须生成：
+"fallback": { "direction": "IDLE", "confidence": 0 }
+
+---
+
+## 五、输出要求
+
+- 只输出 JSON
+- 不允许任何解释
+- 不允许多余字段
+`;
+
+      const messages: AIChatMessage[] = [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt }
+      ]
+
+      const content = await callAIAPI(providerConfig, messages, {
+        temperature: 0.3,
+        maxTokens: 2000
+      })
+
+      // 提取JSON内容
+      let jsonContent = extractJSONContent(content)
+
+      // 验证和完善 DSL
+      const dsl = JSON.parse(jsonContent)
+      dsl.metadata = dsl.metadata || {}
+      dsl.metadata.createdAt = new Date().toISOString()
+
+      const finalDSL = JSON.stringify(dsl, null, 2)
+      
+      logger.info('MultiStrategyAIAnalyzer', `策略 ${strategyId} 的结构化 DSL 生成完成`)
+      
+      return finalDSL
+    } catch (error: any) {
+      logger.error('MultiStrategyAIAnalyzer', `生成结构化 DSL 失败: ${error.message}`)
+      return null
+    }
+  }
+
+  /**
    * 分析市场（支持多策略）
    */
   async analyze(
@@ -116,9 +315,20 @@ export class MultiStrategyAIAnalyzer {
         return cached.signal
       }
 
-      // 2. 构建完整提示词
+      // 2. 检查并生成结构化 DSL（首次使用时）
+      let workingPromptConfig = { ...promptConfig }
+      if (!this.isStructuredDSL(promptConfig.dsl)) {
+        const structuredDSL = await this.generateStructuredDSL(promptConfig.userPrompt, strategyId)
+        if (structuredDSL) {
+          workingPromptConfig.dsl = structuredDSL
+          // 保存 DSL 到策略存储
+          await strategyStore.updateStrategyDSL(strategyId, structuredDSL)
+        }
+      }
+
+      // 3. 构建完整提示词
       const fullPrompt = this.buildFullPrompt(
-        promptConfig,
+        workingPromptConfig,
         symbol,
         price,
         indicators,
@@ -126,8 +336,8 @@ export class MultiStrategyAIAnalyzer {
         candleProgress
       )
 
-      // 3. 调用原有的 AI 分析函数
-      const aiResult = await this.callAI(fullPrompt, symbol, price, indicators, volume, strategyId, promptConfig)
+      // 4. 调用原有的 AI 分析函数
+      const aiResult = await this.callAI(fullPrompt, symbol, price, indicators, volume, strategyId, workingPromptConfig)
 
 
       // 即使是 IDLE 也返回完整信息，以便统一记录日志
@@ -180,24 +390,6 @@ export class MultiStrategyAIAnalyzer {
       logger.error('MultiStrategyAIAnalyzer', `AI 分析失败: ${error.message}`)
       return null
     }
-  }
-
-  /**
-   * 将用户策略转换为 DSL JSON 格式
-   */
-  private convertStrategyToDSL(userPrompt: string): string {
-    // 这里可以扩展为更复杂的解析逻辑
-    // 目前先简单包装成 JSON 格式
-    const dsl = {
-      version: "1.0",
-      type: "strategy",
-      description: userPrompt.trim(),
-      rules: [],
-      metadata: {
-        createdAt: new Date().toISOString()
-      }
-    }
-    return JSON.stringify(dsl, null, 2)
   }
 
   /**
@@ -310,7 +502,8 @@ export class MultiStrategyAIAnalyzer {
     candleProgress: number = 0.1
   ): string {
     const data = this.preparePromptData(symbol, price, indicators, volume, candleProgress)
-    const strategyDSL = this.convertStrategyToDSL(promptConfig.userPrompt)
+    // 使用预计算的 DSL（策略创建/更新时已生成）
+    const strategyDSL = promptConfig.dsl
     
     return `
 ## 一、当前市场真实数据（仅使用以下数据）
@@ -339,93 +532,100 @@ ${strategyDSL}
 \`\`\`
 
 --------------------------
-## 五、动态评分模型（核心）
-仅基于已启用指标进行分析与评分：
-已启用指标：${data.enabledIndicatorsList.join(', ')}
-⚠️ 未启用指标禁止参与任何分析
+## 五、DSL执行规则（最高优先级）
 
----
+你不是在“分析策略”，你是在“执行 DSL”。
 
-### 1️⃣ direction 判定
-- 优先使用用户策略中的 direction
-- 若未定义：
-  - 短周期EMA > 长周期EMA → LONG
-  - 短周期EMA < 长周期EMA → SHORT
-⚠️ direction 表示"方向倾向"，不是是否触发
+必须严格按以下步骤执行：
 
----
+### 1️⃣ 解析 DSL
+- 提取 direction（若存在）
+- 提取 entryConditions
+- 提取 hardConditions
+- 提取 indicators 配置
 
-### 2️⃣ 原始评分（rawScore）
-对每个启用指标逐项判断：
-- 满足条件 → 得分
-- 不满足 → 不得分
-- 权重默认平均
-rawScore ∈ [0,100]
+### 2️⃣ 指标逐项判断（必须执行）
+对每个启用指标：
+- 必须明确：是否满足（true/false）
+- 必须引用具体数值
+- 必须参与评分（不可跳过）
 
----
+### 3️⃣ rawScore 计算（强制）
+- 若 DSL 有 weight → 按 weight
+- 若无 → 平均分配
+- 每个条件：
+  满足 → 加分
+  不满足 → 不加分
+- rawScore ∈ [0,100]
 
-### 3️⃣ 硬条件处理
-定义：hardMatchRatio = 已满足硬条件数量 / 硬条件总数
-最终置信度：confidence = rawScore × hardMatchRatio
+### 4️⃣ 硬条件处理（强制）
+hardMatchRatio = 满足数量 / 总数量
 
----
+### 5️⃣ confidence 计算（唯一合法公式）
+confidence = rawScore × hardMatchRatio
 
-### ❗强制限制（防止虚高）
-- 若存在任意硬条件未满足：
-  → confidence 必须显著下降  
-  → 严禁接近高分区（≥${this.config.minConfidence ?? 60}）
-- 最终上限限制：
-  IF hardMatchRatio < 1：confidence ≤ ${this.config.minConfidence ?? 60}
-  IF 计算结果超过上限：→ 强制截断为上限
+⚠️ 强制限制：
+- 若 hardMatchRatio < 1：
+  → confidence 必须明显下降
+  → 严禁 ≥ ${this.config.minConfidence ?? 60}
+- 若超过上限 → 强制截断
 
----
+### 6️⃣ direction
+- 若 DSL 已定义 → 必须使用
+- 若未定义 → 才允许 EMA 判断
 
-### ❗禁止行为：
-- ❌ 禁止直接输出 confidence = 0
-- ❌ 禁止因为"多个条件不满足"就归零
-- ❌ 禁止跳过评分过程直接给0
-
----
-
-### ✅ 正确示例：
-- 少量条件满足 → confidence 10~30
-- 部分满足 → confidence 30~60
-- 高匹配 → confidence 60+
-
----
-
-### 4️⃣ 指标评分逻辑（仅启用时）
-【EMA】- 顺向排列（多头或空头）→ 高分；- 混乱 → 低分
-【RSI】- 在策略合理区间 → 高分；- 超买/超卖或不符合 → 低分
-【成交量】（必须使用预测成交量）- 放大 → 高分；- 缩量 → 低分
-【OI】- 与方向一致 → 高分；- 不一致 → 低分
-【ADX】- 趋势强 → 高分；- 震荡 → 低分
-【MACD】- 同方向 → 高分；- 背离/混乱 → 低分
-【K线】- 动量明显 → 高分；- 无明显结构 → 低分
-
----
-
-### 5️⃣ 一致性约束
-- 多数指标偏多 → 禁止 SHORT
-- 多数指标偏空 → 禁止 LONG
-
----
+⚠️ 禁止行为：
+- 禁止忽略 DSL 字段
+- 禁止补充 DSL 未定义规则
+- 禁止主观“综合判断”
+- 禁止跳过计算步骤
 
 --------------------------
-## 六、输出格式
-最终输出json的时候，confidence 必须是与"计算结果"一致，严禁主观给值或直接输出固定数值。
+## 六、动态评分模型（辅助，仅用于解释）
+仅基于已启用指标进行分析：
+已启用指标：${data.enabledIndicatorsList.join(', ')}
+
+【EMA】趋势一致 → 加分  
+【RSI】区间合理 → 加分  
+【成交量】必须使用预测成交量  
+【OI】方向一致 → 加分  
+【ADX】趋势强 → 加分  
+【MACD】同方向 → 加分  
+【K线】有动量 → 加分  
+
+⚠️ 本部分不能覆盖 DSL，只能辅助解释
+
+--------------------------
+## 七、输出格式（强制约束）
+
+最终输出 JSON：
+
 {
   "direction": "LONG" | "SHORT" | "IDLE",
-  "confidence": 0~100,
-  "reasoning": "必须包含具体数值，示例：EMA50(4710) > EMA120(4700)，RSI(62.3)处于区间内，预计成交量（652.12 对比前k 未放大），OI(+0.12%)"
+  "confidence": number,
+  "reasoning": string
 }
 
+### ❗硬性要求：
+
+1. confidence 必须严格等于：
+   rawScore × hardMatchRatio
+
+2. reasoning 必须包含：
+   - EMA具体数值
+   - RSI数值
+   - 成交量对比
+   - OI变化
+
 --------------------------
-## 七、强制规则
+## 八、强制规则（违反即错误）
+
 - 禁止使用未启用指标
 - 禁止主观判断
 - 禁止模糊描述
-- 必须引用具体数据`;
+- 禁止跳过计算
+- 必须引用具体数值
+`;
   }
 
   /**
@@ -433,71 +633,64 @@ rawScore ∈ [0,100]
    */
   private async buildSystemPrompt(): Promise<string> {
     return `
-你是一个量化交易"策略执行引擎"。
+  你是一个量化交易“策略执行引擎”，只负责执行 DSL，不进行主观分析。
+  
+  --------------------------
+  【核心规则】
+  - 仅使用提供的数据
+  - 仅使用已启用指标
+  - 所有判断必须基于具体数值
+  - 输出必须为 JSON
+  
+  --------------------------
+  【执行逻辑】
+  
+  1. direction：
+  - 优先使用 DSL 定义
+  - 未定义 → EMA 判断
+  
+  2. 评分公式（唯一合法）：
+  confidence = rawScore × hardMatchRatio
+  
+  - rawScore：指标匹配得分（0~100）
+  - hardMatchRatio：硬条件满足比例（0~1）
+  
+  --------------------------
+  【输出格式】
+  {
+    "direction": "LONG" | "SHORT" | "IDLE",
+    "confidence": number,
+    "reasoning": string
+  }
+  
+  --------------------------
+  【reasoning要求】
 
---------------------------
-【核心原则】
-1. 只执行用户策略
-2. 只使用提供的数据
-3. 仅使用已启用指标
-4. 输出必须为JSON
-6. reasoning 必须是“结果描述”，不是“推理过程”
+  - 必须逐项说明每个条件是否满足（✔ / ❌）
+  - 必须引用具体数值（EMA / RSI / 成交量 / OI 等）
+  - 只描述结果，不解释 DSL、不输出计算公式
+  - 格式清晰，例如：
 
---------------------------
-【执行逻辑】
-1. direction：
-   - 优先使用策略定义
-   - 未定义 → EMA判断
-   - 仅表示方向倾向
+    EMA7(88.31) > EMA120(87.14) ✔  
+    价格(85.6) < EMA120(87.14) ✔  
+    距离1.33% > 0.2% ❌  
+    → 条件未完全满足
 
----
+  - 若全部满足：
+    → 明确说明“全部条件满足”
 
-2. 评分机制：
-   confidence = rawScore × hardMatchRatio
-   说明：
-   - rawScore：指标匹配程度（0~100）
-   - hardMatchRatio：硬条件满足比例（0~1）
-
----
-
-3. 硬条件规则（关键）
-   - 若存在未满足硬条件：
-     → 必须降低confidence  
-     → 严禁 ≥ ${this.config.minConfidence ?? 60} 
-   - 同时：
-     confidence ≤ ${this.config.minConfidence ?? 60}
-
----
-
-4. 指标限制：
-   - 仅允许使用启用指标
-   - 未启用指标：❌ 禁止使用；❌ 禁止推理；❌ 禁止出现在结果中
-
----
-
-5. 一致性约束：
-   - 多数指标偏多 → 禁止 SHORT
-   - 多数指标偏空 → 禁止 LONG
-
----
-
-6. IDLE规则：
-   - 仅在策略要求或无方向时使用
-   - 不得因低匹配强制IDLE
-
---------------------------
-【输出格式】
-{
-  "direction": "LONG" | "SHORT" | "IDLE",
-  "confidence": 0~100,
-  "reasoning": "必须引用具体数值（EMA/RSI/价格/OI等），说明各指标满足情况，禁止使用英文描述，必须要清晰流畅，禁止输出任何计算过程或规则推导"
-}
-
---------------------------
-【禁止行为】
-- 禁止忽略策略
-- 禁止使用未提供数据
-- 禁止输出模糊结论`;
+  【reasoning风格限制】
+  - 请使用中文描述，逻辑顺畅简单易懂
+  - 禁止出现：rawScore / hardMatchRatio / DSL / 权重 / 计算过程
+  - 禁止解释规则来源
+  - 只允许输出“条件判断结果”
+  
+  --------------------------
+  【禁止】
+  - 禁止使用未启用指标
+  - 禁止主观判断
+  - 禁止跳过计算
+  `;
   }
 
   /**
@@ -598,63 +791,27 @@ rawScore ∈ [0,100]
       const provider = promptConfig?.provider || (runtimeConfig.aiProvider as AIProvider) || 'deepseek'
       const providerConfig = getProviderConfig(provider, runtimeConfig)
       
-      // 检查 API Key 是否配置
-      if (!providerConfig.apiKey) {
-        throw new Error(`${provider} API Key 未配置`)
-      }
-
       // 构建系统提示词
       const systemPrompt = await this.buildSystemPrompt()
       
-      // 选择模型（优先使用策略配置，否则使用提供商默认）
-      const model = promptConfig?.model || providerConfig.model
-      
-      // 调用 AI API（OpenAI 兼容格式）
-      const response = await fetch(`${providerConfig.apiUrl}/chat/completions`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${providerConfig.apiKey}`,
-        },
-        body: JSON.stringify({
-          model: model,
-          messages: [
-            {
-              role: 'system',
-              content: systemPrompt,
-            },
-            {
-              role: 'user',
-              content: prompt,
-            },
-          ],
-          temperature: promptConfig?.temperature ?? 0.5,
-          max_tokens: promptConfig?.maxTokens ?? 1000,
-          response_format: { type: "json_object" }
-        }),
+      const messages: AIChatMessage[] = [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: prompt }
+      ]
+
+      const content = await callAIAPI(providerConfig, messages, {
+        temperature: promptConfig?.temperature ?? 0.5,
+        maxTokens: promptConfig?.maxTokens ?? 1000
       })
 
-      if (!response.ok) {
-        throw new Error(`${provider} API请求失败: ${response.statusText}`)
-      }
-
-      const result = await response.json()
-      const content = result.choices?.[0]?.message?.content || '{}'
-
-      // 提取JSON内容（可能包含markdown代码块）
-      let jsonContent = content
-      const jsonMatch = content.match(/```json\s*([\s\S]*?)\s*```/) || content.match(/```\s*([\s\S]*?)\s*```/)
-      if (jsonMatch) {
-        jsonContent = jsonMatch[1]
-      }
-
+      // 提取JSON内容
+      const jsonContent = extractJSONContent(content)
       const aiResult = JSON.parse(jsonContent)
 
       const direction = (aiResult.direction || 'IDLE') as Direction
       
-      // 构建分析理由，限制总长度不超过150字
+      // 构建分析理由
       let reasoning = aiResult.reasoning || '无分析理由'
-      reasoning = reasoning
       
       const analysis: AIAnalysis = {
         symbol,
@@ -685,10 +842,9 @@ rawScore ∈ [0,100]
         },
       }
 
-      // 异步保存到文件，不阻塞主流程（是否保存由配置控制）
+      // 异步保存到文件，不阻塞主流程
       this.saveAIAnalysisToFile(analysis).catch(() => {})
 
-      // 日志统一在 StrategyEngine 中处理，避免重复
       return analysis
     } catch (error: any) {
       logger.error('MultiStrategyAIAnalyzer', `AI API 调用失败: ${error.message}`)
@@ -710,8 +866,6 @@ rawScore ∈ [0,100]
           volume,
         },
       }
-
-      // 降级处理的结果通常是IDLE，不保存到文件
 
       return fallbackAnalysis
     }
