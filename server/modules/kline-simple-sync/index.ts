@@ -41,7 +41,7 @@ export class KLineSimpleSyncService {
   // 高频同步定时器
   private highFrequencyTimer: NodeJS.Timeout | null = null
   // 高频同步间隔（毫秒）
-  private readonly HIGH_FREQUENCY_INTERVAL = 120 * 1000
+  private readonly HIGH_FREQUENCY_INTERVAL = 180 * 1000
   // 高频同步状态锁
   private isHighFrequencySyncing = false
 
