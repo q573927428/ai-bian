@@ -1,14 +1,14 @@
 // ==================== 多策略 AI 分析器 ====================
 
-import type { StrategyId, AIPromptConfig, AIProvider } from '../../../types/strategy'
-import type { AIAnalysis, RiskLevel, TechnicalIndicators, BotConfig, Direction } from '../../../types'
-import type { TradeSignal } from '../../../types/signal'
-import { BinanceService } from '../../utils/binance'
-import { logger } from '../../utils/logger'
-import { strategyStore } from '../strategy-store/StrategyStore'
-import { getProviderConfig, callAIAPI, extractJSONContent, type AIChatMessage } from '../../utils/ai-service'
-import fs from 'node:fs/promises'
-import path from 'node:path'
+import type { StrategyId, AIPromptConfig, AIProvider } from '../../../types/strategy';
+import type { AIAnalysis, RiskLevel, TechnicalIndicators, BotConfig, Direction } from '../../../types';
+import type { TradeSignal } from '../../../types/signal';
+import { BinanceService } from '../../utils/binance';
+import { logger } from '../../utils/logger';
+import { strategyStore } from '../strategy-store/StrategyStore';
+import { getProviderConfig, callAIAPI, extractJSONContent, type AIChatMessage } from '../../utils/ai-service';
+import fs from 'node:fs/promises';
+import path from 'node:path';
 
 /**
  * AI 分析缓存
@@ -391,7 +391,7 @@ EMA7 > EMA50 和 EMA7 < EMA50 在 hardConditions
     candleProgress: number
   ) {
     // 技术指标行
-    const technicalIndicatorLines: string[] = []
+    const technicalIndicatorLines: string[] = [];
     
     // EMA
     if (indicators.enabledIndicators?.ema && indicators.emaList.length > 0) {
@@ -423,7 +423,7 @@ EMA7 > EMA50 和 EMA7 < EMA50 在 hardConditions
         adxLines.push(`- ADX(${indicators.adxPeriodLabel}): ${indicators.adx.toFixed(2)}`)
       }
       if (indicators.adxSlope !== undefined) {
-        adxLines.push(`- ADX斜率: ${indicators.adxSlope.toFixed(4)}`)
+        adxLines.push(`- ADX斜率：${indicators.adxSlope.toFixed(4)}`)
       }
     }
 
@@ -455,20 +455,24 @@ EMA7 > EMA50 和 EMA7 < EMA50 在 hardConditions
     const formatCandle = (candle: any) => {
       if (!candle) return ''
       return `  开盘：${candle.open.toFixed(5)}
-        最高：${candle.high.toFixed(5)}
-        最低：${candle.low.toFixed(5)}
-        收盘：${candle.close.toFixed(5)}
-        成交量：${candle.volume.toFixed(2)}
-        阴阳：${candle.close > candle.open ? '阳线' : '阴线'}`
+    最高：${candle.high.toFixed(5)}
+    最低：${candle.low.toFixed(5)}
+    收盘：${candle.close.toFixed(5)}
+    成交量：${candle.volume.toFixed(2)}
+    阴阳：${candle.close > candle.open ? '阳线' : '阴线'}`
     }
+
+    // 使用 lastCandle.volume 来计算预计成交量，确保和 candleProgress 来自同一根K线
+    const currentCandleVolume = indicators.lastCandle?.volume ?? volume
+    const estimatedVolume = candleProgress > 0 ? (currentCandleVolume / candleProgress).toFixed(2) : currentCandleVolume.toFixed(2)
 
     return {
       symbol,
       price: (price ?? 0).toFixed(5),
       currentTime: new Date().toISOString(),
       candleProgressPercent: (candleProgress * 100).toFixed(1),
-      currentVolume: indicators.enabledIndicators?.volume ? (volume ?? 0).toFixed(2) : '',
-      estimatedVolume: (volume / candleProgress).toFixed(2),
+      currentVolume: indicators.enabledIndicators?.volume ? (currentCandleVolume ?? 0).toFixed(2) : '',
+      estimatedVolume,
       lastCandle: indicators.lastCandle ? formatCandle(indicators.lastCandle) : '',
       prevCandle: indicators.prevCandle ? formatCandle(indicators.prevCandle) : '',
       technicalIndicatorLines,
@@ -523,20 +527,7 @@ ${data.enabledIndicatorsList.length > 0 ? `本次分析仅使用：${data.enable
 
 --------------------------
 ## 四、策略DSL（唯一规则）
-\`\`\`
-${strategyDSL}
-\`\`\`
---------------------------
-## 五、分析要求（重要）
-当前策略类型：${dslType}
-
-1. 根据 DSL 规则，客观判断方向
-2. 客观计算真实置信度（0~100）
-3. 不强制置信度为0
-4. 不强制输出IDLE
-5. 所有条件必须逐条验证并写入 reasoning
-6. 只输出JSON，无任何解释
-
+${promptConfig.userPrompt}
 --------------------------
 ## 输出（必须严格JSON）
 {
@@ -553,19 +544,14 @@ ${strategyDSL}
   private async buildSystemPrompt(): Promise<string> {
     return `
 你是专业的量化交易策略执行引擎。
-你只做一件事：严格按照 DSL 策略规则，对当前市场数据进行客观分析、计算真实置信度、输出真实方向。
+对当前市场数据进行客观分析、计算真实置信度、输出真实方向。
 
 【核心原则】
 1. 你只做分析，不替用户做最终决策。
-2. 永远输出真实计算的置信度（0~100），不强制改为0。
+2. 永远输出真实计算的置信度（0~100），不强制改为0，根据满足条件的数量和重要性，在 0~100 范围内合理给出。
 3. 永远输出真实判断的方向（LONG / SHORT / IDLE）。
 4. 所有条件必须逐条验证，带上真实数值。
 5. 输出必须是合法JSON，无任何多余内容。
-
-----------------------------------
-【策略类型执行规则】
-1. scoring 型：按条件满足程度计算真实置信度
-2. signal 型：满足全部条件 → 输出信号置信度；不满足 → 输出真实计算结果（不强制归0）
 
 ----------------------------------
 【输出格式】
@@ -578,7 +564,7 @@ ${strategyDSL}
 【reasoning 要求】
 - 必须包含：方向、关键指标数值、每条条件是否满足
 - 格式清晰、无换行、无计算过程、不矛盾
-- 示例：方向LONG，EMA7(52100) > EMA50(51800) ✔️，RSI(48)∈[30,65] ✔️，OI增加+1.2% ✔️
+- 示例：方向LONG，EMA7(52100) > EMA50(51800) ，RSI(48)∈[30,65] ，OI增加+1.2% 
 `;
   }
 
@@ -702,12 +688,19 @@ ${strategyDSL}
       // 构建分析理由
       let reasoning = aiResult.reasoning || '无分析理由'
       
+      // 验证防护：如果 reasoning 包含 IDLE 或 idle，只降低置信度
+      let confidence = aiResult.confidence
+      const hasIdleKeyword = reasoning.toLowerCase().includes('idle')
+      if (hasIdleKeyword) {
+        confidence = 0
+      }
+      
       const analysis: AIAnalysis = {
         symbol,
         timestamp: Date.now(),
         strategyId,
         direction: direction,
-        confidence: aiResult.confidence,
+        confidence: confidence,
         riskLevel: (aiResult.riskLevel || 'MEDIUM') as RiskLevel,
         isBullish: direction === 'LONG',
         reasoning: reasoning,

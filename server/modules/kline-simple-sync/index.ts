@@ -41,7 +41,7 @@ export class KLineSimpleSyncService {
   // 高频同步定时器
   private highFrequencyTimer: NodeJS.Timeout | null = null
   // 高频同步间隔（毫秒）
-  private readonly HIGH_FREQUENCY_INTERVAL = 60 * 1000
+  private readonly HIGH_FREQUENCY_INTERVAL = 120 * 1000
   // 高频同步状态锁
   private isHighFrequencySyncing = false
 
@@ -734,8 +734,8 @@ export class KLineSimpleSyncService {
     try {
       this.isHighFrequencySyncing = true
       
-      // 只对较短周期进行高频同步（5m, 15m）
-      const highFreqTimeframes: KLineTimeframe[] = ['5m', '15m', '1h', '4h', '1d']
+      // 只对较短周期进行高频同步
+      const highFreqTimeframes: KLineTimeframe[] = ['5m', '15m', '1h']
       
       for (const timeframe of highFreqTimeframes) {
         if (!this.timeframeConfigs.get(timeframe)?.enabled) {
@@ -747,7 +747,6 @@ export class KLineSimpleSyncService {
             await this.syncLastBarOnly(symbol, timeframe)
           } catch (error) {
             // 单个交易对失败不影响其他
-            console.debug(`高频同步 ${symbol}/${timeframe} 失败:`, error)
           }
           // 避免请求过于频繁
           await new Promise(resolve => nodeSetTimeout(resolve, 50))
@@ -815,22 +814,20 @@ export class KLineSimpleSyncService {
   
   // 启动高频同步
   private startHighFrequencySync(): void {
+    // 先清除现有的定时器（关键修复）
     if (this.highFrequencyTimer) {
-      return
+      nodeClearTimeout(this.highFrequencyTimer)
+      this.highFrequencyTimer = null
     }
-    
-    console.log('⚡ 启动高频同步（间隔:', this.HIGH_FREQUENCY_INTERVAL / 1000, '秒）')
     
     this.highFrequencyTimer = nodeSetTimeout(async () => {
       try {
         await this.highFrequencySync()
       } catch (error) {
-        console.error('高频同步异常:', error)
+        // 静默处理高频同步错误
       } finally {
         // 继续下一次
-        if (this.highFrequencyTimer) {
-          this.startHighFrequencySync()
-        }
+        this.startHighFrequencySync()
       }
     }, this.HIGH_FREQUENCY_INTERVAL) as unknown as NodeJS.Timeout
   }
@@ -977,7 +974,6 @@ export class KLineSimpleSyncService {
     if (this.highFrequencyTimer) {
       nodeClearTimeout(this.highFrequencyTimer)
       this.highFrequencyTimer = null
-      console.log('⚡ 已停止高频同步')
     }
     
     // 停止周期同步
