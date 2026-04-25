@@ -18,7 +18,7 @@ export default defineNuxtConfig({
     // DeepSeek 配置
     deepseekApiKey: process.env.DEEPSEEK_API_KEY || '',
     deepseekApiUrl: process.env.DEEPSEEK_API_URL || 'https://api.deepseek.com',
-    deepseekModel: process.env.DEEPSEEK_MODEL || 'deepseek-chat',
+    deepseekModel: process.env.DEEPSEEK_MODEL || 'deepseek-v4-flash',
     // 豆包 (Doubao) 配置
     doubaoApiKey: process.env.DOUBAO_API_KEY || '',
     doubaoApiUrl: process.env.DOUBAO_API_URL || 'https://ark.cn-beijing.volces.com/api/v3',

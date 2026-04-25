@@ -112,7 +112,7 @@
     "userPrompt": "你是一个理性的中短线交易员，追求稳定胜率和趋势交易机会。\n\n请重点分析：\n\n1. 趋势方向（EMA20/120排列）\n   - 多头：EMA20 > EMA120 → direction = LONG\n   - 空头：EMA20 < EMA120 → direction = SHORT\n\n2. 趋势强度（ADX）\n   - ADX > 25：趋势有效\n   - ADX > 30：趋势较强\n   - ADX < 20：震荡，避免交易\n\n3. 回调入场机会\n   - 多头趋势中价格回踩EMA20或EMA50\n   - 空头趋势中价格反弹至EMA20或EMA50\n  - 严格规则：价格必须在EMA50附近（±0.5%以内）\n\n4. RSI辅助判断\n   - 多头：RSI不应过高（<65）\n   - 空头：RSI不应过低（>35）\n\n5. OI资金确认\n   - 趋势方向 + OI增加 → 强确认\n   - OI减少 → 警惕假突破\n\n交易原则：\n- 只做顺势单，不做逆势抄底/摸顶\n- 必须有“趋势 + 回调 + 资金确认”三要素\n- 当三要素不同时满足时，宁可错过，不可开仓",
     "temperature": 0.2,
     "maxTokens": 2000,
-    "model": "deepseek-chat",
+    "model": "deepseek-v4-flash",
     "provider": "deepseek",
     "dsl": "{\n  \"version\": \"2.0\",\n  \"type\": \"scoring\",\n  \"direction\": {\n    \"type\": \"ema_cross\",\n    \"fast\": 20,\n    \"slow\": 120\n  },\n  \"indicators\": {\n    \"ema\": {\n      \"enabled\": true,\n      \"periods\": [\n        20,\n        50,\n        120\n      ]\n    },\n    \"rsi\": {\n      \"enabled\": true,\n      \"period\": 14\n    },\n    \"volume\": {\n      \"enabled\": false\n    },\n    \"oi\": {\n      \"enabled\": true\n    },\n    \"adx\": {\n      \"enabled\": true\n    },\n    \"macd\": {\n      \"enabled\": false\n    }\n  },\n  \"entryConditions\": [\n    {\n      \"indicator\": \"price\",\n      \"type\": \"close_to_ema\",\n      \"params\": {\n        \"emaPeriod\": 50,\n        \"tolerance\": 0.005\n      },\n      \"applyTo\": \"BOTH\",\n      \"weight\": 0.4\n    },\n    {\n      \"indicator\": \"rsi\",\n      \"type\": \"range\",\n      \"params\": {\n        \"min\": 35,\n        \"max\": 65\n      },\n      \"applyTo\": \"BOTH\",\n      \"weight\": 0.2\n    },\n    {\n      \"indicator\": \"oi\",\n      \"type\": \"change_direction\",\n      \"params\": {\n        \"direction\": \"increase\"\n      },\n      \"applyTo\": \"BOTH\",\n      \"weight\": 0.4\n    }\n  ],\n  \"hardConditions\": [\n    {\n      \"indicator\": \"adx\",\n      \"type\": \"greater_than\",\n      \"params\": {\n        \"value\": 25\n      },\n      \"applyTo\": \"BOTH\"\n    }\n  ],\n  \"decision\": {\n    \"openThreshold\": 0.6\n  },\n  \"risk\": {\n    \"maxConfidenceCap\": 1\n  },\n  \"metadata\": {\n    \"createdAt\": \"2026-04-24T08:20:24.551Z\"\n  }\n}"
   },
@@ -259,7 +259,7 @@
           "userPrompt": "你是一个理性的中短线交易员，追求稳定胜率和趋势交易机会。\n\n请重点分析：\n\n1. 趋势方向（EMA20/50/120排列）\n   - 多头：20 > 50 > 120\n   - 空头：20 < 50 < 120\n\n2. 趋势强度（ADX）\n   - ADX > 20：趋势有效\n   - ADX > 25：趋势较强\n   - ADX < 20：震荡，避免交易\n\n3. 回调入场机会\n   - 多头趋势中价格回踩EMA20或50\n   - 空头趋势中价格反弹至EMA20或50\n\n4. RSI辅助判断\n   - 多头：RSI不应过高（<70）\n   - 空头：RSI不应过低（>30）\n\n5. OI资金确认\n   - 趋势方向 + OI增加 → 强确认\n   - OI减少 → 警惕假突破\n\n交易原则：\n- 只做顺势单，不做逆势抄底/摸顶\n- 趋势不明确（EMA缠绕 / ADX低）直接IDLE\n- 必须有“趋势 + 回调 + 资金确认”三要素\n\n否则返回IDLE。",
           "temperature": 0.3,
           "maxTokens": 2000,
-          "model": "deepseek-chat"
+          "model": "deepseek-v4-flash"
         },
         "riskManagement": {
           "maxRiskPercentage": 10,

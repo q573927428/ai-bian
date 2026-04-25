@@ -285,8 +285,8 @@ const configuredProviders = ref<Array<{ id: string; name: string; configured: bo
 // AI 提供商模型配置
 const providerModels: Record<string, Array<{ label: string; value: string }>> = {
   deepseek: [
-    { label: 'deepseek-chat', value: 'deepseek-chat' },
-    { label: 'deepseek-reasoner', value: 'deepseek-reasoner' }
+    { label: 'deepseek-v4-flash', value: 'deepseek-v4-flash' },
+    { label: 'deepseek-v4-pro', value: 'deepseek-v4-pro' }
   ],
   doubao: [
     { label: 'doubao-seed-2-0-pro-260215', value: 'doubao-seed-2-0-pro-260215' },
@@ -382,7 +382,7 @@ const form = reactive<CreateStrategyInput>({
     userPrompt: '请分析当前市场趋势，当技术指标显示明确的方向时给出开仓建议。\n\n要求：\n1. 趋势明确时才给出信号\n2. 严格控制风险\n3. 返回JSON格式：{direction: "long/short", confidence: 0-100, reasoning: "理由"}',
     temperature: 0.3,
     maxTokens: 2000,
-    model: 'deepseek-chat',
+    model: 'deepseek-v4-flash',
     provider: 'deepseek'
   },
   riskManagement: {

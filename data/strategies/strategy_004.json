@@ -47,7 +47,7 @@
     "userPrompt": "## 一、死叉预判 · 开多信号\n满足**全部以下条件**，判定预判死叉，直接开多，信号置信度80\n1. 当前价格＜EMA120均线\n2. EMA7均线＞EMA120均线\n3. EMA7与EMA120价格差值距离＜0.2%\n\n## 二、金叉预判 · 开空信号\n满足**全部以下条件**，判定预判金叉，直接开空，信号置信度80\n1. 当前价格＞EMA120均线\n2. EMA7均线＜EMA120均线\n3. EMA7与EMA120价格差值距离＜0.2%\n\n## 三、执行规则\n- **任意一条条件不满足 → 直接输出 IDLE，置信度=0**\n- 信号同时触发严格按上述方向开仓，不做额外主观过滤\n- 如果满足金叉死叉信号，置信度给80，不浮动调整\n- 仅贴合EMA7、EMA120价格位置与间距阈值判定，不叠加其他指标\n- 禁止脑补多空方向、禁止额外补充行情逻辑\n- 无完全匹配信号，绝不生成开仓指令",
     "temperature": 0.3,
     "maxTokens": 2000,
-    "model": "deepseek-chat",
+    "model": "deepseek-v4-flash",
     "provider": "deepseek",
     "dsl": "{\n  \"version\": \"2.0\",\n  \"type\": \"signal\",\n  \"indicators\": {\n    \"ema\": {\n      \"enabled\": true,\n      \"periods\": [\n        7,\n        120\n      ]\n    }\n  },\n  \"signals\": [\n    {\n      \"name\": \"死叉预判开多\",\n      \"direction\": \"LONG\",\n      \"confidence\": 80,\n      \"conditions\": [\n        {\n          \"indicator\": \"price\",\n          \"type\": \"less_than\",\n          \"params\": {\n            \"value\": \"ema_120\"\n          }\n        },\n        {\n          \"indicator\": \"ema_cross\",\n          \"type\": \"greater_than\",\n          \"params\": {\n            \"fast\": 7,\n            \"slow\": 120\n          }\n        },\n        {\n          \"indicator\": \"ema_distance\",\n          \"type\": \"less_than\",\n          \"params\": {\n            \"fast\": 7,\n            \"slow\": 120,\n            \"threshold\": 0.002\n          }\n        }\n      ]\n    },\n    {\n      \"name\": \"金叉预判开空\",\n      \"direction\": \"SHORT\",\n      \"confidence\": 80,\n      \"conditions\": [\n        {\n          \"indicator\": \"price\",\n          \"type\": \"greater_than\",\n          \"params\": {\n            \"value\": \"ema_120\"\n          }\n        },\n        {\n          \"indicator\": \"ema_cross\",\n          \"type\": \"less_than\",\n          \"params\": {\n            \"fast\": 7,\n            \"slow\": 120\n          }\n        },\n        {\n          \"indicator\": \"ema_distance\",\n          \"type\": \"less_than\",\n          \"params\": {\n            \"fast\": 7,\n            \"slow\": 120,\n            \"threshold\": 0.002\n          }\n        }\n      ]\n    }\n  ],\n  \"fallback\": {\n    \"direction\": \"IDLE\",\n    \"confidence\": 0\n  },\n  \"metadata\": {\n    \"createdAt\": \"2026-04-24T08:19:55.222Z\"\n  }\n}"
   },
@@ -128,7 +128,7 @@
           "userPrompt": "## 一、死叉预判 · 开多信号\n满足**全部以下条件**，判定预判死叉，直接开多，信号置信度80\n1. 当前价格＜EMA120均线\n2. EMA7均线＞EMA120均线\n3. EMA7与EMA120价格差值距离＜0.2%\n\n## 二、金叉预判 · 开空信号\n满足**全部以下条件**，判定预判金叉，直接开空，信号置信度80\n1. 当前价格＞EMA120均线\n2. EMA7均线＜EMA120均线\n3. EMA7与EMA120价格差值距离＜0.2%\n\n## 三、执行规则\n- 信号同时触发严格按上述方向开仓，不做额外主观过滤\n- 固定置信度统一80，不浮动调整\n- 仅贴合EMA7、EMA120价格位置与间距阈值判定，不叠加其他指标\n\n需要我帮你精简成**量化指令纯文本版**，直接粘贴进策略脚本吗？",
           "temperature": 0.3,
           "maxTokens": 2000,
-          "model": "deepseek-chat",
+          "model": "deepseek-v4-flash",
           "provider": "deepseek"
         },
         "riskManagement": {
