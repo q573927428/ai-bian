@@ -56,234 +56,6 @@ export class MultiStrategyAIAnalyzer {
   }
 
   /**
-   * 检查 DSL 是否已经结构化（是 JSON 格式）
-   */
-  private isStructuredDSL(dsl: string | undefined): boolean {
-    if (!dsl) return false
-    try {
-      const trimmed = dsl.trim()
-      // 快速检查：如果不以 { 开头，直接返回 false
-      if (!trimmed.startsWith('{')) return false
-      
-      const parsed = JSON.parse(trimmed)
-      return parsed && 
-             typeof parsed === 'object' && 
-             !Array.isArray(parsed)
-    } catch {
-      return false
-    }
-  }
-
-  /**
-   * 生成结构化 DSL（首次使用时调用）
-   */
-  private async generateStructuredDSL(
-    userPrompt: string,
-    strategyId: string
-  ): Promise<string | null> {
-    try {
-      logger.info('MultiStrategyAIAnalyzer', `首次使用策略 ${strategyId}，正在生成结构化 DSL...`)
-      
-      const runtimeConfig = useRuntimeConfig()
-      const providerConfig = getProviderConfig('deepseek', runtimeConfig)
-      
-      const systemPrompt = `
-你是“量化交易 DSL 编译器”。
-
-你的唯一任务：
-将用户策略 → 转换为【严格结构化 JSON DSL】
-
-你不是分析师，不能解释策略。
-
-----------------------------------
-【一、DSL类型判断（必须）】
-
-1️⃣ signal（信号型）
-满足：
-- “全部条件满足才触发”
-- 固定 confidence
-- 否则 IDLE
-
-👉 使用：
-"type": "signal"
-
----
-
-2️⃣ scoring（评分型）
-满足：
-- 条件可部分满足
-- 通过评分计算 confidence
-
-👉 使用：
-"type": "scoring"
-
-----------------------------------
-【二、统一结构定义】
-
-### ✅ scoring：
-
-{
-  "version": "2.0",
-  "type": "scoring",
-
-  "direction": {
-    "type": "ema_cross | fixed | none",
-    "fast": number,
-    "slow": number,
-    "value": "LONG | SHORT"
-  },
-
-  "indicators": {
-    "ema": { "enabled": true/false, "periods": [] },
-    "rsi": { "enabled": true/false, "period": number },
-    "volume": { "enabled": true/false },
-    "oi": { "enabled": true/false },
-    "adx": { "enabled": true/false },
-    "macd": { "enabled": true/false }
-  },
-
-  "entryConditions": [
-    {
-      "indicator": "...",
-      "type": "...",
-      "params": {},
-      "applyTo": "LONG | SHORT | BOTH",
-      "weight": 0~1
-    }
-  ],
-
-  "hardConditions": [
-    {
-      "indicator": "...",
-      "type": "...",
-      "params": {},
-      "applyTo": "LONG | SHORT | BOTH"
-    }
-  ],
-
-  "decision": {
-    "openThreshold": number
-  },
-
-  "risk": {
-    "maxConfidenceCap": number
-  }
-}
-
----
-
-### ✅ signal：
-
-{
-  "version": "2.0",
-  "type": "signal",
-
-  "indicators": {...},
-
-  "signals": [
-    {
-      "name": "...",
-      "direction": "LONG | SHORT",
-      "confidence": number,
-      "conditions": [...]
-    }
-  ],
-
-  "fallback": {
-    "direction": "IDLE",
-    "confidence": 0
-  }
-}
-
-----------------------------------
-【三、关键规则（必须执行）】
-
-### 1️⃣ 条件拆分
-每个条件必须独立：
-
-❌ 禁止：
-“价格 < EMA 且 RSI > 50”
-
-✅ 必须拆：
-[
-  price_vs_ema,
-  rsi_range
-]
-
----
-
-### 2️⃣ 方向隔离（核心）
-
-如果策略有“先判断方向”：
-
-👉 必须：
-- direction 字段存在
-- 所有条件必须带 applyTo
-
-❗禁止：
-LONG/SHORT条件混用
-
----
-
-### 3️⃣ 条件分类
-
-包含关键词：
-- “必须 / 全部 / 同时满足”
-→ hardConditions
-
-否则：
-→ entryConditions
-
----
-
-### 4️⃣ 禁止错误
-
-❌ 同时存在：
-EMA7 > EMA50 和 EMA7 < EMA50 在 hardConditions
-
-❌ 输出最终结果（direction/confidence）
-
-❌ 缺少 applyTo
-
----
-
-### 5️⃣ 输出要求
-
-只输出 JSON
-禁止解释
-禁止 markdown
-`;
-
-      const messages: AIChatMessage[] = [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt }
-      ]
-
-      const content = await callAIAPI(providerConfig, messages, {
-        temperature: 0.3,
-        maxTokens: 2000
-      })
-
-      // 提取JSON内容
-      let jsonContent = extractJSONContent(content)
-
-      // 验证和完善 DSL
-      const dsl = JSON.parse(jsonContent)
-      dsl.metadata = dsl.metadata || {}
-      dsl.metadata.createdAt = new Date().toISOString()
-
-      const finalDSL = JSON.stringify(dsl, null, 2)
-      
-      logger.info('MultiStrategyAIAnalyzer', `策略 ${strategyId} 的结构化 DSL 生成完成`)
-      
-      return finalDSL
-    } catch (error: any) {
-      logger.error('MultiStrategyAIAnalyzer', `生成结构化 DSL 失败: ${error.message}`)
-      return null
-    }
-  }
-
-  /**
    * 分析市场（支持多策略）
    */
   async analyze(
@@ -303,20 +75,9 @@ EMA7 > EMA50 和 EMA7 < EMA50 在 hardConditions
         return cached.signal
       }
 
-      // 2. 检查并生成结构化 DSL（首次使用时）
-      let workingPromptConfig = { ...promptConfig }
-      if (!this.isStructuredDSL(promptConfig.dsl)) {
-        const structuredDSL = await this.generateStructuredDSL(promptConfig.userPrompt, strategyId)
-        if (structuredDSL) {
-          workingPromptConfig.dsl = structuredDSL
-          // 保存 DSL 到策略存储
-          await strategyStore.updateStrategyDSL(strategyId, structuredDSL)
-        }
-      }
-
-      // 3. 构建完整提示词
+      // 2. 构建完整提示词
       const fullPrompt = this.buildFullPrompt(
-        workingPromptConfig,
+        promptConfig,
         symbol,
         price,
         indicators,
@@ -324,8 +85,8 @@ EMA7 > EMA50 和 EMA7 < EMA50 在 hardConditions
         candleProgress
       )
 
-      // 4. 调用原有的 AI 分析函数
-      const aiResult = await this.callAI(fullPrompt, symbol, price, indicators, volume, strategyId, workingPromptConfig)
+      // 3. 调用原有的 AI 分析函数
+      const aiResult = await this.callAI(fullPrompt, symbol, price, indicators, volume, strategyId, promptConfig)
 
 
       // 即使是 IDLE 也返回完整信息，以便统一记录日志
@@ -494,16 +255,6 @@ EMA7 > EMA50 和 EMA7 < EMA50 在 hardConditions
     candleProgress: number = 0.1
   ): string {
     const data = this.preparePromptData(symbol, price, indicators, volume, candleProgress)
-    // 使用预计算的 DSL（策略创建/更新时已生成）
-    const strategyDSL = promptConfig.dsl ?? '{}'
-    // 自动解析 DSL 类型
-    let dslType = "scoring"
-    try {
-      const parsed = JSON.parse(strategyDSL)
-      if (parsed.type === 'signal' || parsed.type === 'scoring') {
-        dslType = parsed.type
-      }
-    } catch {}
     
     return `
 ## 一、当前市场真实数据（仅使用以下数据）
@@ -526,7 +277,7 @@ ${data.enabledIndicatorsList.length > 0 ? `本次分析仅使用：${data.enable
 未启用指标全部忽略` : ''}
 
 --------------------------
-## 四、策略DSL（唯一规则）
+## 四、策略（唯一规则）
 ${promptConfig.userPrompt}
 --------------------------
 ## 输出（必须严格JSON）

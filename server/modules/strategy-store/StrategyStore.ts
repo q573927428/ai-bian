@@ -6,16 +6,6 @@ import { existsSync } from 'fs'
 import type { Strategy, StrategyId, CreateStrategyInput, UpdateStrategyInput, AIPromptConfig } from '../../../types/strategy'
 import { logger } from '../../utils/logger'
 
-/**
- * 为 AIPromptConfig 生成并设置 dsl 字段
- * DSL 初始时直接使用原始策略文本，第一次 AI 分析时会转换为结构化 JSON
- */
-function ensureDSLPrompt(promptConfig: AIPromptConfig): AIPromptConfig {
-  return {
-    ...promptConfig,
-    dsl: promptConfig.dsl || promptConfig.userPrompt
-  }
-}
 
 // 项目根目录
 const DATA_DIR = join(process.cwd(), 'data')
@@ -61,7 +51,7 @@ export class StrategyStore {
       marketData: input.marketData,
       indicators: input.indicators,
       statistics: input.statistics,
-      aiPrompt: ensureDSLPrompt(input.aiPrompt),
+      aiPrompt: input.aiPrompt,
       riskManagement: input.riskManagement,
       executionConfig: input.executionConfig,
       versionHistory: [],
@@ -228,7 +218,7 @@ export class StrategyStore {
       if (updates.marketData !== undefined) strategy.marketData = updates.marketData
       if (updates.indicators !== undefined) strategy.indicators = updates.indicators
       if (updates.statistics !== undefined) strategy.statistics = updates.statistics
-      if (updates.aiPrompt !== undefined) strategy.aiPrompt = ensureDSLPrompt(updates.aiPrompt)
+      if (updates.aiPrompt !== undefined) strategy.aiPrompt = updates.aiPrompt
       if (updates.riskManagement !== undefined) strategy.riskManagement = updates.riskManagement
       if (updates.executionConfig !== undefined) strategy.executionConfig = updates.executionConfig
 
@@ -273,7 +263,7 @@ export class StrategyStore {
       if (updates.marketData !== undefined) strategy.marketData = updates.marketData
       if (updates.indicators !== undefined) strategy.indicators = updates.indicators
       if (updates.statistics !== undefined) strategy.statistics = updates.statistics
-      if (updates.aiPrompt !== undefined) strategy.aiPrompt = ensureDSLPrompt(updates.aiPrompt)
+      if (updates.aiPrompt !== undefined) strategy.aiPrompt = updates.aiPrompt
       if (updates.riskManagement !== undefined) strategy.riskManagement = updates.riskManagement
       if (updates.executionConfig !== undefined) strategy.executionConfig = updates.executionConfig
 
@@ -757,36 +747,6 @@ export class StrategyStore {
       return null
     }
   }
-
-
-  /**
-   * 更新策略 DSL（单独更新，不影响其他字段）
-   */
-  async updateStrategyDSL(strategyId: StrategyId, dsl: string): Promise<Strategy | null> {
-    try {
-      const strategy = await this.getStrategy(strategyId)
-      if (!strategy) {
-        logger.warn('StrategyStore', `策略不存在: ${strategyId}`)
-        return null
-      }
-
-      const now = new Date().toISOString()
-      
-      // 只更新 DSL 字段
-      strategy.aiPrompt.dsl = dsl
-      strategy.updatedAt = now
-
-      // 保存更新后的策略
-      await this.saveStrategyWithoutTradeRecords(strategy)
-
-      logger.info('StrategyStore', `策略 DSL 已更新: ${strategy.name}`)
-      return strategy
-    } catch (error: any) {
-      logger.error('StrategyStore', `更新策略 DSL 失败 ${strategyId}: ${error.message}`)
-      return null
-    }
-  }
-
   /**
    * 生成唯一 ID（序号式命名）
    */

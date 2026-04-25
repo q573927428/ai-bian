@@ -142,7 +142,6 @@ export interface StatisticsConfig {
 // AI 提示词配置
 export interface AIPromptConfig {
   userPrompt: string;                  // 用户提示词（交易逻辑）
-  dsl?: string;                        // 预计算的 DSL JSON 格式
   temperature: number;                 // AI 温度 (0-1)
   maxTokens: number;                   // 最大token数
   model: AIModel;                      // AI模型
