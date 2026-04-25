@@ -131,7 +131,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import dayjs from 'dayjs'
 import TradingViewChartModal from './TradingViewChartModal.vue'
 import KLineChartSimple from '../components/kline-chart/KLineChartSimple.vue'
@@ -188,6 +188,11 @@ function syncPricesFromStore() {
     updateCryptoPrices(prices)
   }
 }
+
+// 监听store价格变化
+watch(() => botStore.prices, () => {
+  syncPricesFromStore()
+}, { deep: true })
 
 // 手动刷新价格（触发 botStore 重新拉取）
 function fetchPrices() {
@@ -262,14 +267,8 @@ function triggerPriceAnimation(symbol: string, direction: 'up' | 'down') {
 
 // 刷新价格（触发 botStore 重新拉取）
 function refreshPrices() {
-  isLoading.value = true
-  // 触发 botStore 的共享价格拉取
   botStore.fetchPrices()
-  // 等待一小段时间后同步数据
-  setTimeout(() => {
-    syncPricesFromStore()
-    isLoading.value = false
-  }, 500)
+  ElMessage.success('正在刷新价格数据...')
 }
 
 // 显示WebSocket状态
