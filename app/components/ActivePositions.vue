@@ -18,6 +18,14 @@
             <el-tag :type="pos.direction === 'long' ? 'success' : 'danger'" size="small">
               {{ pos.direction === 'long' ? '做多' : '做空' }}
             </el-tag>
+            <el-button
+              type="danger"
+              size="small"
+              :loading="closingSymbols.includes(pos.symbol)"
+              @click="handleClosePosition(pos.symbol)"
+            >
+              平仓
+            </el-button>
           </div>
         </div>
         <el-divider style="margin: 12px 0;" />
@@ -74,6 +82,7 @@ import { useBotStore } from '../stores/bot'
 
 const botStore = useBotStore()
 const positions = ref<any[]>([])
+const closingSymbols = ref<string[]>([])
 
 // 加载持仓信息
 const loadPositions = async () => {
@@ -136,6 +145,43 @@ function formatOpenTime(openTime: string | number | Date): string {
 function isTrailingStopLoss(position: any): boolean {
   if (!position.stopLoss || !position.initialStopLoss) return false
   return position.stopLoss !== position.initialStopLoss
+}
+
+// 手动平仓
+const handleClosePosition = async (symbol: string) => {
+  try {
+    await ElMessageBox.confirm(
+      `确定要平仓 ${symbol} 吗？`,
+      '确认平仓',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }
+    )
+
+    closingSymbols.value.push(symbol)
+
+    const response = await $fetch('/api/positions/close', {
+      method: 'POST',
+      body: { symbol }
+    } as any) as any
+
+    if (response.success) {
+      ElMessage.success(response.message)
+      await loadPositions()
+    }
+  } catch (error: any) {
+    if (error !== 'cancel') {
+      ElMessage.error(error.message || '平仓失败')
+      console.error('平仓失败:', error)
+    }
+  } finally {
+    const index = closingSymbols.value.indexOf(symbol)
+    if (index > -1) {
+      closingSymbols.value.splice(index, 1)
+    }
+  }
 }
 
 onMounted(() => {
