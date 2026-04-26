@@ -3,7 +3,7 @@
   "name": "策略02",
   "version": 1,
   "createdAt": "2026-04-19T16:06:46.003Z",
-  "updatedAt": "2026-04-24T08:20:24.552Z",
+  "updatedAt": "2026-04-26T04:21:48.172Z",
   "isActive": true,
   "marketData": {
     "symbols": [
@@ -109,7 +109,7 @@
     }
   ],
   "aiPrompt": {
-    "userPrompt": "你是一个理性的中短线交易员，追求稳定胜率和趋势交易机会。\n\n请重点分析：\n\n1. 趋势方向（EMA20/120排列）\n   - 多头：EMA20 > EMA120 → direction = LONG\n   - 空头：EMA20 < EMA120 → direction = SHORT\n\n2. 趋势强度（ADX）\n   - ADX > 25：趋势有效\n   - ADX > 30：趋势较强\n   - ADX < 20：震荡，避免交易\n\n3. 回调入场机会\n   - 多头趋势中价格回踩EMA20或EMA50\n   - 空头趋势中价格反弹至EMA20或EMA50\n  - 严格规则：价格必须在EMA50附近（±0.5%以内）\n\n4. RSI辅助判断\n   - 多头：RSI不应过高（<65）\n   - 空头：RSI不应过低（>35）\n\n5. OI资金确认\n   - 趋势方向 + OI增加 → 强确认\n   - OI减少 → 警惕假突破\n\n交易原则：\n- 只做顺势单，不做逆势抄底/摸顶\n- 必须有“趋势 + 回调 + 资金确认”三要素\n- 当三要素不同时满足时，宁可错过，不可开仓",
+    "userPrompt": "激进动量交易策略\n一、方向与过滤器（必须最先执行）\n趋势方向：EMA7 > EMA50 → LONG | EMA7 < EMA50 → SHORT\n\n趋势过滤器：ADX(14) > 20，否则直接 IDLE。\n\nReasoning必须包含：EMA7、EMA50数值与ADX数值。\n\n二、入场触发信号（量化版）\nLONG方向允许触发：\n\n价格向上突破 EMA20\n\n价格回踩EMA20区域后，形成看涨吞没或长下影线Pin Bar。\n\n出现动量阳线：实体 > 前1根K线实体的1.5倍。\n\nSHORT方向允许触发：\n\n价格向下跌破 EMA20\n\n价格反弹至EMA20区域后，形成看跌吞没或长上影线Pin Bar。\n\n出现动量阴线：实体 > 前1根K线实体的1.5倍。\n\n必须满足 ≥ 1项，否则IDLE\n\n三、方向评分（满足一项+1）\nLONG： ① 35 < RSI < 65 ② OI增加 ③ 成交量 > 前5均量的1.2倍 ④ EMA7>EMA20>EMA50\nSHORT： ① 35 < RSI < 65 ② OI增加 ③ 成交量 > 前5均量的1.2倍 ④ EMA7<EMA20<EMA50\n\n四、执行规则\nscore ≥ 3 → 强制开仓\n\nscore = 2 → 允许开仓\n\n策略02-优化版：强趋势回调交易策略\n一、趋势方向与强度\n方向：EMA20 > EMA60 → LONG | EMA20 < EMA60 → SHORT\n\n强度过滤：ADX(14) > 30，否则 IDLE。\n\n二、回调入场机会\nLONG：价格回调至 [EMA60, EMA20] 区间，且接近EMA60。\n\nSHORT：价格反弹至 [EMA20, EMA60] 区间，且接近EMA60。\n\n三、辅助共振确认\nRSI：LONG时RSI < 70；SHORT时RSI > 30。\n\nOI资金：LONG时OI变化率 > 0；SHORT时OI变化率 < 0。\n\nK线信号：在入场区域出现反转K线（如吞没形态、锤子线或Pin Bar）。\n\n四、交易原则\n只做顺势单，必须同时满足 “强趋势 + 回调区域 + OI共振” 三大要素。\n\n若三要素不同时满足，宁可错过，不可开仓。",
     "temperature": 0.2,
     "maxTokens": 2000,
     "model": "deepseek-v4-flash",
@@ -122,7 +122,7 @@
       2,
       3
     ],
-    "maxDailyTrades": 5,
+    "maxDailyTrades": 3,
     "maxDailyLoss": 10,
     "maxHoldTimeMinutes": 360,
     "trailingStop": {

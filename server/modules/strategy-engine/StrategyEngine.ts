@@ -781,6 +781,8 @@ export class StrategyEngine {
         stopLossOrderStopPrice: stopOrder.stopPrice,
         stopLossOrderStatus: stopOrder.status,
         stopLossOrderTimestamp: stopOrder.timestamp,
+        confidence: signal.confidence,
+        reasoning: signal.reasoning,
       }
 
       this.positionManager.recordPosition(signal.symbol, position)

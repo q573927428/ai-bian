@@ -3,7 +3,7 @@
   "name": "策略04",
   "version": 1,
   "createdAt": "2026-04-22T09:40:30.913Z",
-  "updatedAt": "2026-04-25T12:23:25.595Z",
+  "updatedAt": "2026-04-26T10:05:34.384Z",
   "isActive": true,
   "marketData": {
     "symbols": [
@@ -12,7 +12,7 @@
       "HYPE/USDT"
     ],
     "timeframes": [
-      "15m"
+      "1h"
     ]
   },
   "indicators": [
@@ -22,29 +22,53 @@
       "params": {
         "periods": [
           7,
+          50,
           120
         ]
       },
       "timeframes": [
-        "15m"
+        "1h"
       ],
       "enabled": true
     },
     {
       "id": "2",
+      "type": "RSI",
+      "params": {
+        "period": 14
+      },
+      "timeframes": [
+        "1h"
+      ],
+      "enabled": true
+    },
+    {
+      "id": "3",
       "type": "ADX",
       "params": {
         "period": 14
       },
       "timeframes": [
-        "15m"
+        "1h"
       ],
       "enabled": true
     }
   ],
-  "statistics": [],
+  "statistics": [
+    {
+      "id": "5",
+      "type": "Volume",
+      "params": {
+        "comparePeriod": 20
+      },
+      "timeframes": [
+        "1h"
+      ],
+      "enabled": true
+    }
+  ],
   "aiPrompt": {
-    "userPrompt": "## 一、死叉预判 · 开多信号\n满足**全部以下条件**，判定预判死叉，直接开多，信号置信度96\n1. 当前价格＜EMA120均线\n2. EMA7均线＞EMA120均线\n3. EMA7与EMA120价格差值距离＜0.2%\n\n## 二、金叉预判 · 开空信号\n满足**全部以下条件**，判定预判金叉，直接开空，信号置信度96\n1. 当前价格＞EMA120均线\n2. EMA7均线＜EMA120均线\n3. EMA7与EMA120价格差值距离＜0.2%\n\n## 三、执行规则\n- **任意一条条件不满足 → 直接输出 IDLE，置信度根据(已满足条件数 / 总条件数) × 100*\n- 信号同时触发严格按上述方向开仓，不做额外主观过滤\n- 如果满足金叉死叉信号，置信度给96，不浮动调整\n- 仅贴合EMA7、EMA120价格位置与间距阈值判定，不叠加其他指标\n- 禁止脑补多空方向、禁止额外补充行情逻辑\n- 无完全匹配信号，绝不生成开仓指令",
+    "userPrompt": "金叉死叉策略\n\n一、做多预判信号 (预判死叉)\n满足全部条件，置信度96，直接开多：\n\n当前价格 < EMA120\n\nEMA7 > EMA120\n\n|EMA7 - EMA120| / EMA120 < 0.2%\n\n辅助确认：RSI(14) < 40 且 成交量 < 前1根均量。(表明下跌动能衰竭)\n\n二、做空预判信号 (预判金叉)\n满足全部条件，置信度96，直接开空：\n\n当前价格 > EMA120\n\nEMA7 < EMA120\n\n|EMA7 - EMA120| / EMA120 < 0.2%\n\n辅助确认：RSI(14) > 60 且 成交量 < 前1根均量。(表明上涨动能衰竭)\n\n三、执行规则\n任意一条条件不满足，直接输出 IDLE。\n\n信号触发严格按上述方向开仓，不做额外主观过滤。",
     "temperature": 0.3,
     "maxTokens": 2000,
     "model": "deepseek-v4-flash",
@@ -61,7 +85,7 @@
     "maxDailyLoss": 10,
     "maxHoldTimeMinutes": 1440,
     "trailingStop": {
-      "enabled": false,
+      "enabled": true,
       "activationRatio": 1,
       "trailDistance": 1.2,
       "minMoveDistance": 0.16

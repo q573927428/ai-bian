@@ -15,9 +15,9 @@
             </el-tag>
           </span>
           <div class="header-tags">
-            <el-tag :type="pos.direction === 'long' ? 'success' : 'danger'" size="small">
+            <el-button :type="pos.direction === 'long' ? 'success' : 'danger'" size="small">
               {{ pos.direction === 'long' ? '做多' : '做空' }}
-            </el-tag>
+            </el-button>
             <el-button
               type="danger"
               size="small"
@@ -48,7 +48,7 @@
           </div>
           <div class="info-item profit" :class="{ 'positive': calculateUnrealizedPnl(pos) > 0, 'negative': calculateUnrealizedPnl(pos) < 0 }">
             <span class="label">盈亏U:</span>
-            <span class="value">{{ calculateUnrealizedPnl(pos).toFixed(2) }} USDT</span>
+            <span class="value">{{ calculateUnrealizedPnl(pos).toFixed(2) }} U</span>
           </div>
           <div class="info-item profit" :class="{ 'positive': calculateUnrealizedPnlPercentage(pos) > 0, 'negative': calculateUnrealizedPnlPercentage(pos) < 0 }">
             <span class="label">盈亏%:</span>
@@ -71,6 +71,18 @@
             <span class="value">{{ formatOpenTime(pos.openTime) }}</span>
           </div>
         </div>
+        <div v-if="expandedSymbols.has(pos.symbol)" class="expanded-info">
+          <div v-if="pos.reasoning" class="reasoning-section">
+            <div class="label">AI推理:</div>
+            <div class="reasoning-content">置信度: {{ pos.confidence ? pos.confidence : '--' }}，{{ pos.reasoning }}</div>
+          </div>
+        </div>
+        <div class="expand-toggle" @click="toggleExpand(pos.symbol)">
+          <el-icon>
+            <ElIconArrowUp v-if="expandedSymbols.has(pos.symbol)" />
+            <ElIconArrowDown v-else />
+          </el-icon>
+        </div>
       </el-card>
     </div>
   </el-card>
@@ -79,10 +91,21 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
 import { useBotStore } from '../stores/bot'
+import { ElMessage, ElMessageBox } from 'element-plus'
 
 const botStore = useBotStore()
 const positions = ref<any[]>([])
 const closingSymbols = ref<string[]>([])
+const expandedSymbols = ref<Set<string>>(new Set())
+
+// 切换展开/收起
+const toggleExpand = (symbol: string) => {
+  if (expandedSymbols.value.has(symbol)) {
+    expandedSymbols.value.delete(symbol)
+  } else {
+    expandedSymbols.value.add(symbol)
+  }
+}
 
 // 加载持仓信息
 const loadPositions = async () => {
@@ -286,6 +309,50 @@ onUnmounted(() => {
   font-weight: 600;
 }
 
+.expanded-info {
+  margin-top: 8px;
+}
+
+.reasoning-section {
+  margin-top: 12px;
+}
+
+.reasoning-section .label {
+  color: #606266;
+  font-size: 13px;
+  margin-bottom: 8px;
+}
+
+.reasoning-content {
+  background: #f5f7fa;
+  padding: 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: #606266;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.expand-toggle {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding-top: 12px;
+  cursor: pointer;
+  color: #909399;
+  transition: color 0.3s;
+}
+
+.expand-toggle:hover {
+  color: #409eff;
+}
+
+.expand-toggle .el-icon {
+  font-size: 18px;
+  transition: transform 0.3s;
+}
+
 /* 小屏幕适配 */
 @media (max-width: 768px) {
   .positions-list {
@@ -294,7 +361,7 @@ onUnmounted(() => {
   }
 
   .symbol {
-    font-size: 16px;
+    font-size: 14px;
   }
 
   .position-info {

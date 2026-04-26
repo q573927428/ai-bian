@@ -38,6 +38,8 @@ export interface PositionInfo {
   stopLossOrderStatus?: string;        // 止损订单状态
   stopLossOrderTimestamp?: number;     // 止损订单时间戳
   position?: Position;                 // 完整仓位信息
+  confidence?: number;                 // 置信度
+  reasoning?: string;                  // 推理信息
 }
 
 /**

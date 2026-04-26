@@ -3,16 +3,15 @@
   "name": "策略01",
   "version": 1,
   "createdAt": "2026-04-19T16:03:49.383Z",
-  "updatedAt": "2026-04-24T08:20:24.187Z",
+  "updatedAt": "2026-04-26T04:20:26.484Z",
   "isActive": true,
   "marketData": {
     "symbols": [
-      "BTC/USDT",
-      "ETH/USDT",
       "SOL/USDT",
       "DOGE/USDT",
       "HYPE/USDT",
-      "XAU/USDT"
+      "XAU/USDT",
+      "XAG/USDT"
     ],
     "timeframes": [
       "5m"
@@ -94,20 +93,20 @@
     }
   ],
   "aiPrompt": {
-    "userPrompt": "# 激进短线交易策略（先定方向版）\n\n核心目标：捕捉启动与动量，优先单边执行，避免多空摇摆\n\n\n## 一、方向判定（必须最先执行）\n\n仅使用 EMA 结构强制确定方向：\n\n* EMA7 > EMA50 → **direction = LONG**\n* EMA7 < EMA50 → **direction = SHORT**\n\n### reasoning 必须包含：\n\n* EMA7 与 EMA50 具体数值\n  示例：EMA7(102.5) > EMA50(100.2)\n\n\n## 二、入场触发信号（只允许当前方向）\n\n### 若 direction = LONG，仅允许以下触发：\n\n1. 价格向上突破 EMA20 / EMA50\n2. 回踩 EMA20 后强势反弹\n3. 出现向上大实体动量K线\n\n### 若 direction = SHORT，仅允许以下触发：\n\n1. 价格向下跌破 EMA20 / EMA50\n2. 反弹触碰 EMA20 后承压回落\n3. 出现向下大实体动量K线\n\n👉 **必须满足 ≥1 项，否则直接 IDLE**\n\n## 三、方向评分（只计算当前方向）\n\n### LONG 评分项\n\n* RSI ∈ [30,50] 且上升 → +1\n* OI 增加 → +1\n* 成交量放大 → +1\n* EMA 多头结构（EMA7>EMA20>EMA50）→ +1\n\n### SHORT 评分项\n\n* RSI ∈ [50,70] 且下降 → +1\n* OI 增加 → +1\n* 成交量放大 → +1\n* EMA 空头结构（EMA7<EMA20<EMA50）→ +1\n\n## 四、执行规则（严格单方向）\n\n### 若 direction = LONG：\n\n* score ≥ 3 → **强制开多**\n* score ≥ 2 → **允许开多**\n\n### 若 direction = SHORT：\n\n* score ≥ 3 → **强制开空**\n* score ≥ 2 → **允许开空**\n\n## 五、强约束（防止模型乱来）\n\n* ❌ 禁止多空同时判断（只能有一个 direction）\n* ❌ 禁止在 LONG 时给出 SHORT 结论\n* ❌ 禁止无触发直接开仓\n* ❌ 禁止使用模糊描述（必须有数值）",
+    "userPrompt": "激进动量交易策略\n一、方向与过滤器（必须最先执行）\n趋势方向：EMA7 > EMA50 → LONG | EMA7 < EMA50 → SHORT\n\n趋势过滤器：ADX(14) > 20，否则直接 IDLE。\n\nReasoning必须包含：EMA7、EMA50数值与ADX数值。\n\n二、入场触发信号（量化版）\nLONG方向允许触发：\n\n价格向上突破 EMA20\n\n价格回踩EMA20区域后，形成看涨吞没或长下影线Pin Bar。\n\n出现动量阳线：实体 > 前1根K线实体的1.5倍。\n\nSHORT方向允许触发：\n\n价格向下跌破 EMA20\n\n价格反弹至EMA20区域后，形成看跌吞没或长上影线Pin Bar。\n\n出现动量阴线：实体 > 前1根K线实体的1.5倍。\n\n必须满足 ≥ 1项，否则IDLE\n\n三、方向评分（满足一项+1）\nLONG： ① 35 < RSI < 65 ② OI增加 ③ 预计成交量 > 前1K线量的1.2倍 ④ EMA7>EMA20>EMA50\nSHORT： ① 35 < RSI <65 ② OI增加 ③ 预计成交量 > 前1K线量的1.2倍 ④ EMA7<EMA20<EMA50\n\n四、执行规则\nscore ≥ 3 → 强制开仓",
     "temperature": 0.3,
     "maxTokens": 2000,
     "model": "deepseek-v4-flash",
     "provider": "deepseek"
   },
   "riskManagement": {
-    "maxRiskPercentage": 20,
+    "maxRiskPercentage": 10,
     "stopLossATRMultiplier": 2,
     "takeProfitRatios": [
       1.5,
       2.5
     ],
-    "maxDailyTrades": 8,
+    "maxDailyTrades": 5,
     "maxDailyLoss": 10,
     "maxHoldTimeMinutes": 120,
     "trailingStop": {
