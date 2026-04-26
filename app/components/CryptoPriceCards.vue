@@ -36,7 +36,7 @@
 
 
     <!-- WebSocket状态提示 -->
-    <div v-if="!isWebSocketConnected" class="connection-warning">
+    <!-- <div v-if="!isWebSocketConnected" class="connection-warning">
       <el-alert
         title="WebSocket未连接"
         type="warning"
@@ -47,7 +47,7 @@
           <span>价格数据可能不是实时的，正在尝试重新连接...</span>
         </template>
       </el-alert>
-    </div>
+    </div> -->
 
     <!-- 价格卡片网格 -->
     <div class="cards-grid">

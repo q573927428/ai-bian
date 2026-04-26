@@ -26,24 +26,29 @@
 
       <el-table :data="strategies" v-loading="loading" stripe>
         <el-table-column prop="name" label="策略" width="90" />
-        <el-table-column label="交易对" width="290" >
+        <el-table-column label="交易对" width="230" >
           <template #default="{ row }">
             <el-tag
-              v-for="symbol in row.marketData.symbols.slice(0, 3)"
+              v-for="symbol in row.marketData.symbols.slice(0, 2)"
               :key="symbol"
               size="small"
               class="symbol-tag"
             >
               {{ symbol }}
             </el-tag>
-            <el-tag v-if="row.marketData.symbols.length > 3" size="small" class="symbol-tag">
-              +{{ row.marketData.symbols.length - 3 }}
+            <el-tag v-if="row.marketData.symbols.length > 2" size="small" class="symbol-tag">
+              +{{ row.marketData.symbols.length - 2 }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="周期" width="120">
+        <el-table-column label="K线周期" width="120">
           <template #default="{ row }">
             {{ row.marketData.timeframes.join(', ') }}
+          </template>
+        </el-table-column>
+        <el-table-column label="EMA周期" width="110">
+          <template #default="{ row }">
+            {{ getEmaPeriods(row) }}
           </template>
         </el-table-column>
         <el-table-column label="版本" width="60">
@@ -571,6 +576,15 @@ const getStatusText = (strategy: Strategy) => {
 // 格式化日期
 const formatDate = (dateStr: string) => {
   return new Date(dateStr).toLocaleString('zh-CN')
+}
+
+// 获取 EMA 周期
+const getEmaPeriods = (strategy: Strategy) => {
+  const emaIndicator = strategy.indicators.find(ind => ind.type === 'EMA')
+  if (emaIndicator && emaIndicator.params && emaIndicator.params.periods) {
+    return emaIndicator.params.periods.join(', ')
+  }
+  return '-'
 }
 
 // 手动测试策略
