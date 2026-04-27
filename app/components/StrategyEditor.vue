@@ -1,7 +1,7 @@
 <!-- 策略编辑器组件 -->
 <template>
   <div class="strategy-editor">
-    <el-form :model="form" label-width="100px">
+    <el-form :model="form" label-width="120px">
       <!-- 基础信息 -->
       <el-card class="form-section">
         <template #header>
