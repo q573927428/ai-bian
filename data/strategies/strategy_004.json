@@ -3,7 +3,7 @@
   "name": "策略04",
   "version": 1,
   "createdAt": "2026-04-22T09:40:30.913Z",
-  "updatedAt": "2026-04-27T15:31:55.345Z",
+  "updatedAt": "2026-04-27T16:18:42.238Z",
   "isActive": true,
   "marketData": {
     "symbols": [
@@ -68,7 +68,7 @@
     }
   ],
   "aiPrompt": {
-    "userPrompt": "金叉死叉策略\n\n一、做多预判信号 (预判死叉)\n满足全部条件，置信度96，直接开多：\n当前价格 < EMA120\nEMA7 > EMA120\n|EMA7 - EMA120| / EMA120 < 0.2%\n辅助确认：RSI(14) < 40 且 成交量 < 前1根均量。(表明下跌动能衰竭)\n\n二、做空预判信号 (预判金叉)\n满足全部条件，置信度96，直接开空：\n当前价格 > EMA120\nEMA7 < EMA120\n|EMA7 - EMA120| / EMA120 < 0.2%\n辅助确认：RSI(14) > 60 且 成交量 < 前1根均量。(表明上涨动能衰竭)\n\n三、执行规则\n任意一条条件不满足，直接输出 IDLE。\n信号触发严格按上述方向开仓，不做额外主观过滤。",
+    "userPrompt": "金叉死叉策略\n\n一、做多预判信号 (预判死叉)\n满足全部条件，置信度96，直接开多：\n1. 当前价格 < EMA120\n2. EMA7 > EMA120\n3. |EMA7 - EMA120| / EMA120 < 0.18%\n4. 辅助确认：RSI(14) < 40 且 预计成交量 < 前1根量。(表明下跌动能衰竭)\n\n二、做空预判信号 (预判金叉)\n满足全部条件，置信度96，直接开空：\n1. 当前价格 > EMA120\n2. EMA7 < EMA120\n3. |EMA7 - EMA120| / EMA120 < 0.18%\n4. 辅助确认：RSI(14) > 60 且 预计成交量 < 前1根量。(表明上涨动能衰竭)\n\n三、执行规则\n任意一条条件不满足，直接输出 IDLE。\n信号触发严格按上述方向开仓，不做额外主观过滤。",
     "temperature": 0.3,
     "maxTokens": 2000,
     "model": "deepseek-v4-flash",
@@ -224,7 +224,7 @@
     "consecutiveLosses": 0,
     "maxConsecutiveWins": 0,
     "maxConsecutiveLosses": 0,
-    "updatedAt": "2026-04-24T09:00:45.959Z"
+    "updatedAt": "2026-04-27T16:24:19.630Z"
   },
   "sessions": [],
   "currentSessionId": null
