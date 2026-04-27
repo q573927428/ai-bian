@@ -757,6 +757,15 @@ export class StrategyEngine {
 
       logger.success('止损', `止损单已设置`, stopOrder)
 
+      // 计算开仓手续费
+      const positionValue = Math.abs(actualQuantity) * signal.price
+      const entryCommission = positionValue * (this.config.commissionRate || 0.0005)
+
+      logger.info('开仓', `开仓手续费: ${entryCommission.toFixed(4)} USDT`, {
+        positionValue: positionValue.toFixed(3),
+        commissionRate: this.config.commissionRate || 0.0005
+      })
+
       // 10. 记录仓位到PositionManager
       const position = {
         symbol: signal.symbol,
@@ -783,6 +792,31 @@ export class StrategyEngine {
         stopLossOrderTimestamp: stopOrder.timestamp,
         confidence: signal.confidence,
         reasoning: signal.reasoning,
+        entryCommission,
+        position: {
+          symbol: signal.symbol,
+          direction: signal.direction.toUpperCase() as 'LONG' | 'SHORT',
+          entryPrice: signal.price,
+          quantity: actualQuantity,
+          leverage: finalLeverage,
+          stopLoss,
+          initialStopLoss: stopLoss,
+          takeProfit1,
+          takeProfit2,
+          openTime: Date.now(),
+          highestPrice: signal.price,
+          lowestPrice: signal.price,
+          orderId: order.orderId,
+          stopLossOrderId: stopOrder.orderId,
+          stopLossOrderSymbol: stopOrder.symbol,
+          stopLossOrderSide: stopOrder.side,
+          stopLossOrderType: stopOrder.type,
+          stopLossOrderQuantity: stopOrder.quantity,
+          stopLossOrderStopPrice: stopOrder.stopPrice,
+          stopLossOrderStatus: stopOrder.status,
+          stopLossOrderTimestamp: stopOrder.timestamp,
+          entryCommission
+        }
       }
 
       this.positionManager.recordPosition(signal.symbol, position)

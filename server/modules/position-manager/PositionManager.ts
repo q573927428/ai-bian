@@ -40,6 +40,7 @@ export interface PositionInfo {
   position?: Position;                 // 完整仓位信息
   confidence?: number;                 // 置信度
   reasoning?: string;                  // 推理信息
+  entryCommission?: number;            // 开仓手续费
 }
 
 /**
@@ -209,7 +210,8 @@ export class PositionManager {
       stopLossOrderQuantity: info.stopLossOrderQuantity,
       stopLossOrderStopPrice: info.stopLossOrderStopPrice,
       stopLossOrderStatus: info.stopLossOrderStatus,
-      stopLossOrderTimestamp: info.stopLossOrderTimestamp
+      stopLossOrderTimestamp: info.stopLossOrderTimestamp,
+      entryCommission: info.entryCommission
     }
   }
 

@@ -25,5 +25,6 @@
     "saveIdle": true
   },
   "minConfidence": 90,
-  "defaultCandleProgress": 0.1
+  "defaultCandleProgress": 0.1,
+  "commissionRate": 0.0005
 }

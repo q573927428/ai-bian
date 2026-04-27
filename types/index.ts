@@ -122,6 +122,7 @@ export interface BotConfig {
   aiAnalysisConfig: AIAnalysisSaveConfig
   minConfidence: number
   defaultCandleProgress: number
+  commissionRate: number
 }
 
 // ==================== 仓位与订单 ====================
@@ -151,6 +152,7 @@ export interface Position {
   stopLossOrderTimestamp?: number
   lastStopLossUpdate?: number
   trailingStopData?: any
+  entryCommission?: number
 }
 
 // 订单信息
@@ -247,6 +249,7 @@ export interface TradeHistory {
   openTime: number
   closeTime: number
   reason: string
+  totalCommission?: number
 }
 
 // ==================== 机器人状态 ====================

@@ -296,6 +296,7 @@ function getDefaultBotConfig(): BotConfig {
       saveIdle: true // 是否保存IDLE分析记录
     },
     minConfidence: 70, // 信号最小置信度阈值
-    defaultCandleProgress: 0.1 // 默认K线进度（用于无法获取最新K线时兜底）
+    defaultCandleProgress: 0.1, // 默认K线进度（用于无法获取最新K线时兜底）
+    commissionRate: 0.0005
   }
 }

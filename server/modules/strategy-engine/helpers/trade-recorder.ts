@@ -13,10 +13,17 @@ export async function recordTrade(
   strategyId: StrategyId,
   position: Position,
   exitPrice: number,
-  reason: string
+  reason: string,
+  totalCommission?: number,
+  netPnl?: number,
+  netPnlPercentage?: number
 ): Promise<void> {
   // 计算盈亏
-  const { pnl, pnlPercentage } = calculatePnL(exitPrice, position)
+  const { pnl: grossPnl, pnlPercentage: grossPnlPercentage } = calculatePnL(exitPrice, position)
+  
+  // 使用提供的净利或默认毛利
+  const finalPnl = netPnl !== undefined ? netPnl : grossPnl
+  const finalPnlPercentage = netPnlPercentage !== undefined ? netPnlPercentage : grossPnlPercentage
 
   // 记录交易历史
   const trade: TradeHistory = {
@@ -28,11 +35,12 @@ export async function recordTrade(
     exitPrice,
     quantity: position.quantity,
     leverage: position.leverage,
-    pnl,
-    pnlPercentage,
+    pnl: finalPnl,
+    pnlPercentage: finalPnlPercentage,
     openTime: position.openTime,
     closeTime: Date.now(),
     reason,
+    totalCommission,
   }
 
   // 添加交易历史

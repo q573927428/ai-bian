@@ -118,25 +118,41 @@ export class StrategyPositionCloser {
       // 3. 获取实际成交价格
       const finalExitPrice = exitPrice || order.average || await this.binance.fetchPrice(symbol)
 
-      // 4. 计算盈亏
-      const { pnl, pnlPercentage } = calculatePnL(finalExitPrice, position.position!)
-      logger.info('平仓', `平仓盈亏: ${pnl.toFixed(2)} USDT (${pnlPercentage.toFixed(2)}%)`)
+      // 4. 计算平仓手续费
+      const positionValue = quantity * finalExitPrice
+      const exitCommission = positionValue * (this.config.commissionRate || 0.0005)
+      const entryCommission = position.entryCommission || position.position?.entryCommission || 0
+      const totalCommission = entryCommission + exitCommission
 
-      // 5. 记录交易历史
-      await recordTrade(position.strategyId, position.position!, finalExitPrice, reason)
+      logger.info('平仓', `手续费明细:`, {
+        开仓手续费: entryCommission.toFixed(4),
+        平仓手续费: exitCommission.toFixed(4),
+        总手续费: totalCommission.toFixed(4),
+        手续费率: this.config.commissionRate || 0.0005
+      })
 
-      // 6. 安全初始化 state
+      // 5. 计算盈亏（扣除手续费）
+      const { pnl: grossPnl, pnlPercentage: grossPnlPercentage } = calculatePnL(finalExitPrice, position.position!)
+      const netPnl = grossPnl - totalCommission
+      const netPnlPercentage = (netPnl / (Math.abs(position.quantity) * position.entryPrice)) * 100
+
+      logger.info('平仓', `平仓盈亏: 毛利 ${grossPnl.toFixed(2)} USDT (${grossPnlPercentage.toFixed(3)}%), 净利 ${netPnl.toFixed(2)} USDT (${netPnlPercentage.toFixed(3)}%)`)
+
+      // 6. 记录交易历史（包含手续费）
+      await recordTrade(position.strategyId, position.position!, finalExitPrice, reason, totalCommission, netPnl, netPnlPercentage)
+
+      // 7. 安全初始化 state
       this.ensureStateInitialized()
 
-      // 7. 更新全局状态（临时兼容老架构）
-      this.state.dailyPnL += pnl
-      if (pnl < 0) {
+      // 8. 更新全局状态（临时兼容老架构）
+      this.state.dailyPnL += netPnl
+      if (netPnl < 0) {
         this.state.circuitBreaker.consecutiveLosses += 1
       } else {
         this.state.circuitBreaker.consecutiveLosses = 0
       }
 
-      // 7. 检查熔断
+      // 9. 检查熔断
       const account = await this.binance.fetchBalance()
       const circuitBreakerConfig = this.getCircuitBreakerConfig()
       const breaker = checkCircuitBreaker(
@@ -156,7 +172,7 @@ export class StrategyPositionCloser {
 
       await saveBotState(this.state)
 
-      // 8. 清除仓位记录
+      // 10. 清除仓位记录
       this.positionManager.clearPosition(symbol)
 
       logger.success('平仓', `平仓完成: ${symbol}, 原因: ${reason}`)
