@@ -3,7 +3,7 @@
   "name": "策略01",
   "version": 1,
   "createdAt": "2026-04-19T16:03:49.383Z",
-  "updatedAt": "2026-04-27T09:02:09.955Z",
+  "updatedAt": "2026-04-27T15:29:57.838Z",
   "isActive": true,
   "marketData": {
     "symbols": [
@@ -93,7 +93,7 @@
     }
   ],
   "aiPrompt": {
-    "userPrompt": "激进动量交易策略\n一、方向与过滤器（必须最先执行）\n趋势方向：EMA7 > EMA50 → LONG | EMA7 < EMA50 → SHORT\n\n趋势过滤器：ADX(14) > 20，否则直接 IDLE。\n\nReasoning必须包含：EMA7、EMA50数值与ADX数值。\n\n二、入场触发信号（量化版）\nLONG方向允许触发：\n\n价格向上突破 EMA20\n\n价格回踩EMA20区域后，形成看涨吞没或长下影线Pin Bar。\n\n出现动量阳线：实体 > 前1根K线实体的1.5倍。\n\nSHORT方向允许触发：\n\n价格向下跌破 EMA20\n\n价格反弹至EMA20区域后，形成看跌吞没或长上影线Pin Bar。\n\n出现动量阴线：实体 > 前1根K线实体的1.5倍。\n\n必须满足 ≥ 1项，否则IDLE\n\n三、方向评分（ score 满足一项+1）\nLONG： ① 35 < RSI < 65 ② OI增加 ③ 预计成交量 > 前1K线量的1.2倍 ④ EMA7>EMA20>EMA50\nSHORT： ① 35 < RSI <65 ② OI增加 ③ 预计成交量 > 前1K线量的1.2倍 ④ EMA7<EMA20<EMA50\n\n四、执行规则\n入场触发信号必须满足 ≥ 1项 否则IDLE 并且 score ≥ 3 → 开仓高置信度",
+    "userPrompt": "激进动量交易策略\n一、方向与过滤器（必须最先执行）\n趋势方向：EMA7 > EMA50 → LONG | EMA7 < EMA50 → SHORT\n趋势过滤器：ADX(14) > 20，否则直接 IDLE。\n\n二、入场触发信号（量化版）\nLONG方向允许触发：\n价格向上突破 EMA20\n价格回踩EMA20区域后，形成看涨吞没或长下影线Pin Bar。\n出现动量阳线：实体 > 前1根K线实体的1.5倍。\n\nSHORT方向允许触发：\n价格向下跌破 EMA20\n价格反弹至EMA20区域后，形成看跌吞没或长上影线Pin Bar。\n出现动量阴线：实体 > 前1根K线实体的1.5倍。\n\n必须满足 ≥ 1项，否则IDLE\n\n三、方向评分（ score 满足一项+1）\nLONG： ① 35 < RSI < 65 ② OI增加 ③ 预计成交量 > 前1K线量的1.2倍 ④ EMA7>EMA20>EMA50\nSHORT： ① 35 < RSI <65 ② OI增加 ③ 预计成交量 > 前1K线量的1.2倍 ④ EMA7<EMA20<EMA50\n\n四、执行规则\n入场触发信号必须满足 ≥ 1项 否则IDLE 并且 score ≥ 3 → 开仓高置信度",
     "temperature": 0.3,
     "maxTokens": 2000,
     "model": "deepseek-v4-flash",
