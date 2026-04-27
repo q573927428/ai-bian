@@ -16,16 +16,24 @@ export async function recordTrade(
   reason: string,
   totalCommission?: number,
   netPnl?: number,
-  netPnlPercentage?: number
+  netPnlPercentage?: number,
+  commissionRate: number = 0.0004 // 默认手续费率
 ): Promise<void> {
-  // 计算盈亏
-  const { pnl: grossPnl, pnlPercentage: grossPnlPercentage } = calculatePnL(exitPrice, position)
+  // 计算盈亏（包含手续费）
+  const { 
+    pnl: grossPnl, 
+    pnlPercentage: grossPnlPercentage,
+    netPnl: calculatedNetPnl,
+    netPnlPercentage: calculatedNetPnlPercentage,
+    totalCommission: calculatedTotalCommission
+  } = calculatePnL(exitPrice, position, commissionRate)
   
-  // 使用提供的净利或默认毛利
-  const finalPnl = netPnl !== undefined ? netPnl : grossPnl
-  const finalPnlPercentage = netPnlPercentage !== undefined ? netPnlPercentage : grossPnlPercentage
+  // 使用提供的值或计算的值
+  const finalNetPnl = netPnl !== undefined ? netPnl : calculatedNetPnl
+  const finalNetPnlPercentage = netPnlPercentage !== undefined ? netPnlPercentage : calculatedNetPnlPercentage
+  const finalTotalCommission = totalCommission !== undefined ? totalCommission : calculatedTotalCommission
 
-  // 记录交易历史
+  // 记录交易历史（注意：TradeHistory 的 pnl 现在存储的是净利）
   const trade: TradeHistory = {
     id: `${Date.now()}-${position.symbol}-${strategyId}`,
     strategyId,
@@ -35,12 +43,12 @@ export async function recordTrade(
     exitPrice,
     quantity: position.quantity,
     leverage: position.leverage,
-    pnl: finalPnl,
-    pnlPercentage: finalPnlPercentage,
+    pnl: finalNetPnl, // 存储净利
+    pnlPercentage: finalNetPnlPercentage, // 存储净利百分比
     openTime: position.openTime,
     closeTime: Date.now(),
     reason,
-    totalCommission,
+    totalCommission: finalTotalCommission,
   }
 
   // 添加交易历史
@@ -55,140 +63,16 @@ export async function recordTrade(
  */
 async function updateStrategyPerformance(strategyId: StrategyId): Promise<void> {
   try {
-    // 获取策略，这会自动合并全局交易记录并重新计算 performance
-    await strategyStore.getPerformance(strategyId)
-    
-    // 注意：getPerformance 只是计算，不保存
-    // 我们需要获取合并后的记录，然后手动更新策略文件
-    
-    const allRecords = await strategyStore.getTradeRecords(strategyId)
+    // 直接使用 strategyStore.getPerformance 获取计算结果，然后保存
+    const performance = await strategyStore.getPerformance(strategyId)
     const strategy = await strategyStore.getStrategy(strategyId)
     
-    if (!strategy) {
+    if (!strategy || !performance) {
       return
     }
     
-    // 重新计算 performance
-    const closedTrades = allRecords.filter((t: any) => t.status === 'closed')
-    const totalTrades = closedTrades.length
-
-    if (totalTrades === 0) {
-      strategy.performance = {
-        strategyId: strategy.id,
-        totalTrades: 0,
-        totalWins: 0,
-        totalLosses: 0,
-        winRate: 0,
-        totalProfit: 0,
-        totalLoss: 0,
-        netProfit: 0,
-        profitFactor: 0,
-        maxDrawdown: 0,
-        averageProfitPerTrade: 0,
-        averageLossPerTrade: 0,
-        largestWin: 0,
-        largestLoss: 0,
-        averageHoldTime: 0,
-        consecutiveWins: 0,
-        consecutiveLosses: 0,
-        maxConsecutiveWins: 0,
-        maxConsecutiveLosses: 0,
-        updatedAt: new Date().toISOString()
-      }
-    } else {
-      // 计算基础统计
-      const winningTrades = closedTrades.filter((t: any) => (t.profitLoss || 0) > 0)
-      const losingTrades = closedTrades.filter((t: any) => (t.profitLoss || 0) <= 0)
-      const totalWins = winningTrades.length
-      const totalLosses = losingTrades.length
-
-      const totalProfit = winningTrades.reduce((sum: number, t: any) => sum + (t.profitLoss || 0), 0)
-      const totalLoss = Math.abs(losingTrades.reduce((sum: number, t: any) => sum + (t.profitLoss || 0), 0))
-      const netProfit = totalProfit - totalLoss
-
-      const winRate = totalTrades > 0 ? (totalWins / totalTrades) * 100 : 0
-      const profitFactor = totalLoss > 0 ? totalProfit / totalLoss : Infinity
-
-      // 计算最大盈利/亏损
-      const largestWin = winningTrades.length > 0 ? Math.max(...winningTrades.map((t: any) => t.profitLoss || 0)) : 0
-      const largestLoss = losingTrades.length > 0 ? Math.max(...losingTrades.map((t: any) => Math.abs(t.profitLoss || 0))) : 0
-
-      // 平均盈亏
-      const averageProfitPerTrade = totalWins > 0 ? totalProfit / totalWins : 0
-      const averageLossPerTrade = totalLosses > 0 ? totalLoss / totalLosses : 0
-
-      // 平均持仓时间
-      const totalHoldTime = closedTrades.reduce((sum: number, t: any) => {
-        if (t.openTime && t.closeTime) {
-          const open = new Date(t.openTime).getTime()
-          const close = new Date(t.closeTime).getTime()
-          return sum + (close - open) / (1000 * 60)
-        }
-        return sum
-      }, 0)
-      const averageHoldTime = totalTrades > 0 ? totalHoldTime / totalTrades : 0
-
-      // 计算连续盈亏
-      let consecutiveWins = 0
-      let consecutiveLosses = 0
-      let maxConsecutiveWins = 0
-      let maxConsecutiveLosses = 0
-
-      // 按时间排序交易
-      const sortedTrades = [...closedTrades].sort((a, b) => 
-        new Date(a.closeTime || a.openTime).getTime() - new Date(b.closeTime || b.openTime).getTime()
-      )
-
-      for (const trade of sortedTrades) {
-        const profit = trade.profitLoss || 0
-        if (profit > 0) {
-          consecutiveWins++
-          consecutiveLosses = 0
-          maxConsecutiveWins = Math.max(maxConsecutiveWins, consecutiveWins)
-        } else {
-          consecutiveLosses++
-          consecutiveWins = 0
-          maxConsecutiveLosses = Math.max(maxConsecutiveLosses, consecutiveLosses)
-        }
-      }
-
-      // 计算最大回撤
-      let peak = 0
-      let maxDrawdown = 0
-      let cumulativeProfit = 0
-      for (const trade of sortedTrades) {
-        cumulativeProfit += trade.profitLoss || 0
-        if (cumulativeProfit > peak) {
-          peak = cumulativeProfit
-        }
-        const drawdown = peak > 0 ? ((peak - cumulativeProfit) / peak) * 100 : 0
-        maxDrawdown = Math.max(maxDrawdown, drawdown)
-      }
-
-      // 更新性能数据
-      strategy.performance = {
-        strategyId: strategy.id,
-        totalTrades,
-        totalWins,
-        totalLosses,
-        winRate,
-        totalProfit,
-        totalLoss,
-        netProfit,
-        profitFactor,
-        maxDrawdown,
-        averageProfitPerTrade,
-        averageLossPerTrade,
-        largestWin,
-        largestLoss,
-        averageHoldTime,
-        consecutiveWins,
-        consecutiveLosses,
-        maxConsecutiveWins,
-        maxConsecutiveLosses,
-        updatedAt: new Date().toISOString()
-      }
-    }
+    // 更新性能数据（基于净利计算）
+    strategy.performance = performance
 
     // 移除 tradeRecords 字段，不保存到策略文件
     delete (strategy as any).tradeRecords

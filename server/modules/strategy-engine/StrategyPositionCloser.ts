@@ -346,17 +346,17 @@ export class StrategyPositionCloser {
         takeProfit2: 0
       }
 
-      // 计算盈亏
-      const { pnl, pnlPercentage } = calculatePnL(exitPrice, tempPosition)
+      // 计算盈亏（包含手续费）
+      const { pnl: grossPnl, pnlPercentage: grossPnlPercentage, netPnl, netPnlPercentage, totalCommission } = calculatePnL(exitPrice, tempPosition, this.config.commissionRate || 0.0005)
 
       // 记录交易历史并更新状态（手动平仓）
-      await recordTrade(position.strategyId, tempPosition, exitPrice, '手动平仓')
+      await recordTrade(position.strategyId, tempPosition, exitPrice, '手动平仓', totalCommission, netPnl, netPnlPercentage, this.config.commissionRate || 0.0005)
 
       // 安全初始化 state
       this.ensureStateInitialized()
 
-      // 更新每日盈亏（手动平仓影响每日盈亏）
-      this.state.dailyPnL += pnl
+      // 更新每日盈亏（手动平仓影响每日盈亏，使用净利）
+      this.state.dailyPnL += netPnl
 
       // 手动平仓不计入连续止损次数，不影响熔断机制
       // 只有当实际亏损且是系统止损时才计入连续止损
@@ -386,7 +386,7 @@ export class StrategyPositionCloser {
 
       await saveBotState(this.state)
 
-      logger.success('手动平仓处理完成', `盈亏: ${pnl.toFixed(2)} USDT (${pnlPercentage.toFixed(2)}%)，原因: 手动平仓`)
+      logger.success('手动平仓处理完成', `盈亏: ${netPnl.toFixed(2)} USDT (${netPnlPercentage.toFixed(2)}%)，原因: 手动平仓`)
     } catch (error: any) {
       logger.error('手动平仓处理', '处理手动平仓失败', error.message)
       throw error
@@ -567,21 +567,21 @@ export class StrategyPositionCloser {
       }
 
 
-      // 计算盈亏
-      const { pnl, pnlPercentage } = calculatePnL(exitPrice, tempPosition)
+      // 计算盈亏（包含手续费）
+      const { pnl: grossPnl, pnlPercentage: grossPnlPercentage, netPnl, netPnlPercentage, totalCommission } = calculatePnL(exitPrice, tempPosition, this.config.commissionRate || 0.0005)
 
       // 记录交易历史并更新状态
-      await recordTrade(position.strategyId, tempPosition, exitPrice, reason)
+      await recordTrade(position.strategyId, tempPosition, exitPrice, reason, totalCommission, netPnl, netPnlPercentage, this.config.commissionRate || 0.0005)
 
       // 安全初始化 state
       this.ensureStateInitialized()
 
-      // 更新每日盈亏
-      this.state.dailyPnL += pnl
+      // 更新每日盈亏（使用净利）
+      this.state.dailyPnL += netPnl
 
-      // 更新连续亏损次数
+      // 更新连续亏损次数（基于净利）
       let consecutiveLosses = this.state.circuitBreaker.consecutiveLosses
-      if (pnl < 0) {
+      if (netPnl < 0) {
         consecutiveLosses += 1
       } else {
         consecutiveLosses = 0
@@ -607,7 +607,7 @@ export class StrategyPositionCloser {
 
       await saveBotState(this.state)
 
-      logger.success('补偿平仓完成', `盈亏: ${pnl.toFixed(2)} USDT (${pnlPercentage.toFixed(2)}%)，原因: ${reason}`)
+      logger.success('补偿平仓完成', `盈亏: ${netPnl.toFixed(2)} USDT (${netPnlPercentage.toFixed(2)}%)，原因: ${reason}`)
     } catch (error: any) {
       logger.error('补偿平仓', '处理补偿平仓失败', error.message)
       throw error

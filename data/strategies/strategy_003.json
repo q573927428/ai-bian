@@ -3,7 +3,7 @@
   "name": "策略03",
   "version": 1,
   "createdAt": "2026-04-19T16:14:17.182Z",
-  "updatedAt": "2026-04-26T14:03:38.222Z",
+  "updatedAt": "2026-04-27T15:00:59.224Z",
   "isActive": true,
   "marketData": {
     "symbols": [
@@ -116,19 +116,19 @@
     "provider": "deepseek"
   },
   "riskManagement": {
-    "maxRiskPercentage": 10,
-    "stopLossATRMultiplier": 3,
+    "maxRiskPercentage": 20,
+    "stopLossATRMultiplier": 2.5,
     "takeProfitRatios": [
-      2.5,
-      4
+      2,
+      3
     ],
-    "maxDailyTrades": 2,
+    "maxDailyTrades": 3,
     "maxDailyLoss": 10,
-    "maxHoldTimeMinutes": 1440,
+    "maxHoldTimeMinutes": 360,
     "trailingStop": {
       "enabled": true,
-      "activationRatio": 1.5,
-      "trailDistance": 1.5,
+      "activationRatio": 0.8,
+      "trailDistance": 1.2,
       "minMoveDistance": 0.16
     }
   },

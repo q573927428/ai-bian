@@ -559,8 +559,11 @@ export class StrategyStore {
           leverage: record.leverage,
           marginMode: 'cross' as const, // 默认逐仓
           positionMode: 'one-way' as const, // 默认单向持仓
-          profitLoss: record.pnl,
-          profitLossPercentage: record.pnlPercentage,
+          profitLoss: record.pnl, // 现在存储的是净利
+          profitLossPercentage: record.pnlPercentage, // 现在存储的是净利百分比
+          netProfitLoss: record.pnl, // 净利
+          netProfitLossPercentage: record.pnlPercentage, // 净利百分比
+          totalCommission: record.totalCommission, // 手续费
           openTime: new Date(record.openTime).toISOString(),
           closeTime: new Date(record.closeTime).toISOString(),
           status: 'closed' as const,

@@ -294,10 +294,17 @@
               <el-table-column prop="exitPrice" label="出场价" width="120" />
               <el-table-column prop="quantity" label="数量" width="100" />
               <el-table-column prop="leverage" label="杠杆" width="80" />
-              <el-table-column prop="profitLoss" label="盈亏金额" width="120">
+              <el-table-column prop="profitLoss" label="净利金额" width="120">
                 <template #default="{ row }">
                   <span :class="(row.profitLoss || 0) >= 0 ? 'text-success' : 'text-danger'">
                     ${{ (row.profitLoss || 0).toFixed(2) }}
+                  </span>
+                </template>
+              </el-table-column>
+              <el-table-column prop="totalCommission" label="手续费" width="100">
+                <template #default="{ row }">
+                  <span class="text-warning">
+                    ${{ (row.totalCommission || 0).toFixed(4) }}
                   </span>
                 </template>
               </el-table-column>

@@ -259,25 +259,28 @@ export interface IndicatorData {
 
 // 开单记录
 export interface TradeRecord {
-  id: string;                          // 记录唯一ID
-  strategyId: StrategyId;              // 策略ID
-  strategyVersion: StrategyVersion;    // 策略版本
-  symbol: string;                      // 交易对
-  direction: TradeDirection;           // 交易方向
-  action: TradeAction;                 // 交易动作
-  entryPrice: number;                  // 入场价格
-  exitPrice?: number;                  // 出场价格
-  quantity: number;                    // 数量
-  leverage: number;                    // 实际使用杠杆
-  marginMode: MarginMode;              // 保证金模式
-  positionMode: PositionMode;          // 持仓模式
-  openTime: string;                    // 开仓时间
-  closeTime?: string;                  // 平仓时间
-  profitLoss?: number;                 // 盈亏金额
-  profitLossPercentage?: number;       // 盈亏百分比
+  id: string; // 记录唯一ID
+  strategyId: StrategyId; // 策略ID
+  strategyVersion: StrategyVersion; // 策略版本
+  symbol: string; // 交易对
+  direction: TradeDirection; // 交易方向
+  action: TradeAction; // 交易动作
+  entryPrice: number; // 入场价格
+  exitPrice?: number; // 出场价格
+  quantity: number; // 数量
+  leverage: number; // 实际使用杠杆
+  marginMode: MarginMode; // 保证金模式
+  positionMode: PositionMode; // 持仓模式
+  openTime: string; // 开仓时间
+  closeTime?: string; // 平仓时间
+  profitLoss?: number; // 盈亏金额（毛利，未扣除手续费）
+  profitLossPercentage?: number; // 盈亏百分比（毛利）
+  netProfitLoss?: number; // 净利金额（已扣除手续费）
+  netProfitLossPercentage?: number; // 净利百分比（已扣除手续费）
+  totalCommission?: number; // 总手续费
   status: 'open' | 'closed' | 'canceled'; // 订单状态
-  reason?: string;                     // 开/平仓原因
-  txHash?: string;                     // 交易哈希
+  reason?: string; // 开/平仓原因
+  txHash?: string; // 交易哈希
 }
 
 // 策略运行统计
