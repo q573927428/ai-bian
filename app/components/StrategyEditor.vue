@@ -1,7 +1,7 @@
 <!-- 策略编辑器组件 -->
 <template>
   <div class="strategy-editor">
-    <el-form :model="form" label-width="120px">
+    <el-form :model="form" label-width="100px">
       <!-- 基础信息 -->
       <el-card class="form-section">
         <template #header>
@@ -104,6 +104,34 @@
             <el-checkbox label="Volume">成交量</el-checkbox>
           </el-checkbox-group>
         </el-form-item>
+        
+        <!-- OI参数配置 -->
+        <div v-if="selectedStatistics.includes('OI')" class="params-section">
+          <el-divider content-position="left">OI 参数配置</el-divider>
+          <el-row :gutter="20">
+            <el-col :span="8">
+              <el-form-item label="回看周期数">
+                <el-input-number 
+                  v-model="oiParams.changePeriod" 
+                  :min="1" 
+                  :max="30" 
+                  :step="1" 
+                />
+              </el-form-item>
+            </el-col>
+            <el-col :span="8">
+              <el-form-item label="趋势判定阈值 %">
+                <el-input-number 
+                  v-model="oiParams.trendThresholdPercent" 
+                  :min="0.01" 
+                  :max="1.0" 
+                  :step="0.01" 
+                  :precision="2"
+                />
+              </el-form-item>
+            </el-col>
+          </el-row>
+        </div>
       </el-card>
 
       <!-- AI 交易逻辑提示词 -->
@@ -369,6 +397,12 @@ const selectedIndicators = ref<string[]>(['EMA', 'RSI', 'ADX', 'ATR'])
 const emaPeriods = ref<number[]>([14, 60, 120])
 const selectedStatistics = ref<string[]>(['OI', 'Volume'])
 
+// OI参数
+const oiParams = reactive({
+  changePeriod: 6,
+  trendThresholdPercent: 0.05
+})
+
 // 初始化表单
 const form = reactive<CreateStrategyInput>({
   name: '',
@@ -468,7 +502,7 @@ watch([selectedIndicators, emaPeriods, () => form.marketData.timeframes], () => 
 }, { immediate: true, deep: true })
 
 // 同步 statistics 数据 - 使用市场数据配置的最小周期
-watch([selectedStatistics, () => form.marketData.timeframes], () => {
+watch([selectedStatistics, () => form.marketData.timeframes, () => oiParams.changePeriod, () => oiParams.trendThresholdPercent], () => {
   const newStatistics: any[] = []
   let id = 5
 
@@ -482,7 +516,10 @@ watch([selectedStatistics, () => form.marketData.timeframes], () => {
     newStatistics.push({
       id: String(id++),
       type: 'OI',
-      params: { trendPeriod: 12, changePeriod: 24 },
+      params: { 
+        changePeriod: oiParams.changePeriod,
+        trendThresholdPercent: oiParams.trendThresholdPercent
+      },
       timeframes: smallestTimeframe,
       enabled: true
     })
@@ -522,6 +559,13 @@ watch(() => props.strategy, (newVal) => {
     
     // 同步统计数据
     selectedStatistics.value = newVal.statistics.filter(s => s.enabled).map(s => s.type)
+    
+    // 同步 OI 参数
+    const oiStat = newVal.statistics.find(s => s.type === 'OI' && s.enabled)
+    if (oiStat && oiStat.params) {
+      oiParams.changePeriod = oiStat.params.changePeriod ?? 6
+      oiParams.trendThresholdPercent = oiStat.params.trendThresholdPercent ?? 0.05
+    }
   }
 }, { immediate: true })
 

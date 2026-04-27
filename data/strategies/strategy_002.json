@@ -3,8 +3,8 @@
   "name": "策略02",
   "version": 1,
   "createdAt": "2026-04-19T16:06:46.003Z",
-  "updatedAt": "2026-04-26T04:21:48.172Z",
-  "isActive": true,
+  "updatedAt": "2026-04-26T15:03:18.343Z",
+  "isActive": false,
   "marketData": {
     "symbols": [
       "BTC/USDT",
@@ -88,8 +88,8 @@
       "id": "5",
       "type": "OI",
       "params": {
-        "trendPeriod": 12,
-        "changePeriod": 24
+        "changePeriod": 24,
+        "trendThresholdPercent": 0.03
       },
       "timeframes": [
         "15m"
@@ -234,8 +234,8 @@
             "id": "5",
             "type": "OI",
             "params": {
-              "trendPeriod": 12,
-              "changePeriod": 24
+              "changePeriod": 6,
+              "trendThresholdPercent": 0.03
             },
             "timeframes": [
               "15m"

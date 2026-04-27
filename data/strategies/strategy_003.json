@@ -88,8 +88,8 @@
       "id": "5",
       "type": "OI",
       "params": {
-        "trendPeriod": 12,
-        "changePeriod": 24
+        "changePeriod": 6,
+        "trendThresholdPercent": 0.03
       },
       "timeframes": [
         "1h"
@@ -213,8 +213,8 @@
             "id": "5",
             "type": "OI",
             "params": {
-              "trendPeriod": 12,
-              "changePeriod": 24
+              "changePeriod": 6,
+              "trendThresholdPercent": 0.03
             },
             "timeframes": [
               "15m"
@@ -281,25 +281,25 @@
   ],
   "performance": {
     "strategyId": "strategy_003",
-    "totalTrades": 18,
-    "totalWins": 9,
+    "totalTrades": 19,
+    "totalWins": 10,
     "totalLosses": 9,
-    "winRate": 50,
-    "totalProfit": 1.2664000000000009,
-    "totalLoss": 1.935229999999984,
-    "netProfit": -0.6688299999999832,
-    "profitFactor": 0.65439250114974,
+    "winRate": 52.63157894736842,
+    "totalProfit": 1.5201399999999994,
+    "totalLoss": 1.9353299999999753,
+    "netProfit": -0.41518999999997597,
+    "profitFactor": 0.7854681113815312,
     "maxDrawdown": 9210.606060605309,
-    "averageProfitPerTrade": 0.1407111111111112,
-    "averageLossPerTrade": 0.21502555555555378,
+    "averageProfitPerTrade": 0.15201399999999993,
+    "averageLossPerTrade": 0.21503666666666393,
     "largestWin": 0.5093200000000052,
     "largestLoss": 0.5366700000000003,
-    "averageHoldTime": 64.9628824074074,
-    "consecutiveWins": 2,
+    "averageHoldTime": 176.5500622807017,
+    "consecutiveWins": 3,
     "consecutiveLosses": 0,
     "maxConsecutiveWins": 5,
     "maxConsecutiveLosses": 6,
-    "updatedAt": "2026-04-26T14:53:59.862Z"
+    "updatedAt": "2026-04-27T05:15:08.460Z"
   },
   "sessions": [],
   "currentSessionId": null
