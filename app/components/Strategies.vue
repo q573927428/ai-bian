@@ -147,7 +147,7 @@
           <!-- 性能统计 -->
           <el-tab-pane label="性能统计" name="performance">
             <el-row :gutter="20" style="margin-bottom: 20px;">
-              <el-col :span="6">
+              <el-col :xs="24" :sm="12" :md="6">
                 <el-card>
                   <div class="stat-item">
                     <div class="stat-label">总交易次数</div>
@@ -155,7 +155,7 @@
                   </div>
                 </el-card>
               </el-col>
-              <el-col :span="6">
+              <el-col :xs="24" :sm="12" :md="6">
                 <el-card>
                   <div class="stat-item">
                     <div class="stat-label">胜率</div>
@@ -165,7 +165,7 @@
                   </div>
                 </el-card>
               </el-col>
-              <el-col :span="6">
+              <el-col :xs="24" :sm="12" :md="6">
                 <el-card>
                   <div class="stat-item">
                     <div class="stat-label">净利润</div>
@@ -175,7 +175,7 @@
                   </div>
                 </el-card>
               </el-col>
-              <el-col :span="6">
+              <el-col :xs="24" :sm="12" :md="6">
                 <el-card>
                   <div class="stat-item">
                     <div class="stat-label">盈利因子</div>
@@ -187,7 +187,7 @@
               </el-col>
             </el-row>
             <el-row :gutter="20" style="margin-bottom: 20px;">
-              <el-col :span="6">
+              <el-col :xs="24" :sm="12" :md="6">
                 <el-card>
                   <div class="stat-item">
                     <div class="stat-label">总盈利</div>
@@ -197,7 +197,7 @@
                   </div>
                 </el-card>
               </el-col>
-              <el-col :span="6">
+              <el-col :xs="24" :sm="12" :md="6">
                 <el-card>
                   <div class="stat-item">
                     <div class="stat-label">总亏损</div>
@@ -207,7 +207,7 @@
                   </div>
                 </el-card>
               </el-col>
-              <el-col :span="6">
+              <el-col :xs="24" :sm="12" :md="6">
                 <el-card>
                   <div class="stat-item">
                     <div class="stat-label">最大回撤</div>
@@ -217,7 +217,7 @@
                   </div>
                 </el-card>
               </el-col>
-              <el-col :span="6">
+              <el-col :xs="24" :sm="12" :md="6">
                 <el-card>
                   <div class="stat-item">
                     <div class="stat-label">平均持仓时间</div>
@@ -229,7 +229,7 @@
               </el-col>
             </el-row>
             <el-row :gutter="20">
-              <el-col :span="6">
+              <el-col :xs="24" :sm="12" :md="6">
                 <el-card>
                   <div class="stat-item">
                     <div class="stat-label">最大连续盈利</div>
@@ -239,7 +239,7 @@
                   </div>
                 </el-card>
               </el-col>
-              <el-col :span="6">
+              <el-col :xs="24" :sm="12" :md="6">
                 <el-card>
                   <div class="stat-item">
                     <div class="stat-label">最大连续亏损</div>
@@ -249,7 +249,7 @@
                   </div>
                 </el-card>
               </el-col>
-              <el-col :span="6">
+              <el-col :xs="24" :sm="12" :md="6">
                 <el-card>
                   <div class="stat-item">
                     <div class="stat-label">当前连续盈利</div>
@@ -259,7 +259,7 @@
                   </div>
                 </el-card>
               </el-col>
-              <el-col :span="6">
+              <el-col :xs="24" :sm="12" :md="6">
                 <el-card>
                   <div class="stat-item">
                     <div class="stat-label">当前连续亏损</div>

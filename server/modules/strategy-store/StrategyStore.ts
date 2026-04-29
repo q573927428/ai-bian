@@ -76,6 +76,8 @@ export class StrategyStore {
         consecutiveLosses: 0,
         maxConsecutiveWins: 0,
         maxConsecutiveLosses: 0,
+        dailyPnL: 0,
+        todayTrades: 0,
         updatedAt: now
       },
       sessions: [],
@@ -136,6 +138,8 @@ export class StrategyStore {
            consecutiveLosses: 0,
            maxConsecutiveWins: 0,
            maxConsecutiveLosses: 0,
+           dailyPnL: 0,
+           todayTrades: 0,
            updatedAt: now
          }
        }
@@ -177,6 +181,11 @@ export class StrategyStore {
           const strategyId = file.replace('.json', '')
           const strategy = await this.getStrategy(strategyId)
           if (strategy) {
+            // 获取最新的性能统计数据（包含 dailyPnL 和 todayTrades）
+            const performance = await this.getPerformance(strategyId)
+            if (performance) {
+              strategy.performance = performance
+            }
             strategies.push(strategy)
           }
         }
@@ -612,6 +621,13 @@ export class StrategyStore {
     const closedTrades = records.filter(t => t.status === 'closed')
     const totalTrades = closedTrades.length
 
+    const today = new Date().toDateString()
+    const todayTrades = closedTrades.filter(t => {
+      if (!t.closeTime) return false
+      return new Date(t.closeTime).toDateString() === today
+    })
+    const dailyPnL = todayTrades.reduce((sum, t) => sum + (t.profitLoss || 0), 0)
+
     if (totalTrades === 0) {
       return {
         strategyId,
@@ -633,6 +649,8 @@ export class StrategyStore {
         consecutiveLosses: 0,
         maxConsecutiveWins: 0,
         maxConsecutiveLosses: 0,
+        dailyPnL,
+        todayTrades: todayTrades.length,
         updatedAt: new Date().toISOString()
       }
     }
@@ -726,6 +744,8 @@ export class StrategyStore {
       consecutiveLosses,
       maxConsecutiveWins,
       maxConsecutiveLosses,
+      dailyPnL,
+      todayTrades: todayTrades.length,
       updatedAt: new Date().toISOString()
     }
   }

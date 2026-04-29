@@ -118,17 +118,7 @@ const totalTrades = computed(() => {
 
 // 计算今日交易次数
 const todayTrades = computed(() => {
-  const today = new Date().toDateString()
-  let count = 0
-  for (const strategy of strategiesStore.strategies) {
-    if (strategy.tradeRecords) {
-      count += strategy.tradeRecords.filter(trade => {
-        if (!trade.closeTime) return false
-        return new Date(trade.closeTime).toDateString() === today
-      }).length
-    }
-  }
-  return count
+  return strategiesStore.strategies.reduce((sum, s) => sum + (s.performance?.todayTrades || 0), 0)
 })
 
 // 计算总盈亏（从 performance 读取）
@@ -138,19 +128,7 @@ const totalPnL = computed(() => {
 
 // 计算今日盈亏
 const dailyPnL = computed(() => {
-  const today = new Date().toDateString()
-  let pnl = 0
-  for (const strategy of strategiesStore.strategies) {
-    if (strategy.tradeRecords) {
-      pnl += strategy.tradeRecords
-        .filter(trade => {
-          if (!trade.closeTime) return false
-          return new Date(trade.closeTime).toDateString() === today
-        })
-        .reduce((sum, trade) => sum + (trade.profitLoss || 0), 0)
-    }
-  }
-  return pnl
+  return strategiesStore.strategies.reduce((sum, s) => sum + (s.performance?.dailyPnL || 0), 0)
 })
 
 // 计算总胜率（从 performance 读取）

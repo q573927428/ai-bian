@@ -285,26 +285,28 @@ export interface TradeRecord {
 
 // 策略运行统计
 export interface StrategyPerformance {
-  strategyId: StrategyId;              // 策略ID
-  totalTrades: number;                 // 总交易次数
-  totalWins: number;                   // 盈利次数
-  totalLosses: number;                 // 亏损次数
-  winRate: number;                     // 胜率 (%)
-  totalProfit: number;                 // 总盈利 (USDT)
-  totalLoss: number;                   // 总亏损 (USDT)
-  netProfit: number;                   // 净利润 (USDT)
-  profitFactor: number;                // 盈利因子 (总盈利/总亏损)
-  maxDrawdown: number;                 // 最大回撤 (%)
-  averageProfitPerTrade: number;       // 平均每笔盈利
-  averageLossPerTrade: number;         // 平均每笔亏损
-  largestWin: number;                  // 最大盈利金额
-  largestLoss: number;                 // 最大亏损金额
-  averageHoldTime: number;             // 平均持仓时间 (分钟)
-  consecutiveWins: number;             // 当前连续盈利次数
-  consecutiveLosses: number;           // 当前连续亏损次数
-  maxConsecutiveWins: number;          // 最大连续盈利次数
-  maxConsecutiveLosses: number;        // 最大连续亏损次数
-  updatedAt: string;                   // 统计更新时间
+  strategyId: StrategyId,
+  totalTrades: number,
+  totalWins: number,
+  totalLosses: number,
+  winRate: number,
+  totalProfit: number,
+  totalLoss: number,
+  netProfit: number,
+  profitFactor: number,
+  maxDrawdown: number,
+  averageProfitPerTrade: number,
+  averageLossPerTrade: number,
+  largestWin: number,
+  largestLoss: number,
+  averageHoldTime: number,
+  consecutiveWins: number,
+  consecutiveLosses: number,
+  maxConsecutiveWins: number,
+  maxConsecutiveLosses: number,
+  dailyPnL: number,
+  todayTrades: number,
+  updatedAt: string,
 }
 
 // 策略运行会话
