@@ -111,11 +111,52 @@ export async function callAIAPI(
  * 提取 JSON 内容（可能包含 markdown 代码块）
  */
 export function extractJSONContent(content: string): string {
+  try {
+    // 首先尝试直接解析
+    JSON.parse(content)
+    return content
+  } catch {
+    // 继续处理
+  }
+
+  // 尝试提取代码块
   const jsonMatch = content.match(/```json\s*([\s\S]*?)\s*```/) || content.match(/```\s*([\s\S]*?)\s*```/)
   if (jsonMatch && jsonMatch[1]) {
-    return jsonMatch[1]
+    try {
+      JSON.parse(jsonMatch[1])
+      return jsonMatch[1]
+    } catch {
+      // 继续处理
+    }
   }
-  return content
+
+  // 尝试提取第一个 {} 之间的内容
+  const firstBrace = content.indexOf('{')
+  const lastBrace = content.lastIndexOf('}')
+  if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+    const extracted = content.slice(firstBrace, lastBrace + 1)
+    try {
+      JSON.parse(extracted)
+      return extracted
+    } catch {
+      // 继续处理
+    }
+  }
+
+  // 尝试修复常见的 JSON 错误
+  let cleaned = content
+    .replace(/,\s*}/g, '}') // 移除多余的逗号
+    .replace(/,\s*]/g, ']') // 移除多余的逗号
+    .replace(/([{,]\s*)([a-zA-Z_][a-zA-Z0-9_]*)\s*:/g, '$1"$2":') // 给未加引号的键名添加引号
+    .replace(/:\s*'([^']*)'/g, ':"$1"') // 将单引号字符串改为双引号
+
+  try {
+    JSON.parse(cleaned)
+    return cleaned
+  } catch {
+    // 如果都失败，返回原始内容
+    return content
+  }
 }
 
 /**

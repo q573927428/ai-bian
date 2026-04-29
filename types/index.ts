@@ -58,6 +58,15 @@ export interface TechnicalIndicators {
   prevCandle?: OHLCV
 }
 
+// 单个条件检查结果
+export interface ConditionCheck {
+  name: string
+  isMet: boolean
+  weight: number
+  value: any
+  threshold: any
+}
+
 // ==================== AI分析结果 ====================
 
 // AI分析结果
@@ -70,6 +79,9 @@ export interface AIAnalysis {
   riskLevel: RiskLevel
   isBullish: boolean
   reasoning: string
+  // 新增字段
+  conditionChecks?: ConditionCheck[]
+  trendStrength?: number
   technicalData: {
     price: number
     rsi: number
@@ -96,6 +108,7 @@ export interface AIAnalysisSaveConfig {
   enabled: boolean
   maxRecords: number
   saveIdle: boolean
+  minConfidence?: number
 }
 
 // EMA配置
@@ -121,6 +134,8 @@ export interface BotConfig {
   aiCacheTtlMinutes: number
   aiAnalysisConfig: AIAnalysisSaveConfig
   minConfidence: number
+  minTrendStrength?: number
+  maxRiskLevel?: RiskLevel
   defaultCandleProgress: number
   commissionRate: number
 }

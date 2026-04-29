@@ -41,6 +41,9 @@ export interface PositionInfo {
   confidence?: number;                 // 置信度
   reasoning?: string;                  // 推理信息
   entryCommission?: number;            // 开仓手续费
+  trendStrength?: number;              // 趋势强度
+  riskLevel?: string;                  // 风险等级
+  conditionChecks?: any[];             // 条件检查记录
 }
 
 /**

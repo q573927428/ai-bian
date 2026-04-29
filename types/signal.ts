@@ -5,6 +5,8 @@ import type { Timeframe } from './strategy';
 
 // ==================== 标准交易信号 ====================
 
+import type { RiskLevel, ConditionCheck } from './index';
+
 // AI 返回的标准交易信号
 export interface TradeSignal {
   strategyId: StrategyId;              // 触发策略ID
@@ -20,6 +22,10 @@ export interface TradeSignal {
   reasoning: string;                   // AI 决策理由
   indicators: IndicatorValues;         // 触发时的指标值
   timestamp: string;                   // 信号时间
+  // 新增字段
+  trendStrength?: number;          // 趋势强度 (0-100)
+  riskLevel?: RiskLevel;             // 风险等级
+  conditionChecks?: ConditionCheck[];  // 条件检查列表
 }
 
 // ==================== 指标值 ====================

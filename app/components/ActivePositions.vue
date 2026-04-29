@@ -19,7 +19,7 @@
               {{ pos.direction === 'long' ? '做多' : '做空' }}
             </el-button>
             <el-button
-              type="danger"
+              type="warning"
               size="small"
               :loading="closingSymbols.includes(pos.symbol)"
               @click="handleClosePosition(pos.symbol)"

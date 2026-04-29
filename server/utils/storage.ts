@@ -293,10 +293,13 @@ function getDefaultBotConfig(): BotConfig {
     aiAnalysisConfig: {
       enabled: true, // 是否启用AI分析保存
       maxRecords: 3500, // 单文件最大保存条数
-      saveIdle: true // 是否保存IDLE分析记录
+      saveIdle: true, // 是否保存IDLE分析记录
+      minConfidence: 50,
     },
     minConfidence: 70, // 信号最小置信度阈值
+    minTrendStrength: 70, // 趋势强度阈值
+    maxRiskLevel: "MEDIUM",  // 最大风险等级
     defaultCandleProgress: 0.1, // 默认K线进度（用于无法获取最新K线时兜底）
-    commissionRate: 0.0005
+    commissionRate: 0.0005,  // 手续费率
   }
 }

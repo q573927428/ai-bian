@@ -128,7 +128,11 @@ export class MultiStrategyAIAnalyzer {
           rsi: aiResult.technicalData.rsi ?? 0,
           atr: indicators.atr
         },
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        // 新增增强字段
+        trendStrength: aiResult.trendStrength,
+        riskLevel: aiResult.riskLevel,
+        conditionChecks: aiResult.conditionChecks
       }
 
       // 5. 缓存结果
@@ -284,8 +288,18 @@ ${promptConfig.userPrompt}
 {
   "direction": "LONG | SHORT | IDLE",
   "confidence": number,
-  "reasoning": string
+  "reasoning": string,
+  "conditionChecks": [
+    { "name": string, "isMet": boolean, "weight": number, "value": any, "threshold": any }
+  ],
+  "trendStrength": number,
+  "riskLevel": "LOW | MEDIUM | HIGH"
 }
+
+### 输出字段说明：
+- conditionChecks: 逐条列出所有策略条件的检查结果，每个条件包含名称、是否满足、权重(0-1)、当前值、阈值
+- trendStrength: 趋势强度，0-100，数值越大趋势越强
+- riskLevel: 风险等级，LOW/MEDIUM/HIGH
 `;
   }
 
@@ -306,22 +320,30 @@ ${promptConfig.userPrompt}
 6. confidence 不代表是否开仓，而是当前市场结构与策略理想条件的接近程度。
 7. 即使未满足全部开仓条件，也必须输出真实方向与真实置信度。
 8. 只有在市场无明显方向、趋势混乱、EMA纠缠、ADX极低时，才允许输出 IDLE。
-9. “未触发入场” 不等于 “方向不存在”。
+9. "未触发入场" 不等于 "方向不存在"。
 10. 禁止因为单个条件不满足直接输出 confidence=0。
+11. conditionChecks 必须包含策略中所有条件的逐条检查结果。
+12. trendStrength 基于趋势指标（ADX、EMA排列等）给出 0-100 的趋势强度评分。
+13. riskLevel 综合市场波动性、趋势强度等给出风险等级。
 
 ----------------------------------
 【输出格式】
 {
   "direction": "LONG | SHORT | IDLE",
   "confidence": number,
-  "reasoning": "一行中文，包含所有条件的判断结果和数值"
+  "reasoning": "一行中文，包含所有条件的判断结果和数值",
+  "conditionChecks": [
+    { "name": string, "isMet": boolean, "weight": number, "value": any, "threshold": any }
+  ],
+  "trendStrength": number,
+  "riskLevel": "LOW | MEDIUM | HIGH"
 }
 
 【reasoning 要求】
-- 必须包含：方向、关键指标数值、每条条件是否满足
-- 所有指标只展示原始数值与大小/区间对比结论，只写判定结果，不写运算逻辑和过程；
-- 格式清晰、无换行、无计算过程、不矛盾、精简直白，严格对标示例格式
-- 示例：EMA7(52100) > EMA50(51800) ，方向 LONG，RSI(48)∈[30,65] 满足，OI增加+1.2% 满足，预计成交量(5114.13) < 1.8倍 前K量(10464.66)  不满足，ATR波动率 0.52% > 0.38% 满足；最终结果 不满足，置信度60。
+- 必须包含：方向、关键指标数值、每条条件是否满足、趋势强度、风险等级、条件检查汇总
+- 格式示例：EMA7(52100) > EMA50(51800) ，方向 LONG，RSI(48)∈[30,65] 满足，OI增加+1.2% 满足，预计成交量(5114.13) < 1.8倍 前K量(10464.66) 不满足，ATR波动率 0.52% > 0.38% 满足；置信度60，趋势强度:70，风险等级:MEDIUM，条件检查:[趋势方向:满足,RSI区间:满足,成交量:不满足,ATR:满足]。
+- 所有指标只展示原始数值与大小/区间对比结论，只写判定结果，不写运算逻辑和过程
+- 格式清晰、无换行、无计算过程、不矛盾、精简直白
 
 `;
   }
@@ -334,7 +356,8 @@ ${promptConfig.userPrompt}
     return {
       enabled: config?.enabled ?? true,
       maxRecords: config?.maxRecords ?? 1000,
-      saveIdle: config?.saveIdle ?? false
+      saveIdle: config?.saveIdle ?? false,
+      minConfidence: config?.minConfidence ?? 50
     }
   }
 
@@ -352,6 +375,11 @@ ${promptConfig.userPrompt}
       
       // 检查是否需要保存IDLE状态
       if (analysis.direction === 'IDLE' && !saveConfig.saveIdle) {
+        return
+      }
+      
+      // 检查置信度筛选
+      if (analysis.confidence < saveConfig.minConfidence) {
         return
       }
       
@@ -462,6 +490,8 @@ ${promptConfig.userPrompt}
         riskLevel: (aiResult.riskLevel || 'MEDIUM') as RiskLevel,
         isBullish: direction === 'LONG',
         reasoning: reasoning,
+        conditionChecks: aiResult.conditionChecks,
+        trendStrength: aiResult.trendStrength,
         technicalData: {
           price,
           ...Object.fromEntries(emaEntries.map(item => [item.name, item.value])),

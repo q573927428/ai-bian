@@ -3,7 +3,7 @@
   "name": "策略01",
   "version": 1,
   "createdAt": "2026-04-19T16:03:49.383Z",
-  "updatedAt": "2026-04-27T16:44:44.075Z",
+  "updatedAt": "2026-04-29T10:08:48.068Z",
   "isActive": true,
   "marketData": {
     "symbols": [
@@ -110,7 +110,7 @@
     "maxDailyLoss": 10,
     "maxHoldTimeMinutes": 120,
     "trailingStop": {
-      "enabled": false,
+      "enabled": true,
       "activationRatio": 0.8,
       "trailDistance": 1,
       "minMoveDistance": 0.16
@@ -118,7 +118,7 @@
   },
   "executionConfig": {
     "scanInterval": 600,
-    "leverage": 3,
+    "leverage": 5,
     "marginMode": "cross",
     "positionMode": "one-way"
   },

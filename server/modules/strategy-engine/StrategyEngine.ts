@@ -541,23 +541,48 @@ export class StrategyEngine {
          return null
        }
        
-       // 统一记录扫描结果日志，避免重复
-       const strategyInstance = this.runningStrategies.get(strategyId)
-       const strategyName = strategyInstance ? strategyInstance.strategy.name : '未知策略'
-       const minConfidence = this.config.minConfidence ?? 70
-       
-       if (signal.direction === 'idle') {
-         // IDLE 状态
-         logger.info('扫描结果', ` ${signal.symbol} @${signal.price} IDLE 置信度（${signal.confidence} < ${minConfidence}）[${strategyName} - ${signal.strategyId}] ===详细AI日志=== ${signal.reasoning}`)
-         return null
-       } else if (signal.confidence < minConfidence) {
-         // 有方向但置信度不足的情况
-         logger.info('扫描结果', ` ${signal.symbol} @${signal.price} ${signal.direction.toUpperCase()} 置信度（${signal.confidence} < ${minConfidence}）[${strategyName} - ${signal.strategyId}] ===详细AI日志=== ${signal.reasoning}`)
-         return null
-       } else {
-         // 有方向且置信度足够的情况
-         logger.success('扫描结果', ` ${signal.symbol} @${signal.price} ${signal.direction.toUpperCase()} 置信度（${signal.confidence} ≥ ${minConfidence}）[${strategyName} - ${signal.strategyId}] ===详细AI日志=== ${signal.reasoning}`)
-       }
+        // 统一记录扫描结果日志，避免重复
+        const strategyInstance = this.runningStrategies.get(strategyId)
+        const strategyName = strategyInstance ? strategyInstance.strategy.name : '未知策略'
+        const minConfidence = this.config.minConfidence ?? 70
+         
+         // 获取增强信息（从 aiAnalyzer 的保存结果中或直接在 reasoning 中包含）
+         let enhancedLog = signal.reasoning
+         
+         // 检查趋势强度条件
+         const minTrendStrength = this.config.minTrendStrength
+         const isTrendStrengthOK = minTrendStrength === undefined || signal.trendStrength === undefined || signal.trendStrength >= minTrendStrength
+         
+         // 检查风险等级条件
+         const maxRiskLevel = this.config.maxRiskLevel
+         let isRiskLevelOK = true
+         if (maxRiskLevel !== undefined && signal.riskLevel !== undefined) {
+           const riskLevelOrder: Record<string, number> = { 'LOW': 0, 'MEDIUM': 1, 'HIGH': 2 }
+           const signalLevel = riskLevelOrder[signal.riskLevel] ?? 2
+           const maxLevel = riskLevelOrder[maxRiskLevel] ?? 0
+           isRiskLevelOK = signalLevel <= maxLevel
+         }
+         
+         if (signal.direction === 'idle') {
+           // IDLE 状态
+           logger.info('扫描结果', `${signal.symbol}@${signal.price} IDLE 置信度（${signal.confidence} < ${minConfidence}）[${strategyName} - ${signal.strategyId}] ===详细AI日志=== ${enhancedLog}`)
+           return null
+         } else if (signal.confidence < minConfidence) {
+           // 有方向但置信度不足的情况
+           logger.info('扫描结果', `${signal.symbol}@${signal.price} ${signal.direction.toUpperCase()} 置信度（${signal.confidence} < ${minConfidence}）[${strategyName} - ${signal.strategyId}] ===详细AI日志=== ${enhancedLog}`)
+           return null
+         } else if (!isTrendStrengthOK) {
+           // 有方向且置信度足够，但趋势强度不足
+           logger.info('扫描结果', `${signal.symbol}@${signal.price} ${signal.direction.toUpperCase()} 置信度（${signal.confidence} >= ${minConfidence}）趋势强度（${signal.trendStrength} < ${minTrendStrength}）[${strategyName} - ${signal.strategyId}] ===详细AI日志=== ${enhancedLog}`)
+           return null
+         } else if (!isRiskLevelOK) {
+           // 有方向、置信度足够、趋势强度足够，但风险等级过高
+           logger.info('扫描结果', `${signal.symbol}@${signal.price} ${signal.direction.toUpperCase()} 置信度（${signal.confidence} >= ${minConfidence}）趋势强度（${signal.trendStrength} >= ${minTrendStrength}）风险等级（${signal.riskLevel} > ${maxRiskLevel}）[${strategyName} - ${signal.strategyId}] ===详细AI日志=== ${enhancedLog}`)
+           return null
+         } else {
+           // 所有条件都满足的情况
+           logger.success('扫描结果', `${signal.symbol}@${signal.price} ${signal.direction.toUpperCase()} 所有条件满足 置信度（${signal.confidence} >= ${minConfidence}）[${strategyName} - ${signal.strategyId}] ===详细AI日志=== ${enhancedLog}`)
+         }
       
       // 补充止损价（仅对非 idle 方向）
       if (signal.direction === 'long' || signal.direction === 'short') {
@@ -613,10 +638,28 @@ export class StrategyEngine {
       return false
     }
 
-    // 检查置信度（日志已在 callAI 中统一记录）
+    // 检查置信度
     const minConfidence = this.config.minConfidence ?? 70
     if (signal.confidence < minConfidence) {
       return false
+    }
+
+    // 检查趋势强度
+    const minTrendStrength = this.config.minTrendStrength
+    if (minTrendStrength !== undefined && signal.trendStrength !== undefined && signal.trendStrength < minTrendStrength) {
+      return false
+    }
+
+    // 检查风险等级
+    const maxRiskLevel = this.config.maxRiskLevel
+    if (maxRiskLevel !== undefined && signal.riskLevel !== undefined) {
+      // 风险等级优先级：LOW < MEDIUM < HIGH
+      const riskLevelOrder: Record<string, number> = { 'LOW': 0, 'MEDIUM': 1, 'HIGH': 2 }
+      const signalLevel = riskLevelOrder[signal.riskLevel] ?? 2
+      const maxLevel = riskLevelOrder[maxRiskLevel] ?? 0
+      if (signalLevel > maxLevel) {
+        return false
+      }
     }
 
     return true
@@ -793,6 +836,9 @@ export class StrategyEngine {
         confidence: signal.confidence,
         reasoning: signal.reasoning,
         entryCommission,
+        trendStrength: signal.trendStrength,
+        riskLevel: signal.riskLevel,
+        conditionChecks: signal.conditionChecks,
         position: {
           symbol: signal.symbol,
           direction: signal.direction.toUpperCase() as 'LONG' | 'SHORT',
