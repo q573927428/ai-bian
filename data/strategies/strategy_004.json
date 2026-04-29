@@ -3,7 +3,7 @@
   "name": "策略04",
   "version": 1,
   "createdAt": "2026-04-22T09:40:30.913Z",
-  "updatedAt": "2026-04-27T16:18:42.238Z",
+  "updatedAt": "2026-04-27T16:54:51.590Z",
   "isActive": true,
   "marketData": {
     "symbols": [
@@ -22,7 +22,6 @@
       "params": {
         "periods": [
           7,
-          50,
           120
         ]
       },
@@ -68,7 +67,7 @@
     }
   ],
   "aiPrompt": {
-    "userPrompt": "金叉死叉策略\n\n一、做多预判信号 (预判死叉)\n满足全部条件，置信度96，直接开多：\n1. 当前价格 < EMA120\n2. EMA7 > EMA120\n3. |EMA7 - EMA120| / EMA120 < 0.18%\n4. 辅助确认：RSI(14) < 40 且 预计成交量 < 前1根量。(表明下跌动能衰竭)\n\n二、做空预判信号 (预判金叉)\n满足全部条件，置信度96，直接开空：\n1. 当前价格 > EMA120\n2. EMA7 < EMA120\n3. |EMA7 - EMA120| / EMA120 < 0.18%\n4. 辅助确认：RSI(14) > 60 且 预计成交量 < 前1根量。(表明上涨动能衰竭)\n\n三、执行规则\n任意一条条件不满足，直接输出 IDLE。\n信号触发严格按上述方向开仓，不做额外主观过滤。",
+    "userPrompt": "金叉死叉策略\n一、做空 SHORT 完整规则\n1. 做空预判信号（预判死叉，置信度96）\n核心条件（全部满足，方可直接开多）\n- 当前价格 < EMA120\n- EMA7 > EMA120\n- |EMA7 - EMA120| / EMA120 < 0.18%（EMA7与EMA120极度贴近）\n辅助确认（同步满足，验证下跌动能衰竭）\nRSI(14) < 40 且 成交量 < 前1根K线均量\n2. 执行规则\n- 上述核心条件 + 辅助确认，任意一条不满足，直接输出 IDLE（不进行任何操作）\n- 所有条件全部满足时，严格按做多方向开仓，不做额外主观过滤\n二、做多 LONG 完整规则\n1. 做多预判信号（预判金叉，置信度96）\n核心条件（全部满足，方可直接开空）\n- 当前价格 > EMA120\n- EMA7 < EMA120\n- |EMA7 - EMA120| / EMA120 < 0.18%（EMA7与EMA120极度贴近）\n辅助确认（同步满足，验证上涨动能衰竭）\nRSI(14) > 60 且 成交量 < 前1根K线均量\n2. 执行规则\n- 上述核心条件 + 辅助确认，任意一条不满足，直接输出 IDLE（不进行任何操作）\n- 所有条件全部满足时，严格按做空方向开仓，不做额外主观过滤",
     "temperature": 0.3,
     "maxTokens": 2000,
     "model": "deepseek-v4-flash",
@@ -78,12 +77,12 @@
     "maxRiskPercentage": 10,
     "stopLossATRMultiplier": 2.5,
     "takeProfitRatios": [
-      3,
-      5
+      2,
+      3
     ],
     "maxDailyTrades": 2,
     "maxDailyLoss": 10,
-    "maxHoldTimeMinutes": 1440,
+    "maxHoldTimeMinutes": 1200,
     "trailingStop": {
       "enabled": true,
       "activationRatio": 1,
@@ -92,7 +91,7 @@
     }
   },
   "executionConfig": {
-    "scanInterval": 900,
+    "scanInterval": 600,
     "leverage": 3,
     "marginMode": "cross",
     "positionMode": "one-way"
@@ -206,25 +205,25 @@
   ],
   "performance": {
     "strategyId": "strategy_004",
-    "totalTrades": 0,
-    "totalWins": 0,
+    "totalTrades": 1,
+    "totalWins": 1,
     "totalLosses": 0,
-    "winRate": 0,
-    "totalProfit": 0,
+    "winRate": 100,
+    "totalProfit": 0.9006880050000002,
     "totalLoss": 0,
-    "netProfit": 0,
-    "profitFactor": 0,
+    "netProfit": 0.9006880050000002,
+    "profitFactor": null,
     "maxDrawdown": 0,
-    "averageProfitPerTrade": 0,
+    "averageProfitPerTrade": 0.9006880050000002,
     "averageLossPerTrade": 0,
-    "largestWin": 0,
+    "largestWin": 0.9006880050000002,
     "largestLoss": 0,
-    "averageHoldTime": 0,
-    "consecutiveWins": 0,
+    "averageHoldTime": 712.6408333333334,
+    "consecutiveWins": 1,
     "consecutiveLosses": 0,
-    "maxConsecutiveWins": 0,
+    "maxConsecutiveWins": 1,
     "maxConsecutiveLosses": 0,
-    "updatedAt": "2026-04-27T16:24:19.630Z"
+    "updatedAt": "2026-04-28T04:24:39.209Z"
   },
   "sessions": [],
   "currentSessionId": null
