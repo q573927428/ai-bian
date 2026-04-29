@@ -22,8 +22,8 @@
   "aiAnalysisConfig": {
     "enabled": true,
     "maxRecords": 3500,
-    "saveIdle": false,
-    "minConfidence": 50
+    "saveIdle": true,
+    "minConfidence": 10
   },
   "minConfidence": 90,
   "minTrendStrength": 60,
