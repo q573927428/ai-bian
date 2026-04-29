@@ -1,4 +1,5 @@
-import { 
+import { WebSocketStatus } from '../../types/websocket'
+import type { 
   PriceData, 
   KlineData, 
   DepthData, 
@@ -6,7 +7,6 @@ import {
   WebSocketEvent, 
   WebSocketConfig, 
   WebSocketClientState,
-  WebSocketStatus,
   SubscriptionOptions 
 } from '../../types/websocket'
 import WebSocket from 'ws'

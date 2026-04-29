@@ -92,7 +92,9 @@ const filteredLogs = computed(() => {
                log.category.toLowerCase().includes('极值') || 
                log.category.toLowerCase().includes('移动') || 
                log.category.toLowerCase().includes('止盈') || 
-               log.category.toLowerCase().includes('止损') 
+               log.category.toLowerCase().includes('止损') || 
+               log.category.toLowerCase().includes('开仓') || 
+               log.category.toLowerCase().includes('平仓') 
       }
       return true
     })

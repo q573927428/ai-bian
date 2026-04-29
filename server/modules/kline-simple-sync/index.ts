@@ -1,6 +1,7 @@
 import { appendSimpleKLineData, getSimpleLastKLineTimestamp, updateLastKLine } from '../../utils/kline-simple-storage'
 import type { KLineData, KLineTimeframe, KLineSyncConfig, TimeframeSyncConfig } from '../../../types/kline-simple'
 import { DEFAULT_CONFIG } from '../../../types/kline-simple'
+import { rateLimiter } from '../../utils/rate-limiter'
 import {
   setTimeout as nodeSetTimeout,
   clearTimeout as nodeClearTimeout
@@ -167,6 +168,7 @@ export class KLineSimpleSyncService {
     baseAsset: string
     quoteAsset: string
   } | null> {
+    await rateLimiter.acquire(1)
     try {
       const response = await fetch('https://fapi.binance.com/fapi/v1/exchangeInfo')
       
@@ -204,6 +206,7 @@ export class KLineSimpleSyncService {
     endTime?: number,
     limit: number = 1000
   ): Promise<KLineData[]> {
+    await rateLimiter.acquire(1)
     try {
       // 构建请求URL
       const intervalMap: Record<KLineTimeframe, string> = {
