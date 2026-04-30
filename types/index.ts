@@ -60,6 +60,7 @@ export interface TechnicalIndicators {
 
 // 单个条件检查结果
 export interface ConditionCheck {
+  id: string
   name: string
   isMet: boolean
   weight: number
