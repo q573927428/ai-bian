@@ -565,23 +565,23 @@ export class StrategyEngine {
          
          if (signal.direction === 'idle') {
            // IDLE 状态
-           logger.info('扫描结果', `${signal.symbol}@${signal.price} IDLE 置信度（${signal.confidence} < ${minConfidence}）[${strategyName} - ${signal.strategyId}] ===详细AI日志=== ${enhancedLog}`)
+           logger.info('扫描结果', `${signal.symbol} @${signal.price} IDLE 置信度（${signal.confidence} < ${minConfidence}）[${strategyName} - ${signal.strategyId}] ===详细AI日志=== ${enhancedLog}`)
            return null
          } else if (signal.confidence < minConfidence) {
            // 有方向但置信度不足的情况
-           logger.info('扫描结果', `${signal.symbol}@${signal.price} ${signal.direction.toUpperCase()} 置信度（${signal.confidence} < ${minConfidence}）[${strategyName} - ${signal.strategyId}] ===详细AI日志=== ${enhancedLog}`)
+           logger.info('扫描结果', `${signal.symbol} @${signal.price} ${signal.direction.toUpperCase()} 置信度（${signal.confidence} < ${minConfidence}）[${strategyName} - ${signal.strategyId}] ===详细AI日志=== ${enhancedLog}`)
            return null
          } else if (!isTrendStrengthOK) {
            // 有方向且置信度足够，但趋势强度不足
-           logger.info('扫描结果', `${signal.symbol}@${signal.price} ${signal.direction.toUpperCase()} 置信度（${signal.confidence} >= ${minConfidence}）趋势强度（${signal.trendStrength} < ${minTrendStrength}）[${strategyName} - ${signal.strategyId}] ===详细AI日志=== ${enhancedLog}`)
+           logger.info('扫描结果', `${signal.symbol} @${signal.price} ${signal.direction.toUpperCase()} 置信度（${signal.confidence} >= ${minConfidence}）趋势强度（${signal.trendStrength} < ${minTrendStrength}）[${strategyName} - ${signal.strategyId}] ===详细AI日志=== ${enhancedLog}`)
            return null
          } else if (!isRiskLevelOK) {
            // 有方向、置信度足够、趋势强度足够，但风险等级过高
-           logger.info('扫描结果', `${signal.symbol}@${signal.price} ${signal.direction.toUpperCase()} 置信度（${signal.confidence} >= ${minConfidence}）趋势强度（${signal.trendStrength} >= ${minTrendStrength}）风险等级（${signal.riskLevel} > ${maxRiskLevel}）[${strategyName} - ${signal.strategyId}] ===详细AI日志=== ${enhancedLog}`)
+           logger.info('扫描结果', `${signal.symbol} @${signal.price} ${signal.direction.toUpperCase()} 置信度（${signal.confidence} >= ${minConfidence}）趋势强度（${signal.trendStrength} >= ${minTrendStrength}）风险等级（${signal.riskLevel} > ${maxRiskLevel}）[${strategyName} - ${signal.strategyId}] ===详细AI日志=== ${enhancedLog}`)
            return null
          } else {
            // 所有条件都满足的情况
-           logger.success('扫描结果', `${signal.symbol}@${signal.price} ${signal.direction.toUpperCase()} 所有条件满足 置信度（${signal.confidence} >= ${minConfidence}）[${strategyName} - ${signal.strategyId}] ===详细AI日志=== ${enhancedLog}`)
+           logger.success('扫描结果', `${signal.symbol} @${signal.price} ${signal.direction.toUpperCase()} 所有条件满足 置信度（${signal.confidence} >= ${minConfidence}）[${strategyName} - ${signal.strategyId}] ===详细AI日志=== ${enhancedLog}`)
          }
       
       // 补充止损价（仅对非 idle 方向）

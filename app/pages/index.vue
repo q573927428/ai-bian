@@ -34,6 +34,10 @@
               <template #header>
                 <div class="card-header">
                   <span>🎛️ 状态面板</span>
+                  <el-button type="primary" size="small" @click="showConfigDialog = true">
+                    <el-icon><ElIconSetting /></el-icon>
+                    配置
+                  </el-button>
                 </div>
               </template>
               
@@ -93,6 +97,11 @@
 
         </el-row>
       </el-main>
+      
+      <!-- 配置对话框 -->
+      <ClientOnly>
+        <BotConfigDialog v-model="showConfigDialog" @success="handleConfigSuccess" />
+      </ClientOnly>
     </el-container>
   </div>
 </template>
@@ -107,9 +116,18 @@ import SystemLogs from '../components/SystemLogs.vue'
 import CryptoPriceCards from '../components/CryptoPriceCards.vue'
 import ActivePositions from '../components/ActivePositions.vue'
 import Strategies from '../components/Strategies.vue'
+import BotConfigDialog from '../components/BotConfigDialog.vue'
 
 const botStore = useBotStore()
 const strategiesStore = useStrategiesStore()
+
+// 配置对话框
+const showConfigDialog = ref(false)
+
+const handleConfigSuccess = () => {
+  // 配置保存成功后的处理
+  botStore.fetchStatus()
+}
 
 // 计算总交易次数（从 performance 读取）
 const totalTrades = computed(() => {

@@ -17,7 +17,10 @@
     "fast": 20,
     "slow": 200
   },
-  "emaPeriods": [20, 200],
+  "emaPeriods": [
+    20,
+    200
+  ],
   "aiCacheTtlMinutes": 10,
   "aiAnalysisConfig": {
     "enabled": true,
@@ -25,7 +28,7 @@
     "saveIdle": true,
     "minConfidence": 10
   },
-  "minConfidence": 90,
+  "minConfidence": 80,
   "minTrendStrength": 60,
   "maxRiskLevel": "MEDIUM",
   "defaultCandleProgress": 0.1,
