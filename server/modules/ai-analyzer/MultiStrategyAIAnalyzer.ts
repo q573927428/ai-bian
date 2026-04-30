@@ -131,8 +131,7 @@ export class MultiStrategyAIAnalyzer {
         timestamp: new Date().toISOString(),
         // 新增增强字段
         trendStrength: aiResult.trendStrength,
-        riskLevel: aiResult.riskLevel,
-        conditionChecks: aiResult.conditionChecks
+        riskLevel: aiResult.riskLevel
       }
 
       // 5. 缓存结果
@@ -289,15 +288,11 @@ ${promptConfig.userPrompt}
   "direction": "LONG | SHORT | IDLE",
   "confidence": number,
   "reasoning": string,
-  "conditionChecks": [
-    { "id": string,"name": string, "isMet": boolean, "weight": number, "value": any, "threshold": any }
-  ],
   "trendStrength": number,
   "riskLevel": "LOW | MEDIUM | HIGH"
 }
 
 ### 输出字段说明：
-- conditionChecks: 逐条列出所有策略条件的检查结果，每个条件包含名称、是否满足、权重(0-1)、当前值、阈值
 - trendStrength: 趋势强度，0-100，数值越大趋势越强
 - riskLevel: 风险等级，LOW/MEDIUM/HIGH
 `;
@@ -322,9 +317,8 @@ ${promptConfig.userPrompt}
 8. 只有在市场无明显方向、趋势混乱、EMA纠缠、ADX极低时，才允许输出 IDLE。
 9. "未触发入场" 不等于 "方向不存在"。
 10. 禁止因为单个条件不满足直接输出 confidence=0。
-11. conditionChecks 必须包含策略中所有条件的逐条检查结果。
-12. trendStrength 基于趋势指标（ADX、EMA排列等）给出 0-100 的趋势强度评分。
-13. riskLevel 综合市场波动性、趋势强度等给出风险等级。
+11. trendStrength 基于趋势指标（ADX、EMA排列等）给出 0-100 的趋势强度评分。
+12. riskLevel 综合市场波动性、趋势强度等给出风险等级。
 
 ----------------------------------
 【输出格式】
@@ -332,9 +326,6 @@ ${promptConfig.userPrompt}
   "direction": "LONG | SHORT | IDLE",
   "confidence": number,
   "reasoning": "一行中文，包含所有条件的判断结果和数值",
-  "conditionChecks": [
-    { "name": string, "isMet": boolean, "weight": number, "value": any, "threshold": any }
-  ],
   "trendStrength": number,
   "riskLevel": "LOW | MEDIUM | HIGH"
 }
@@ -490,7 +481,6 @@ ${promptConfig.userPrompt}
         riskLevel: (aiResult.riskLevel || 'MEDIUM') as RiskLevel,
         isBullish: direction === 'LONG',
         reasoning: reasoning,
-        conditionChecks: aiResult.conditionChecks,
         trendStrength: aiResult.trendStrength,
         technicalData: {
           price,

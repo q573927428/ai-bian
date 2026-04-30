@@ -58,16 +58,6 @@ export interface TechnicalIndicators {
   prevCandle?: OHLCV
 }
 
-// 单个条件检查结果
-export interface ConditionCheck {
-  id: string
-  name: string
-  isMet: boolean
-  weight: number
-  value: any
-  threshold: any
-}
-
 // ==================== AI分析结果 ====================
 
 // AI分析结果
@@ -81,7 +71,6 @@ export interface AIAnalysis {
   isBullish: boolean
   reasoning: string
   // 新增字段
-  conditionChecks?: ConditionCheck[]
   trendStrength?: number
   technicalData: {
     price: number

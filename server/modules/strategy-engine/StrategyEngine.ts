@@ -838,7 +838,6 @@ export class StrategyEngine {
         entryCommission,
         trendStrength: signal.trendStrength,
         riskLevel: signal.riskLevel,
-        conditionChecks: signal.conditionChecks,
         position: {
           symbol: signal.symbol,
           direction: signal.direction.toUpperCase() as 'LONG' | 'SHORT',

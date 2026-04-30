@@ -6,9 +6,7 @@ import { logger } from '../../utils/logger'
 import { 
   saveActivePositions,
   loadActivePositions,
-  saveSymbolLocks,
-  loadSymbolLocks,
-  clearActiveState
+  saveSymbolLocks
 } from '../../utils/storage'
 
 /**
@@ -43,7 +41,6 @@ export interface PositionInfo {
   entryCommission?: number;            // 开仓手续费
   trendStrength?: number;              // 趋势强度
   riskLevel?: string;                  // 风险等级
-  conditionChecks?: any[];             // 条件检查记录
 }
 
 /**
