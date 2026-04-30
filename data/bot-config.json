@@ -25,11 +25,11 @@
   "aiAnalysisConfig": {
     "enabled": true,
     "maxRecords": 3500,
-    "saveIdle": false,
+    "saveIdle": true,
     "minConfidence": 0
   },
   "minConfidence": 80,
-  "minTrendStrength": 60,
+  "minFinalScore": 60,
   "maxRiskLevel": "MEDIUM",
   "defaultCandleProgress": 0.1,
   "commissionRate": 0.0005

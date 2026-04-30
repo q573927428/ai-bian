@@ -549,9 +549,10 @@ export class StrategyEngine {
          // 获取增强信息（从 aiAnalyzer 的保存结果中或直接在 reasoning 中包含）
          let enhancedLog = signal.reasoning
          
-         // 检查趋势强度条件
-         const minTrendStrength = this.config.minTrendStrength
-         const isTrendStrengthOK = minTrendStrength === undefined || signal.trendStrength === undefined || signal.trendStrength >= minTrendStrength
+         // 检查评分条件
+         const minFinalScore = this.config.minFinalScore
+         const finalScore = signal.scoreBreakdown?.finalScore
+         const isFinalScoreOK = minFinalScore === undefined || finalScore === undefined || finalScore >= minFinalScore
          
          // 检查风险等级条件
          const maxRiskLevel = this.config.maxRiskLevel
@@ -571,13 +572,13 @@ export class StrategyEngine {
            // 有方向但置信度不足的情况
            logger.info('扫描结果', `${signal.symbol} @${signal.price} ${signal.direction.toUpperCase()} 置信度（${signal.confidence} < ${minConfidence}）[${strategyName} - ${signal.strategyId}] ===详细AI日志=== ${enhancedLog}`)
            return null
-         } else if (!isTrendStrengthOK) {
-           // 有方向且置信度足够，但趋势强度不足
-           logger.info('扫描结果', `${signal.symbol} @${signal.price} ${signal.direction.toUpperCase()} 置信度（${signal.confidence} >= ${minConfidence}）趋势强度（${signal.trendStrength} < ${minTrendStrength}）[${strategyName} - ${signal.strategyId}] ===详细AI日志=== ${enhancedLog}`)
+         } else if (!isFinalScoreOK) {
+           // 有方向且置信度足够，但评分不足
+           logger.info('扫描结果', `${signal.symbol} @${signal.price} ${signal.direction.toUpperCase()} 置信度（${signal.confidence} >= ${minConfidence}）最终评分（${finalScore} < ${minFinalScore}）[${strategyName} - ${signal.strategyId}] ===详细AI日志=== ${enhancedLog}`)
            return null
          } else if (!isRiskLevelOK) {
-           // 有方向、置信度足够、趋势强度足够，但风险等级过高
-           logger.info('扫描结果', `${signal.symbol} @${signal.price} ${signal.direction.toUpperCase()} 置信度（${signal.confidence} >= ${minConfidence}）趋势强度（${signal.trendStrength} >= ${minTrendStrength}）风险等级（${signal.riskLevel} > ${maxRiskLevel}）[${strategyName} - ${signal.strategyId}] ===详细AI日志=== ${enhancedLog}`)
+           // 有方向、置信度足够、评分足够，但风险等级过高
+           logger.info('扫描结果', `${signal.symbol} @${signal.price} ${signal.direction.toUpperCase()} 置信度（${signal.confidence} >= ${minConfidence}）最终评分（${finalScore} >= ${minFinalScore}）风险等级（${signal.riskLevel} > ${maxRiskLevel}）[${strategyName} - ${signal.strategyId}] ===详细AI日志=== ${enhancedLog}`)
            return null
          } else {
            // 所有条件都满足的情况
@@ -644,9 +645,9 @@ export class StrategyEngine {
       return false
     }
 
-    // 检查趋势强度
-    const minTrendStrength = this.config.minTrendStrength
-    if (minTrendStrength !== undefined && signal.trendStrength !== undefined && signal.trendStrength < minTrendStrength) {
+    // 检查最终评分
+    const minFinalScore = this.config.minFinalScore
+    if (minFinalScore !== undefined && signal.scoreBreakdown?.finalScore !== undefined && signal.scoreBreakdown.finalScore < minFinalScore) {
       return false
     }
 
@@ -836,7 +837,7 @@ export class StrategyEngine {
         confidence: signal.confidence,
         reasoning: signal.reasoning,
         entryCommission,
-        trendStrength: signal.trendStrength,
+        scoreBreakdown: signal.scoreBreakdown,
         riskLevel: signal.riskLevel,
         position: {
           symbol: signal.symbol,

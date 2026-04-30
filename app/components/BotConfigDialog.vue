@@ -76,8 +76,8 @@
           <el-form-item label="最低置信度">
             <el-input-number v-model="form.minConfidence" :min="0" :max="100" />
           </el-form-item>
-          <el-form-item label="最低趋势强度">
-            <el-input-number v-model="form.minTrendStrength" :min="0" :max="100" />
+          <el-form-item label="最低最终评分">
+            <el-input-number v-model="form.minFinalScore" :min="0" :max="100" />
           </el-form-item>
           <el-form-item label="最大风险等级">
             <el-select v-model="form.maxRiskLevel" style="width: 180px">

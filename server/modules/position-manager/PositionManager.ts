@@ -2,6 +2,7 @@
 
 import type { StrategyId, TradeDirection } from '../../../types/strategy'
 import type { Position } from '../../../types'
+import type { ScoreBreakdown } from '../../../types'
 import { logger } from '../../utils/logger'
 import { 
   saveActivePositions,
@@ -39,7 +40,7 @@ export interface PositionInfo {
   confidence?: number;                 // 置信度
   reasoning?: string;                  // 推理信息
   entryCommission?: number;            // 开仓手续费
-  trendStrength?: number;              // 趋势强度
+  scoreBreakdown?: ScoreBreakdown;     // 评分拆解
   riskLevel?: string;                  // 风险等级
 }
 

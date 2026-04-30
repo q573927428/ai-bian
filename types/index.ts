@@ -6,6 +6,15 @@ export type Direction = 'LONG' | 'SHORT' | 'IDLE'
 // 风险等级
 export type RiskLevel = 'LOW' | 'MEDIUM' | 'HIGH'
 
+// 评分拆解
+export interface ScoreBreakdown {
+  baseScore: number
+  hardScore: number
+  softScore: number
+  penaltyScore: number
+  finalScore: number
+}
+
 // 仓位状态
 export enum PositionStatus {
   IDLE = 'IDLE',
@@ -71,7 +80,7 @@ export interface AIAnalysis {
   isBullish: boolean
   reasoning: string
   // 新增字段
-  trendStrength?: number
+  scoreBreakdown?: ScoreBreakdown
   technicalData: {
     price: number
     rsi: number
@@ -124,7 +133,7 @@ export interface BotConfig {
   aiCacheTtlMinutes: number
   aiAnalysisConfig: AIAnalysisSaveConfig
   minConfidence: number
-  minTrendStrength?: number
+  minFinalScore?: number
   maxRiskLevel?: RiskLevel
   defaultCandleProgress: number
   commissionRate: number

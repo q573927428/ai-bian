@@ -5,7 +5,7 @@ import type { Timeframe } from './strategy';
 
 // ==================== 标准交易信号 ====================
 
-import type { RiskLevel } from './index';
+import type { RiskLevel, ScoreBreakdown } from './index';
 
 // AI 返回的标准交易信号
 export interface TradeSignal {
@@ -23,7 +23,7 @@ export interface TradeSignal {
   indicators: IndicatorValues;         // 触发时的指标值
   timestamp: string;                   // 信号时间
   // 新增字段
-  trendStrength?: number;          // 趋势强度 (0-100)
+  scoreBreakdown?: ScoreBreakdown; // 评分拆解
   riskLevel?: RiskLevel;             // 风险等级
 }
 

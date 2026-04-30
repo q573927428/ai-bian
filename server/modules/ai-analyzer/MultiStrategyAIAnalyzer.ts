@@ -1,7 +1,7 @@
 // ==================== 多策略 AI 分析器 ====================
 
 import type { StrategyId, AIPromptConfig, AIProvider } from '../../../types/strategy';
-import type { AIAnalysis, RiskLevel, TechnicalIndicators, BotConfig, Direction } from '../../../types';
+import type { AIAnalysis, RiskLevel, TechnicalIndicators, BotConfig, Direction, ScoreBreakdown } from '../../../types';
 import type { TradeSignal } from '../../../types/signal';
 import { BinanceService } from '../../utils/binance';
 import { logger } from '../../utils/logger';
@@ -53,6 +53,34 @@ export class MultiStrategyAIAnalyzer {
     const configuredMinutes = this.config.aiCacheTtlMinutes ?? 10
     const ttl = Math.max(configuredMinutes, 10) * 60 * 1000
     return ttl
+  }
+
+  /**
+   * 规范化 scoreBreakdown，避免AI随意给分
+   */
+  private normalizeScoreBreakdown(raw: any): ScoreBreakdown {
+    const toNumber = (value: any, fallback: number): number => {
+      const n = Number(value)
+      return Number.isFinite(n) ? n : fallback
+    }
+
+    const clamp = (value: number, min: number, max: number): number => {
+      return Math.min(max, Math.max(min, value))
+    }
+
+    const baseScore = clamp(toNumber(raw?.baseScore, 0), 0, 35)
+    const hardScore = clamp(toNumber(raw?.hardScore, 0), 0, 25)
+    const softScore = clamp(toNumber(raw?.softScore, 0), 0, 20)
+    const penaltyScore = clamp(toNumber(raw?.penaltyScore, 0), -10, 0)
+    const finalScore = clamp(baseScore + hardScore + softScore + penaltyScore, 0, 100)
+
+    return {
+      baseScore,
+      hardScore,
+      softScore,
+      penaltyScore,
+      finalScore
+    }
   }
 
   /**
@@ -130,7 +158,7 @@ export class MultiStrategyAIAnalyzer {
         },
         timestamp: new Date().toISOString(),
         // 新增增强字段
-        trendStrength: aiResult.trendStrength,
+        scoreBreakdown: aiResult.scoreBreakdown,
         riskLevel: aiResult.riskLevel
       }
 
@@ -288,13 +316,27 @@ ${promptConfig.userPrompt}
   "direction": "LONG | SHORT | IDLE",
   "confidence": number,
   "reasoning": string,
-  "trendStrength": number,
+  "scoreBreakdown": {
+    "baseScore": number,
+    "hardScore": number,
+    "softScore": number,
+    "penaltyScore": number,
+    "finalScore": number
+  },
   "riskLevel": "LOW | MEDIUM | HIGH"
 }
 
 ### 输出字段说明：
-- trendStrength: 趋势强度，0-100，数值越大趋势越强
+- scoreBreakdown: 评分拆解，包含 baseScore/hardScore/softScore/penaltyScore/finalScore
 - riskLevel: 风险等级，LOW/MEDIUM/HIGH
+
+### scoreBreakdown 计算规则（必须严格遵守）
+- baseScore：基础分，范围 0~35（默认0，按照趋势、强弱、变化趋势来给分）
+- hardScore：硬条件得分，范围 0~25（按硬条件满足比例线性给分）
+- softScore：软条件得分，范围 0~20（按软条件满足比例线性给分）
+- penaltyScore：惩罚分，范围 -10~0（条件冲突、波动过大、趋势弱时扣分）
+- finalScore：必须等于 baseScore + hardScore + softScore + penaltyScore（并限制在 0~100）
+- 禁止输出不满足上述范围或不满足求和关系的值
 `;
   }
 
@@ -314,8 +356,10 @@ ${promptConfig.userPrompt}
 5. 输出必须是合法JSON，无任何多余内容。
 6. confidence 不代表是否开仓，而是当前市场结构与策略理想条件的接近程度。
 7. 禁止因为单个条件不满足直接输出 confidence=0。
-8. trendStrength 基于趋势指标（ADX、EMA排列等）给出 0-100 的趋势强度评分。
+8. scoreBreakdown.finalScore 为最终总分（0-100），必须与各子项计算逻辑一致。
 9. riskLevel 综合市场波动性、趋势强度等给出风险等级。
+10. scoreBreakdown 必须满足：baseScore∈[0,35]，hardScore∈[0,25]，softScore∈[0,20]，penaltyScore∈[-10,0]。
+11. finalScore 必须严格等于 baseScore + hardScore + softScore + penaltyScore（再截断到0~100）。
 
 ----------------------------------
 【输出格式】
@@ -323,13 +367,19 @@ ${promptConfig.userPrompt}
   "direction": "LONG | SHORT | IDLE",
   "confidence": number,
   "reasoning": "一行中文，包含所有条件的判断结果和数值",
-  "trendStrength": number,
+  "scoreBreakdown": {
+    "baseScore": number,
+    "hardScore": number,
+    "softScore": number,
+    "penaltyScore": number,
+    "finalScore": number
+  },
   "riskLevel": "LOW | MEDIUM | HIGH"
 }
 
 【reasoning 要求】
-- 必须包含：方向、关键指标数值、每条条件是否满足、趋势强度、风险等级
-- 格式示例：方向：LONG，EMA7(52100) > EMA50(51800)；置信度：60；趋势强度:70；风险等级:MEDIUM；RSI(48)∈[30,65] 满足；OI增加+1.2% 满足；预计成交量(5114.13) < 1.8倍 前K量(10464.66) 不满足；ATR波动率 0.52% > 0.38% 满足。
+- 必须包含：方向、关键指标数值、每条条件是否满足、最终得分、风险等级
+- 格式示例：方向：LONG，EMA7(52100) > EMA50(51800)；置信度：60；最终得分:50；风险等级:MEDIUM；RSI(48)∈[30,65] 👍；OI增加+1.2% 👍；预计成交量(5114.13) < 1.8倍 前K量(10464.66) 👎；ATR波动率 0.52% > 0.38% 👍。
 - 所有指标只展示原始数值与大小/区间对比结论，只写判定结果，不写运算逻辑和过程
 - 格式清晰、无换行、无计算过程、不矛盾、精简直白
 
@@ -469,6 +519,8 @@ ${promptConfig.userPrompt}
         confidence = Math.min(confidence, 70)
       }
       
+      const normalizedScoreBreakdown = this.normalizeScoreBreakdown(aiResult.scoreBreakdown)
+
       const analysis: AIAnalysis = {
         symbol,
         timestamp: Date.now(),
@@ -478,7 +530,7 @@ ${promptConfig.userPrompt}
         riskLevel: (aiResult.riskLevel || 'MEDIUM') as RiskLevel,
         isBullish: direction === 'LONG',
         reasoning: reasoning,
-        trendStrength: aiResult.trendStrength,
+        scoreBreakdown: normalizedScoreBreakdown,
         technicalData: {
           price,
           ...Object.fromEntries(emaEntries.map(item => [item.name, item.value])),
