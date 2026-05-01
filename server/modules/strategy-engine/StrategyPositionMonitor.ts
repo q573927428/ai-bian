@@ -186,21 +186,50 @@ export class StrategyPositionMonitor {
   }
 
   /**
-   * 更新仓位的最高价/最低价
+   * 更新仓位的最高价/最低价和浮盈浮亏
    */
   private updatePositionExtremes(position: PositionInfo, currentPrice: number): void {
     const updates: Partial<PositionInfo> = {}
+    const logParts: string[] = []
 
+    // 计算当前浮盈浮亏
+    const priceDiff = position.direction === 'long' 
+      ? currentPrice - position.entryPrice 
+      : position.entryPrice - currentPrice
+    const floatingPnl = priceDiff * position.quantity
+    const floatingPnlPercent = (priceDiff / position.entryPrice) * 100 * position.leverage
+
+    // 更新最高价
     if (currentPrice > (position.highestPrice || position.entryPrice)) {
       const previousHighest = position.highestPrice || position.entryPrice
       updates.highestPrice = currentPrice
-      logger.info('极值追踪', `${position.symbol} 多头最高价更新: ${previousHighest.toFixed(4)} → ${currentPrice.toFixed(4)}`)
+      logParts.push(`最高价:${previousHighest.toFixed(4)}→${currentPrice.toFixed(4)}`)
     }
 
+    // 更新最低价
     if (currentPrice < (position.lowestPrice || position.entryPrice)) {
       const previousLowest = position.lowestPrice || position.entryPrice
       updates.lowestPrice = currentPrice
-      logger.info('极值追踪', `${position.symbol} 空头最低价更新: ${previousLowest.toFixed(4)} → ${currentPrice.toFixed(4)}`)
+      logParts.push(`最低价:${previousLowest.toFixed(4)}→${currentPrice.toFixed(4)}`)
+    }
+
+    // 更新最大浮盈
+    if (floatingPnl > (position.maxFloatingProfit || 0)) {
+      updates.maxFloatingProfit = floatingPnl
+      updates.maxFloatingProfitPercent = floatingPnlPercent
+      logParts.push(`最大浮盈:${floatingPnl.toFixed(4)}USDT(${floatingPnlPercent.toFixed(2)}%)`)
+    }
+
+    // 更新最大浮亏
+    if (floatingPnl < (position.maxFloatingLoss || 0)) {
+      updates.maxFloatingLoss = floatingPnl
+      updates.maxFloatingLossPercent = floatingPnlPercent
+      logParts.push(`最大浮亏:${floatingPnl.toFixed(4)}USDT(${floatingPnlPercent.toFixed(2)}%)`)
+    }
+
+    // 有更新时记录日志
+    if (logParts.length > 0) {
+      logger.info('持仓追踪', `${position.symbol} ${logParts.join(' | ')}`)
     }
 
     if (Object.keys(updates).length > 0) {
@@ -420,14 +449,7 @@ export class StrategyPositionMonitor {
       highestPrice: info.highestPrice,
       lowestPrice: info.lowestPrice,
       orderId: info.orderId,
-      stopLossOrderId: info.stopLossOrderId,
-      stopLossOrderSymbol: info.stopLossOrderSymbol,
-      stopLossOrderSide: info.stopLossOrderSide as 'BUY' | 'SELL',
-      stopLossOrderType: info.stopLossOrderType as any,
-      stopLossOrderQuantity: info.stopLossOrderQuantity,
-      stopLossOrderStopPrice: info.stopLossOrderStopPrice,
-      stopLossOrderStatus: info.stopLossOrderStatus,
-      stopLossOrderTimestamp: info.stopLossOrderTimestamp
+      stopLossOrderId: info.stopLossOrderId
     }
   }
 

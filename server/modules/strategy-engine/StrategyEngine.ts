@@ -424,7 +424,7 @@ export class StrategyEngine {
     }
 
     // 7. 执行交易
-    await this.executeSignal(instance, signal)
+    await this.executeSignal(instance, signal, indicatorsData)
   }
 
   /**
@@ -674,7 +674,7 @@ export class StrategyEngine {
   /**
    * 执行交易信号
    */
-  private async executeSignal(instance: StrategyInstance, signal: TradeSignal): Promise<void> {
+  private async executeSignal(instance: StrategyInstance, signal: TradeSignal, indicatorsData: Map<string, any>): Promise<void> {
     let symbolLocked = false
     let positionRecorded = false
     try {
@@ -800,6 +800,46 @@ export class StrategyEngine {
       // 8. 计算止盈价格
       const takeProfit1 = calculateTakeProfit(signal.price, stopLoss, signal.direction.toUpperCase() as 'LONG' | 'SHORT', strategy.riskManagement.takeProfitRatios[0])
       const takeProfit2 = calculateTakeProfit(signal.price, stopLoss, signal.direction.toUpperCase() as 'LONG' | 'SHORT', strategy.riskManagement.takeProfitRatios[1])
+      
+      // 9. 收集入场指标（根据策略启用的指标）
+      const entryIndicators: Record<string, number> = {}
+      
+      // 从 indicatorsData 中收集指标
+      const mainTimeframe = strategy.marketData.timeframes[0] || '5m'
+      const emaData = indicatorsData.get(`${mainTimeframe}_EMA`)?.values || {}
+      const rsiData = indicatorsData.get(`${mainTimeframe}_RSI`)?.values || {}
+      const macdData = indicatorsData.get(`${mainTimeframe}_MACD`)?.values || {}
+      const adxData = indicatorsData.get(`${mainTimeframe}_ADX`)?.values || {}
+      const atrData = indicatorsData.get(`${mainTimeframe}_ATR`)?.values || {}
+      
+      // 收集 EMA
+      if (emaData.emaMap) {
+        Object.entries(emaData.emaMap).forEach(([period, value]) => {
+          entryIndicators[`EMA${period}`] = Number(value)
+        })
+      }
+      
+      // 收集其他指标
+      if (rsiData.rsi !== undefined) entryIndicators['RSI'] = rsiData.rsi
+      if (macdData.macd !== undefined) entryIndicators['MACD'] = macdData.macd
+      if (adxData.adx !== undefined) entryIndicators['ADX'] = adxData.adx
+      if (atrData.atr !== undefined) entryIndicators['ATR'] = atrData.atr
+      
+      // 收集 OI 和 Volume
+      const oiStatConfig = strategy.statistics.find((s: any) => s.type === 'OI' && s.enabled)
+      const volumeStatConfig = strategy.statistics.find((s: any) => s.type === 'Volume' && s.enabled)
+      
+      if (oiStatConfig) {
+        const oiTimeframe = oiStatConfig.timeframes?.[0] || mainTimeframe
+        const oiData = indicatorsData.get(`${oiTimeframe}_OI`)?.values || {}
+        if (oiData.value !== undefined) entryIndicators['OI'] = oiData.value
+      }
+      
+      if (volumeStatConfig) {
+        const volumeTimeframe = volumeStatConfig.timeframes?.[0] || '1h'
+        const volumeData = indicatorsData.get(`${volumeTimeframe}_Volume`)?.values || {}
+        if (volumeData.current !== undefined) entryIndicators['Volume'] = volumeData.current
+      }
 
       // 9. 设置止损单
       const stopSide = getOrderSide(signal.direction.toUpperCase() as 'LONG' | 'SHORT', false)
@@ -833,18 +873,16 @@ export class StrategyEngine {
         lowestPrice: signal.price,
         orderId: order.orderId,
         stopLossOrderId: stopOrder.orderId,
-        stopLossOrderSymbol: stopOrder.symbol,
-        stopLossOrderSide: stopOrder.side,
-        stopLossOrderType: stopOrder.type,
-        stopLossOrderQuantity: stopOrder.quantity,
-        stopLossOrderStopPrice: stopOrder.stopPrice,
-        stopLossOrderStatus: stopOrder.status,
-        stopLossOrderTimestamp: stopOrder.timestamp,
         confidence: signal.confidence,
         reasoning: signal.reasoning,
         entryCommission,
         scoreBreakdown: signal.scoreBreakdown,
         riskLevel: signal.riskLevel,
+        entryIndicators,
+        maxFloatingProfit: 0,
+        maxFloatingProfitPercent: 0,
+        maxFloatingLoss: 0,
+        maxFloatingLossPercent: 0,
         position: {
           symbol: signal.symbol,
           direction: signal.direction.toUpperCase() as 'LONG' | 'SHORT',
@@ -860,13 +898,6 @@ export class StrategyEngine {
           lowestPrice: signal.price,
           orderId: order.orderId,
           stopLossOrderId: stopOrder.orderId,
-          stopLossOrderSymbol: stopOrder.symbol,
-          stopLossOrderSide: stopOrder.side,
-          stopLossOrderType: stopOrder.type,
-          stopLossOrderQuantity: stopOrder.quantity,
-          stopLossOrderStopPrice: stopOrder.stopPrice,
-          stopLossOrderStatus: stopOrder.status,
-          stopLossOrderTimestamp: stopOrder.timestamp,
           entryCommission
         }
       }

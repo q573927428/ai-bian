@@ -29,19 +29,21 @@ export interface PositionInfo {
   lowestPrice?: number;                // 持仓期间最低价
   orderId?: string;                    // 订单ID
   stopLossOrderId?: string;            // 止损订单ID
-  stopLossOrderSymbol?: string;        // 止损订单交易对
-  stopLossOrderSide?: string;          // 止损订单方向
-  stopLossOrderType?: string;          // 止损订单类型
-  stopLossOrderQuantity?: number;      // 止损订单数量
-  stopLossOrderStopPrice?: number;     // 止损订单止损价
-  stopLossOrderStatus?: string;        // 止损订单状态
-  stopLossOrderTimestamp?: number;     // 止损订单时间戳
   position?: Position;                 // 完整仓位信息
   confidence?: number;                 // 置信度
   reasoning?: string;                  // 推理信息
   entryCommission?: number;            // 开仓手续费
   scoreBreakdown?: ScoreBreakdown;     // 评分拆解
   riskLevel?: string;                  // 风险等级
+  
+  // 入场指标（新增）
+  entryIndicators?: Record<string, number>;  // 入场时的技术指标
+  
+  // 持仓期间的极值追踪（用于计算最大浮盈浮亏）
+  maxFloatingProfit?: number;
+  maxFloatingProfitPercent?: number;
+  maxFloatingLoss?: number;
+  maxFloatingLossPercent?: number;
 }
 
 /**
@@ -205,13 +207,6 @@ export class PositionManager {
       lowestPrice: info.lowestPrice,
       orderId: info.orderId,
       stopLossOrderId: info.stopLossOrderId,
-      stopLossOrderSymbol: info.stopLossOrderSymbol,
-      stopLossOrderSide: info.stopLossOrderSide as 'BUY' | 'SELL',
-      stopLossOrderType: info.stopLossOrderType as any,
-      stopLossOrderQuantity: info.stopLossOrderQuantity,
-      stopLossOrderStopPrice: info.stopLossOrderStopPrice,
-      stopLossOrderStatus: info.stopLossOrderStatus,
-      stopLossOrderTimestamp: info.stopLossOrderTimestamp,
       entryCommission: info.entryCommission
     }
   }

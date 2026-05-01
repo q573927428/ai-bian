@@ -158,13 +158,6 @@ export interface Position {
   lowestPrice?: number
   orderId?: string
   stopLossOrderId?: string
-  stopLossOrderSymbol?: string
-  stopLossOrderSide?: 'BUY' | 'SELL'
-  stopLossOrderType?: string
-  stopLossOrderQuantity?: number
-  stopLossOrderStopPrice?: number
-  stopLossOrderStatus?: string
-  stopLossOrderTimestamp?: number
   lastStopLossUpdate?: number
   trailingStopData?: any
   entryCommission?: number
@@ -265,6 +258,32 @@ export interface TradeHistory {
   closeTime: number
   reason: string
   totalCommission?: number
+  
+  // 入场信息
+  entryConfidence?: number
+  entryScore?: number
+  entryRiskLevel?: string
+  stopLossPrice?: number
+  takeProfit1Price?: number
+  takeProfit2Price?: number
+  
+  // 入场技术指标（动态）
+  entryIndicators?: Record<string, number>
+  
+  // AI分析信息
+  aiReasoning?: string
+  
+  // 持仓统计
+  highestPrice?: number
+  lowestPrice?: number
+  maxFloatingProfit?: number
+  maxFloatingProfitPercent?: number
+  maxFloatingLoss?: number
+  maxFloatingLossPercent?: number
+  holdingMinutes?: number
+  
+  // 平仓分类
+  closeCategory?: 'stop_loss' | 'take_profit' | 'timeout' | 'manual' | 'trailing_stop' | 'unknown'
 }
 
 // ==================== 机器人状态 ====================

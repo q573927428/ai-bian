@@ -17,7 +17,8 @@ export async function recordTrade(
   totalCommission?: number,
   netPnl?: number,
   netPnlPercentage?: number,
-  commissionRate: number = 0.0004 // 默认手续费率
+  commissionRate: number = 0.0005, // 默认手续费率
+  positionInfo?: any // 额外的仓位信息
 ): Promise<void> {
   // 计算盈亏（包含手续费）
   const { 
@@ -32,6 +33,26 @@ export async function recordTrade(
   const finalNetPnl = netPnl !== undefined ? netPnl : calculatedNetPnl
   const finalNetPnlPercentage = netPnlPercentage !== undefined ? netPnlPercentage : calculatedNetPnlPercentage
   const finalTotalCommission = totalCommission !== undefined ? totalCommission : calculatedTotalCommission
+
+  // 计算持仓时间（分钟）
+  const holdingMinutes = Math.round((Date.now() - position.openTime) / 60000)
+
+  // 判断平仓分类
+  let closeCategory: any = 'unknown'
+  const reasonLower = reason.toLowerCase()
+  if (reasonLower.includes('止损')) {
+    if (reasonLower.includes('移动')) {
+      closeCategory = 'trailing_stop'
+    } else {
+      closeCategory = 'stop_loss'
+    }
+  } else if (reasonLower.includes('止盈') || reasonLower.includes('tp') || reasonLower.includes('盈亏比')) {
+    closeCategory = 'take_profit'
+  } else if (reasonLower.includes('超时')) {
+    closeCategory = 'timeout'
+  } else if (reasonLower.includes('手动')) {
+    closeCategory = 'manual'
+  }
 
   // 记录交易历史（注意：TradeHistory 的 pnl 现在存储的是净利）
   const trade: TradeHistory = {
@@ -49,6 +70,27 @@ export async function recordTrade(
     closeTime: Date.now(),
     reason,
     totalCommission: finalTotalCommission,
+    // 入场信息
+    entryConfidence: positionInfo?.confidence,
+    entryScore: positionInfo?.scoreBreakdown?.finalScore,
+    entryRiskLevel: positionInfo?.riskLevel,
+    stopLossPrice: position.initialStopLoss,
+    takeProfit1Price: position.takeProfit1,
+    takeProfit2Price: position.takeProfit2,
+    // 入场指标
+    entryIndicators: positionInfo?.entryIndicators,
+    // AI信息
+    aiReasoning: positionInfo?.reasoning,
+    // 持仓统计
+    highestPrice: positionInfo?.highestPrice,
+    lowestPrice: positionInfo?.lowestPrice,
+    maxFloatingProfit: positionInfo?.maxFloatingProfit,
+    maxFloatingProfitPercent: positionInfo?.maxFloatingProfitPercent,
+    maxFloatingLoss: positionInfo?.maxFloatingLoss,
+    maxFloatingLossPercent: positionInfo?.maxFloatingLossPercent,
+    holdingMinutes,
+    // 平仓分类
+    closeCategory,
   }
 
   // 添加交易历史

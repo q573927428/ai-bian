@@ -138,8 +138,18 @@ export class StrategyPositionCloser {
 
       logger.info('平仓', `平仓盈亏: 毛利 ${grossPnl.toFixed(2)} USDT (${grossPnlPercentage.toFixed(3)}%), 净利 ${netPnl.toFixed(2)} USDT (${netPnlPercentage.toFixed(3)}%)`)
 
-      // 6. 记录交易历史（包含手续费）
-      await recordTrade(position.strategyId, position.position!, finalExitPrice, reason, totalCommission, netPnl, netPnlPercentage)
+      // 6. 记录交易历史（包含完整指标）
+      await recordTrade(
+        position.strategyId, 
+        position.position!, 
+        finalExitPrice, 
+        reason, 
+        totalCommission, 
+        netPnl, 
+        netPnlPercentage,
+        this.config.commissionRate || 0.0005,
+        position // 传入完整的 positionInfo
+      )
 
       // 7. 安全初始化 state
       this.ensureStateInitialized()
