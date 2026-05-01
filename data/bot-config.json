@@ -17,19 +17,16 @@
     "fast": 20,
     "slow": 200
   },
-  "emaPeriods": [
-    20,
-    200
-  ],
+  "emaPeriods": [20, 200],
   "aiCacheTtlMinutes": 10,
   "aiAnalysisConfig": {
     "enabled": true,
     "maxRecords": 3500,
     "saveIdle": true,
-    "minConfidence": 0
+    "minConfidence": 10
   },
-  "minConfidence": 80,
-  "minFinalScore": 60,
+  "minConfidence": 75,
+  "minFinalScore": 65,
   "maxRiskLevel": "MEDIUM",
   "defaultCandleProgress": 0.1,
   "commissionRate": 0.0005
