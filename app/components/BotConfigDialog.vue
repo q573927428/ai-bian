@@ -92,6 +92,9 @@
           <el-form-item label="手续费率">
             <el-input-number v-model="form.commissionRate" :min="0" :max="0.1" :step="0.0001" />
           </el-form-item>
+          <el-form-item label="持仓监控间隔(秒)">
+            <el-input-number v-model="form.monitorInterval" :min="1" :max="600" :step="1" />
+          </el-form-item>
         </el-form>
       </div>
 

@@ -9,6 +9,7 @@
     "XAG/USDT",
     "BNB/USDT"
   ],
+  "monitorInterval": 30,
   "indicatorsConfig": {
     "requiredCandles": 500,
     "adxSlopePeriod": 3

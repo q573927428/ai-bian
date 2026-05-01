@@ -280,6 +280,7 @@ function getDefaultBotConfig(): BotConfig {
       "XAG/USDT",
       "BNB/USDT"
     ], // 默认监控交易对列表
+    monitorInterval: 30, // 持仓监控间隔（秒）
     indicatorsConfig: {
       requiredCandles: 500, // 指标计算所需最少K线数量
       adxSlopePeriod: 3 // ADX斜率计算回看周期

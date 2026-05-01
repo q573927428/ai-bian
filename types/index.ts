@@ -127,6 +127,7 @@ export interface IndicatorsConfig {
 // 机器人系统配置
 export interface BotConfig {
   symbols: string[]
+  monitorInterval: number
   indicatorsConfig: IndicatorsConfig
   emaConfig: EMAConfig
   emaPeriods: number[]

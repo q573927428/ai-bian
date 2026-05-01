@@ -111,6 +111,9 @@ export class StrategyEngine {
     this.config = config
     this.aiAnalyzer.updateConfig(config)
     this.indicatorsHub.updateConfig(config)
+    this.positionMonitor.stop()
+    this.positionMonitor = new StrategyPositionMonitor(this.binance, this.positionManager, this.positionCloser, config, this.store)
+    this.positionMonitor.start()
     logger.info('StrategyEngine', '配置已更新')
   }
 

@@ -22,7 +22,6 @@ export class StrategyPositionMonitor {
   private strategyStore: any // 策略存储，获取策略配置
 
   private monitorTimer: NodeJS.Timeout | null = null
-  private readonly MONITOR_INTERVAL = 30000 // 30秒监控一次
 
   // 移动止损激活状态: symbol -> boolean
   private trailingStopActivated: Map<string, boolean> = new Map()
@@ -39,6 +38,12 @@ export class StrategyPositionMonitor {
     this.positionCloser = positionCloser
     this.config = config
     this.strategyStore = strategyStore
+  }
+
+  private getMonitorInterval(): number {
+    const intervalSeconds = Number(this.config.monitorInterval)
+    const safeSeconds = Number.isFinite(intervalSeconds) && intervalSeconds >= 30 ? intervalSeconds : 30
+    return safeSeconds * 1000
   }
 
   /**
@@ -59,7 +64,7 @@ export class StrategyPositionMonitor {
       this.monitorPositions().catch(error => {
         logger.error('持仓监控', '监控循环异常:', error.message)
       })
-    }, this.MONITOR_INTERVAL)
+    }, this.getMonitorInterval())
 
     // logger.success('持仓监控', '持仓监控已启动')
   }
