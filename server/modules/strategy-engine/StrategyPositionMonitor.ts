@@ -92,12 +92,12 @@ export class StrategyPositionMonitor {
       return
     }
 
-    // 每隔一次输出日志（频率为监控间隔的两倍），如需改成3倍、4倍等，把下面的 2 改成对应的数字即可
+    // 每隔一次输出日志（频率为监控间隔的两倍）
     const logEvery = 2
     if (this.monitorCount % logEvery === 0) {
       await this.logAllPositionsDetails(positions)
     }
-    // 计数只在 0~logEvery-1 之间循环，避免理论上的溢出（实际 JS 的 Number 要溢出很难）
+    // 计数只在 0~logEvery-1 之间循环，避免理论上的溢出
     this.monitorCount = (this.monitorCount + 1) % logEvery
 
     for (const position of positions) {
