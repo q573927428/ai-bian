@@ -157,6 +157,7 @@ export interface RiskConfig {
   maxDailyLoss: number;                // 每日最大亏损 (%)
   maxHoldTimeMinutes?: number;         // 最大持仓时间 (分钟)
   trailingStop: TrailingStopConfig;
+  rsiExtreme?: { long: number; short: number };
 }
 
 // 移动止损配置

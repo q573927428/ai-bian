@@ -241,6 +241,20 @@
           <el-input-number v-model="form.riskManagement.maxHoldTimeMinutes" :min="60" :max="10080" :step="60" />
           <span class="stat-label">分钟 (默认1440分=24小时)</span>
         </el-form-item>
+
+        <el-divider content-position="left">RSI极值止盈配置</el-divider>
+        <el-row :gutter="20">
+          <el-col :span="8">
+            <el-form-item label="多头RSI阈值">
+              <el-input-number v-model="form.riskManagement.rsiExtreme!.long" :min="5" :max="95" :step="1" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="8">
+            <el-form-item label="空头RSI阈值">
+              <el-input-number v-model="form.riskManagement.rsiExtreme!.short" :min="5" :max="95" :step="1" />
+            </el-form-item>
+          </el-col>
+        </el-row>
       </el-card>
 
       <!-- 执行配置 -->
@@ -431,6 +445,10 @@ const form = reactive<CreateStrategyInput>({
       activationRatio: 1,
       trailDistance: 1.2,
       minMoveDistance: 0.16
+    },
+    rsiExtreme: {
+      long: 80,
+      short: 20
     }
   },
   executionConfig: {

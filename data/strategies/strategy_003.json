@@ -129,6 +129,10 @@
       "activationRatio": 0.8,
       "trailDistance": 1.2,
       "minMoveDistance": 0.16
+    },
+    "rsiExtreme": {
+      "long": 80,
+      "short": 20
     }
   },
   "executionConfig": {
@@ -242,6 +246,10 @@
             "activationRatio": 1.5,
             "trailDistance": 1.5,
             "minMoveDistance": 0.16
+          },
+          "rsiExtreme": {
+            "long": 80,
+            "short": 20
           }
         },
         "executionConfig": {

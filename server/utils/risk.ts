@@ -17,7 +17,6 @@ export interface TakeProfitConfig {
   tp1RiskRewardRatio: number
   tp2RiskRewardRatio: number
   rsiExtreme: { long: number; short: number }
-  adxDecreaseThreshold: number
 }
 
 /**
@@ -83,7 +82,7 @@ export function checkTP1Condition(
   const riskRewardTriggered = profit >= risk * requiredRiskRewardRatio
   const rsiTriggered = (direction === 'LONG' && rsi >= takeProfitConfig.rsiExtreme.long) ||
                       (direction === 'SHORT' && rsi <= takeProfitConfig.rsiExtreme.short)
-  const adxTriggered = adxSlope <= -takeProfitConfig.adxDecreaseThreshold
+    const adxTriggered = adxSlope < 0
   
   // ADX走弱作为硬条件
   const isADXWeakening = adxSlope < 0
@@ -233,8 +232,7 @@ export function convertStrategyRiskConfig(strategyRiskConfig: StrategyRiskConfig
     takeProfit: {
       tp1RiskRewardRatio: strategyRiskConfig.takeProfitRatios?.[0] || 2,
       tp2RiskRewardRatio: strategyRiskConfig.takeProfitRatios?.[1] || 3,
-      rsiExtreme: { long: 80, short: 20 },
-      adxDecreaseThreshold: 2
+      rsiExtreme: strategyRiskConfig.rsiExtreme || { long: 80, short: 20 }
     },
     dailyTradeLimit: strategyRiskConfig.maxDailyTrades || 5
   }
