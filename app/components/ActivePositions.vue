@@ -75,17 +75,14 @@
           <div v-if="pos.reasoning" class="reasoning-section">
             <div class="label">AI推理:</div>
             <div class="reasoning-content">{{ pos.reasoning }}</div>
-            <div class="label" style="margin-top: 8px;">置信度:</div>
-            <div class="reasoning-content">{{ pos.confidence ? pos.confidence : '--' }}</div>
-          </div>
-          <div class="scores-section">
-            <div class="label">评分详情:</div>
+            <div class="label" style="margin-top: 8px;">评分详情:</div>
             <div class="reasoning-content">
-              基础分: {{ pos.baseScore !== undefined ? pos.baseScore.toFixed(2) : '--' }}<br>
-              硬性分: {{ pos.hardScore !== undefined ? pos.hardScore.toFixed(2) : '--' }}<br>
-              软性分: {{ pos.softScore !== undefined ? pos.softScore.toFixed(2) : '--' }}<br>
-              惩罚分: {{ pos.penaltyScore !== undefined ? pos.penaltyScore.toFixed(2) : '--' }}<br>
-              最终分: {{ pos.finalScore !== undefined ? pos.finalScore.toFixed(2) : '--' }}
+              置信度: {{ pos.confidence ? pos.confidence : '--' }}<br>
+              基础分: {{ pos.scoreBreakdown?.baseScore !== undefined ? pos.scoreBreakdown.baseScore.toFixed(2) : '--' }}<br>
+              硬性分: {{ pos.scoreBreakdown?.hardScore !== undefined ? pos.scoreBreakdown.hardScore.toFixed(2) : '--' }}<br>
+              软性分: {{ pos.scoreBreakdown?.softScore !== undefined ? pos.scoreBreakdown.softScore.toFixed(2) : '--' }}<br>
+              惩罚分: {{ pos.scoreBreakdown?.penaltyScore !== undefined ? pos.scoreBreakdown.penaltyScore.toFixed(2) : '--' }}<br>
+              最终分: {{ pos.scoreBreakdown?.finalScore !== undefined ? pos.scoreBreakdown.finalScore.toFixed(2) : '--' }}
             </div>
           </div>
         </div>
