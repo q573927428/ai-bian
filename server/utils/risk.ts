@@ -55,7 +55,7 @@ export function isPositionTimeout(
 }
 
 /**
- * 检查是否达到TP1条件（整合保护机制：盈亏比，或RSI极值，或ADX走弱）
+ * 检查是否达到TP1条件（整合保护机制：盈亏比或RSI极值）
  * 必须ADX走弱（adxSlope < 0）才允许触发
  */
 export function checkTP1Condition(
@@ -82,19 +82,17 @@ export function checkTP1Condition(
   const riskRewardTriggered = profit >= risk * requiredRiskRewardRatio
   const rsiTriggered = (direction === 'LONG' && rsi >= takeProfitConfig.rsiExtreme.long) ||
                       (direction === 'SHORT' && rsi <= takeProfitConfig.rsiExtreme.short)
-    const adxTriggered = adxSlope < 0
   
   // ADX走弱作为硬条件
   const isADXWeakening = adxSlope < 0
   
-  const triggered = isADXWeakening && (riskRewardTriggered || rsiTriggered || adxTriggered)
+  const triggered = isADXWeakening && (riskRewardTriggered || rsiTriggered)
   
   let reason = ''
   if (triggered) {
     const reasons: string[] = []
     if (riskRewardTriggered) reasons.push(`盈亏比 ${riskRewardRatio.toFixed(2)}:1`)
     if (rsiTriggered) reasons.push(`RSI ${rsi.toFixed(1)}`)
-    if (adxTriggered) reasons.push(`ADX走弱`)
     reason = `达到TP1条件：${reasons.join('，')}`
   } else {
     reason = `未达到TP1条件${!isADXWeakening ? '（ADX未走弱）' : ''}`
