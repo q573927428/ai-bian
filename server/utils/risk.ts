@@ -16,7 +16,6 @@ export interface CircuitBreakerConfig {
 export interface TakeProfitConfig {
   tp1RiskRewardRatio: number
   tp2RiskRewardRatio: number
-  tp1MinProfitRatio: number
   rsiExtreme: { long: number; short: number }
   adxDecreaseThreshold: number
 }
@@ -58,7 +57,7 @@ export function isPositionTimeout(
 
 /**
  * 检查是否达到TP1条件（整合保护机制：盈亏比，或RSI极值，或ADX走弱）
- * 必须至少达到最小盈利才允许触发
+ * 必须ADX走弱（adxSlope < 0）才允许触发
  */
 export function checkTP1Condition(
   position: Position,
@@ -86,10 +85,10 @@ export function checkTP1Condition(
                       (direction === 'SHORT' && rsi <= takeProfitConfig.rsiExtreme.short)
   const adxTriggered = adxSlope <= -takeProfitConfig.adxDecreaseThreshold
   
-  const minProfitRatio = takeProfitConfig.tp1MinProfitRatio || 1
-  const hasMinProfit = profit >= risk * minProfitRatio
+  // ADX走弱作为硬条件
+  const isADXWeakening = adxSlope < 0
   
-  const triggered = hasMinProfit && (riskRewardTriggered || rsiTriggered || adxTriggered)
+  const triggered = isADXWeakening && (riskRewardTriggered || rsiTriggered || adxTriggered)
   
   let reason = ''
   if (triggered) {
@@ -99,7 +98,7 @@ export function checkTP1Condition(
     if (adxTriggered) reasons.push(`ADX走弱`)
     reason = `达到TP1条件：${reasons.join('，')}`
   } else {
-    reason = `未达到TP1条件`
+    reason = `未达到TP1条件${!isADXWeakening ? '（ADX未走弱）' : ''}`
   }
   
   return { shouldClose: triggered, reason }
@@ -232,9 +231,8 @@ export function convertStrategyRiskConfig(strategyRiskConfig: StrategyRiskConfig
       consecutiveLossesThreshold: 3
     },
     takeProfit: {
-      tp1RiskRewardRatio: strategyRiskConfig.takeProfitRatios?.[0] || 2.5,
-      tp2RiskRewardRatio: strategyRiskConfig.takeProfitRatios?.[1] || 3.5,
-      tp1MinProfitRatio: 1,
+      tp1RiskRewardRatio: strategyRiskConfig.takeProfitRatios?.[0] || 2,
+      tp2RiskRewardRatio: strategyRiskConfig.takeProfitRatios?.[1] || 3,
       rsiExtreme: { long: 80, short: 20 },
       adxDecreaseThreshold: 2
     },

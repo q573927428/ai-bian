@@ -74,7 +74,19 @@
         <div v-if="expandedSymbols.has(pos.symbol)" class="expanded-info">
           <div v-if="pos.reasoning" class="reasoning-section">
             <div class="label">AI推理:</div>
-            <div class="reasoning-content">置信度: {{ pos.confidence ? pos.confidence : '--' }}，{{ pos.reasoning }}</div>
+            <div class="reasoning-content">{{ pos.reasoning }}</div>
+            <div class="label" style="margin-top: 8px;">置信度:</div>
+            <div class="reasoning-content">{{ pos.confidence ? pos.confidence : '--' }}</div>
+          </div>
+          <div class="scores-section">
+            <div class="label">评分详情:</div>
+            <div class="reasoning-content">
+              基础分: {{ pos.baseScore !== undefined ? pos.baseScore.toFixed(2) : '--' }}<br>
+              硬性分: {{ pos.hardScore !== undefined ? pos.hardScore.toFixed(2) : '--' }}<br>
+              软性分: {{ pos.softScore !== undefined ? pos.softScore.toFixed(2) : '--' }}<br>
+              惩罚分: {{ pos.penaltyScore !== undefined ? pos.penaltyScore.toFixed(2) : '--' }}<br>
+              最终分: {{ pos.finalScore !== undefined ? pos.finalScore.toFixed(2) : '--' }}
+            </div>
           </div>
         </div>
         <div class="expand-toggle" @click="toggleExpand(pos.symbol)">
@@ -332,6 +344,16 @@ onUnmounted(() => {
   color: #606266;
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+.scores-section {
+  margin-top: 12px;
+}
+
+.scores-section .label {
+  color: #606266;
+  font-size: 13px;
+  margin-bottom: 8px;
 }
 
 .expand-toggle {
