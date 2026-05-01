@@ -25,6 +25,7 @@ export class StrategyPositionMonitor {
 
   // 移动止损激活状态: symbol -> boolean
   private trailingStopActivated: Map<string, boolean> = new Map()
+  private monitorCount: number = 0
 
   constructor(
     binance: BinanceService,
@@ -87,11 +88,17 @@ export class StrategyPositionMonitor {
     const positions = this.positionManager.getAllPositions()
 
     if (positions.length === 0) {
+      this.monitorCount = 0
       return
     }
 
-    // 显示所有持仓详细信息
-    await this.logAllPositionsDetails(positions)
+    // 每隔一次输出日志（频率为监控间隔的两倍），如需改成3倍、4倍等，把下面的 2 改成对应的数字即可
+    const logEvery = 2
+    if (this.monitorCount % logEvery === 0) {
+      await this.logAllPositionsDetails(positions)
+    }
+    // 计数只在 0~logEvery-1 之间循环，避免理论上的溢出（实际 JS 的 Number 要溢出很难）
+    this.monitorCount = (this.monitorCount + 1) % logEvery
 
     for (const position of positions) {
       try {
