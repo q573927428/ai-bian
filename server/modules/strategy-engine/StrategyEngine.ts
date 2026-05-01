@@ -582,7 +582,7 @@ export class StrategyEngine {
            return null
          } else {
            // 所有条件都满足的情况
-           logger.success('扫描结果', `${signal.symbol} @${signal.price} ${signal.direction.toUpperCase()} 所有条件满足 置信度（${signal.confidence} >= ${minConfidence}）[${strategyName} - ${signal.strategyId}] ===详细AI日志=== ${enhancedLog}`)
+           logger.success('扫描结果', `${signal.symbol} @${signal.price} ${signal.direction.toUpperCase()} 置信度（${signal.confidence} >= ${minConfidence}）最终评分（${finalScore} >= ${minFinalScore}）风险等级（${signal.riskLevel} < ${maxRiskLevel}）[${strategyName} - ${signal.strategyId}] ===详细AI日志=== ${enhancedLog}`)
          }
       
       // 补充止损价（仅对非 idle 方向）
@@ -672,13 +672,12 @@ export class StrategyEngine {
    * 执行交易信号
    */
   private async executeSignal(instance: StrategyInstance, signal: TradeSignal): Promise<void> {
+    let symbolLocked = false
+    let positionRecorded = false
     try {
       const strategy = instance.strategy
 
       logger.info('StrategyEngine', `执行信号: ${signal.symbol} ${signal.direction} (${signal.reasoning})`)
-
-      // 锁定交易对
-      this.positionManager.lockSymbol(signal.symbol, strategy.id)
 
       // 1. 获取账户余额
       const account = await this.binance.fetchBalance()
@@ -689,6 +688,10 @@ export class StrategyEngine {
         logger.warn('开仓', `账户余额（${account.availableBalance} USDT）不足60 USDT，无法开仓`)
         return
       }
+
+      // 余额检查通过后再锁定交易对，避免“未开仓先锁仓”
+      this.positionManager.lockSymbol(signal.symbol, strategy.id)
+      symbolLocked = true
 
       // 2. 计算止损价格
       const stopLoss = calculateStopLoss(
@@ -866,6 +869,7 @@ export class StrategyEngine {
       }
 
       this.positionManager.recordPosition(signal.symbol, position)
+      positionRecorded = true
 
       instance.lastSignalTime = new Date().toISOString()
       instance.totalTrades++
@@ -874,11 +878,13 @@ export class StrategyEngine {
     } catch (error: any) {
       logger.error('StrategyEngine', `信号执行失败 ${signal.symbol}: ${error.message}`)
 
-      // 释放锁
-      this.positionManager.unlockSymbol(signal.symbol)
-
       instance.error = error.message
       throw error
+    } finally {
+      // 兜底：只要未成功记录仓位，就释放锁，防止残留锁
+      if (symbolLocked && !positionRecorded) {
+        this.positionManager.unlockSymbol(signal.symbol)
+      }
     }
   }
 
