@@ -9,7 +9,7 @@
     "XAG/USDT",
     "BNB/USDT"
   ],
-  "monitorInterval": 30,
+  "monitorInterval": 60,
   "indicatorsConfig": {
     "requiredCandles": 500,
     "adxSlopePeriod": 3
@@ -18,7 +18,10 @@
     "fast": 20,
     "slow": 200
   },
-  "emaPeriods": [20, 200],
+  "emaPeriods": [
+    20,
+    200
+  ],
   "aiCacheTtlMinutes": 10,
   "aiAnalysisConfig": {
     "enabled": true,
