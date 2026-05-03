@@ -414,9 +414,9 @@ const updateLastKlineWithPrice = (price: number) => {
 
 // 计算EMA差值百分比
 const calculateLatestEmaDiff = (klineData: SimpleKLineData[]): number => {
-  const emaConfig = botStore.config?.emaConfig || { fast: 20, slow: 200 }
-  const fastPeriod = emaConfig.fast
-  const slowPeriod = emaConfig.slow
+  const emaPeriods = botStore.config?.emaPeriods || [20, 200]
+  const fastPeriod = emaPeriods[0]
+  const slowPeriod = emaPeriods[1]
   
   if (!fastPeriod || !slowPeriod || klineData.length < Math.max(fastPeriod, slowPeriod)) {
     return 0

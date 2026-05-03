@@ -85,8 +85,7 @@ const emaPeriods = computed(() => {
     return props.emaPeriods
   }
   
-  const emaConfig = botStore.config?.emaConfig || { fast: 20, slow: 200 }
-  return [emaConfig.fast, emaConfig.slow]
+  return botStore.config?.emaPeriods || [20, 200]
 })
 
 // 缓存EMA序列，避免重复计算
@@ -1051,7 +1050,7 @@ watch(() => props.symbol, (newSymbol, oldSymbol) => {
 watch(() => emaPeriods.value, (newPeriods, oldPeriods) => {
   // 检查周期是否真的变化了
   const periodsChanged = newPeriods.length !== oldPeriods.length || 
-    newPeriods.some((p, i) => p !== oldPeriods[i])
+    newPeriods.some((p: number, i: number) => p !== oldPeriods[i])
   
   if (periodsChanged) {
     console.log(`📈 EMA周期变化: ${oldPeriods.join(',')} -> ${newPeriods.join(',')}`)
@@ -1069,7 +1068,7 @@ watch(() => emaPeriods.value, (newPeriods, oldPeriods) => {
 }, { deep: true })
 
 // 监听timeframe变化，清理并重新初始化图表
-watch(() => computedTimeframe.value, (newTimeframe, oldTimeframe) => {
+watch(() => computedTimeframe.value, (newTimeframe: string, oldTimeframe: string) => {
   if (newTimeframe && newTimeframe !== oldTimeframe) {
     
     // 清理旧图表

@@ -110,12 +110,6 @@ export interface AIAnalysisSaveConfig {
   minConfidence?: number
 }
 
-// EMA配置
-export interface EMAConfig {
-  fast: number
-  slow: number
-}
-
 // 技术指标配置
 export interface IndicatorsConfig {
   requiredCandles: number
@@ -129,7 +123,6 @@ export interface BotConfig {
   symbols: string[]
   monitorInterval: number
   indicatorsConfig: IndicatorsConfig
-  emaConfig: EMAConfig
   emaPeriods: number[]
   aiCacheTtlMinutes: number
   aiAnalysisConfig: AIAnalysisSaveConfig

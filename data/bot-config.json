@@ -14,10 +14,6 @@
     "requiredCandles": 500,
     "adxSlopePeriod": 3
   },
-  "emaConfig": {
-    "fast": 20,
-    "slow": 200
-  },
   "emaPeriods": [
     20,
     200

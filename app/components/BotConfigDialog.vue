@@ -47,10 +47,10 @@
           <!-- EMA配置 -->
           <el-divider content-position="left">EMA配置</el-divider>
           <el-form-item label="快速EMA周期">
-            <el-input-number v-model="form.emaConfig.fast" :min="1" :max="100" />
+            <el-input-number v-model="form.emaPeriods[0]" :min="1" :max="100" />
           </el-form-item>
           <el-form-item label="慢速EMA周期">
-            <el-input-number v-model="form.emaConfig.slow" :min="1" :max="500" />
+            <el-input-number v-model="form.emaPeriods[1]" :min="1" :max="500" />
           </el-form-item>
 
           <!-- AI分析配置 -->
@@ -162,7 +162,14 @@ const loadConfig = async () => {
   try {
     const res = await $fetch<any>('/api/bot/config')
     if (res.success && res.data) {
-      form.value = JSON.parse(JSON.stringify(res.data))
+      const config = JSON.parse(JSON.stringify(res.data))
+      
+      // 确保 emaPeriods 存在且是数组
+      if (!config.emaPeriods || !Array.isArray(config.emaPeriods)) {
+        config.emaPeriods = [20, 200]
+      }
+      
+      form.value = config
     }
   } catch (error: any) {
     console.error('加载配置失败:', error)
@@ -182,11 +189,13 @@ const handlePasswordSuccess = async () => {
 const handleSave = async () => {
   if (!form.value) return
   
+  // 确保 emaPeriods 是正确的格式
+  if (!form.value.emaPeriods || !Array.isArray(form.value.emaPeriods)) {
+    form.value.emaPeriods = [20, 200]
+  }
+  
   saving.value = true
   try {
-    // 同步 emaPeriods
-    form.value.emaPeriods = [form.value.emaConfig.fast, form.value.emaConfig.slow]
-    
     const res = await $fetch<any>('/api/bot/config', {
       method: 'POST',
       body: { config: form.value }
