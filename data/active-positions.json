@@ -1,1 +1,61 @@
-[]
+[
+    {
+      "symbol": "HYPE/USDT",
+      "strategyId": "strategy_003",
+      "direction": "long",
+      "entryPrice": 41.201,
+      "quantity": 2.55,
+      "leverage": 5,
+      "stopLoss": 40.56275910547279,
+      "initialStopLoss": 40.56275910547279,
+      "takeProfit1": 42.477481789054416,
+      "takeProfit2": 43.11572268358162,
+      "openTime": 1777802128168,
+      "highestPrice": 41.201,
+      "lowestPrice": 40.996,
+      "orderId": "7210908297",
+      "stopLossOrderId": "3000001424499052",
+      "confidence": 95,
+      "reasoning": "方向：LONG，EMA50(41.0650) > EMA200(40.9337) 👍；硬条件：OI变化率+0.13%>0 👍，价格偏离EMA200幅度0.65%≤2.5% 👍，预计成交量(319735.59)≥前K量(134032.72)×1.5=201049.08 👍，ATR波动率0.62%≥0.38% 👍；辅助条件：RSI(50.92)∈(35,65) 👍；所有硬条件满足且至少1项辅助条件满足，触发做多开仓置信度95；最终得分:95；风险等级:LOW",
+      "entryCommission": 0.052531274999999995,
+      "scoreBreakdown": {
+        "baseScore": 35,
+        "hardScore": 25,
+        "softScore": 20,
+        "penaltyScore": 0,
+        "finalScore": 80
+      },
+      "riskLevel": "LOW",
+      "entryIndicators": {
+        "EMAEMA50": 41.065005720662995,
+        "EMAEMA200": 40.933676575721336,
+        "RSI": 50.92,
+        "MACD": -0.06252587651400887,
+        "ADX": 18.714551525801475,
+        "ATR": 0.25529635781088394,
+        "OI": 5029912.24,
+        "Volume": 295192.95
+      },
+      "maxFloatingProfit": 0,
+      "maxFloatingProfitPercent": 0,
+      "maxFloatingLoss": -0.5227499999999956,
+      "maxFloatingLossPercent": -2.4878036940850743,
+      "position": {
+        "symbol": "HYPE/USDT",
+        "direction": "LONG",
+        "entryPrice": 41.201,
+        "quantity": 2.55,
+        "leverage": 5,
+        "stopLoss": 40.56275910547279,
+        "initialStopLoss": 40.56275910547279,
+        "takeProfit1": 42.477481789054416,
+        "takeProfit2": 43.11572268358162,
+        "openTime": 1777802128168,
+        "highestPrice": 41.201,
+        "lowestPrice": 41.201,
+        "orderId": "7210908297",
+        "stopLossOrderId": "3000001424499052",
+        "entryCommission": 0.052531274999999995
+      }
+    }
+  ]
