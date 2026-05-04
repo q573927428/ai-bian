@@ -25,8 +25,8 @@
     "saveIdle": true,
     "minConfidence": 10
   },
-  "minConfidence": 75,
-  "minFinalScore": 85,
+  "minConfidence": 70,
+  "minFinalScore": 80,
   "maxRiskLevel": "MEDIUM",
   "defaultCandleProgress": 0.1,
   "commissionRate": 0.0005
