@@ -1,3 +1,6 @@
 {
-    "HYPE/USDT": "strategy_003"
-  }
+  "ETH/USDT": "strategy_002",
+  "BTC/USDT": "strategy_002",
+  "SOL/USDT": "strategy_002",
+  "XAG/USDT": "strategy_003"
+}

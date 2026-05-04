@@ -26,7 +26,7 @@
     "minConfidence": 10
   },
   "minConfidence": 75,
-  "minFinalScore": 65,
+  "minFinalScore": 85,
   "maxRiskLevel": "MEDIUM",
   "defaultCandleProgress": 0.1,
   "commissionRate": 0.0005
