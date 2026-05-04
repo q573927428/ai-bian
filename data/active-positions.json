@@ -71,7 +71,7 @@
     "takeProfit2": 72.93211003533845,
     "openTime": 1777872331393,
     "highestPrice": 75.38,
-    "lowestPrice": 74.89,
+    "lowestPrice": 74.72,
     "orderId": "2363703958",
     "stopLossOrderId": "3000001432879605",
     "confidence": 95,
@@ -95,8 +95,8 @@
       "OI": 1534279.476,
       "Volume": 92854.95
     },
-    "maxFloatingProfit": 0.43875000000000275,
-    "maxFloatingProfitPercent": 2.986461375099567,
+    "maxFloatingProfit": 0.6045000000000044,
+    "maxFloatingProfitPercent": 4.114680116803853,
     "maxFloatingLoss": -0.03899999999999224,
     "maxFloatingLossPercent": -0.2654632333421293,
     "position": {

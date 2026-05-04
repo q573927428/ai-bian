@@ -3,7 +3,7 @@
   "name": "策略02",
   "version": 1,
   "createdAt": "2026-04-19T16:06:46.003Z",
-  "updatedAt": "2026-05-04T06:14:56.517Z",
+  "updatedAt": "2026-05-04T07:26:10.028Z",
   "isActive": true,
   "marketData": {
     "symbols": [
@@ -108,7 +108,7 @@
     }
   ],
   "aiPrompt": {
-    "userPrompt": "强趋势回调交易策略\n一、做多 LONG 完整规则\n1. 趋势方向与强度（必须满足，否则IDLE）\n- 趋势方向：EMA20 > EMA60\n- 强度过滤：ADX(14) > 25，未满足则直接IDLE（不进行任何操作）\n2. 回调入场机会\n价格回调至 [EMA60, EMA20] 区间内，且价格位置接近EMA60（优先选择靠近区间下沿的回调点位）。\n3. 辅助共振确认\n- RSI指标：RSI < 65\n- OI资金共振：持仓量OI变化率 > 0\n- K线信号：在回调入场区域出现反转K线（如看涨吞没形态、锤子线或长下影Pin Bar）\n4. 交易原则\n如果同时满足 “强趋势（方向+强度）+ 回调区域 + OI资金共振” 三大核心要素，RSI和K线信号作为辅助确认，就开仓。\n二、做空 SHORT 完整规则\n1. 趋势方向与强度（必须满足，否则IDLE）\n- 趋势方向：EMA20 < EMA60\n- 强度过滤：ADX(14) > 25，未满足则直接IDLE（不进行任何操作）\n2. 回调入场机会\n价格反弹至 [EMA20, EMA60] 区间内，且价格位置接近EMA60（优先选择靠近区间上沿的反弹点位）。\n3. 辅助共振确认\n- RSI指标：RSI > 35\n- OI资金共振：持仓量OI变化率 < 0\n- K线信号：在反弹入场区域出现反转K线（如看跌吞没形态、流星线或长上影Pin Bar）\n4. 交易原则\n如果同时满足 “强趋势（方向+强度）+ 回调区域 + OI资金共振” 三大核心要素，RSI和K线信号作为辅助确认，就开仓。",
+    "userPrompt": "强趋势回调交易策略\n一、做多 LONG 完整规则\n1. 趋势方向与强度（必须满足）\n- 趋势方向：EMA20 > EMA60\n- 强度过滤：ADX(14) > 25，禁止开仓\n2. 回调入场机会\n价格回调至 [EMA60, EMA20] 区间内，且价格位置接近EMA60（优先选择靠近区间下沿的回调点位）。\n3. 辅助共振确认\n- RSI指标：RSI < 65\n- OI资金共振：持仓量OI变化率 > 0\n- K线信号：在回调入场区域出现反转K线（如看涨吞没形态、锤子线或长下影Pin Bar）\n4. 交易原则\n如果同时满足 “强趋势（方向+强度）+ 回调区域 + OI资金共振” 三大核心要素，RSI和K线信号作为辅助确认，就开仓。\n二、做空 SHORT 完整规则\n1. 趋势方向与强度（必须满足）\n- 趋势方向：EMA20 < EMA60\n- 强度过滤：ADX(14) > 25，禁止开仓\n2. 回调入场机会\n价格反弹至 [EMA20, EMA60] 区间内，且价格位置接近EMA60（优先选择靠近区间上沿的反弹点位）。\n3. 辅助共振确认\n- RSI指标：RSI > 35\n- OI资金共振：持仓量OI变化率 < 0\n- K线信号：在反弹入场区域出现反转K线（如看跌吞没形态、流星线或长上影Pin Bar）\n4. 交易原则\n如果同时满足 “强趋势（方向+强度）+ 回调区域 + OI资金共振” 三大核心要素，RSI和K线信号作为辅助确认，就开仓。",
     "temperature": 0.2,
     "maxTokens": 2000,
     "model": "deepseek-v4-flash",
@@ -320,27 +320,27 @@
   ],
   "performance": {
     "strategyId": "strategy_002",
-    "totalTrades": 9,
-    "totalWins": 2,
+    "totalTrades": 10,
+    "totalWins": 3,
     "totalLosses": 7,
-    "winRate": 22.22222222222222,
-    "totalProfit": 0.7028312650000001,
+    "winRate": 30,
+    "totalProfit": 0.7198775650000002,
     "totalLoss": 1.7045301549999883,
-    "netProfit": -1.0016988899999881,
-    "profitFactor": 0.4123313764431495,
+    "netProfit": -0.9846525899999881,
+    "profitFactor": 0.4223319622057406,
     "maxDrawdown": 0,
-    "averageProfitPerTrade": 0.3514156325000001,
+    "averageProfitPerTrade": 0.2399591883333334,
     "averageLossPerTrade": 0.2435043078571412,
     "largestWin": 0.37559987999999733,
     "largestLoss": 0.6981299500000029,
-    "averageHoldTime": 276.1181537037037,
+    "averageHoldTime": 272.18178666666665,
     "consecutiveWins": 0,
-    "consecutiveLosses": 2,
+    "consecutiveLosses": 1,
     "maxConsecutiveWins": 1,
     "maxConsecutiveLosses": 3,
-    "dailyPnL": -0.2682209999999968,
-    "todayTrades": 1,
-    "updatedAt": "2026-05-04T06:27:14.696Z"
+    "dailyPnL": -0.2511746999999968,
+    "todayTrades": 2,
+    "updatedAt": "2026-05-04T06:28:12.415Z"
   },
   "sessions": [],
   "currentSessionId": null
