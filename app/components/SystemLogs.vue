@@ -34,7 +34,7 @@
               <span><b>[{{ log.category }}]</b> {{ getLogSummary(log.message) }}</span>
               <el-link
                 type="primary"
-                :underline="false"
+                underline="never"
                 class="toggle-btn"
                 @click="toggleLog(index)"
               >

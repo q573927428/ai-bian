@@ -134,7 +134,8 @@ export class StrategyPositionMonitor {
           `入场价:${position.entryPrice.toFixed(2).padStart(10)} ` +
           `当前价:${currentPrice.toFixed(2).padStart(10)} ` +
           `盈亏:${pnl >= 0 ? '+' : ''}${pnl.toFixed(2)}USDT ` +
-          `${pnlPercentage >= 0 ? '+' : ''}${pnlPercentage.toFixed(2)}%`
+          `${pnlPercentage >= 0 ? '+' : ''}${pnlPercentage.toFixed(2)}% ` +
+          `[${position.strategyId}]`
         )
       } catch (error: any) {
         logger.error('持仓监控', `获取 ${position.symbol} 当前价失败: ${error.message}`)

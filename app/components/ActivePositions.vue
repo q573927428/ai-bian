@@ -6,115 +6,156 @@
       </div>
     </template>
     <div class="positions-list">
-      <el-card v-for="pos in positions" :key="pos.orderId || pos.symbol" class="position-card" shadow="hover">
+      <div v-for="position in positions" :key="position.symbol" class="position-item">
+        <!-- 顶部信息栏 -->
         <div class="position-header">
-          <span class="symbol">
-            {{ pos.symbol }} 
-            <el-tag type="info" size="small" effect="plain">
-              {{ pos.strategyId }}
-            </el-tag>
-          </span>
-          <div class="header-tags">
-            <el-button :type="pos.direction === 'long' ? 'success' : 'danger'" size="small">
-              {{ pos.direction === 'long' ? '做多' : '做空' }}
-            </el-button>
-            <el-button
-              type="warning"
-              size="small"
-              :loading="closingSymbols.includes(pos.symbol)"
-              @click="handleClosePosition(pos.symbol)"
-            >
-              平仓
-            </el-button>
-          </div>
+          <el-row :gutter="16">
+            <!-- 左侧：交易对/标签、盈亏/平仓按钮 -->
+            <el-col :xs="24" :md="6">
+              <div class="left-section">
+                <!-- 交易对和标签 -->
+                <div class="symbol-info">
+                  <div class="symbol-row">
+                    <span class="symbol">{{ position.symbol }}</span>
+                    <span class="open-time">{{ formatOpenTime(position.openTime) }}</span>
+                  </div>
+                  <div class="tag-row">
+                    <el-tag type="info" size="small" effect="dark" class="strategy-tag">
+                      {{ position.strategyId }}
+                    </el-tag>
+                    <el-tag :type="position.direction === 'long' ? 'success' : 'danger'" size="small" effect="dark">
+                      {{ position.direction === 'long' ? '做多' : '做空' }}
+                    </el-tag>
+                  </div>
+                </div>
+                <!-- 盈亏和平仓按钮 -->
+                <div class="pnl-close-section">
+                  <div class="pnl-info">
+                    <div class="pnl-amount" :class="{ 'text-success': calculateUnrealizedPnl(position) > 0, 'text-danger': calculateUnrealizedPnl(position) < 0 }">
+                      ${{ calculateUnrealizedPnl(position) >= 0 ? '+' : '' }}{{ calculateUnrealizedPnl(position).toFixed(2) }}
+                    </div>
+                    <div class="pnl-percent" :class="{ 'text-success': calculateUnrealizedPnlPercentage(position) > 0, 'text-danger': calculateUnrealizedPnlPercentage(position) < 0 }">
+                      {{ calculateUnrealizedPnlPercentage(position) >= 0 ? '+' : '' }}{{ calculateUnrealizedPnlPercentage(position).toFixed(1) }}%
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </el-col>
+            <!-- 右侧：详细信息 -->
+            <el-col :xs="24" :md="18">
+              <div class="info-section">
+                <div class="info-row">
+                  <div class="info-item">
+                    <span class="info-label">入场价</span>
+                    <span class="info-value">${{ position.entryPrice.toFixed(2) }}</span>
+                  </div>
+                  <div class="info-item">
+                    <span class="info-label">当前价</span>
+                    <span class="info-value">${{ getCurrentPrice(position.symbol) > 0 ? getCurrentPrice(position.symbol).toFixed(2) : '--' }}</span>
+                  </div>
+                  <div class="info-item">
+                    <span class="info-label">数量</span>
+                    <span class="info-value">{{ position.quantity }}</span>
+                  </div>
+                  <div class="info-item">
+                    <span class="info-label">杠杆</span>
+                    <span class="info-value">{{ position.leverage }}x</span>
+                  </div>
+                  <div class="info-item">
+                    <span class="info-label">TP1</span>
+                    <span class="info-value">${{ position.takeProfit1 ? position.takeProfit1.toFixed(2) : '--' }}</span>
+                  </div>
+                  <div class="info-item">
+                    <span class="info-label">TP2</span>
+                    <span class="info-value">${{ position.takeProfit2 ? position.takeProfit2.toFixed(2) : '--' }}</span>
+                  </div>
+                  <div class="info-item" v-if="isTrailingStopLoss(position)">
+                    <span class="info-label">移动</span>
+                    <span class="info-value">${{ position.stopLoss ? position.stopLoss.toFixed(2) : '--' }}</span>
+                  </div>
+                  <div class="info-item" v-else>
+                    <span class="info-label">初始</span>
+                    <span class="info-value">${{ position.initialStopLoss ? position.initialStopLoss.toFixed(2) : '--' }}</span>
+                  </div>
+                  <div class="info-item">
+                    <el-tag
+                      type="warning"
+                      size="small"
+                      :loading="closingSymbols.includes(position.symbol)"
+                      @click="handleClosePosition(position.symbol)"
+                      class="close-btn"
+                    >
+                      平仓
+                    </el-tag>
+                    <div v-if="position.reasoning" class="ai-toggle-btn-inline" @click="toggleAISection(position.symbol)">
+                      <el-icon class="toggle-icon" :class="{ 'rotated': expandedAISections.includes(position.symbol) }">
+                        <ElIconArrowDown />
+                      </el-icon>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </el-col>
+          </el-row>
         </div>
-        <el-divider style="margin: 12px 0;" />
-        <div class="position-info">
-          <div class="info-item">
-            <span class="label">入场价:</span>
-            <span class="value">{{ pos.entryPrice.toFixed(2) }}</span>
-          </div>
-          <div class="info-item">
-            <span class="label">当前价:</span>
-            <span class="value">{{ getCurrentPrice(pos.symbol) > 0 ? getCurrentPrice(pos.symbol).toFixed(2) : '--' }}</span>
-          </div>
-          <div class="info-item">
-            <span class="label">数量:</span>
-            <span class="value">{{ pos.quantity }}</span>
-          </div>
-          <div class="info-item">
-            <span class="label">杠杆:</span>
-            <span class="value">{{ pos.leverage }}x</span>
-          </div>
-          <div class="info-item profit" :class="{ 'positive': calculateUnrealizedPnl(pos) > 0, 'negative': calculateUnrealizedPnl(pos) < 0 }">
-            <span class="label">盈亏U:</span>
-            <span class="value">{{ calculateUnrealizedPnl(pos).toFixed(2) }} U</span>
-          </div>
-          <div class="info-item profit" :class="{ 'positive': calculateUnrealizedPnlPercentage(pos) > 0, 'negative': calculateUnrealizedPnlPercentage(pos) < 0 }">
-            <span class="label">盈亏%:</span>
-            <span class="value">{{ calculateUnrealizedPnlPercentage(pos).toFixed(2) }}%</span>
-          </div>
-          <div class="info-item">
-            <span class="label">TP1止盈:</span>
-            <span class="value">{{ pos.takeProfit1 ? pos.takeProfit1.toFixed(2) : '--' }}</span>
-          </div>
-          <div class="info-item">
-            <span class="label">TP2止盈:</span>
-            <span class="value">{{ pos.takeProfit2 ? pos.takeProfit2.toFixed(2) : '--' }}</span>
-          </div>
-          <div class="info-item" :class="{ 'trailing': isTrailingStopLoss(pos) }">
-            <span class="label">{{ isTrailingStopLoss(pos) ? '移动止损' : '初始止损' }}:</span>
-            <span class="value">{{ pos.stopLoss ? pos.stopLoss.toFixed(2) : '--' }}</span>
-          </div>
-          <div class="info-item">
-            <span class="label">开仓时间:</span>
-            <span class="value">{{ formatOpenTime(pos.openTime) }}</span>
-          </div>
-        </div>
-        <div v-if="expandedSymbols.has(pos.symbol)" class="expanded-info">
-          <div v-if="pos.reasoning" class="reasoning-section">
-            <div class="label">AI推理:</div>
-            <div class="reasoning-content">{{ pos.reasoning }}</div>
-            <div class="label" style="margin-top: 8px;">评分详情:</div>
-            <div class="reasoning-content">
-              置信度: {{ pos.confidence ? pos.confidence : '--' }}<br>
-              基础分: {{ pos.scoreBreakdown?.baseScore !== undefined ? pos.scoreBreakdown.baseScore.toFixed(2) : '--' }}<br>
-              硬性分: {{ pos.scoreBreakdown?.hardScore !== undefined ? pos.scoreBreakdown.hardScore.toFixed(2) : '--' }}<br>
-              软性分: {{ pos.scoreBreakdown?.softScore !== undefined ? pos.scoreBreakdown.softScore.toFixed(2) : '--' }}<br>
-              惩罚分: {{ pos.scoreBreakdown?.penaltyScore !== undefined ? pos.scoreBreakdown.penaltyScore.toFixed(2) : '--' }}<br>
-              最终分: {{ pos.scoreBreakdown?.finalScore !== undefined ? pos.scoreBreakdown.finalScore.toFixed(2) : '--' }}
+
+
+        <!-- AI推理和评分 - 可折叠 -->
+        <div v-if="position.reasoning" class="ai-section">
+          <!-- AI 内容区域 -->
+          <div v-show="expandedAISections.includes(position.symbol)" class="ai-content">
+            <div class="reasoning-box">
+              <div class="reasoning-label">推理逻辑</div>
+              <div class="reasoning-text">{{ position.reasoning }}</div>
+            </div>
+            <div class="scores-section">
+              <div class="scores-label">评分详情</div>
+              <div class="scores-grid">
+                <div class="score-item final">
+                  <span class="score-label">置信度</span>
+                  <span class="score-value">{{ position.confidence ? position.confidence : '--' }}</span>
+                </div>
+                <div class="score-item final">
+                  <span class="score-label">最终分</span>
+                  <span class="score-value">{{ position.scoreBreakdown?.finalScore !== undefined ? Math.round(position.scoreBreakdown.finalScore) : '--' }}</span>
+                </div>
+                <div class="score-item">
+                  <span class="score-label">基础分</span>
+                  <span class="score-value">{{ position.scoreBreakdown?.baseScore !== undefined ? Math.round(position.scoreBreakdown.baseScore) : '--' }}</span>
+                </div>
+                <div class="score-item">
+                  <span class="score-label">硬性分</span>
+                  <span class="score-value">{{ position.scoreBreakdown?.hardScore !== undefined ? Math.round(position.scoreBreakdown.hardScore) : '--' }}</span>
+                </div>
+                <div class="score-item">
+                  <span class="score-label">软性分</span>
+                  <span class="score-value">{{ position.scoreBreakdown?.softScore !== undefined ? Math.round(position.scoreBreakdown.softScore) : '--' }}</span>
+                </div>
+                <div class="score-item">
+                  <span class="score-label">惩罚分</span>
+                  <span class="score-value">{{ position.scoreBreakdown?.penaltyScore !== undefined ? Math.round(position.scoreBreakdown.penaltyScore) : '--' }}</span>
+                </div>
+              </div>
             </div>
           </div>
         </div>
-        <div class="expand-toggle" @click="toggleExpand(pos.symbol)">
-          <el-icon>
-            <ElIconArrowUp v-if="expandedSymbols.has(pos.symbol)" />
-            <ElIconArrowDown v-else />
-          </el-icon>
-        </div>
-      </el-card>
+
+      </div>
     </div>
   </el-card>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted, getCurrentInstance } from 'vue'
 import { useBotStore } from '../stores/bot'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import type { ComponentInternalInstance } from 'vue'
 
 const botStore = useBotStore()
 const positions = ref<any[]>([])
 const closingSymbols = ref<string[]>([])
-const expandedSymbols = ref<Set<string>>(new Set())
-
-// 切换展开/收起
-const toggleExpand = (symbol: string) => {
-  if (expandedSymbols.value.has(symbol)) {
-    expandedSymbols.value.delete(symbol)
-  } else {
-    expandedSymbols.value.add(symbol)
-  }
-}
+const expandedAISections = ref<string[]>([])
+const instance = getCurrentInstance() as ComponentInternalInstance
+const proxy = instance?.proxy as any
 
 // 加载持仓信息
 const loadPositions = async () => {
@@ -179,18 +220,26 @@ function isTrailingStopLoss(position: any): boolean {
   return position.stopLoss !== position.initialStopLoss
 }
 
+// 切换 AI 折叠区域
+const toggleAISection = (symbol: string) => {
+  const index = expandedAISections.value.indexOf(symbol)
+  if (index > -1) {
+    expandedAISections.value.splice(index, 1)
+  } else {
+    expandedAISections.value.push(symbol)
+  }
+}
+
 // 手动平仓
 const handleClosePosition = async (symbol: string) => {
   try {
-    await ElMessageBox.confirm(
-      `确定要平仓 ${symbol} 吗？`,
-      '确认平仓',
-      {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
-        type: 'warning'
-      }
-    )
+    await proxy.$msgbox({
+      title: '确认平仓',
+      message: `确定要平仓 ${symbol} 吗？`,
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'warning'
+    })
 
     closingSymbols.value.push(symbol)
 
@@ -200,12 +249,12 @@ const handleClosePosition = async (symbol: string) => {
     } as any) as any
 
     if (response.success) {
-      ElMessage.success(response.message)
+      proxy.$message.success(response.message)
       await loadPositions()
     }
   } catch (error: any) {
     if (error !== 'cancel') {
-      ElMessage.error(error.message || '平仓失败')
+      proxy.$message.error(error.message || '平仓失败')
       console.error('平仓失败:', error)
     }
   } finally {
@@ -246,150 +295,287 @@ onUnmounted(() => {
   font-weight: 600;
 }
 
-.empty-message {
-  text-align: center;
-  color: #909399;
-  padding: 20px;
-}
-
 .positions-list {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  display: flex;
+  flex-direction: column;
   gap: 16px;
 }
 
-.position-card {
-  transition: all 0.3s;
+.position-item {
+  border: 1px solid #ebeef5;
+  border-radius: 12px;
+  padding: 12px;
+  background: linear-gradient(135deg, #f5f3ff 0%, #f0f9ff 100%);
+  transition: all 0.3s ease;
 }
 
-.position-header {
+.position-item:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  transform: translateY(-2px);
+}
+
+.left-section {
   display: flex;
+  flex-direction: row;
   justify-content: space-between;
   align-items: center;
+  height: 100%;
+  gap: 16px;
+}
+
+.symbol-info {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.tag-row {
+  display: flex;
+  gap: 12px;
+}
+
+.symbol-row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 16px;
 }
 
 .symbol {
+  font-weight: 700;
+  color: #1f2937;
   font-size: 18px;
-  font-weight: 600;
-  color: #303133;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
 }
 
-.position-info {
+.open-time {
+  font-size: 13px;
+  color: #64748b;
+  font-weight: 500;
+}
+
+.strategy-tag {
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pnl-close-section {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.pnl-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.pnl-amount {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.pnl-percent {
+  font-weight: 600;
+}
+
+.close-btn {
+  cursor: pointer;
+}
+
+.info-section {
+  border: 1px solid #c7d2fe;
+  border-radius: 16px;
+  padding: 12px;
+  background: #ffffff;
+}
+
+.info-row {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 16px;
+  justify-content: center;
+  align-items: center;
 }
 
 .info-item {
   display: flex;
-  justify-content: space-between;
-  font-size: 13px;
-  line-height: 1.5;
-  flex-wrap: wrap;
+  flex-direction: column;
+  gap: 6px;
+  align-items: center;
+  text-align: center;
 }
 
-.info-item .label {
-  color: #606266;
-}
-
-.info-item .value {
-  color: #303133;
+.info-label {
+  color: #909399;
+  font-size: 12px;
   font-weight: 500;
-  word-break: break-all;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
-.info-item.profit.positive .value {
-  color: #67c23a;
-}
-
-.info-item.profit.negative .value {
-  color: #f56c6c;
-}
-
-.info-item.stop-loss.trailing .label {
-  color: #e6a23c;
-}
-
-.info-item.stop-loss.trailing .value {
-  color: #e6a23c;
+.info-value {
+  color: #1f2937;
+  font-size: 16px;
   font-weight: 600;
 }
 
-.expanded-info {
-  margin-top: 8px;
+
+.ai-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
-.reasoning-section {
-  margin-top: 12px;
+.ai-content {
+  width: 100%;
 }
 
-.reasoning-section .label {
-  color: #606266;
+.ai-toggle-btn-inline {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 4px 8px;
+  background: #f8fafc;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  user-select: none;
+}
+
+.ai-toggle-btn-inline:hover {
+  background: #e2e8f0;
+}
+
+.toggle-icon {
+  color: #4f46e5;
+  transition: transform 0.3s ease;
+  font-size: 16px;
+}
+
+.toggle-icon.rotated {
+  transform: rotate(180deg);
+}
+
+.reasoning-box {
+  background: #ffffff;
+  border-radius: 12px 12px 0 0;
+  padding: 16px;
+  border: 1px solid #c7d2fe;
+  border-bottom: none;
+  margin-top: 10px;
+}
+
+.reasoning-label {
+  color: #4338ca;
   font-size: 13px;
+  font-weight: 600;
   margin-bottom: 8px;
 }
 
-.reasoning-content {
-  background: #f5f7fa;
-  padding: 12px;
-  border-radius: 8px;
-  font-size: 12px;
-  line-height: 1.6;
-  color: #606266;
+.reasoning-text {
+  color: #374151;
+  font-size: 13px;
+  line-height: 1.7;
   white-space: pre-wrap;
   word-break: break-word;
 }
 
 .scores-section {
-  margin-top: 12px;
+  background: #ffffff;
+  border-radius: 0 0 12px 12px;
+  padding: 16px;
+  border: 1px solid #c7d2fe;
+  border-top: 1px dashed #a5b4fc;
 }
 
-.scores-section .label {
-  color: #606266;
+.scores-label {
+  color: #1d4ed8;
   font-size: 13px;
-  margin-bottom: 8px;
+  font-weight: 600;
+  margin-bottom: 12px;
 }
 
-.expand-toggle {
+.scores-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 10px;
+}
+
+.score-item {
   display: flex;
-  justify-content: center;
+  justify-content: space-between;
   align-items: center;
-  padding-top: 12px;
-  cursor: pointer;
-  color: #909399;
-  transition: color 0.3s;
+  padding: 8px 12px;
+  background: rgba(238, 238, 238, 0.7);
+  border-radius: 6px;
+  border-left: 3px solid #60a5fa;
 }
 
-.expand-toggle:hover {
-  color: #409eff;
+.score-item.final {
+  border-left-color: #8b5cf6;
+  background: rgba(139, 92, 246, 0.1);
 }
 
-.expand-toggle .el-icon {
+.score-label {
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.score-value {
+  color: #1e40af;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.score-item.final .score-value {
+  color: #7c3aed;
   font-size: 18px;
-  transition: transform 0.3s;
 }
 
-/* 小屏幕适配 */
+
+.text-success {
+  color: #10b981;
+}
+
+.text-danger {
+  color: #ef4444;
+}
+
+.text-warning {
+  color: #f59e0b;
+}
+
+/* 手机端适配 */
 @media (max-width: 768px) {
-  .positions-list {
-    grid-template-columns: 1fr;
-    gap: 12px;
+  .position-item {
+    padding: 12px;
+  }
+
+  .left-section {
+    padding-bottom: 16px;
   }
 
   .symbol {
+    font-size: 16px;
+  }
+
+  .pnl-amount {
+    font-size: 16px;
+  }
+
+  .info-row {
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+  }
+  .info-value {
     font-size: 14px;
   }
 
-  .position-info {
-    gap: 8px;
-  }
-
-  .info-item {
-    font-size: 12px;
+  .scores-grid {
+    grid-template-columns: repeat(2, 1fr);
   }
 }
-
 </style>

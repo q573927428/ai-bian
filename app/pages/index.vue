@@ -22,6 +22,11 @@
               <CryptoPriceCards />
             </ClientOnly>
 
+            <!-- 当前持仓组件 -->
+            <ClientOnly>
+              <ActivePositions />
+            </ClientOnly>
+
             <!-- 策略组件 -->
             <ClientOnly>
               <Strategies />
@@ -84,10 +89,6 @@
                 </div>
               </div>
             </el-card>
-            <!-- 当前持仓组件 -->
-            <ClientOnly>
-              <ActivePositions />
-            </ClientOnly>
 
             <!-- 系统日志组件 -->
             <ClientOnly>
