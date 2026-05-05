@@ -136,7 +136,7 @@
     }
   },
   "executionConfig": {
-    "scanInterval": 600,
+    "scanInterval": 10,
     "leverage": 5,
     "marginMode": "cross",
     "positionMode": "one-way"
@@ -253,7 +253,7 @@
           }
         },
         "executionConfig": {
-          "scanInterval": 1200,
+          "scanInterval": 20,
           "leverage": 3,
           "marginMode": "cross",
           "positionMode": "one-way"

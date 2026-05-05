@@ -29,5 +29,20 @@
   "minFinalScore": 80,
   "maxRiskLevel": "MEDIUM",
   "defaultCandleProgress": 0.1,
-  "commissionRate": 0.0005
+  "commissionRate": 0.0005,
+  "preScreenConfig": {
+    "minAdx": 15,
+    "maxAdx": 60,
+    "minAtrPercent": 0.001,
+    "maxAtrPercent": 0.05,
+    "minVolumeRatio": 0.5,
+    "enableAdx": true,
+    "enableAtr": true,
+    "enableVolume": true
+  },
+  "concurrencyPool": {
+    "indicator": { "maxConcurrency": 16 },
+    "ai": { "maxConcurrency": 6 },
+    "tradeApi": { "maxConcurrency": 4 }
+  }
 }
