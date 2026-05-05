@@ -170,7 +170,7 @@ export interface TrailingStopConfig {
 
 // 执行配置
 export interface ExecutionConfig {
-  scanInterval: number;                // 扫描间隔 (秒)
+  scanInterval: number;                // 扫描间隔 (分钟，必须为5的倍数)
   leverage: LeverageType;              // 杠杆 (固定值或动态)
   marginMode: MarginMode;              // 保证金模式
   positionMode: PositionMode;          // 持仓模式

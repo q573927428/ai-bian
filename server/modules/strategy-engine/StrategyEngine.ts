@@ -14,7 +14,10 @@ import { getOrderSide } from '../../utils/trade-helpers'
 import { StrategyPositionCloser } from './StrategyPositionCloser'
 import { StrategyPositionMonitor } from './StrategyPositionMonitor'
 import { waitAndConfirmPosition } from './helpers/position-helpers'
+import { aiPreScreener } from '../../utils/ai-pre-screen'
 import type { BotState } from '../../../types'
+import { SymbolBasedScheduler, type MarketSnapshot } from '../scheduler/SymbolBasedScheduler'
+import { concurrencyPoolManager, type ConcurrencyPoolManager } from '../../utils/concurrency-pool'
 
 /**
  * 策略运行时状态
@@ -36,8 +39,9 @@ export interface StrategyRuntimeStatus {
 interface StrategyInstance {
   strategy: Strategy;
   isRunning: boolean;
-  timer: NodeJS.Timeout | null;
   lastScanTime?: string;
+  /** 下次扫描时间戳（毫秒），用于按各自间隔独立调度 */
+  nextScanTime?: number;
   lastSignalTime?: string;
   totalSignals: number;
   totalTrades: number;
@@ -76,6 +80,14 @@ export class StrategyEngine {
   private state: BotState
   private config: BotConfig
 
+  // 新调度架构
+  private scheduler: SymbolBasedScheduler
+  private concurrencyPoolManager: ConcurrencyPoolManager
+  private globalTimer: NodeJS.Timeout | null = null
+  private globalScanInterval: number = 300000 // 默认5分钟
+  private immediateRunScheduled: boolean = false // 防抖：确保多个策略同时启动只触发一次立即运行
+
+
   constructor(
     store: StrategyStore,
     indicatorsHub: IndicatorsHub,
@@ -91,6 +103,9 @@ export class StrategyEngine {
     this.state = state
     this.config = config
     
+    // 初始化AI预筛配置
+    aiPreScreener.initFromBotConfig(config.preScreenConfig)
+
     // 初始化AI分析器
     this.aiAnalyzer = new MultiStrategyAIAnalyzer(binance, config)
 
@@ -101,7 +116,11 @@ export class StrategyEngine {
     // 启动持仓监控
     this.positionMonitor.start()
 
-    // logger.info('StrategyEngine', '策略执行引擎已初始化')
+    // 初始化新调度架构
+    this.scheduler = new SymbolBasedScheduler(indicatorsHub, binance)
+    this.concurrencyPoolManager = concurrencyPoolManager
+
+    logger.info('StrategyEngine', '策略执行引擎已初始化（新调度架构已启用）')
   }
 
   /**
@@ -109,6 +128,7 @@ export class StrategyEngine {
    */
   updateConfig(config: BotConfig): void {
     this.config = config
+    aiPreScreener.initFromBotConfig(config.preScreenConfig)
     this.aiAnalyzer.updateConfig(config)
     this.indicatorsHub.updateConfig(config)
     this.positionMonitor.stop()
@@ -197,11 +217,13 @@ export class StrategyEngine {
 
     // logger.info('StrategyEngine', `启动策略: ${strategy.name} (${strategyId})`)
 
+    // 订阅策略到调度器
+    this.scheduler.subscribeStrategy(strategy)
+
     // 创建策略实例
     const instance: StrategyInstance = {
       strategy,
       isRunning: true,
-      timer: null,
       totalSignals: 0,
       totalTrades: 0,
       winTrades: 0
@@ -227,6 +249,9 @@ export class StrategyEngine {
 
     logger.info('StrategyEngine', `停止策略: ${instance.strategy.name} (${strategyId})`)
 
+    // 取消订阅
+    this.scheduler.unsubscribeStrategy(strategyId)
+
     // 停止循环
     this.stopStrategyLoop(instance)
 
@@ -249,63 +274,160 @@ export class StrategyEngine {
   // ==================== 策略循环 ====================
 
   /**
-   * 启动策略循环
+   * 启动策略循环（全局统一调度入口）
+   * 不再为每个策略创建独立定时器，改为启动/维护全局统一循环
    */
   private startStrategyLoop(instance: StrategyInstance): void {
-    const MIN_INTERVAL = 300 // 最小间隔 300 秒
-    
-    let intervalSeconds = instance.strategy.executionConfig.scanInterval
-    
-    // 安全检查：如果间隔小于最小值或无效，使用安全值
-    if (!intervalSeconds || intervalSeconds < MIN_INTERVAL) {
-      intervalSeconds = MIN_INTERVAL
+    // 更新全局扫描间隔（取所有策略中的最小值）
+    this.updateGlobalScanInterval()
+
+    // 防抖：多个策略同时启动时，只安排一次立即运行
+    if (!this.immediateRunScheduled) {
+      this.immediateRunScheduled = true
+      // 使用 200ms 延迟确保所有策略的异步初始化（subscribeStrategy 等）全部完成后再执行全局循环
+      setTimeout(async () => {
+        this.immediateRunScheduled = false
+        await this.globalStrategyLoop()
+      }, 200)
     }
-    
-    const scanInterval = intervalSeconds * 1000 // 转为毫秒
 
-    // 立即执行一次
-    this.strategyLoop(instance)
-
-    // 设置定时器
-    instance.timer = setInterval(() => {
-      this.strategyLoop(instance)
-    }, scanInterval)
-
-    logger.info('StrategyEngine', `策略循环已启动: ${instance.strategy.name}, 间隔 ${intervalSeconds}秒`)
+    // 如果全局定时器未启动，则启动
+    if (!this.globalTimer) {
+      this.globalTimer = setInterval(() => {
+        this.globalStrategyLoop()
+      }, this.globalScanInterval)
+      logger.info('StrategyEngine', `全局策略循环已启动, 间隔 ${this.globalScanInterval / 1000}秒`)
+    }
   }
 
   /**
    * 停止策略循环
    */
   private stopStrategyLoop(instance: StrategyInstance): void {
-    if (instance.timer) {
-      clearInterval(instance.timer)
-      instance.timer = null
-    }
     instance.isRunning = false
+
+    // 如果所有策略都已停止，停止全局定时器
+    const hasRunning = Array.from(this.runningStrategies.values()).some(i => i.isRunning)
+    if (!hasRunning && this.globalTimer) {
+      clearInterval(this.globalTimer)
+      this.globalTimer = null
+      logger.info('StrategyEngine', '全局策略循环已停止（无运行中的策略）')
+    }
   }
 
   /**
-   * 策略主循环
+   * 更新全局扫描间隔（取所有运行策略中的最小值）
+   * 间隔必须是300秒（5分钟）的整数倍
    */
-  private async strategyLoop(instance: StrategyInstance): Promise<void> {
+  private updateGlobalScanInterval(): void {
+    const MIN_INTERVAL_MS = 300000 // 最小间隔 5分钟
+    const SCAN_STEP_MS = 300000 // 步长 5分钟（只能为5的倍数）
+    
+    let minInterval = Infinity
+    for (const instance of this.runningStrategies.values()) {
+      if (!instance.isRunning) continue
+      const scanMinutes = instance.strategy.executionConfig.scanInterval
+      if (scanMinutes && scanMinutes > 0) {
+        const intervalMs = scanMinutes * 60000
+        // 向上取整到 SCAN_STEP_MS 的倍数，且不低于 MIN_INTERVAL_MS
+        const rounded = Math.max(
+          MIN_INTERVAL_MS,
+          Math.ceil(intervalMs / SCAN_STEP_MS) * SCAN_STEP_MS
+        )
+        if (rounded < minInterval) {
+          minInterval = rounded
+        }
+      }
+    }
+    
+    // 如果没有任何运行策略，使用默认值
+    this.globalScanInterval = minInterval === Infinity ? MIN_INTERVAL_MS : minInterval
+  }
+
+  /**
+   * 全局统一策略循环 - 按交易对聚合调度
+   * 
+   * 设计思路：
+   * - 全局定时器以所有策略中最短的间隔（必为5分钟倍数）运行
+   * - 每次触发时，按交易对构建一次快照，但只分发给"距上次扫描已达自身间隔"的策略
+   * - 这样策略A(5min)和策略B(10min)都使用同一份5分钟级快照，但B每两次才执行一次
+   */
+  private async globalStrategyLoop(): Promise<void> {
+    const now = Date.now()
+    
     try {
-      const strategy = instance.strategy
+      const instances = Array.from(this.runningStrategies.values())
 
-      // 更新最后扫描时间
-      instance.lastScanTime = new Date().toISOString()
+      if (instances.length === 0) {
+        if (this.globalTimer) {
+          clearInterval(this.globalTimer)
+          this.globalTimer = null
+        }
+        return
+      }
 
-      // 遍历所有监控的交易对
-      for (const symbol of strategy.marketData.symbols) {
+      // 按交易对分组：symbol -> 需要本次扫描的策略列表
+      const symbolStrategies = new Map<string, StrategyInstance[]>()
+
+      for (const instance of instances) {
+        if (!instance.isRunning) continue
+        
+        // 检查是否到了该策略的扫描时间
+        if (instance.nextScanTime && now < instance.nextScanTime) {
+          continue
+        }
+
+        for (const symbol of instance.strategy.marketData.symbols) {
+          if (!symbolStrategies.has(symbol)) {
+            symbolStrategies.set(symbol, [])
+          }
+          symbolStrategies.get(symbol)!.push(instance)
+        }
+      }
+
+      if (symbolStrategies.size === 0) return
+
+      // 按交易对聚合调度
+      for (const [symbol, dueInstances] of symbolStrategies) {
         try {
-          await this.analyzeSymbol(instance, symbol)
+          // 过滤掉已有仓位的策略
+          const activeInstances: StrategyInstance[] = []
+          for (const instance of dueInstances) {
+            if (!(await this.positionManager.hasConflict(symbol, instance.strategy.id))) {
+              activeInstances.push(instance)
+            }
+          }
+
+          if (activeInstances.length === 0) continue
+
+          // 构建市场快照（同一交易对只构建一次，复用给所有到期的策略）
+          const snapshot = await this.concurrencyPoolManager.getIndicatorPool().submit(async () => {
+            return await this.scheduler.buildMarketSnapshot(symbol)
+          })
+
+          // 分发给每个到期的策略
+          for (const instance of activeInstances) {
+            const sid = instance.strategy.id
+            instance.lastScanTime = new Date().toISOString()
+
+            // 更新该策略的下次扫描时间
+            const scanMinutes = instance.strategy.executionConfig.scanInterval
+            if (scanMinutes && scanMinutes > 0) {
+              instance.nextScanTime = now + scanMinutes * 60000
+            } else {
+              instance.nextScanTime = now + 300000
+            }
+
+            await this.analyzeSymbol(instance, symbol, snapshot).catch((error: any) => {
+              logger.error('StrategyEngine', `分析交易对失败 ${symbol} [策略${sid}]: ${error.message}`)
+            })
+          }
         } catch (error: any) {
-          logger.error('StrategyEngine', `分析交易对失败 ${symbol}: ${error.message}`)
+          logger.error('StrategyEngine', `处理交易对失败 ${symbol}: ${error.message}`)
         }
       }
     } catch (error: any) {
-      instance.error = error.message
-      logger.error('StrategyEngine', `策略循环异常: ${error.message}`)
+      logger.error('StrategyEngine', `全局策略循环异常: ${error.message}`)
     }
   }
 
@@ -331,9 +453,33 @@ export class StrategyEngine {
   }
 
   /**
-   * 分析单个交易对
+   * 从市场快照中提取指标数据
    */
-  private async analyzeSymbol(instance: StrategyInstance, symbol: string): Promise<void> {
+  private extractIndicatorsFromSnapshot(
+    snapshot: MarketSnapshot,
+    mainTimeframe: Timeframe
+  ): Map<string, any> {
+    const indicatorsData = new Map<string, any>()
+
+    // 从快照中提取指标
+    const timeframeData = snapshot.indicatorsByTimeframe.get(mainTimeframe)
+    if (timeframeData) {
+      for (const [indicatorType, indicatorValue] of timeframeData.entries()) {
+        indicatorsData.set(`${mainTimeframe}_${indicatorType}`, indicatorValue)
+      }
+    }
+
+    return indicatorsData
+  }
+
+  /**
+   * 使用市场快照分析交易对
+   */
+  private async analyzeSymbol(
+    instance: StrategyInstance,
+    symbol: string,
+    snapshot: MarketSnapshot
+  ): Promise<void> {
     const strategy = instance.strategy
 
     // 1. 检查是否已有仓位（同交易对互斥）
@@ -344,30 +490,12 @@ export class StrategyEngine {
 
     // 2. 确定主周期（使用配置的第一个周期，即最小的周期）
     const mainTimeframe = strategy.marketData.timeframes[0] || '15m'
-    
-    // 收集需要的时间周期：主周期 + 统计数据配置的周期
-    const neededTimeframes = new Set<Timeframe>([mainTimeframe])
-    
-    // 添加统计数据配置的时间周期
-    strategy.statistics
-      .filter(s => s.enabled)
-      .forEach(s => {
-        s.timeframes?.forEach(tf => neededTimeframes.add(tf))
-      })
-    
+
+    // 3. 从快照中提取指标数据
+    const indicatorsData = this.extractIndicatorsFromSnapshot(snapshot, mainTimeframe)
+
+    // 4. 补充策略特定的指标（OI和EMA）
     const oiStatConfig = strategy.statistics.find((s: any) => s.type === 'OI' && s.enabled)
-
-    // 从指标中心获取基础数据（OI单独获取，便于使用策略参数）
-    const indicatorsData = await this.indicatorsHub.getBatchIndicators(
-      symbol,
-      Array.from(neededTimeframes),
-      [
-        ...strategy.indicators.filter(i => i.enabled && i.type !== 'EMA').map(i => i.type),
-        ...strategy.statistics.filter(s => s.enabled && s.type !== 'OI').map(s => s.type)
-      ]
-    )
-
-    // OI按策略参数单独计算（避免固定窗口导致长期flat）
     if (oiStatConfig) {
       const oiTimeframe = oiStatConfig?.timeframes?.[0] || mainTimeframe
       const changePeriod = Number(oiStatConfig?.params?.changePeriod ?? 6)
@@ -385,9 +513,8 @@ export class StrategyEngine {
       }
     }
 
-    // 3. 根据策略配置动态获取 EMA（只计算主周期）
+    // 动态获取EMA
     const emaPeriods = this.getEMAPeriodsFromStrategy(strategy)
-
     try {
       const emaData = await this.indicatorsHub.getEMAByPeriods(symbol, mainTimeframe, emaPeriods)
       const emaCacheKey = `${mainTimeframe}_EMA`
@@ -396,46 +523,48 @@ export class StrategyEngine {
       logger.warn('StrategyEngine', `获取动态EMA失败 ${symbol} ${mainTimeframe}: ${error.message}`)
     }
 
-    // 4. 构建 AI 提示词并调用 AI 分析
+    // 5. 构建 AI 提示词并调用 AI 分析
     const signal = await this.callAI(
       instance,
       strategy.id,
       symbol,
       strategy.aiPrompt,
-      indicatorsData
+      indicatorsData,
+      snapshot
     )
 
     if (!signal) {
       return
     }
 
-    // 4. 验证信号
+    // 6. 验证信号
     if (!this.validateSignal(signal)) {
       return
     }
 
-    // 5. 更新统计
+    // 7. 更新统计
     instance.totalSignals++
 
-    // 6. 再次检查仓位冲突（防止并发问题）
+    // 8. 再次检查仓位冲突（防止并发问题）
     if (await this.positionManager.hasConflict(symbol, strategy.id)) {
       logger.info('扫描结果', ` ${symbol} 已有仓位 [策略 ${strategy.id}] 信号被忽略 `)
       return
     }
 
-    // 7. 执行交易
+    // 9. 执行交易
     await this.executeSignal(instance, signal, indicatorsData)
   }
 
   /**
-   * 调用 AI 分析（带缓存）
+   * 调用 AI 分析（带市场快照）
    */
   private async callAI(
     instance: StrategyInstance,
     strategyId: StrategyId,
     symbol: string,
     promptConfig: AIPromptConfig,
-    indicatorsData: Map<string, any>
+    indicatorsData: Map<string, any>,
+    snapshot: MarketSnapshot
   ): Promise<TradeSignal | null> {
     try {
       // 构建缓存键
@@ -448,147 +577,151 @@ export class StrategyEngine {
         return cached.signal
       }
 
-      // 获取当前价格
-      const price = await this.binance.fetchPrice(symbol)
-
-      // 调用 AI API（复用现有的 analyzeMarketWithAI 函数）
       // 主时间框架取配置的第一个周期（最小的周期）
       const mainTimeframe = instance.strategy.marketData.timeframes[0] || '15m'
-      
-      // 正确提取指标数据，匹配IndicatorsHub返回的key格式：${timeframe}_${type}
-        const emaData = indicatorsData.get(`${mainTimeframe}_EMA`)?.values || {}
-        const rsiData = indicatorsData.get(`${mainTimeframe}_RSI`)?.values || {}
-        const macdData = indicatorsData.get(`${mainTimeframe}_MACD`)?.values || {}
-        
-        // 从策略配置中动态获取 Volume 和 OI 的时间周期
-        const volumeStatConfig = instance.strategy.statistics.find((s: any) => s.type === 'Volume' && s.enabled)
-        const oiStatConfig = instance.strategy.statistics.find((s: any) => s.type === 'OI' && s.enabled)
-        
-        const volumeTimeframe = volumeStatConfig?.timeframes?.[0] || '1h'
-        const oiTimeframe = oiStatConfig?.timeframes?.[0] || '1h'
-        
-        const volumeData = indicatorsData.get(`${volumeTimeframe}_Volume`)?.values || {}
-        
-        const rsi = rsiData.rsi || 50
-        const volume = volumeData.current || 0
-      
-        // 只从主周期获取ADX数据
-        const adxData = indicatorsData.get(`${mainTimeframe}_ADX`)?.values || {}
-         
-         // 检查策略中哪些指标是启用的
-         const enabledEMAs = instance.strategy.indicators.some((i: any) => i.type === 'EMA' && i.enabled)
-         const enabledRSI = instance.strategy.indicators.some((i: any) => i.type === 'RSI' && i.enabled)
-         const enabledMACD = instance.strategy.indicators.some((i: any) => i.type === 'MACD' && i.enabled)
-         const enabledADX = instance.strategy.indicators.some((i: any) => i.type === 'ADX' && i.enabled)
-         const enabledATR = instance.strategy.indicators.some((i: any) => i.type === 'ATR' && i.enabled)
-         const enabledOI = instance.strategy.statistics.some((s: any) => s.type === 'OI' && s.enabled)
-         const enabledVolume = instance.strategy.statistics.some((s: any) => s.type === 'Volume' && s.enabled)
-          
-        // 获取K线数据用于价格行为分析
-        let lastCandle, prevCandle
-        let candleProgress = this.config.defaultCandleProgress ?? 0.1 // 使用配置的默认值
-        const klines = this.indicatorsHub.getKlines(symbol, mainTimeframe)
-        if (klines && klines.length >= 2) {
-          lastCandle = klines[klines.length - 1]
-          prevCandle = klines[klines.length - 2]
-          // 计算当前K线已走的时间比例
-          if (lastCandle && lastCandle.timestamp) {
-            candleProgress = this.calculateCandleProgress(lastCandle.timestamp, mainTimeframe)
-          }
-        }
-          
-        const indicators: any = {
-          emaList: enabledEMAs && Array.isArray(emaData.emaList) ? emaData.emaList : [],
-          emaMap: enabledEMAs ? (emaData.emaMap || {}) : {},
-          rsi: enabledRSI ? rsiData.rsi : undefined,
-          macd: enabledMACD && macdData.macd !== undefined ? {
-            macd: macdData.macd,
-            signal: macdData.signal,
-            histogram: macdData.histogram
-          } : undefined,
-          // 只获取主周期的ADX值
-          adx: enabledADX ? adxData.adx : undefined,
-          adxSlope: enabledADX ? adxData.adxSlope : undefined,
-          atr: enabledATR ? indicatorsData.get(`${mainTimeframe}_ATR`)?.values?.atr : undefined,
-          openInterest: enabledOI ? indicatorsData.get(`${oiTimeframe}_OI`)?.values?.value : undefined,
-          openInterestChangePercent: enabledOI ? indicatorsData.get(`${oiTimeframe}_OI`)?.values?.changePercent : undefined,
-          openInterestTrend: enabledOI ? indicatorsData.get(`${oiTimeframe}_OI`)?.values?.trend : undefined,
-          adxPeriodLabel: mainTimeframe,
-          // 指标启用状态标记
-          enabledIndicators: {
-            ema: enabledEMAs,
-            rsi: enabledRSI,
-            macd: enabledMACD,
-            adx: enabledADX,
-            atr: enabledATR,
-            oi: enabledOI,
-            volume: enabledVolume
-          },
-          // K线数据（价格行为分析）
-          lastCandle,
-          prevCandle
-        }
-      
-     // 使用新的多策略AI分析器
-       const signal = await this.aiAnalyzer.analyze(
-         strategyId,
-         symbol,
-         promptConfig,
-         indicators,
-         price,
-         volume,
-         candleProgress
-       )
 
-       if (!signal) {
-         return null
-       }
-       
-        // 统一记录扫描结果日志，避免重复
-        const strategyInstance = this.runningStrategies.get(strategyId)
-        const strategyName = strategyInstance ? strategyInstance.strategy.name : '未知策略'
-        const minConfidence = this.config.minConfidence ?? 70
-         
-         // 获取增强信息（从 aiAnalyzer 的保存结果中或直接在 reasoning 中包含）
-         let enhancedLog = signal.reasoning
-         
-         // 检查评分条件
-         const minFinalScore = this.config.minFinalScore
-         const finalScore = signal.scoreBreakdown?.finalScore
-         const isFinalScoreOK = minFinalScore === undefined || finalScore === undefined || finalScore >= minFinalScore
-         
-         // 检查风险等级条件
-         const maxRiskLevel = this.config.maxRiskLevel
-         let isRiskLevelOK = true
-         if (maxRiskLevel !== undefined && signal.riskLevel !== undefined) {
-           const riskLevelOrder: Record<string, number> = { 'LOW': 0, 'MEDIUM': 1, 'HIGH': 2 }
-           const signalLevel = riskLevelOrder[signal.riskLevel] ?? 2
-           const maxLevel = riskLevelOrder[maxRiskLevel] ?? 0
-           isRiskLevelOK = signalLevel <= maxLevel
-         }
-         
-         if (signal.direction === 'idle') {
-           // IDLE 状态
-           logger.info('扫描结果', `${signal.symbol} @${signal.price} IDLE 置信度（${signal.confidence} < ${minConfidence}）评分（${finalScore}） [${strategyName} - ${signal.strategyId}] ===详细AI日志=== ${enhancedLog}`)
-           return null
-         } else if (signal.confidence < minConfidence) {
-           // 有方向但置信度不足的情况
-           logger.info('扫描结果', `${signal.symbol} @${signal.price} ${signal.direction.toUpperCase()} 置信度（${signal.confidence} < ${minConfidence}）评分（${finalScore}） [${strategyName} - ${signal.strategyId}] ===详细AI日志=== ${enhancedLog}`)
-           return null
-         } else if (!isFinalScoreOK) {
-           // 有方向且置信度足够，但评分不足
-           logger.info('扫描结果', `${signal.symbol} @${signal.price} ${signal.direction.toUpperCase()} 置信度（${signal.confidence} >= ${minConfidence}）评分（${finalScore} < ${minFinalScore}）[${strategyName} - ${signal.strategyId}] ===详细AI日志=== ${enhancedLog}`)
-           return null
-         } else if (!isRiskLevelOK) {
-           // 有方向、置信度足够、评分足够，但风险等级过高
-           logger.info('扫描结果', `${signal.symbol} @${signal.price} ${signal.direction.toUpperCase()} 置信度（${signal.confidence} >= ${minConfidence}）评分（${finalScore} >= ${minFinalScore}）风险等级（${signal.riskLevel} > ${maxRiskLevel}）[${strategyName} - ${signal.strategyId}] ===详细AI日志=== ${enhancedLog}`)
-           return null
-         } else {
-           // 所有条件都满足的情况
-           logger.success('扫描结果', `${signal.symbol} @${signal.price} ${signal.direction.toUpperCase()} 置信度（${signal.confidence} >= ${minConfidence}）评分（${finalScore} >= ${minFinalScore}）风险等级（${signal.riskLevel} < ${maxRiskLevel}）[${strategyName} - ${signal.strategyId}] ===详细AI日志=== ${enhancedLog}`)
-         }
-      
-      // 补充止损价（仅对非 idle 方向）
+      // 正确提取指标数据
+      const emaData = indicatorsData.get(`${mainTimeframe}_EMA`)?.values || {}
+      const rsiData = indicatorsData.get(`${mainTimeframe}_RSI`)?.values || {}
+      const macdData = indicatorsData.get(`${mainTimeframe}_MACD`)?.values || {}
+
+      // 从策略配置中动态获取 Volume 和 OI 的时间周期
+      const volumeStatConfig = instance.strategy.statistics.find((s: any) => s.type === 'Volume' && s.enabled)
+      const oiStatConfig = instance.strategy.statistics.find((s: any) => s.type === 'OI' && s.enabled)
+
+      const volumeTimeframe = volumeStatConfig?.timeframes?.[0] || '1h'
+      const oiTimeframe = oiStatConfig?.timeframes?.[0] || '1h'
+
+      const volumeData = indicatorsData.get(`${volumeTimeframe}_Volume`)?.values || {}
+
+      const rsi = rsiData.rsi || 50
+      const volume = volumeData.current || 0
+
+      // 只从主周期获取ADX数据
+      const adxData = indicatorsData.get(`${mainTimeframe}_ADX`)?.values || {}
+
+      // 检查策略中哪些指标是启用的
+      const enabledEMAs = instance.strategy.indicators.some((i: any) => i.type === 'EMA' && i.enabled)
+      const enabledRSI = instance.strategy.indicators.some((i: any) => i.type === 'RSI' && i.enabled)
+      const enabledMACD = instance.strategy.indicators.some((i: any) => i.type === 'MACD' && i.enabled)
+      const enabledADX = instance.strategy.indicators.some((i: any) => i.type === 'ADX' && i.enabled)
+      const enabledATR = instance.strategy.indicators.some((i: any) => i.type === 'ATR' && i.enabled)
+      const enabledOI = instance.strategy.statistics.some((s: any) => s.type === 'OI' && s.enabled)
+      const enabledVolume = instance.strategy.statistics.some((s: any) => s.type === 'Volume' && s.enabled)
+
+      // 获取K线数据用于价格行为分析
+      let lastCandle, prevCandle
+      let candleProgress = this.config.defaultCandleProgress ?? 0.1
+      const klines = snapshot.klinesByTimeframe.get(mainTimeframe)
+      if (klines && klines.length >= 2) {
+        lastCandle = klines[klines.length - 1]
+        prevCandle = klines[klines.length - 2]
+        if (lastCandle && lastCandle.timestamp) {
+          candleProgress = this.calculateCandleProgress(lastCandle.timestamp, mainTimeframe)
+        }
+      }
+
+      // 使用快照中的价格
+      const price = snapshot.price
+
+      // AI预筛
+      const preScreenResult = aiPreScreener.screen({
+        symbol,
+        strategyId,
+        adx: enabledADX ? adxData.adx : undefined,
+        atr: enabledATR ? indicatorsData.get(`${mainTimeframe}_ATR`)?.values?.atr : undefined,
+        currentPrice: price,
+        currentVolume: volumeData.current,
+        prevVolume: volumeData.prev
+      })
+
+      if (!preScreenResult.passed) {
+        return null
+      }
+
+      const indicators: any = {
+        emaList: enabledEMAs && Array.isArray(emaData.emaList) ? emaData.emaList : [],
+        emaMap: enabledEMAs ? (emaData.emaMap || {}) : {},
+        rsi: enabledRSI ? rsiData.rsi : undefined,
+        macd: enabledMACD && macdData.macd !== undefined ? {
+          macd: macdData.macd,
+          signal: macdData.signal,
+          histogram: macdData.histogram
+        } : undefined,
+        adx: enabledADX ? adxData.adx : undefined,
+        adxSlope: enabledADX ? adxData.adxSlope : undefined,
+        atr: enabledATR ? indicatorsData.get(`${mainTimeframe}_ATR`)?.values?.atr : undefined,
+        openInterest: enabledOI ? indicatorsData.get(`${oiTimeframe}_OI`)?.values?.value : undefined,
+        openInterestChangePercent: enabledOI ? indicatorsData.get(`${oiTimeframe}_OI`)?.values?.changePercent : undefined,
+        openInterestTrend: enabledOI ? indicatorsData.get(`${oiTimeframe}_OI`)?.values?.trend : undefined,
+        adxPeriodLabel: mainTimeframe,
+        enabledIndicators: {
+          ema: enabledEMAs,
+          rsi: enabledRSI,
+          macd: enabledMACD,
+          adx: enabledADX,
+          atr: enabledATR,
+          oi: enabledOI,
+          volume: enabledVolume
+        },
+        lastCandle,
+        prevCandle
+      }
+
+      // 使用并发池控制AI调用
+      const signal = await this.concurrencyPoolManager.getAIPool().submit(async () => {
+        return await this.aiAnalyzer.analyze(
+          strategyId,
+          symbol,
+          promptConfig,
+          indicators,
+          price,
+          volume,
+          candleProgress
+        )
+      })
+
+      if (!signal) {
+        return null
+      }
+
+      // 统一记录扫描结果日志
+      const strategyInstance = this.runningStrategies.get(strategyId)
+      const strategyName = strategyInstance ? strategyInstance.strategy.name : '未知策略'
+      const minConfidence = this.config.minConfidence ?? 70
+
+      let enhancedLog = signal.reasoning
+
+      const minFinalScore = this.config.minFinalScore
+      const finalScore = signal.scoreBreakdown?.finalScore
+      const isFinalScoreOK = minFinalScore === undefined || finalScore === undefined || finalScore >= minFinalScore
+
+      const maxRiskLevel = this.config.maxRiskLevel
+      let isRiskLevelOK = true
+      if (maxRiskLevel !== undefined && signal.riskLevel !== undefined) {
+        const riskLevelOrder: Record<string, number> = { 'LOW': 0, 'MEDIUM': 1, 'HIGH': 2 }
+        const signalLevel = riskLevelOrder[signal.riskLevel] ?? 2
+        const maxLevel = riskLevelOrder[maxRiskLevel] ?? 0
+        isRiskLevelOK = signalLevel <= maxLevel
+      }
+
+      if (signal.direction === 'idle') {
+        logger.info('扫描结果', `${signal.symbol} @${signal.price} IDLE 置信度（${signal.confidence} < ${minConfidence}）评分（${finalScore}） [${strategyName} - ${signal.strategyId}] ===详细AI日志=== ${enhancedLog}`)
+        return null
+      } else if (signal.confidence < minConfidence) {
+        logger.info('扫描结果', `${signal.symbol} @${signal.price} ${signal.direction.toUpperCase()} 置信度（${signal.confidence} < ${minConfidence}）评分（${finalScore}） [${strategyName} - ${signal.strategyId}] ===详细AI日志=== ${enhancedLog}`)
+        return null
+      } else if (!isFinalScoreOK) {
+        logger.info('扫描结果', `${signal.symbol} @${signal.price} ${signal.direction.toUpperCase()} 置信度（${signal.confidence} >= ${minConfidence}）评分（${finalScore} < ${minFinalScore}）[${strategyName} - ${signal.strategyId}] ===详细AI日志=== ${enhancedLog}`)
+        return null
+      } else if (!isRiskLevelOK) {
+        logger.info('扫描结果', `${signal.symbol} @${signal.price} ${signal.direction.toUpperCase()} 置信度（${signal.confidence} >= ${minConfidence}）评分（${finalScore} >= ${minFinalScore}）风险等级（${signal.riskLevel} > ${maxRiskLevel}）[${strategyName} - ${signal.strategyId}] ===详细AI日志=== ${enhancedLog}`)
+        return null
+      } else {
+        logger.success('扫描结果', `${signal.symbol} @${signal.price} ${signal.direction.toUpperCase()} 置信度（${signal.confidence} >= ${minConfidence}）评分（${finalScore} >= ${minFinalScore}）风险等级（${signal.riskLevel} < ${maxRiskLevel}）[${strategyName} - ${signal.strategyId}] ===详细AI日志=== ${enhancedLog}`)
+      }
+
+      // 补充止损价
       if (signal.direction === 'long' || signal.direction === 'short') {
         signal.stopLoss = this.calculateStopLoss(price, signal.direction)
       }
@@ -680,7 +813,7 @@ export class StrategyEngine {
     try {
       const strategy = instance.strategy
 
-      logger.info('StrategyEngine', `执行信号: ${signal.symbol} ${signal.direction} (${signal.reasoning})`)
+      logger.info('开仓信号', `执行信号: ${signal.symbol} ${signal.direction} (${signal.reasoning})`)
 
       // 1. 获取账户余额
       const account = await this.binance.fetchBalance()
@@ -908,9 +1041,9 @@ export class StrategyEngine {
       instance.lastSignalTime = new Date().toISOString()
       instance.totalTrades++
 
-      logger.success('StrategyEngine', `信号执行完成: ${signal.symbol}`)
+      logger.success('开仓信号', `信号执行完成: ${signal.symbol}`)
     } catch (error: any) {
-      logger.error('StrategyEngine', `信号执行失败 ${signal.symbol}: ${error.message}`)
+      logger.error('开仓信号', `信号执行失败 ${signal.symbol}: ${error.message}`)
 
       instance.error = error.message
       throw error
@@ -970,9 +1103,14 @@ export class StrategyEngine {
       throw new Error(`策略未运行: ${strategyId}`)
     }
 
-    logger.info('StrategyEngine', `手动触发分析: ${symbol}`)
+    logger.info('手动开仓', `手动触发分析: ${symbol}`)
 
-    await this.analyzeSymbol(instance, symbol)
+    // 构建市场快照
+    const snapshot = await this.concurrencyPoolManager.getIndicatorPool().submit(async () => {
+      return await this.scheduler.buildMarketSnapshot(symbol)
+    })
+
+    await this.analyzeSymbol(instance, symbol, snapshot)
 
     return {
       message: `分析完成: ${symbol}`,

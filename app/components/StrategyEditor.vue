@@ -267,8 +267,8 @@
         </template>
         <el-row :gutter="20">
           <el-col :span="8">
-            <el-form-item label="扫描间隔(秒)">
-              <el-input-number v-model="form.executionConfig.scanInterval" :min="600" :max="6000" :step="60" />
+            <el-form-item label="扫描间隔(分钟)">
+              <el-input-number v-model="form.executionConfig.scanInterval" :min="5" :max="120" :step="5" />
             </el-form-item>
           </el-col>
           <el-col :span="8">
@@ -452,7 +452,7 @@ const form = reactive<CreateStrategyInput>({
     }
   },
   executionConfig: {
-    scanInterval: 600,
+    scanInterval: 5,
     leverage: 'dynamic',
     marginMode: 'cross',
     positionMode: 'one-way'

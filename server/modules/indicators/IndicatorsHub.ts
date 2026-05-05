@@ -752,12 +752,8 @@ export class IndicatorsHub {
       // 2. 刷新持仓量（仅这个需要 API 请求）
       await this.fetchAndCacheOI(symbol)
 
-      // 3. 清除指标缓存，下次请求时按需重新计算
-      const symbolData = this.symbolDataCache.get(symbol)
-      if (symbolData) {
-        symbolData.indicators.clear()
-        symbolData.volumeData?.clear()
-      }
+      // 3. 清除指标缓存 - 注意：getKlines 已经在文件更新时调用了 invalidateIndicatorsCache
+      // 这里不需要再清除所有指标缓存，避免不必要的重新计算
     } catch (error: any) {
       logger.error('IndicatorsHub', `${symbol} 数据刷新失败: ${error.message}`)
     }
@@ -935,7 +931,7 @@ export class IndicatorsHub {
         }
       }
 
-      // logger.debug('IndicatorsHub', `${symbol} ${timeframe} 数据已刷新（事件驱动）`)
+      // logger.info('IndicatorsHub', `${symbol} ${timeframe} 数据已刷新（事件驱动）`)
     } catch (error: any) {
       logger.error('IndicatorsHub', `${symbol} ${timeframe} 数据刷新失败: ${error.message}`)
     }

@@ -305,5 +305,20 @@ function getDefaultBotConfig(): BotConfig {
     maxRiskLevel: 'MEDIUM', // 最大风险等级
     defaultCandleProgress: 0.1, // 默认K线进度（用于无法获取最新K线时兜底）
     commissionRate: 0.0005, // 手续费率
+    preScreenConfig: {
+      minAdx: 15, // ADX最小阈值
+      maxAdx: 60, // ADX最大阈值
+      minAtrPercent: 0.001, // ATR最小波动率
+      maxAtrPercent: 0.05, // ATR最大波动率
+      minVolumeRatio: 0.5, // 成交量最小比率
+      enableAdx: true, // 启用ADX筛选
+      enableAtr: true, // 启用ATR筛选
+      enableVolume: true, // 启用成交量筛选
+    },
+    concurrencyPool: {
+      indicator: { maxConcurrency: 16 }, // 指标计算并发数
+      ai: { maxConcurrency: 6 }, // AI分析并发数
+      tradeApi: { maxConcurrency: 4 }, // 交易API并发数
+    },
   }
 }

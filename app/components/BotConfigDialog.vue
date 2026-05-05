@@ -71,6 +71,35 @@
             <el-input-number v-model="form.aiAnalysisConfig.minConfidence" :min="0" :max="100" />
           </el-form-item>
 
+          <!-- AI预筛配置 -->
+          <el-divider content-position="left">AI预筛配置</el-divider>
+          <template v-if="form.preScreenConfig">
+            <el-form-item label="ADX最小阈值">
+              <el-input-number v-model="form.preScreenConfig.minAdx" :min="0" :max="100" :step="1" />
+            </el-form-item>
+            <el-form-item label="ADX最大阈值">
+              <el-input-number v-model="form.preScreenConfig.maxAdx" :min="0" :max="100" :step="1" />
+            </el-form-item>
+            <el-form-item label="ATR最小波动率">
+              <el-input-number v-model="form.preScreenConfig.minAtrPercent" :min="0" :max="0.1" :step="0.0001" />
+            </el-form-item>
+            <el-form-item label="ATR最大波动率">
+              <el-input-number v-model="form.preScreenConfig.maxAtrPercent" :min="0" :max="0.5" :step="0.001" />
+            </el-form-item>
+            <el-form-item label="成交量最小比率">
+              <el-input-number v-model="form.preScreenConfig.minVolumeRatio" :min="0" :max="5" :step="0.01" />
+            </el-form-item>
+            <el-form-item label="启用ADX筛选">
+              <el-switch v-model="form.preScreenConfig.enableAdx" />
+            </el-form-item>
+            <el-form-item label="启用ATR筛选">
+              <el-switch v-model="form.preScreenConfig.enableAtr" />
+            </el-form-item>
+            <el-form-item label="启用成交量筛选">
+              <el-switch v-model="form.preScreenConfig.enableVolume" />
+            </el-form-item>
+          </template>
+
           <!-- 交易规则配置 -->
           <el-divider content-position="left">交易规则配置</el-divider>
           <el-form-item label="最低置信度">
@@ -95,6 +124,20 @@
           <el-form-item label="持仓监控间隔(秒)">
             <el-input-number v-model="form.monitorInterval" :min="1" :max="600" :step="1" />
           </el-form-item>
+
+          <!-- 并发池配置 -->
+          <el-divider content-position="left">并发池配置</el-divider>
+          <template v-if="form.concurrencyPool">
+            <el-form-item label="指标计算并发数">
+              <el-input-number v-model="form.concurrencyPool.indicator.maxConcurrency" :min="1" :max="64" :step="1" />
+            </el-form-item>
+            <el-form-item label="AI分析并发数">
+              <el-input-number v-model="form.concurrencyPool.ai.maxConcurrency" :min="1" :max="32" :step="1" />
+            </el-form-item>
+            <el-form-item label="交易API并发数">
+              <el-input-number v-model="form.concurrencyPool.tradeApi.maxConcurrency" :min="1" :max="16" :step="1" />
+            </el-form-item>
+          </template>
         </el-form>
       </div>
 

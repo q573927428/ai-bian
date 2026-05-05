@@ -100,6 +100,27 @@ export interface AIAnalysis {
   }
 }
 
+// ==================== AI预筛配置 ====================
+
+// AI预筛配置
+export interface PreScreenConfig {
+  // ADX阈值（趋势强度）
+  minAdx?: number // 默认 15
+  maxAdx?: number // 默认 60
+
+  // ATR阈值（波动率）
+  minAtrPercent?: number // 默认 0.001 (0.1%)
+  maxAtrPercent?: number // 默认 0.05 (5%)
+
+  // 成交量阈值
+  minVolumeRatio?: number // 默认 0.5 (至少是前一根K线的50%)
+
+  // 启用/禁用特定筛选项
+  enableAdx?: boolean
+  enableAtr?: boolean
+  enableVolume?: boolean
+}
+
 // ==================== 机器人配置 ====================
 
 // AI分析保存配置
@@ -118,6 +139,13 @@ export interface IndicatorsConfig {
   openInterest?: any
 }
 
+// 机器人并发池配置（供 BotConfig 使用）
+export interface BotConcurrencyConfig {
+  indicator: { maxConcurrency: number }
+  ai: { maxConcurrency: number }
+  tradeApi: { maxConcurrency: number }
+}
+
 // 机器人系统配置
 export interface BotConfig {
   symbols: string[]
@@ -131,6 +159,8 @@ export interface BotConfig {
   maxRiskLevel?: RiskLevel
   defaultCandleProgress: number
   commissionRate: number
+  preScreenConfig?: PreScreenConfig
+  concurrencyPool?: BotConcurrencyConfig
 }
 
 // ==================== 仓位与订单 ====================

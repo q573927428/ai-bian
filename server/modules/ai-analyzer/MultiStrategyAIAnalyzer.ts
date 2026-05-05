@@ -1,33 +1,34 @@
 // ==================== 多策略 AI 分析器 ====================
 
-import type { StrategyId, AIPromptConfig, AIProvider } from '../../../types/strategy';
-import type { AIAnalysis, RiskLevel, TechnicalIndicators, BotConfig, Direction, ScoreBreakdown } from '../../../types';
-import type { TradeSignal } from '../../../types/signal';
-import { BinanceService } from '../../utils/binance';
-import { logger } from '../../utils/logger';
-import { strategyStore } from '../strategy-store/StrategyStore';
-import { getProviderConfig, callAIAPI, extractJSONContent, type AIChatMessage } from '../../utils/ai-service';
-import fs from 'node:fs/promises';
-import path from 'node:path';
+import type { StrategyId, AIPromptConfig, AIProvider } from '../../../types/strategy'
+import type { AIAnalysis, RiskLevel, TechnicalIndicators, BotConfig, Direction, ScoreBreakdown } from '../../../types'
+import type { TradeSignal } from '../../../types/signal'
+import { BinanceService } from '../../utils/binance'
+import { logger } from '../../utils/logger'
+import { strategyStore } from '../strategy-store/StrategyStore'
+import { getProviderConfig, callAIAPI, extractJSONContent, type AIChatMessage } from '../../utils/ai-service'
+import { concurrencyPoolManager } from '../../utils/concurrency-pool'
+import { getAIAnalysisWriter } from '../../utils/jsonl-batch-writer'
 
 /**
  * AI 分析缓存
  */
 interface MultiStrategyAICache {
-  signal: TradeSignal;
-  timestamp: number;
+  signal: TradeSignal
+  timestamp: number
 }
 
 const aiCache = new Map<string, MultiStrategyAICache>()
 
 /**
  * 多策略 AI 分析器
- * 
+ *
  * 职责：
  * 1. 支持每个策略自定义的 AI 提示词
  * 2. 统一的 AI 调用接口
  * 3. 智能缓存（相同市场数据不重复调用）
  * 4. 降级处理（API 失败时返回安全默认值）
+ * 5. 并发控制和批量写入优化
  */
 export class MultiStrategyAIAnalyzer {
   private binance: BinanceService
@@ -36,7 +37,7 @@ export class MultiStrategyAIAnalyzer {
   constructor(binance: BinanceService, config: BotConfig) {
     this.binance = binance
     this.config = config
-    // logger.info('MultiStrategyAIAnalyzer', '多策略 AI 分析器已初始化')
+    logger.info('MultiStrategyAIAnalyzer', '多策略 AI 分析器已初始化（含并发控制）')
   }
 
   /**
@@ -400,7 +401,7 @@ ${promptConfig.userPrompt}
   }
 
   /**
-   * 保存AI分析结果到每日JSON文件
+   * 保存AI分析结果到JSONL文件（批量写入）
    */
   private async saveAIAnalysisToFile(analysis: AIAnalysis): Promise<void> {
     try {
@@ -421,57 +422,15 @@ ${promptConfig.userPrompt}
         return
       }
       
-      // 确保目录存在
-      const saveDir = path.join(process.cwd(), 'data', 'ai-analysis')
-      await fs.mkdir(saveDir, { recursive: true })
-      
-       // 生成当天文件名（使用本地时区）
-       const date = new Date()
-       const year = date.getFullYear()
-       const month = String(date.getMonth() + 1).padStart(2, '0')
-       const day = String(date.getDate()).padStart(2, '0')
-       const dateStr = `${year}-${month}-${day}`
-      const fileName = `ai-analysis-${dateStr}.json`
-      const filePath = path.join(saveDir, fileName)
-      
-       // 读取现有内容或创建新数组
-       let records: AIAnalysis[] = []
-       try {
-         const fileContent = await fs.readFile(filePath, 'utf-8')
-         // 处理空文件或无效JSON
-         if (fileContent.trim()) {
-           records = JSON.parse(fileContent)
-           // 确保解析结果是数组
-           if (!Array.isArray(records)) {
-             records = []
-           }
-         }
-       } catch (error: any) {
-         // 文件不存在、内容为空或解析失败，使用空数组
-         if (error.code !== 'ENOENT') {
-           logger.error('MultiStrategyAIAnalyzer', '读取AI分析历史文件失败:', error.message)
-         }
-         records = []
-       }
-       
-      // 添加新记录
-      records.push(analysis)
-      
-      // 如果超过最大数量限制，删除最早的记录
-      if (records.length > saveConfig.maxRecords) {
-        const excessCount = records.length - saveConfig.maxRecords
-        records = records.slice(excessCount)
-      }
-      
-      // 写入文件
-      await fs.writeFile(filePath, JSON.stringify(records, null, 2), 'utf-8')
+      // 使用批量写入器
+      await getAIAnalysisWriter().write(analysis)
     } catch (error: any) {
       logger.error('MultiStrategyAIAnalyzer', '保存AI分析结果失败:', error.message)
     }
   }
 
   /**
-   * 调用 AI API（支持多提供商）
+   * 调用 AI API（支持多提供商和并发控制）
    */
   private async callAI(
     prompt: string,
@@ -482,102 +441,105 @@ ${promptConfig.userPrompt}
     strategyId: StrategyId,
     promptConfig?: AIPromptConfig
   ): Promise<AIAnalysis | null> {
-    try {
-      const emaEntries = indicators.emaList
-      const runtimeConfig = useRuntimeConfig()
+    // 使用并发池控制AI调用并发数
+    return concurrencyPoolManager.getAIPool().submit(async () => {
+      try {
+        const emaEntries = indicators.emaList
+        const runtimeConfig = useRuntimeConfig()
 
-      // 获取 AI 提供商配置（优先使用策略配置，否则使用默认配置）
-      const provider = promptConfig?.provider || (runtimeConfig.aiProvider as AIProvider) || 'deepseek'
-      const providerConfig = getProviderConfig(provider, runtimeConfig)
-      
-      // 构建系统提示词
-      const systemPrompt = await this.buildSystemPrompt()
-      
-      const messages: AIChatMessage[] = [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: prompt }
-      ]
+        // 获取 AI 提供商配置（优先使用策略配置，否则使用默认配置）
+        const provider = promptConfig?.provider || (runtimeConfig.aiProvider as AIProvider) || 'deepseek'
+        const providerConfig = getProviderConfig(provider, runtimeConfig)
+        
+        // 构建系统提示词
+        const systemPrompt = await this.buildSystemPrompt()
+        
+        const messages: AIChatMessage[] = [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: prompt }
+        ]
 
-      const content = await callAIAPI(providerConfig, messages, {
-        temperature: promptConfig?.temperature ?? 0.5,
-        maxTokens: promptConfig?.maxTokens ?? 1000
-      })
+        const content = await callAIAPI(providerConfig, messages, {
+          temperature: promptConfig?.temperature ?? 0.5,
+          maxTokens: promptConfig?.maxTokens ?? 1000
+        })
 
-      // 提取JSON内容
-      const jsonContent = extractJSONContent(content)
-      const aiResult = JSON.parse(jsonContent)
+        // 提取JSON内容
+        const jsonContent = extractJSONContent(content)
+        const aiResult = JSON.parse(jsonContent)
 
-      const direction = (aiResult.direction || 'IDLE') as Direction
-      
-      // 构建分析理由
-      let reasoning = aiResult.reasoning || '无分析理由'
-      
-      // 验证防护：如果 reasoning 包含 IDLE 或 idle，只降低置信度
-      let confidence = aiResult.confidence
-      const hasIdleKeyword = reasoning.toLowerCase().includes('idle')
-      if (hasIdleKeyword) {
-        confidence = Math.min(confidence, 70)
+        const direction = (aiResult.direction || 'IDLE') as Direction
+        
+        // 构建分析理由
+        let reasoning = aiResult.reasoning || '无分析理由'
+        
+        // 验证防护：如果 reasoning 包含 IDLE 或 idle，只降低置信度
+        let confidence = aiResult.confidence
+        const hasIdleKeyword = reasoning.toLowerCase().includes('idle')
+        if (hasIdleKeyword) {
+          confidence = Math.min(confidence, 70)
+        }
+        
+        const normalizedScoreBreakdown = this.normalizeScoreBreakdown(aiResult.scoreBreakdown)
+
+        const analysis: AIAnalysis = {
+          symbol,
+          timestamp: Date.now(),
+          strategyId,
+          direction: direction,
+          confidence: confidence,
+          riskLevel: (aiResult.riskLevel || 'MEDIUM') as RiskLevel,
+          isBullish: direction === 'LONG',
+          reasoning: reasoning,
+          scoreBreakdown: normalizedScoreBreakdown,
+          technicalData: {
+            price,
+            ...Object.fromEntries(emaEntries.map(item => [item.name, item.value])),
+            ...(indicators.emaMap || {}),
+            rsi: indicators.rsi ?? 0,
+            macd: indicators.macd?.macd,
+            macdSignal: indicators.macd?.signal,
+            macdHistogram: indicators.macd?.histogram,
+            volume,
+            openInterest: indicators.enabledIndicators?.oi ? indicators.openInterest : undefined,
+            openInterestChangePercent: indicators.enabledIndicators?.oi ? indicators.openInterestChangePercent : undefined,
+            openInterestTrend: indicators.enabledIndicators?.oi ? indicators.openInterestTrend : undefined,
+            adx: indicators?.adx ?? 0,
+            adxPeriodLabel: indicators?.adxPeriodLabel,
+            adxSlope: indicators?.adxSlope,
+            support: aiResult.support,
+            resistance: aiResult.resistance,
+          },
+        }
+
+        // 异步保存到文件，不阻塞主流程
+        this.saveAIAnalysisToFile(analysis).catch(() => {})
+
+        return analysis
+      } catch (error: any) {
+        logger.error('MultiStrategyAIAnalyzer', `AI API 调用失败: ${error.message}`)
+        
+        // 返回默认分析结果（降级处理）
+        const fallbackAnalysis: AIAnalysis = {
+          symbol,
+          timestamp: Date.now(),
+          strategyId,
+          direction: 'IDLE',
+          confidence: 5,
+          riskLevel: 'HIGH',
+          isBullish: false,
+          reasoning: `AI分析暂时不可用: ${error.message}`,
+          technicalData: {
+            price,
+            ...Object.fromEntries(indicators.emaList.map(item => [item.name, item.value])),
+            rsi: indicators.rsi ?? 0,
+            volume,
+          },
+        }
+
+        return fallbackAnalysis
       }
-      
-      const normalizedScoreBreakdown = this.normalizeScoreBreakdown(aiResult.scoreBreakdown)
-
-      const analysis: AIAnalysis = {
-        symbol,
-        timestamp: Date.now(),
-        strategyId,
-        direction: direction,
-        confidence: confidence,
-        riskLevel: (aiResult.riskLevel || 'MEDIUM') as RiskLevel,
-        isBullish: direction === 'LONG',
-        reasoning: reasoning,
-        scoreBreakdown: normalizedScoreBreakdown,
-        technicalData: {
-          price,
-          ...Object.fromEntries(emaEntries.map(item => [item.name, item.value])),
-          ...(indicators.emaMap || {}),
-          rsi: indicators.rsi ?? 0,
-          macd: indicators.macd?.macd,
-          macdSignal: indicators.macd?.signal,
-          macdHistogram: indicators.macd?.histogram,
-          volume,
-          openInterest: indicators.enabledIndicators?.oi ? indicators.openInterest : undefined,
-          openInterestChangePercent: indicators.enabledIndicators?.oi ? indicators.openInterestChangePercent : undefined,
-          openInterestTrend: indicators.enabledIndicators?.oi ? indicators.openInterestTrend : undefined,
-          adx: indicators?.adx ?? 0,
-          adxPeriodLabel: indicators?.adxPeriodLabel,
-          adxSlope: indicators?.adxSlope,
-          support: aiResult.support,
-          resistance: aiResult.resistance,
-        },
-      }
-
-      // 异步保存到文件，不阻塞主流程
-      this.saveAIAnalysisToFile(analysis).catch(() => {})
-
-      return analysis
-    } catch (error: any) {
-      logger.error('MultiStrategyAIAnalyzer', `AI API 调用失败: ${error.message}`)
-      
-      // 返回默认分析结果（降级处理）
-      const fallbackAnalysis: AIAnalysis = {
-        symbol,
-        timestamp: Date.now(),
-        strategyId,
-        direction: 'IDLE',
-        confidence: 5,
-        riskLevel: 'HIGH',
-        isBullish: false,
-        reasoning: `AI分析暂时不可用: ${error.message}`,
-        technicalData: {
-          price,
-          ...Object.fromEntries(indicators.emaList.map(item => [item.name, item.value])),
-          rsi: indicators.rsi ?? 0,
-          volume,
-        },
-      }
-
-      return fallbackAnalysis
-    }
+    })
   }
 
   /**
