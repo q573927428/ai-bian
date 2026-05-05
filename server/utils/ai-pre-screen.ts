@@ -118,7 +118,7 @@ export class AIPreScreener {
       checks.adx = adxCheck
       if (!adxCheck.passed) {
         passed = false
-        failReason = `ADX不满足: ${input.adx} 不在 [${this.config.minAdx}, ${this.config.maxAdx}] 范围内`
+        failReason = `ADX不满足: ${input.adx.toFixed(2)} 不在 [${this.config.minAdx}, ${this.config.maxAdx}] 范围内`
       }
     }
 
@@ -138,7 +138,7 @@ export class AIPreScreener {
       checks.volume = volumeCheck
       if (!volumeCheck.passed) {
         passed = false
-        failReason = `成交量不满足: 当前 ${input.currentVolume} / 前一根 ${input.prevVolume} = ${(input.currentVolume / input.prevVolume * 100).toFixed(1)}% < ${(this.config.minVolumeRatio! * 100)}%`
+        failReason = `成交量不满足: 当前 ${input.currentVolume.toFixed(2)} / 前一根 ${input.prevVolume.toFixed(2)} = ${(input.currentVolume / input.prevVolume * 100).toFixed(1)}% < ${(this.config.minVolumeRatio! * 100)}%`
       }
     }
 
