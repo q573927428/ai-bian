@@ -463,6 +463,7 @@ export class IndicatorsHub {
     options?: {
       lookbackMinutes?: number
       trendThresholdPercent?: number
+      adxPeriod?: number // ADX计算周期，默认14
     }
   ): Promise<IndicatorData> {
     const symbolData = this.getOrCreateSymbolData(symbol)
@@ -614,7 +615,8 @@ export class IndicatorsHub {
           break
 
         case 'ADX':
-          const adxValues = ADX.calculate({ period: 14, high: highs, low: lows, close: closes })
+          const adxPeriod = Number(options?.adxPeriod ?? 14)
+          const adxValues = ADX.calculate({ period: adxPeriod, high: highs, low: lows, close: closes })
           const currentADX = adxValues[adxValues.length - 1]?.adx ?? 0
           const adxSlopePeriod = this.config.indicatorsConfig?.adxSlopePeriod ?? 3
           const previousADXIndex = Math.max(0, adxValues.length - 1 - adxSlopePeriod)

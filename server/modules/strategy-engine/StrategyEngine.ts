@@ -624,11 +624,17 @@ export class StrategyEngine {
       // 使用快照中的价格
       const price = snapshot.price
 
+      // 从策略配置中读取ADX周期参数
+      const adxConfig = instance.strategy.indicators.find((i: any) => i.type === 'ADX' && i.enabled)
+      const adxPeriod = Number(adxConfig?.params?.period ?? 14)
+
       // AI预筛
       const preScreenResult = aiPreScreener.screen({
         symbol,
         strategyId,
         adx: enabledADX ? adxData.adx : undefined,
+        adxPeriod: enabledADX ? adxPeriod : undefined,
+        adxTimeframe: enabledADX ? mainTimeframe : undefined,
         atr: enabledATR ? indicatorsData.get(`${mainTimeframe}_ATR`)?.values?.atr : undefined,
         currentPrice: price,
         currentVolume: volumeData.current,

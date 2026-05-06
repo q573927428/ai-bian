@@ -32,6 +32,8 @@ export interface PreScreenInput {
   
   // ADX相关
   adx?: number
+  adxPeriod?: number // ADX计算周期，默认14
+  adxTimeframe?: string // ADX的K线周期，如 "15m"、"1h"
   
   // ATR相关
   atr?: number
@@ -117,8 +119,9 @@ export class AIPreScreener {
       const adxCheck = this.checkAdx(input.adx)
       checks.adx = adxCheck
       if (!adxCheck.passed) {
+        const adxTimeframe = input.adxTimeframe ?? '15m'
         passed = false
-        failReason = `ADX不满足: ${input.adx.toFixed(2)} 不在 [${this.config.minAdx}, ${this.config.maxAdx}] 范围内`
+        failReason = `ADX(${adxTimeframe}) 不满足: ${input.adx.toFixed(2)} 不在 [${this.config.minAdx}, ${this.config.maxAdx}] 范围内`
       }
     }
 
