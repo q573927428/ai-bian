@@ -22,83 +22,118 @@
       <span>暂无历史订单</span>
     </div>
 
-    <!-- 订单列表 -->
-    <div v-else class="history-list">
-      <div v-for="order in orders" :key="order.id" class="history-item">
-        <div class="order-header">
-          <div class="order-left">
-            <span class="symbol">{{ order.symbol }}</span>
-            <el-tag
-              :type="order.direction === 'LONG' ? 'success' : 'danger'"
-              size="small"
-              effect="dark"
-            >
-              {{ order.direction === 'LONG' ? '做多' : '做空' }}
-            </el-tag>
-            <el-tag v-if="order.strategyId" type="info" size="small" effect="plain">
-              {{ order.strategyId }}
-            </el-tag>
-          </div>
-          <div class="order-right">
-            <span class="close-time">{{ formatHoldingTime(order.openTime, order.closeTime) }}</span>
-          </div>
-        </div>
+    <!-- 表格 -->
+    <el-table
+      v-else
+      :data="orders"
+      stripe
+      border
+      size="small"
+      style="width: 100%"
+      :header-cell-style="{ background: '#f5f7fa', color: '#303133', fontWeight: 600 }"
+    >
+      <el-table-column label="交易对" width="100" fixed>
+        <template #default="{ row }">
+          <span class="symbol">{{ row.symbol }}</span>
+        </template>
+      </el-table-column>
 
-        <div class="order-details">
-          <div class="detail-row">
-            <div class="detail-item">
-              <span class="detail-label">入场价</span>
-              <span class="detail-value">${{ order.entryPrice?.toFixed(2) }}</span>
-            </div>
-            <div class="detail-item">
-              <span class="detail-label">出场价</span>
-              <span class="detail-value">${{ order.exitPrice?.toFixed(2) }}</span>
-            </div>
-            <div class="detail-item">
-              <span class="detail-label">数量</span>
-              <span class="detail-value">{{ order.quantity }}</span>
-            </div>
-            <div class="detail-item">
-              <span class="detail-label">杠杆</span>
-              <span class="detail-value">{{ order.leverage }}x</span>
-            </div>
-            <div class="detail-item">
-              <span class="detail-label">盈亏</span>
-              <span
-                :class="['detail-value', 'pnl-value', order.pnl >= 0 ? 'text-success' : 'text-danger']"
-              >
-                {{ order.pnl >= 0 ? '+' : '' }}{{ order.pnl?.toFixed(2) }}
-              </span>
-            </div>
-            <div class="detail-item">
-              <span class="detail-label">盈亏%</span>
-              <span
-                :class="['detail-value', 'pnl-value', order.pnlPercentage >= 0 ? 'text-success' : 'text-danger']"
-              >
-                {{ order.pnlPercentage >= 0 ? '+' : '' }}{{ order.pnlPercentage?.toFixed(2) }}%
-              </span>
-            </div>
-            <div class="detail-item">
-              <span class="detail-label">开仓时间</span>
-              <span class="detail-value">{{ formatTime(order.openTime) }}</span>
-            </div>
-            <div class="detail-item">
-              <span class="detail-label">平仓时间</span>
-              <span class="detail-value">{{ formatTime(order.closeTime) }}</span>
-            </div>
-            <div class="detail-item">
-              <span class="detail-label">原因</span>
-              <el-tag
-                :type="getCloseCategoryType(order.closeCategory) as any"
-                size="small"
-              >
-                {{ getCloseCategoryLabel(order.closeCategory) }}
-              </el-tag>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+      <el-table-column label="方向" width="70" align="center">
+        <template #default="{ row }">
+          <el-tag
+            :type="row.direction === 'LONG' ? 'success' : 'danger'"
+            size="small"
+            effect="dark"
+          >
+            {{ row.direction === 'LONG' ? '做多' : '做空' }}
+          </el-tag>
+        </template>
+      </el-table-column>
+
+      <el-table-column label="策略" min-width="90">
+        <template #default="{ row }">
+          <el-tag v-if="row.strategyId" type="info" size="small" effect="plain">
+            {{ row.strategyId }}
+          </el-tag>
+          <span v-else class="text-muted">--</span>
+        </template>
+      </el-table-column>
+
+      <el-table-column label="入场价" width="80" align="right">
+        <template #default="{ row }">
+          ${{ row.entryPrice?.toFixed(2) }}
+        </template>
+      </el-table-column>
+
+      <el-table-column label="出场价" width="80" align="right">
+        <template #default="{ row }">
+          ${{ row.exitPrice?.toFixed(2) }}
+        </template>
+      </el-table-column>
+
+      <el-table-column label="数量" width="80" align="right">
+        <template #default="{ row }">
+          {{ row.quantity }}
+        </template>
+      </el-table-column>
+
+      <el-table-column label="杠杆" width="60" align="center">
+        <template #default="{ row }">
+          {{ row.leverage }}x
+        </template>
+      </el-table-column>
+
+      <el-table-column label="盈亏" width="70" align="right">
+        <template #default="{ row }">
+          <span :class="row.pnl >= 0 ? 'text-success' : 'text-danger'">
+            ${{ row.pnl >= 0 ? '+' : '' }}{{ row.pnl?.toFixed(2) }}
+          </span>
+        </template>
+      </el-table-column>
+
+      <el-table-column label="盈亏%" width="80" align="right">
+        <template #default="{ row }">
+          <span :class="row.pnlPercentage >= 0 ? 'text-success' : 'text-danger'">
+            {{ row.pnlPercentage >= 0 ? '+' : '' }}{{ row.pnlPercentage?.toFixed(2) }}%
+          </span>
+        </template>
+      </el-table-column>
+
+      <el-table-column label="手续费" width="70" align="right">
+        <template #default="{ row }">
+          ${{ row.totalCommission != null ? row.totalCommission.toFixed(2) : '--' }}
+        </template>
+      </el-table-column>
+
+      <el-table-column label="开仓时间" width="100" align="center">
+        <template #default="{ row }">
+          {{ formatTime(row.openTime) }}
+        </template>
+      </el-table-column>
+
+      <el-table-column label="平仓时间" width="100" align="center">
+        <template #default="{ row }">
+          {{ formatTime(row.closeTime) }}
+        </template>
+      </el-table-column>
+
+      <el-table-column label="持仓" width="100" align="center">
+        <template #default="{ row }">
+          {{ formatHoldingTime(row.openTime, row.closeTime) }}
+        </template>
+      </el-table-column>
+
+      <el-table-column label="原因" width="90" align="center">
+        <template #default="{ row }">
+          <el-tag
+            :type="getCloseCategoryType(row.closeCategory) as any"
+            size="small"
+          >
+            {{ getCloseCategoryLabel(row.closeCategory) }}
+          </el-tag>
+        </template>
+      </el-table-column>
+    </el-table>
 
     <!-- 分页 -->
     <div v-if="totalPages > 1" class="pagination-wrapper">
@@ -122,7 +157,7 @@ import type { TradeHistory } from '../../types'
 
 const orders = ref<TradeHistory[]>([])
 const currentPage = ref(1)
-const pageSize = ref(5)
+const pageSize = ref(10)
 const total = ref(0)
 const totalPages = ref(0)
 const loading = ref(false)
@@ -264,97 +299,24 @@ onUnmounted(() => {
   color: #c0c4cc;
 }
 
-.history-list {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.history-item {
-  border: 1px solid #ebeef5;
-  border-radius: 10px;
-  padding: 12px;
-  background: linear-gradient(135deg, #fafafa 0%, #f5f5f5 100%);
-  transition: all 0.3s ease;
-}
-
-.history-item:hover {
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-  transform: translateY(-1px);
-}
-
-.order-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 10px;
-}
-
-.order-left {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
 .symbol {
   font-weight: 700;
   color: #1f2937;
-  font-size: 15px;
-}
-
-.order-right {
-  display: flex;
-  align-items: center;
-}
-
-.close-time {
-  font-size: 12px;
-  color: #909399;
-}
-
-.order-details {
-  background: #ffffff;
-  border-radius: 8px;
-  padding: 10px;
-  border: 1px solid #e8e8e8;
-}
-
-.detail-row {
-  display: grid;
-  grid-template-columns: repeat(9, 1fr);
-  gap: 8px;
-}
-
-.detail-item {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  align-items: center;
-  text-align: center;
-}
-
-.detail-label {
-  color: #909399;
-  font-size: 11px;
-  font-weight: 500;
-}
-
-.detail-value {
-  color: #1f2937;
-  font-size: 14px;
-  font-weight: 600;
-}
-
-.pnl-value {
-  font-size: 15px;
+  font-size: 13px;
 }
 
 .text-success {
   color: #10b981;
+  font-weight: 600;
 }
 
 .text-danger {
   color: #ef4444;
+  font-weight: 600;
+}
+
+.text-muted {
+  color: #c0c4cc;
 }
 
 .pagination-wrapper {
@@ -363,25 +325,5 @@ onUnmounted(() => {
   margin-top: 16px;
   padding-top: 12px;
   border-top: 1px solid #ebeef5;
-}
-
-/* 手机端适配 */
-@media (max-width: 768px) {
-  .history-item {
-    padding: 10px;
-  }
-
-  .detail-row {
-    grid-template-columns: repeat(3, 1fr);
-    gap: 6px;
-  }
-
-  .detail-value {
-    font-size: 13px;
-  }
-
-  .order-left {
-    flex-wrap: wrap;
-  }
 }
 </style>
