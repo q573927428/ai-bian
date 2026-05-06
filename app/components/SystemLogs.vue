@@ -213,7 +213,7 @@ onUnmounted(() => {
 }
 
 .logs-container {
-  max-height: 376px;
+  max-height: 576px;
   overflow-y: auto;
   padding: 10px;
   background: #fafafa;

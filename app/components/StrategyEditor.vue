@@ -36,14 +36,12 @@
                 placeholder="选择或输入交易对"
                 style="width: 100%"
               >
-                <el-option label="BTC/USDT" value="BTC/USDT" />
-                <el-option label="ETH/USDT" value="ETH/USDT" />
-                <el-option label="SOL/USDT" value="SOL/USDT" />
-                <el-option label="DOGE/USDT" value="DOGE/USDT" />
-                <el-option label="HYPE/USDT" value="HYPE/USDT" />
-                <el-option label="XAU/USDT" value="XAU/USDT" />
-                <el-option label="XAG/USDT" value="XAG/USDT" />
-                <el-option label="BNB/USDT" value="BNB/USDT" />
+                <el-option
+                  v-for="symbol in symbolOptions"
+                  :key="symbol"
+                  :label="symbol"
+                  :value="symbol"
+                />
               </el-select>
             </el-form-item>
             <el-form-item label="K线周期">
@@ -317,6 +315,7 @@
 <script setup lang="ts">
 import { ref, reactive, watch, computed } from 'vue'
 import type { Strategy, CreateStrategyInput } from '../../types/strategy'
+import { useBotStore } from '../stores/bot'
 
 const props = defineProps<{
   strategy?: Strategy | null
@@ -413,6 +412,10 @@ const timeframePriority: Record<string, number> = {
   '4h': 4,
   '1d': 5
 }
+
+// 从 bot store 读取交易对列表
+const botStore = useBotStore()
+const symbolOptions = computed(() => botStore.botConfig?.symbols || [])
 
 // 多选变量
 const selectedIndicators = ref<string[]>(['EMA', 'RSI', 'ADX', 'ATR'])
