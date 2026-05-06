@@ -142,7 +142,7 @@
             <span>4. AI 交易逻辑提示词</span>
           </div>
         </template>
-        <el-form-item label="用户交易逻辑">
+        <el-form-item label="交易逻辑">
           <el-input
             v-model="form.aiPrompt.userPrompt"
             type="textarea"
@@ -242,7 +242,6 @@
           <span class="stat-label">分钟 (默认1440分=24小时)</span>
         </el-form-item>
 
-        <el-divider content-position="left">RSI极值止盈配置</el-divider>
         <el-row :gutter="20">
           <el-col :span="8">
             <el-form-item label="多头RSI阈值">
