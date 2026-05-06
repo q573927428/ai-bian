@@ -3,13 +3,18 @@
   "name": "策略04",
   "version": 1,
   "createdAt": "2026-04-22T09:40:30.913Z",
-  "updatedAt": "2026-05-04T07:24:50.254Z",
+  "updatedAt": "2026-05-06T05:36:45.866Z",
   "isActive": true,
   "marketData": {
     "symbols": [
       "SOL/USDT",
       "DOGE/USDT",
-      "HYPE/USDT"
+      "HYPE/USDT",
+      "BTC/USDT",
+      "ETH/USDT",
+      "XAU/USDT",
+      "XAG/USDT",
+      "BNB/USDT"
     ],
     "timeframes": [
       "1h"
@@ -21,8 +26,8 @@
       "type": "EMA",
       "params": {
         "periods": [
-          7,
-          120
+          50,
+          200
         ]
       },
       "timeframes": [
@@ -67,18 +72,18 @@
     }
   ],
   "aiPrompt": {
-    "userPrompt": "金叉死叉策略\n一、做空 SHORT 完整规则\n1. 做空预判信号（预判死叉）\n核心条件（全部满足，方可直接开空）\n- 当前价格 < EMA120\n- EMA7 > EMA120\n- |EMA7 - EMA120| / EMA120 < 0.18%（EMA7与EMA120极度贴近）\n辅助确认（同步满足，验证下跌动能衰竭）\nRSI(14) < 40 且 成交量 < 前1根K线均量\n2. 执行规则\n- 上述核心条件 + 辅助确认，任意一条不满足，禁止开仓\n- 所有条件全部满足时，严格按做多方向开仓，不做额外主观过滤\n二、做多 LONG 完整规则\n1. 做多预判信号（预判金叉）\n核心条件（全部满足，方可直接开多）\n- 当前价格 > EMA120\n- EMA7 < EMA120\n- |EMA7 - EMA120| / EMA120 < 0.18%（EMA7与EMA120极度贴近）\n辅助确认（同步满足，验证上涨动能衰竭）\nRSI(14) > 60 且 成交量 < 前1根K线均量\n2. 执行规则\n- 上述核心条件 + 辅助确认，任意一条不满足，禁止开仓\n- 所有条件全部满足时，严格按做空方向开仓，不做额外主观过滤",
+    "userPrompt": "金叉死叉策略\n一、做空 SHORT 完整规则\n1. 做空预判信号（预判死叉）\n核心条件（全部满足，方可直接开空）\n- 当前价格 < EMA200\n- EMA50 > EMA200\n- |EMA50 - EMA200| / EMA200 < 0.18%（EMA50与EMA200极度贴近）\n辅助确认（同步满足，验证下跌动能衰竭）\nRSI(14) < 40 且 成交量 < 前1根K线均量\n2. 执行规则\n- 上述核心条件 + 辅助确认，任意一条不满足，禁止开仓\n- 所有条件全部满足时，严格按做多方向开仓，不做额外主观过滤\n二、做多 LONG 完整规则\n1. 做多预判信号（预判金叉）\n核心条件（全部满足，方可直接开多）\n- 当前价格 > EMA200\n- EMA50 < EMA200\n- |EMA50 - EMA200| / EMA200 < 0.18%（EMA50与EMA200极度贴近）\n辅助确认（同步满足，验证上涨动能衰竭）\nRSI(14) > 60 且 成交量 < 前1根K线均量\n2. 执行规则\n- 上述核心条件 + 辅助确认，任意一条不满足，禁止开仓\n- 所有条件全部满足时，严格按做空方向开仓，不做额外主观过滤",
     "temperature": 0.3,
     "maxTokens": 2000,
     "model": "deepseek-v4-flash",
     "provider": "deepseek"
   },
   "riskManagement": {
-    "maxRiskPercentage": 10,
+    "maxRiskPercentage": 20,
     "stopLossATRMultiplier": 2.5,
     "takeProfitRatios": [
-      2,
-      3
+      1.5,
+      2.5
     ],
     "maxDailyTrades": 2,
     "maxDailyLoss": 10,
@@ -95,8 +100,8 @@
     }
   },
   "executionConfig": {
-    "scanInterval": 10,
-    "leverage": 3,
+    "scanInterval": 5,
+    "leverage": 5,
     "marginMode": "cross",
     "positionMode": "one-way"
   },
@@ -179,7 +184,7 @@
           }
         },
         "executionConfig": {
-          "scanInterval": 15,
+          "scanInterval": 10,
           "leverage": 3,
           "marginMode": "cross",
           "positionMode": "one-way"

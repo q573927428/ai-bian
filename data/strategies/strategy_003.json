@@ -3,7 +3,7 @@
   "name": "策略03",
   "version": 1,
   "createdAt": "2026-04-19T16:14:17.182Z",
-  "updatedAt": "2026-05-04T06:14:32.630Z",
+  "updatedAt": "2026-05-05T14:26:34.721Z",
   "isActive": true,
   "marketData": {
     "symbols": [
@@ -136,7 +136,7 @@
     }
   },
   "executionConfig": {
-    "scanInterval": 10,
+    "scanInterval": 5,
     "leverage": 5,
     "marginMode": "cross",
     "positionMode": "one-way"
@@ -253,7 +253,7 @@
           }
         },
         "executionConfig": {
-          "scanInterval": 20,
+          "scanInterval": 10,
           "leverage": 3,
           "marginMode": "cross",
           "positionMode": "one-way"
@@ -292,23 +292,23 @@
     "totalWins": 4,
     "totalLosses": 9,
     "winRate": 30.76923076923077,
-    "totalProfit": 7.805695925000015,
+    "totalProfit": 7.093590050000011,
     "totalLoss": 5.453156660000001,
-    "netProfit": 2.352539265000014,
-    "profitFactor": 1.43140870722757,
+    "netProfit": 1.6404333900000099,
+    "profitFactor": 1.3008227146733045,
     "maxDrawdown": 161.7047814052178,
-    "averageProfitPerTrade": 1.9514239812500038,
+    "averageProfitPerTrade": 1.7733975125000028,
     "averageLossPerTrade": 0.6059062955555556,
     "largestWin": 3.0006236999999993,
     "largestLoss": 2.4030681,
-    "averageHoldTime": 441.73471410256417,
+    "averageHoldTime": 374.51730128205133,
     "consecutiveWins": 2,
     "consecutiveLosses": 0,
     "maxConsecutiveWins": 2,
     "maxConsecutiveLosses": 7,
-    "dailyPnL": 2.5115853750000054,
-    "todayTrades": 1,
-    "updatedAt": "2026-05-05T00:39:58.517Z"
+    "dailyPnL": 0.9028437000000058,
+    "todayTrades": 4,
+    "updatedAt": "2026-05-04T10:06:08.935Z"
   },
   "sessions": [],
   "currentSessionId": null

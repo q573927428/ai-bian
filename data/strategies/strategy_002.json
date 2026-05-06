@@ -3,7 +3,7 @@
   "name": "策略02",
   "version": 1,
   "createdAt": "2026-04-19T16:06:46.003Z",
-  "updatedAt": "2026-05-04T07:26:10.028Z",
+  "updatedAt": "2026-05-06T05:38:28.952Z",
   "isActive": true,
   "marketData": {
     "symbols": [
@@ -115,11 +115,11 @@
     "provider": "deepseek"
   },
   "riskManagement": {
-    "maxRiskPercentage": 10,
+    "maxRiskPercentage": 20,
     "stopLossATRMultiplier": 2.2,
     "takeProfitRatios": [
-      2,
-      3
+      1.5,
+      2.5
     ],
     "maxDailyTrades": 3,
     "maxDailyLoss": 10,
@@ -136,7 +136,7 @@
     }
   },
   "executionConfig": {
-    "scanInterval": 15,
+    "scanInterval": 5,
     "leverage": 3,
     "marginMode": "cross",
     "positionMode": "one-way"
@@ -285,7 +285,7 @@
           }
         },
         "executionConfig": {
-          "scanInterval": 10,
+          "scanInterval": 15,
           "leverage": 3,
           "marginMode": "cross",
           "positionMode": "one-way"
@@ -320,27 +320,27 @@
   ],
   "performance": {
     "strategyId": "strategy_002",
-    "totalTrades": 10,
+    "totalTrades": 11,
     "totalWins": 3,
-    "totalLosses": 7,
-    "winRate": 30,
+    "totalLosses": 8,
+    "winRate": 27.27272727272727,
     "totalProfit": 0.7198775650000002,
-    "totalLoss": 1.7045301549999883,
-    "netProfit": -0.9846525899999881,
-    "profitFactor": 0.4223319622057406,
+    "totalLoss": 1.9793353549999881,
+    "netProfit": -1.259457789999988,
+    "profitFactor": 0.3636966131997397,
     "maxDrawdown": 0,
     "averageProfitPerTrade": 0.2399591883333334,
-    "averageLossPerTrade": 0.2435043078571412,
+    "averageLossPerTrade": 0.24741691937499852,
     "largestWin": 0.37559987999999733,
     "largestLoss": 0.6981299500000029,
-    "averageHoldTime": 272.18178666666665,
+    "averageHoldTime": 280.23600909090914,
     "consecutiveWins": 0,
-    "consecutiveLosses": 1,
+    "consecutiveLosses": 2,
     "maxConsecutiveWins": 1,
     "maxConsecutiveLosses": 3,
-    "dailyPnL": -0.2511746999999968,
-    "todayTrades": 2,
-    "updatedAt": "2026-05-04T06:28:12.415Z"
+    "dailyPnL": -0.5259798999999968,
+    "todayTrades": 3,
+    "updatedAt": "2026-05-04T08:41:08.174Z"
   },
   "sessions": [],
   "currentSessionId": null
