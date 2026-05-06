@@ -100,6 +100,7 @@
       v-model="showCreateDialog"
       :title="editingStrategy ? '编辑策略' : '创建新策略'"
       width="80%"
+      class="strategy-dialog"
       :close-on-click-modal="false"
     >
       <StrategyEditor
@@ -725,5 +726,15 @@ onMounted(() => {
 
 .text-secondary {
   color: #909399 !important;
+}
+
+</style>
+
+<style>
+/* 策略编辑对话框移动端全宽（非 scoped，穿透 el-dialog 根元素） */
+@media (max-width: 768px) {
+  .strategy-dialog {
+    --el-dialog-width: 100% !important;
+  }
 }
 </style>
