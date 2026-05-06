@@ -20,7 +20,7 @@
               <template #header>
                 <div class="card-header">
                   <span>🎛️ 状态面板</span>
-                  <el-button type="primary" size="small" @click="showConfigDialog = true">
+                  <el-button type="primary" size="small" text @click="showConfigDialog = true">
                     <el-icon><ElIconSetting /></el-icon>
                     配置
                   </el-button>
@@ -71,11 +71,16 @@
               </div>
             </el-card>
 
-            <!-- 系统日志组件 -->
-            <ClientOnly>
-              <SystemLogs />
-            </ClientOnly>
-          </el-col>
+    <!-- 盈亏胜率走势图表 -->
+    <ClientOnly>
+      <ProfitWinRateChart />
+    </ClientOnly>
+
+    <!-- 系统日志组件 -->
+    <ClientOnly>
+      <SystemLogs />
+    </ClientOnly>
+  </el-col>
 
           <!-- 右侧 - 持仓和交易历史 -->
           <el-col :xs="24" :sm="24" :md="16" :lg="16">
@@ -125,6 +130,7 @@ import ActivePositions from '../components/ActivePositions.vue'
 import Strategies from '../components/Strategies.vue'
 import TradeHistory from '../components/TradeHistory.vue'
 import BotConfigDialog from '../components/BotConfigDialog.vue'
+import ProfitWinRateChart from '../components/ProfitWinRateChart.vue'
 
 const botStore = useBotStore()
 const strategiesStore = useStrategiesStore()

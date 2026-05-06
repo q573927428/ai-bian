@@ -3,7 +3,7 @@
     <template #header>
       <div class="card-header">
         <span>📋 历史订单 ({{ total }})</span>
-        <el-button type="primary" size="small" :loading="loading" @click="loadHistory">
+        <el-button type="primary" size="small" text :loading="loading" @click="loadHistory">
           <el-icon><ElIconRefresh /></el-icon>
           刷新
         </el-button>
@@ -18,7 +18,7 @@
 
     <!-- 空状态 -->
     <div v-else-if="orders.length === 0" class="empty-state">
-      <el-icon class="empty-icon"><ElIconInbox /></el-icon>
+      <el-icon class="empty-icon"><ElIconDataAnalysis /></el-icon>
       <span>暂无历史订单</span>
     </div>
 
@@ -144,7 +144,7 @@
         :pager-count="5"
         layout="prev, pager, next, total"
         background
-        small
+        size="small"
         @current-change="handlePageChange"
       />
     </div>
