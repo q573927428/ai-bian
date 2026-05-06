@@ -14,25 +14,6 @@
       <!-- 主体 -->
       <el-main class="main">
         <el-row :gutter="20">
-          <!-- 中间 - 持仓和交易历史 -->
-          <el-col :xs="24" :sm="24" :md="16" :lg="16">
-            
-            <!-- 加密货币价格卡片组件 -->
-            <ClientOnly>
-              <CryptoPriceCards />
-            </ClientOnly>
-
-            <!-- 当前持仓组件 -->
-            <ClientOnly>
-              <ActivePositions />
-            </ClientOnly>
-
-            <!-- 策略组件 -->
-            <ClientOnly>
-              <Strategies />
-            </ClientOnly>
-
-          </el-col>
           <!-- 左侧 - 控制面板 -->
           <el-col :xs="24" :sm="24" :md="8" :lg="8">
             <el-card class="card" shadow="hover">
@@ -96,6 +77,31 @@
             </ClientOnly>
           </el-col>
 
+          <!-- 右侧 - 持仓和交易历史 -->
+          <el-col :xs="24" :sm="24" :md="16" :lg="16">
+            
+            <!-- 加密货币价格卡片组件 -->
+            <ClientOnly>
+              <CryptoPriceCards />
+            </ClientOnly>
+
+            <!-- 当前持仓组件 -->
+            <ClientOnly>
+              <ActivePositions />
+            </ClientOnly>
+
+            <!-- 策略组件 -->
+            <ClientOnly>
+              <Strategies />
+            </ClientOnly>
+
+            <!-- 历史订单组件 -->
+            <ClientOnly>
+              <TradeHistory />
+            </ClientOnly>
+
+          </el-col>
+          
         </el-row>
       </el-main>
       
@@ -117,6 +123,7 @@ import SystemLogs from '../components/SystemLogs.vue'
 import CryptoPriceCards from '../components/CryptoPriceCards.vue'
 import ActivePositions from '../components/ActivePositions.vue'
 import Strategies from '../components/Strategies.vue'
+import TradeHistory from '../components/TradeHistory.vue'
 import BotConfigDialog from '../components/BotConfigDialog.vue'
 
 const botStore = useBotStore()
