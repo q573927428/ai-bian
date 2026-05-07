@@ -131,7 +131,7 @@ export class AIPreScreener {
       if (!adxCheck.passed) {
         const adxTimeframe = input.adxTimeframe ?? '15m'
         passed = false
-        failReason = `ADX(${adxTimeframe}) 不满足: ${input.adx.toFixed(1)} 不在 [${this.config.minAdx}, ${this.config.maxAdx}] 范围内`
+        failReason = `ADX不满足(${adxTimeframe}) : ${input.adx.toFixed(1)} 不在 [${this.config.minAdx}, ${this.config.maxAdx}] 范围内`
       }
     }
 
@@ -140,8 +140,9 @@ export class AIPreScreener {
       const adxSlopeCheck = this.checkAdxSlope(input.adxSlope)
       checks.adxSlope = adxSlopeCheck
       if (!adxSlopeCheck.passed) {
+        const adxTimeframe = input.adxTimeframe ?? '15m'
         passed = false
-        failReason = `ADX斜率不满足: ${input.adxSlope.toFixed(4)} <= ${this.config.minAdxSlope}`
+        failReason = `ADX斜率不满足(${adxTimeframe}) : ${input.adxSlope.toFixed(4)} <= ${this.config.minAdxSlope}`
       }
     }
 
