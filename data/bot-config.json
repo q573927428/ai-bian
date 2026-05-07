@@ -15,7 +15,7 @@
     "adxSlopePeriod": 3
   },
   "emaPeriods": [
-    20,
+    50,
     200
   ],
   "aiCacheTtlMinutes": 10,

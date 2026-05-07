@@ -138,8 +138,19 @@ const showEMAMarkers = ref(false)
 const showOrderMarkers = ref(false)
 const showEMALines = ref(true)
 
-// EMA周期选择
-const selectedEmaPeriods = ref<number[]>(botStore.config?.emaPeriods || [20, 200])
+// EMA周期选择 - 从botStore.config获取，如果未加载完成则使用默认值
+const selectedEmaPeriods = ref<number[]>(botStore.config?.emaPeriods?.length ? [...botStore.config.emaPeriods] : [20, 200])
+
+// 监听botStore.config加载/更新后同步EMA周期
+watch(() => botStore.config?.emaPeriods, (newPeriods) => {
+  if (newPeriods && newPeriods.length > 0) {
+    const currentStr = JSON.stringify(selectedEmaPeriods.value)
+    const newStr = JSON.stringify(newPeriods)
+    if (currentStr !== newStr) {
+      selectedEmaPeriods.value = [...newPeriods]
+    }
+  }
+}, { immediate: true, deep: true })
 
 // 请求代次（用于防止过期响应覆盖）
 let requestGeneration = 0

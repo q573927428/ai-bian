@@ -152,6 +152,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import type { BotConfig } from '../../types'
+import { useBotStore } from '../stores/bot'
 import PasswordDialog from './PasswordDialog.vue'
 
 interface Props {
@@ -248,6 +249,9 @@ const handleSave = async () => {
       emit('success')
       showConfigDialog.value = false
       visible.value = false
+      // 刷新botStore中的配置，使图表等组件同步更新
+      const botStore = useBotStore()
+      await botStore.fetchBotConfig()
     } else {
       console.error('保存配置失败:', res.message)
     }
