@@ -278,9 +278,8 @@ export class StrategyEngine {
    * 不再为每个策略创建独立定时器，改为启动/维护全局统一循环
    */
   private startStrategyLoop(instance: StrategyInstance): void {
-    // 初始化该策略的下次扫描时间：启动后延迟30秒首次扫描
-    const now = Date.now()
-    instance.nextScanTime = now + 30000 // 30秒延迟
+    // 初始化该策略的下次扫描时间：设为当前时间，让首次 setTimeout 触发时立即执行
+    instance.nextScanTime = Date.now()
 
     // 更新全局扫描间隔（取所有策略中的最小值）
     this.updateGlobalScanInterval()
@@ -298,7 +297,8 @@ export class StrategyEngine {
     // 如果全局定时器未启动，则启动
     if (!this.globalTimer) {
       this.globalTimer = setInterval(() => {
-        this.globalStrategyLoop()
+        // 使用 void 忽略异步操作的 Promise，避免 setInterval 堆积
+        void this.globalStrategyLoop()
       }, this.globalScanInterval)
       logger.info('StrategyEngine', `全局策略循环已启动, 间隔 ${this.globalScanInterval / 1000}秒`)
     }
@@ -376,8 +376,8 @@ export class StrategyEngine {
       for (const instance of instances) {
         if (!instance.isRunning) continue
         
-        // 检查是否到了该策略的扫描时间
-        if (instance.nextScanTime && loopStartTime < instance.nextScanTime) {
+        // 检查是否到了该策略的扫描时间（加入100ms容差，避免setInterval精度问题导致跳过）
+        if (instance.nextScanTime && loopStartTime + 100 < instance.nextScanTime) {
           continue
         }
 
@@ -390,6 +390,20 @@ export class StrategyEngine {
       }
 
       if (symbolStrategies.size === 0) return
+
+      // ★ 关键修复：在遍历交易对之前，先统一更新所有到期策略的 nextScanTime
+      // 避免在 symbol 循环中提前更新，导致后续 symbol 被跳过
+      const updatedInstances = new Set<StrategyInstance>()
+      for (const [, dueInstances] of symbolStrategies) {
+        for (const instance of dueInstances) {
+          if (!updatedInstances.has(instance)) {
+            updatedInstances.add(instance)
+            const scanMinutes = instance.strategy.executionConfig.scanInterval
+            const scanMs = (scanMinutes && scanMinutes > 0) ? scanMinutes * 60000 : 300000
+            instance.nextScanTime = loopStartTime + scanMs
+          }
+        }
+      }
 
       // 按交易对聚合调度
       for (const [symbol, dueInstances] of symbolStrategies) {
@@ -413,16 +427,6 @@ export class StrategyEngine {
           for (const instance of activeInstances) {
             const sid = instance.strategy.id
             instance.lastScanTime = new Date().toISOString()
-
-            // 更新该策略的下次扫描时间（基于上次扫描时间累加，确保固定间隔）
-            const scanMinutes = instance.strategy.executionConfig.scanInterval
-            const scanMs = (scanMinutes && scanMinutes > 0) ? scanMinutes * 60000 : 300000
-            
-            if (instance.nextScanTime) {
-              instance.nextScanTime = instance.nextScanTime + scanMs
-            } else {
-              instance.nextScanTime = loopStartTime + scanMs
-            }
 
             await this.analyzeSymbol(instance, symbol, snapshot).catch((error: any) => {
               logger.error('StrategyEngine', `分析交易对失败 ${symbol} [策略${sid}]: ${error.message}`)
