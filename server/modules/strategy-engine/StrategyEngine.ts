@@ -278,6 +278,11 @@ export class StrategyEngine {
    * 不再为每个策略创建独立定时器，改为启动/维护全局统一循环
    */
   private startStrategyLoop(instance: StrategyInstance): void {
+    // 初始化该策略的下次扫描时间
+    const now = Date.now()
+    const scanMinutes = instance.strategy.executionConfig.scanInterval
+    instance.nextScanTime = now + ((scanMinutes && scanMinutes > 0) ? scanMinutes * 60000 : 300000)
+
     // 更新全局扫描间隔（取所有策略中的最小值）
     this.updateGlobalScanInterval()
 
@@ -353,7 +358,7 @@ export class StrategyEngine {
    * - 这样策略A(5min)和策略B(10min)都使用同一份5分钟级快照，但B每两次才执行一次
    */
   private async globalStrategyLoop(): Promise<void> {
-    const now = Date.now()
+    const loopStartTime = Date.now()
     
     try {
       const instances = Array.from(this.runningStrategies.values())
@@ -373,7 +378,7 @@ export class StrategyEngine {
         if (!instance.isRunning) continue
         
         // 检查是否到了该策略的扫描时间
-        if (instance.nextScanTime && now < instance.nextScanTime) {
+        if (instance.nextScanTime && loopStartTime < instance.nextScanTime) {
           continue
         }
 
@@ -410,12 +415,14 @@ export class StrategyEngine {
             const sid = instance.strategy.id
             instance.lastScanTime = new Date().toISOString()
 
-            // 更新该策略的下次扫描时间
+            // 更新该策略的下次扫描时间（基于上次扫描时间累加，确保固定间隔）
             const scanMinutes = instance.strategy.executionConfig.scanInterval
-            if (scanMinutes && scanMinutes > 0) {
-              instance.nextScanTime = now + scanMinutes * 60000
+            const scanMs = (scanMinutes && scanMinutes > 0) ? scanMinutes * 60000 : 300000
+            
+            if (instance.nextScanTime) {
+              instance.nextScanTime = instance.nextScanTime + scanMs
             } else {
-              instance.nextScanTime = now + 300000
+              instance.nextScanTime = loopStartTime + scanMs
             }
 
             await this.analyzeSymbol(instance, symbol, snapshot).catch((error: any) => {
