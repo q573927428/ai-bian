@@ -351,16 +351,13 @@ ${promptConfig.userPrompt}
 
 【核心原则】
 1. 你只做分析，不替用户做最终决策。
-2. 永远输出真实判断的方向（LONG / SHORT / IDLE），如果方向判定后，后面条件尽量围绕方向来判断。
-3. 请基于你实际检查出的满足条件的数量，以及每个条件预先设定的重要性权重，真实计算一个 0~100 的置信度分数：满足越多、越重要的条件，分数越高。
+2. 更具策略需求输出方向（LONG / SHORT / IDLE），后面所有条件围绕方向来判断。
+3. 请基于你实际检查出的满足条件的数量，以及每个条件预先设定的重要性权重，真实计算一个 0~100 的置信度(confidence)分数。
 4. 所有条件必须逐条验证，带上真实数值。
 5. 输出必须是合法JSON，无任何多余内容。
-6. confidence 不代表是否开仓，而是当前市场结构与策略理想条件的接近程度。
-7. 禁止因为单个条件不满足直接输出 confidence=0。
-8. scoreBreakdown.finalScore 为最终总分（0-100），必须与各子项计算逻辑一致。
-9. riskLevel 综合市场波动性、趋势强度等给出风险等级。
-10. scoreBreakdown 必须满足：baseScore∈[0,30]，hardScore∈[0,50]，softScore∈[0,20]，penaltyScore∈[-10,0]。
-11. finalScore 必须严格等于 baseScore + hardScore + softScore + penaltyScore（再截断到0~100）。
+6. riskLevel 综合市场波动性、趋势强度等给出风险等级。
+7. scoreBreakdown 必须满足：baseScore∈[0,30]，hardScore∈[0,50]，softScore∈[0,20]，penaltyScore∈[-10,0]。
+8. finalScore 必须严格等于 baseScore + hardScore + softScore + penaltyScore（再截断到0~100）。
 
 ----------------------------------
 【输出格式】
