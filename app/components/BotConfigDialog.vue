@@ -74,35 +74,35 @@
           <!-- AI预筛配置 -->
           <el-divider content-position="left">AI预筛配置</el-divider>
           <template v-if="form.preScreenConfig">
-            <el-form-item label="ADX最小阈值">
-              <el-input-number v-model="form.preScreenConfig.minAdx" :min="0" :max="100" :step="1" />
-            </el-form-item>
-            <el-form-item label="ADX最大阈值">
-              <el-input-number v-model="form.preScreenConfig.maxAdx" :min="0" :max="100" :step="1" />
-            </el-form-item>
-            <el-form-item label="ADX斜率最小阈值">
-              <el-input-number v-model="form.preScreenConfig.minAdxSlope" :min="-10" :max="10" :step="0.01" />
-            </el-form-item>
-            <el-form-item label="ATR最小波动率">
-              <el-input-number v-model="form.preScreenConfig.minAtrPercent" :min="0" :max="0.1" :step="0.0001" />
-            </el-form-item>
-            <el-form-item label="ATR最大波动率">
-              <el-input-number v-model="form.preScreenConfig.maxAtrPercent" :min="0" :max="0.5" :step="0.001" />
-            </el-form-item>
-            <el-form-item label="成交量最小比率">
-              <el-input-number v-model="form.preScreenConfig.minVolumeRatio" :min="0" :max="5" :step="0.01" />
-            </el-form-item>
             <el-form-item label="启用ADX筛选">
               <el-switch v-model="form.preScreenConfig.enableAdx" />
+            </el-form-item>
+            <el-form-item label="ADX最小阈值" v-if="form.preScreenConfig.enableAdx">
+              <el-input-number v-model="form.preScreenConfig.minAdx" :min="0" :max="100" :step="1" />
+            </el-form-item>
+            <el-form-item label="ADX最大阈值" v-if="form.preScreenConfig.enableAdx">
+              <el-input-number v-model="form.preScreenConfig.maxAdx" :min="0" :max="100" :step="1" />
             </el-form-item>
             <el-form-item label="启用ADX斜率筛选">
               <el-switch v-model="form.preScreenConfig.enableAdxSlope" />
             </el-form-item>
+            <el-form-item label="ADX斜率最小阈值" v-if="form.preScreenConfig.enableAdxSlope">
+              <el-input-number v-model="form.preScreenConfig.minAdxSlope" :min="-10" :max="10" :step="0.01" />
+            </el-form-item>
             <el-form-item label="启用ATR筛选">
               <el-switch v-model="form.preScreenConfig.enableAtr" />
             </el-form-item>
+            <el-form-item label="ATR最小波动率" v-if="form.preScreenConfig.enableAtr">
+              <el-input-number v-model="form.preScreenConfig.minAtrPercent" :min="0" :max="0.1" :step="0.0001" />
+            </el-form-item>
+            <el-form-item label="ATR最大波动率" v-if="form.preScreenConfig.enableAtr">
+              <el-input-number v-model="form.preScreenConfig.maxAtrPercent" :min="0" :max="0.5" :step="0.001" />
+            </el-form-item>
             <el-form-item label="启用成交量筛选">
               <el-switch v-model="form.preScreenConfig.enableVolume" />
+            </el-form-item>
+            <el-form-item label="成交量最小比率" v-if="form.preScreenConfig.enableVolume">
+              <el-input-number v-model="form.preScreenConfig.minVolumeRatio" :min="0" :max="5" :step="0.01" />
             </el-form-item>
           </template>
 
