@@ -174,6 +174,50 @@ export class MultiStrategyAIAnalyzer {
   }
 
   /**
+   * 计算K线实体大小
+   */
+  private calculateCandleBody(candle: any): number {
+    if (!candle) return 0
+    return Math.abs(candle.close - candle.open)
+  }
+
+  /**
+   * 计算K线上下影线比例
+   */
+  private calculateCandleShadowRatios(candle: any): { upperShadowRatio: number; lowerShadowRatio: number } {
+    if (!candle) return { upperShadowRatio: 0, lowerShadowRatio: 0 }
+    const body = this.calculateCandleBody(candle)
+    const totalRange = candle.high - candle.low
+    if (totalRange === 0) return { upperShadowRatio: 0, lowerShadowRatio: 0 }
+    const upperShadow = candle.high - Math.max(candle.open, candle.close)
+    const lowerShadow = Math.min(candle.open, candle.close) - candle.low
+    return {
+      upperShadowRatio: totalRange > 0 ? upperShadow / totalRange : 0,
+      lowerShadowRatio: totalRange > 0 ? lowerShadow / totalRange : 0
+    }
+  }
+
+  /**
+   * 计算价格与EMA的偏离百分比
+   */
+  private calculatePriceDeviationFromEMA(price: number, emaValue: number): number {
+    if (!emaValue || emaValue === 0) return 0
+    return Math.abs(price - emaValue) / emaValue
+  }
+
+  /**
+   * 计算价格在EMA区间内的位置比例 (0~1)
+   * 用于策略02：价格在 [EMA60, EMA20] 区间内的位置
+   */
+  private calculatePricePositionInRange(price: number, lowerEMA: number, upperEMA: number): number {
+    const min = Math.min(lowerEMA, upperEMA)
+    const max = Math.max(lowerEMA, upperEMA)
+    const range = max - min
+    if (range === 0) return 0.5
+    return (price - min) / range
+  }
+
+  /**
    * 准备提示词数据
    */
   private preparePromptData(
@@ -188,10 +232,34 @@ export class MultiStrategyAIAnalyzer {
     
     // EMA
     if (indicators.enabledIndicators?.ema && indicators.emaList.length > 0) {
-      const dynamicEmaLines = indicators.emaList
-        .map(item => `- ${item.name}: ${(item.value ?? 0).toFixed(4)}`)
-        .join('\n')
-      technicalIndicatorLines.push(dynamicEmaLines)
+      const sorted = [...indicators.emaList].sort(
+        (a, b) => Number(a.name.replace(/\D/g, '')) - Number(b.name.replace(/\D/g, ''))
+      )
+
+      technicalIndicatorLines.push(
+        ...sorted.map(e => `- ${e.name}: ${(e.value ?? 0).toFixed(4)}`)
+      )
+
+      const compare = (a: number, b: number) => a > b ? '>' : a < b ? '<' : '='
+
+      // EMA趋势
+      if (sorted.length >= 2) {
+        const first = sorted[0]!
+        const last = sorted[sorted.length - 1]!
+
+        technicalIndicatorLines.push(
+          `- EMA趋势: ${first.name}(${(first.value ?? 0).toFixed(4)}) ${compare(first.value ?? 0, last.value ?? 0)} ${last.name}(${(last.value ?? 0).toFixed(4)})`
+        )
+
+        // EMA排列
+        technicalIndicatorLines.push(
+          `- EMA排列: ${sorted.map((e, i) =>
+            i < sorted.length - 1
+              ? `${e.name} ${compare(e.value ?? 0, sorted[i + 1]!.value ?? 0)}`
+              : e.name
+          ).join(' ')}`
+        )
+      }
     }
 
     // RSI
@@ -207,6 +275,9 @@ export class MultiStrategyAIAnalyzer {
     // ATR
     if (indicators.enabledIndicators?.atr && indicators.atr !== undefined) {
       technicalIndicatorLines.push(`- ATR(14): ${indicators.atr.toFixed(4)}`)
+      // ATR波动率百分比（ATR/价格）
+      const atrPercent = price > 0 ? (indicators.atr / price * 100) : 0
+      technicalIndicatorLines.push(`- ATR波动率: ${atrPercent.toFixed(2)}%`)
     }
 
     // ADX行
@@ -259,6 +330,54 @@ export class MultiStrategyAIAnalyzer {
     const currentCandleVolume = indicators.lastCandle?.volume ?? volume
     const estimatedVolume = candleProgress > 0 ? (currentCandleVolume / candleProgress).toFixed(2) : currentCandleVolume.toFixed(2)
 
+    // ========== 通用预计算数据（按策略启用指标条件输出） ==========
+
+    // K线实体分析（策略01动量判断、策略02反转K线判断需要）
+    const candleBodyLines: string[] = []
+    if (indicators.lastCandle && indicators.prevCandle) {
+      const lastCandleBody = this.calculateCandleBody(indicators.lastCandle)
+      const prevCandleBody = this.calculateCandleBody(indicators.prevCandle)
+      const candleBodyRatio = prevCandleBody > 0 ? (lastCandleBody / prevCandleBody) : 0
+      const shadowRatios = this.calculateCandleShadowRatios(indicators.lastCandle)
+
+      candleBodyLines.push(`- 最新K线实体: ${lastCandleBody.toFixed(5)}`)
+      candleBodyLines.push(`- 前一根K线实体: ${prevCandleBody.toFixed(5)}`)
+      candleBodyLines.push(`- K线实体比(当前/前一根): ${candleBodyRatio.toFixed(2)}倍`)
+      candleBodyLines.push(`- 最新K线上影线比例: ${(shadowRatios.upperShadowRatio * 100).toFixed(1)}%`)
+      candleBodyLines.push(`- 最新K线下影线比例: ${(shadowRatios.lowerShadowRatio * 100).toFixed(1)}%`)
+    }
+
+    // 价格与EMA偏离百分比（策略04金叉死叉判断需要）
+    const emaDeviationLines: string[] = []
+    if (indicators.enabledIndicators?.ema && indicators.emaList.length > 0) {
+      for (const ema of indicators.emaList) {
+        const deviation = this.calculatePriceDeviationFromEMA(price, ema.value ?? 0)
+        emaDeviationLines.push(`- 价格偏离${ema.name}: ${(deviation * 100).toFixed(2)}%`)
+      }
+    }
+
+    // 成交量对比（策略01/03成交量放大判断需要）
+    const volumeCompareLines: string[] = []
+    if (indicators.enabledIndicators?.volume && indicators.prevCandle) {
+      const prevVolume = indicators.prevCandle.volume
+      if (prevVolume > 0) {
+        const volumeRatio = Number(estimatedVolume) / prevVolume
+        volumeCompareLines.push(`- 预计成交量/前K量: ${volumeRatio.toFixed(2)}倍`)
+      }
+    }
+
+    // 价格在EMA区间内的位置（策略02回调位置判断需要）
+    const priceInRangeLines: string[] = []
+    if (indicators.enabledIndicators?.ema && indicators.emaList.length >= 2) {
+      const sorted = [...indicators.emaList].sort(
+        (a, b) => Number(a.name.replace(/\D/g, '')) - Number(b.name.replace(/\D/g, ''))
+      )
+      const minEMA = sorted[0]!
+      const maxEMA = sorted[sorted.length - 1]!
+      const position = this.calculatePricePositionInRange(price, minEMA.value ?? 0, maxEMA.value ?? 0)
+      priceInRangeLines.push(`- 价格在${minEMA.name}-${maxEMA.name}区间位置: ${(position * 100).toFixed(1)}%`)
+    }
+
     return {
       symbol,
       price: (price ?? 0).toFixed(5),
@@ -271,7 +390,12 @@ export class MultiStrategyAIAnalyzer {
       technicalIndicatorLines,
       adxLines,
       oiLines,
-      enabledIndicatorsList
+      enabledIndicatorsList,
+      // 通用预计算数据（按策略启用指标条件输出）
+      candleBodyLines,
+      emaDeviationLines,
+      volumeCompareLines,
+      priceInRangeLines
     }
   }
 
@@ -300,11 +424,15 @@ ${data.currentVolume ? `当前成交量：${data.currentVolume}` : ''}
 ## 二、K线形态数据
 ${data.lastCandle ? `- 最新K线\n${data.lastCandle}` : ''}
 ${data.prevCandle ? `- 前一根K线\n${data.prevCandle}` : ''}
+${data.candleBodyLines.length > 0 ? data.candleBodyLines.join('\n') : ''}
 
 ## 三、技术指标（仅启用的指标有效）
 ${data.technicalIndicatorLines.join('\n')}
 ${data.adxLines.length > 0 ? data.adxLines.join('\n') : ''}
 ${data.oiLines.length > 0 ? data.oiLines.join('\n') : ''}
+${data.emaDeviationLines.length > 0 ? data.emaDeviationLines.join('\n') : ''}
+${data.volumeCompareLines.length > 0 ? data.volumeCompareLines.join('\n') : ''}
+${data.priceInRangeLines.length > 0 ? data.priceInRangeLines.join('\n') : ''}
 ${data.enabledIndicatorsList.length > 0 ? `本次分析仅使用：${data.enabledIndicatorsList.join(', ')}
 未启用指标全部忽略` : ''}
 
@@ -351,13 +479,17 @@ ${promptConfig.userPrompt}
 
 【核心原则】
 1. 你只做分析，不替用户做最终决策。
-2. 先根据策略规则及所需数据确定唯一方向（LONG/SHORT/IDLE），之后只按该方向执行交易判断：LONG只用做多规则，SHORT只用做空规则。
-3. 请基于你实际检查出的满足条件的数量，以及每个条件预先设定的重要性权重，真实计算一个 0~100 的置信度(confidence)分数。
+2. 先根据策略规则及所需数据确定唯一方向（LONG/SHORT），之后只按该方向执行交易判断：LONG只用做多规则，SHORT只用做空规则。
+3. 请基于你实际检查出的满足条件的数量，以及每个条件预先设定的重要性权重，真实计算一个 0~100 的置信度分数：满足越多、越重要的条件，分数越高。
 4. 所有条件必须逐条验证，带上真实数值。
 5. 输出必须是合法JSON，无任何多余内容。
-6. riskLevel 综合市场波动性、趋势强度等给出风险等级。
-7. scoreBreakdown 必须满足：baseScore∈[0,30]，hardScore∈[0,50]，softScore∈[0,20]，penaltyScore∈[-10,0]。
-8. finalScore 必须严格等于 baseScore + hardScore + softScore + penaltyScore（再截断到0~100）。
+6. confidence 不代表是否开仓，而是当前市场结构与策略理想条件的接近程度。
+7. 禁止因为单个条件不满足直接输出 confidence=0。
+8. scoreBreakdown.finalScore 为最终总分（0-100），必须与各子项计算逻辑一致。
+9. riskLevel 综合市场波动性、趋势强度等给出风险等级。
+10. scoreBreakdown 必须满足：baseScore∈[0,30]，hardScore∈[0,50]，softScore∈[0,20]，penaltyScore∈[-10,0]。
+11. finalScore 必须严格等于 baseScore + hardScore + softScore + penaltyScore（再截断到0~100）。
+
 
 ----------------------------------
 【输出格式】
