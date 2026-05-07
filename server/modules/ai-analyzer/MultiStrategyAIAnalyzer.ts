@@ -69,8 +69,8 @@ export class MultiStrategyAIAnalyzer {
       return Math.min(max, Math.max(min, value))
     }
 
-    const baseScore = clamp(toNumber(raw?.baseScore, 0), 0, 25)
-    const hardScore = clamp(toNumber(raw?.hardScore, 0), 0, 35)
+    const baseScore = clamp(toNumber(raw?.baseScore, 0), 0, 30)
+    const hardScore = clamp(toNumber(raw?.hardScore, 0), 0, 50)
     const softScore = clamp(toNumber(raw?.softScore, 0), 0, 20)
     const penaltyScore = clamp(toNumber(raw?.penaltyScore, 0), -10, 0)
     const finalScore = clamp(baseScore + hardScore + softScore + penaltyScore, 0, 100)
@@ -332,8 +332,8 @@ ${promptConfig.userPrompt}
 - riskLevel: 风险等级，LOW/MEDIUM/HIGH
 
 ### scoreBreakdown 计算规则（必须严格遵守）
-- baseScore：基础分，范围 0~25（默认0，按照趋势、强弱、变化趋势来给分）
-- hardScore：硬条件得分，范围 0~35（按硬条件满足比例线性给分）
+- baseScore：基础分，范围 0~30（默认0，按照趋势、强弱、变化趋势来给分）
+- hardScore：硬条件得分，范围 0~50（按硬条件满足比例线性给分）
 - softScore：软条件得分，范围 0~20（按软条件满足比例线性给分）
 - penaltyScore：惩罚分，范围 -10~0（条件冲突、波动过大、趋势弱时扣分）
 - finalScore：必须等于 baseScore + hardScore + softScore + penaltyScore（并限制在 0~100）
@@ -359,7 +359,7 @@ ${promptConfig.userPrompt}
 7. 禁止因为单个条件不满足直接输出 confidence=0。
 8. scoreBreakdown.finalScore 为最终总分（0-100），必须与各子项计算逻辑一致。
 9. riskLevel 综合市场波动性、趋势强度等给出风险等级。
-10. scoreBreakdown 必须满足：baseScore∈[0,25]，hardScore∈[0,35]，softScore∈[0,20]，penaltyScore∈[-10,0]。
+10. scoreBreakdown 必须满足：baseScore∈[0,30]，hardScore∈[0,50]，softScore∈[0,20]，penaltyScore∈[-10,0]。
 11. finalScore 必须严格等于 baseScore + hardScore + softScore + penaltyScore（再截断到0~100）。
 
 ----------------------------------

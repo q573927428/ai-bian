@@ -2,7 +2,7 @@
   <el-card class="chart-card">
     <template #header>
       <div class="card-header">
-        <span>📈 盈亏胜率走势</span>
+        <span>📈 盈亏走势</span>
         <el-button type="primary" size="small" text :loading="loading" @click="loadData">
           <el-icon><ElIconRefresh /></el-icon>
           刷新
@@ -223,11 +223,20 @@ const renderChart = () => {
         return `${item.time}<br/>${name}: ${params[0].value}${isPnl ? ' USDT' : '%'}`
       }
     },
+    title: {
+      text: yAxisName,
+      left: 'center',
+      top: 0,
+      textStyle: {
+        fontSize: 13,
+        color: '#606266'
+      }
+    },
     grid: {
       left: '3%',
       right: '4%',
       bottom: '3%',
-      top: '10%',
+      top: '15%',
       containLabel: true
     },
     xAxis: {
@@ -241,7 +250,6 @@ const renderChart = () => {
     },
     yAxis: {
       type: 'value',
-      name: yAxisName,
       position: 'left',
       min: isPnl ? undefined : 0,
       max: isPnl ? undefined : 100,

@@ -3,8 +3,8 @@
   "name": "策略01",
   "version": 1,
   "createdAt": "2026-04-19T16:03:49.383Z",
-  "updatedAt": "2026-05-06T05:37:20.555Z",
-  "isActive": true,
+  "updatedAt": "2026-05-07T08:58:46.743Z",
+  "isActive": false,
   "marketData": {
     "symbols": [
       "SOL/USDT",

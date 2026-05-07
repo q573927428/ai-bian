@@ -3,8 +3,8 @@
   "name": "策略02",
   "version": 1,
   "createdAt": "2026-04-19T16:06:46.003Z",
-  "updatedAt": "2026-05-06T05:38:28.952Z",
-  "isActive": true,
+  "updatedAt": "2026-05-07T08:58:51.998Z",
+  "isActive": false,
   "marketData": {
     "symbols": [
       "BTC/USDT",
