@@ -308,10 +308,12 @@ function getDefaultBotConfig(): BotConfig {
     preScreenConfig: {
       minAdx: 15, // ADX最小阈值
       maxAdx: 60, // ADX最大阈值
-      minAtrPercent: 0.001, // ATR最小波动率
+      minAdxSlope: 0, // ADX斜率最小阈值
+      minAtrPercent: 0.002, // ATR最小波动率 (0.2%)
       maxAtrPercent: 0.05, // ATR最大波动率
       minVolumeRatio: 0.5, // 成交量最小比率
       enableAdx: true, // 启用ADX筛选
+      enableAdxSlope: true, // 启用ADX斜率筛选
       enableAtr: true, // 启用ATR筛选
       enableVolume: true, // 启用成交量筛选
     },

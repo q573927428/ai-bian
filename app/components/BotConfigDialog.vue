@@ -80,6 +80,9 @@
             <el-form-item label="ADX最大阈值">
               <el-input-number v-model="form.preScreenConfig.maxAdx" :min="0" :max="100" :step="1" />
             </el-form-item>
+            <el-form-item label="ADX斜率最小阈值">
+              <el-input-number v-model="form.preScreenConfig.minAdxSlope" :min="-10" :max="10" :step="0.01" />
+            </el-form-item>
             <el-form-item label="ATR最小波动率">
               <el-input-number v-model="form.preScreenConfig.minAtrPercent" :min="0" :max="0.1" :step="0.0001" />
             </el-form-item>
@@ -91,6 +94,9 @@
             </el-form-item>
             <el-form-item label="启用ADX筛选">
               <el-switch v-model="form.preScreenConfig.enableAdx" />
+            </el-form-item>
+            <el-form-item label="启用ADX斜率筛选">
+              <el-switch v-model="form.preScreenConfig.enableAdxSlope" />
             </el-form-item>
             <el-form-item label="启用ATR筛选">
               <el-switch v-model="form.preScreenConfig.enableAtr" />

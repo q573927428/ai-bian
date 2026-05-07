@@ -633,6 +633,7 @@ export class StrategyEngine {
         symbol,
         strategyId,
         adx: enabledADX ? adxData.adx : undefined,
+        adxSlope: enabledADX ? adxData.adxSlope : undefined,
         adxPeriod: enabledADX ? adxPeriod : undefined,
         adxTimeframe: enabledADX ? mainTimeframe : undefined,
         atr: enabledATR ? indicatorsData.get(`${mainTimeframe}_ATR`)?.values?.atr : undefined,

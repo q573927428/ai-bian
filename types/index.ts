@@ -108,8 +108,11 @@ export interface PreScreenConfig {
   minAdx?: number // 默认 15
   maxAdx?: number // 默认 60
 
+  // ADX斜率阈值（趋势方向）
+  minAdxSlope?: number // 默认 0 (ADX斜率 > 0)
+
   // ATR阈值（波动率）
-  minAtrPercent?: number // 默认 0.001 (0.1%)
+  minAtrPercent?: number // 默认 0.002 (0.2%)
   maxAtrPercent?: number // 默认 0.05 (5%)
 
   // 成交量阈值
@@ -117,6 +120,7 @@ export interface PreScreenConfig {
 
   // 启用/禁用特定筛选项
   enableAdx?: boolean
+  enableAdxSlope?: boolean
   enableAtr?: boolean
   enableVolume?: boolean
 }

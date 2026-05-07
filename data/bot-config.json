@@ -33,10 +33,12 @@
   "preScreenConfig": {
     "minAdx": 15,
     "maxAdx": 60,
-    "minAtrPercent": 0.001,
+    "minAdxSlope": 0,
+    "minAtrPercent": 0.002,
     "maxAtrPercent": 0.05,
     "minVolumeRatio": 0.5,
     "enableAdx": true,
+    "enableAdxSlope": true,
     "enableAtr": true,
     "enableVolume": true
   },

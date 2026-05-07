@@ -9,16 +9,20 @@ export interface PreScreenConfig {
   // ADX阈值（趋势强度）
   minAdx?: number // 默认 15
   maxAdx?: number // 默认 60
-  
+
+  // ADX斜率阈值（趋势方向）
+  minAdxSlope?: number // 默认 0 (ADX斜率 > 0)
+
   // ATR阈值（波动率）
-  minAtrPercent?: number // 默认 0.001 (0.1%)
+  minAtrPercent?: number // 默认 0.0038 (0.38%)
   maxAtrPercent?: number // 默认 0.05 (5%)
-  
+
   // 成交量阈值
   minVolumeRatio?: number // 默认 0.5 (至少是前一根K线的50%)
-  
+
   // 启用/禁用特定筛选项
   enableAdx?: boolean
+  enableAdxSlope?: boolean
   enableAtr?: boolean
   enableVolume?: boolean
 }
@@ -29,16 +33,17 @@ export interface PreScreenConfig {
 export interface PreScreenInput {
   symbol: string
   strategyId: string
-  
+
   // ADX相关
   adx?: number
+  adxSlope?: number // ADX斜率（当前ADX - 前一根ADX）
   adxPeriod?: number // ADX计算周期，默认14
   adxTimeframe?: string // ADX的K线周期，如 "15m"、"1h"
-  
+
   // ATR相关
   atr?: number
   currentPrice?: number
-  
+
   // 成交量相关
   currentVolume?: number
   prevVolume?: number
@@ -52,6 +57,7 @@ export interface PreScreenResult {
   reason?: string
   checks: {
     adx?: { passed: boolean; value?: number; threshold?: string }
+    adxSlope?: { passed: boolean; value?: number; threshold?: string }
     atr?: { passed: boolean; value?: number; threshold?: string }
     volume?: { passed: boolean; value?: number; threshold?: string }
   }
@@ -63,10 +69,12 @@ export interface PreScreenResult {
 export const PRESCREEN_DEFAULTS: Required<PreScreenConfig> = {
   minAdx: 15,
   maxAdx: 60,
-  minAtrPercent: 0.001,
+  minAdxSlope: 0,
+  minAtrPercent: 0.002,
   maxAtrPercent: 0.05,
   minVolumeRatio: 0.5,
   enableAdx: true,
+  enableAdxSlope: true,
   enableAtr: true,
   enableVolume: true
 }
@@ -95,10 +103,12 @@ export class AIPreScreener {
     logger.info('AIPreScreener', 'AI预筛配置已加载', {
       minAdx: this.config.minAdx,
       maxAdx: this.config.maxAdx,
+      minAdxSlope: this.config.minAdxSlope,
       minAtrPercent: this.config.minAtrPercent,
       maxAtrPercent: this.config.maxAtrPercent,
       minVolumeRatio: this.config.minVolumeRatio,
       enableAdx: this.config.enableAdx,
+      enableAdxSlope: this.config.enableAdxSlope,
       enableAtr: this.config.enableAtr,
       enableVolume: this.config.enableVolume
     })
@@ -121,7 +131,17 @@ export class AIPreScreener {
       if (!adxCheck.passed) {
         const adxTimeframe = input.adxTimeframe ?? '15m'
         passed = false
-        failReason = `ADX(${adxTimeframe}) 不满足: ${input.adx.toFixed(2)} 不在 [${this.config.minAdx}, ${this.config.maxAdx}] 范围内`
+        failReason = `ADX(${adxTimeframe}) 不满足: ${input.adx.toFixed(1)} 不在 [${this.config.minAdx}, ${this.config.maxAdx}] 范围内`
+      }
+    }
+
+    // ADX斜率检查
+    if (passed && this.config.enableAdxSlope && input.adxSlope !== undefined) {
+      const adxSlopeCheck = this.checkAdxSlope(input.adxSlope)
+      checks.adxSlope = adxSlopeCheck
+      if (!adxSlopeCheck.passed) {
+        passed = false
+        failReason = `ADX斜率不满足: ${input.adxSlope.toFixed(4)} <= ${this.config.minAdxSlope}`
       }
     }
 
@@ -179,6 +199,19 @@ export class AIPreScreener {
       passed,
       value: adx,
       threshold: `[${minAdx}, ${maxAdx}]`
+    }
+  }
+
+  /**
+   * ADX斜率检查
+   */
+  private checkAdxSlope(adxSlope: number): { passed: boolean; value: number; threshold: string } {
+    const minAdxSlope = this.config.minAdxSlope!
+    const passed = adxSlope > minAdxSlope
+    return {
+      passed,
+      value: adxSlope,
+      threshold: `> ${minAdxSlope}`
     }
   }
 
