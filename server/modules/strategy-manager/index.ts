@@ -11,6 +11,7 @@ import { logger } from '../../utils/logger'
 import type { BotState } from '../../../types'
 import { PositionStatus } from '../../../types'
 import { getSyncService } from '../../utils/kline-sync-service'
+import { initKLineDb } from '../../utils/kline-simple-storage'
 
 let strategyManager: StrategyManager | null = null
 
@@ -25,6 +26,9 @@ export async function initStrategyManager(): Promise<StrategyManager> {
   // logger.info('StrategyManager', '开始初始化策略管理系统...')
 
   try {
+    // 确保K线数据库已初始化（sql.js）
+    await initKLineDb()
+    
     // 创建依赖实例
     const store = new StrategyStore()
     const binanceService = new BinanceService()

@@ -8,6 +8,7 @@ import { KLineSimpleSyncService } from '../modules/kline-simple-sync'
 import type { KLineSyncConfig } from '../../types/kline-simple'
 import { eventHandler, readBody } from 'h3'
 import { setSyncService, getSyncService } from '../utils/kline-sync-service'
+import { initKLineDb, closeKLineDb } from '../utils/kline-simple-storage'
 
 // 默认配置
 const DEFAULT_SYNC_CONFIG: KLineSyncConfig = {
@@ -29,6 +30,9 @@ export default defineNitroPlugin(async (nitroApp: NitroApp) => {
   console.log('🚀 初始化K线数据同步服务插件...')
   
   try {
+    // 初始化K线数据库（sql.js）
+    await initKLineDb()
+    
     // 从环境变量或配置文件中获取配置
     const config = await getSyncConfig()
     
@@ -339,4 +343,7 @@ async function stopSyncService(): Promise<void> {
     setSyncService(null)
     console.log('✅ K线同步服务已停止')
   }
+  
+  // 关闭K线数据库
+  await closeKLineDb()
 }
