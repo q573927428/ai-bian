@@ -278,10 +278,9 @@ export class StrategyEngine {
    * 不再为每个策略创建独立定时器，改为启动/维护全局统一循环
    */
   private startStrategyLoop(instance: StrategyInstance): void {
-    // 初始化该策略的下次扫描时间
+    // 初始化该策略的下次扫描时间：启动后延迟30秒首次扫描
     const now = Date.now()
-    const scanMinutes = instance.strategy.executionConfig.scanInterval
-    instance.nextScanTime = now + ((scanMinutes && scanMinutes > 0) ? scanMinutes * 60000 : 300000)
+    instance.nextScanTime = now + 30000 // 30秒延迟
 
     // 更新全局扫描间隔（取所有策略中的最小值）
     this.updateGlobalScanInterval()
