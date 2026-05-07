@@ -376,8 +376,8 @@ export class StrategyEngine {
       for (const instance of instances) {
         if (!instance.isRunning) continue
         
-        // 检查是否到了该策略的扫描时间（加入100ms容差，避免setInterval精度问题导致跳过）
-        if (instance.nextScanTime && loopStartTime + 100 < instance.nextScanTime) {
+        // 检查是否到了该策略的扫描时间
+        if (instance.nextScanTime && loopStartTime < instance.nextScanTime) {
           continue
         }
 
