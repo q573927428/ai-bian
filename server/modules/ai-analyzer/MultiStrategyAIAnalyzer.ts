@@ -332,7 +332,7 @@ ${promptConfig.userPrompt}
 - riskLevel: 风险等级，LOW/MEDIUM/HIGH
 
 ### scoreBreakdown 计算规则（必须严格遵守）
-- baseScore：基础分，范围 0~30（默认0，按照趋势、强弱、变化趋势来给分）
+- baseScore：基础分，范围 0~30（按照趋势、强弱、变化趋势来给分）
 - hardScore：硬条件得分，范围 0~50（按硬条件满足比例线性给分）
 - softScore：软条件得分，范围 0~20（按软条件满足比例线性给分）
 - penaltyScore：惩罚分，范围 -10~0（条件冲突、波动过大、趋势弱时扣分）
