@@ -634,9 +634,47 @@ export class StrategyEngine {
       // 使用快照中的价格
       const price = snapshot.price
 
-      // 从策略配置中读取ADX周期参数
+      // 从策略配置中读取各指标参数
       const adxConfig = instance.strategy.indicators.find((i: any) => i.type === 'ADX' && i.enabled)
       const adxPeriod = Number(adxConfig?.params?.period ?? 14)
+      const rsiConfig = instance.strategy.indicators.find((i: any) => i.type === 'RSI' && i.enabled)
+      const rsiPeriod = Number(rsiConfig?.params?.period ?? 14)
+      const atrConfig = instance.strategy.indicators.find((i: any) => i.type === 'ATR' && i.enabled)
+      const atrPeriod = Number(atrConfig?.params?.period ?? 14)
+      const macdConfig = instance.strategy.indicators.find((i: any) => i.type === 'MACD' && i.enabled)
+      const macdFastPeriod = Number(macdConfig?.params?.fastPeriod ?? 12)
+      const macdSlowPeriod = Number(macdConfig?.params?.slowPeriod ?? 26)
+      const macdSignalPeriod = Number(macdConfig?.params?.signalPeriod ?? 9)
+
+      // 按策略参数重新获取 RSI/MACD/ATR（覆盖快照中的默认参数值）
+      if (enabledRSI) {
+        try {
+          const rsiData = await this.indicatorsHub.getIndicators(symbol, mainTimeframe, 'RSI', { rsiPeriod })
+          indicatorsData.set(`${mainTimeframe}_RSI`, rsiData)
+        } catch (error: any) {
+          logger.warn('StrategyEngine', `按策略参数获取RSI失败 ${symbol}: ${error.message}`)
+        }
+      }
+      if (enabledMACD) {
+        try {
+          const macdData = await this.indicatorsHub.getIndicators(symbol, mainTimeframe, 'MACD', {
+            macdFastPeriod,
+            macdSlowPeriod,
+            macdSignalPeriod
+          })
+          indicatorsData.set(`${mainTimeframe}_MACD`, macdData)
+        } catch (error: any) {
+          logger.warn('StrategyEngine', `按策略参数获取MACD失败 ${symbol}: ${error.message}`)
+        }
+      }
+      if (enabledATR) {
+        try {
+          const atrData = await this.indicatorsHub.getIndicators(symbol, mainTimeframe, 'ATR', { atrPeriod })
+          indicatorsData.set(`${mainTimeframe}_ATR`, atrData)
+        } catch (error: any) {
+          logger.warn('StrategyEngine', `按策略参数获取ATR失败 ${symbol}: ${error.message}`)
+        }
+      }
 
       // AI预筛
       const preScreenResult = aiPreScreener.screen({

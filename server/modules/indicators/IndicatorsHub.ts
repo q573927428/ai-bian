@@ -464,6 +464,11 @@ export class IndicatorsHub {
       lookbackMinutes?: number
       trendThresholdPercent?: number
       adxPeriod?: number // ADX计算周期，默认14
+      rsiPeriod?: number // RSI计算周期，默认14
+      atrPeriod?: number // ATR计算周期，默认14
+      macdFastPeriod?: number // MACD快线周期，默认12
+      macdSlowPeriod?: number // MACD慢线周期，默认26
+      macdSignalPeriod?: number // MACD信号线周期，默认9
     }
   ): Promise<IndicatorData> {
     const symbolData = this.getOrCreateSymbolData(symbol)
@@ -586,16 +591,20 @@ export class IndicatorsHub {
 
       switch (type) {
         case 'RSI':
-          const rsiValues = RSI.calculate({ period: 14, values: closes })
+          const rsiPeriod = Number(options?.rsiPeriod ?? 14)
+          const rsiValues = RSI.calculate({ period: rsiPeriod, values: closes })
           indicatorData.values = { rsi: rsiValues[rsiValues.length - 1] ?? 50 }
           break
 
         case 'MACD':
+          const macdFastPeriod = Number(options?.macdFastPeriod ?? 12)
+          const macdSlowPeriod = Number(options?.macdSlowPeriod ?? 26)
+          const macdSignalPeriod = Number(options?.macdSignalPeriod ?? 9)
           const macdValues = MACD.calculate({
             values: closes,
-            fastPeriod: 12,
-            slowPeriod: 26,
-            signalPeriod: 9,
+            fastPeriod: macdFastPeriod,
+            slowPeriod: macdSlowPeriod,
+            signalPeriod: macdSignalPeriod,
             SimpleMAOscillator: false,
             SimpleMASignal: false
           })
@@ -608,7 +617,8 @@ export class IndicatorsHub {
           break
 
         case 'ATR':
-          const atrValues = ATR.calculate({ period: 14, high: highs, low: lows, close: closes })
+          const atrPeriod = Number(options?.atrPeriod ?? 14)
+          const atrValues = ATR.calculate({ period: atrPeriod, high: highs, low: lows, close: closes })
           const lastClose = closes[closes.length - 1] || 0
           const atrValue = atrValues.length > 0 ? atrValues[atrValues.length - 1] : lastClose * 0.01
           indicatorData.values = { atr: atrValue }

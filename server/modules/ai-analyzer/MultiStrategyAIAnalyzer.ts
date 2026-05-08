@@ -98,7 +98,7 @@ export class MultiStrategyAIAnalyzer {
   ): Promise<TradeSignal | null> {
     try {
       // 1. 检查缓存
-      const cacheKey = this.buildCacheKey(strategyId, symbol, indicators, price)
+      const cacheKey = this.buildCacheKey(strategyId, symbol, indicators, price, volume, candleProgress, promptConfig)
       const cached = aiCache.get(cacheKey)
       if (cached && (Date.now() - cached.timestamp < this.getAiCacheTtl())) {
         return cached.signal
@@ -678,16 +678,37 @@ ${promptConfig.userPrompt}
     strategyId: StrategyId,
     symbol: string,
     indicators: TechnicalIndicators,
-    price: number
+    price: number,
+    volume: number = 0,
+    candleProgress: number = 0.1,
+    promptConfig?: AIPromptConfig
   ): string {
     // 基于关键指标值构建唯一键
-const indicatorHash = [
-  indicators.emaList.map(item => `${item.name}:${(item.value ?? 0).toFixed(2)}`).join('|'),
-  (indicators.rsi ?? 0).toFixed(2),
-  `${(indicators.macd?.macd ?? 0).toFixed(4)}|${(indicators.macd?.signal ?? 0).toFixed(4)}|${(indicators.macd?.histogram ?? 0).toFixed(4)}`,
-  (indicators.atr ?? 0).toFixed(2),
-  (price ?? 0).toFixed(2)
-].join('_')
+    const indicatorHash = [
+      // EMA
+      indicators.emaList.map(item => `${item.name}:${(item.value ?? 0).toFixed(2)}`).join('|'),
+      // RSI
+      (indicators.rsi ?? 0).toFixed(2),
+      // MACD
+      `${(indicators.macd?.macd ?? 0).toFixed(4)}|${(indicators.macd?.signal ?? 0).toFixed(4)}|${(indicators.macd?.histogram ?? 0).toFixed(4)}`,
+      // ATR
+      (indicators.atr ?? 0).toFixed(2),
+      // ADX
+      `${(indicators.adx ?? 0).toFixed(2)}|${(indicators.adxSlope ?? 0).toFixed(4)}`,
+      // OI
+      `${(indicators.openInterest ?? 0).toFixed(2)}|${(indicators.openInterestChangePercent ?? 0).toFixed(2)}|${indicators.openInterestTrend ?? 'flat'}`,
+      // 成交量
+      (volume ?? 0).toFixed(2),
+      // K线数据（最新两根K线的OHLCV）
+      indicators.lastCandle ? `${indicators.lastCandle.open}|${indicators.lastCandle.high}|${indicators.lastCandle.low}|${indicators.lastCandle.close}|${indicators.lastCandle.volume}` : '',
+      indicators.prevCandle ? `${indicators.prevCandle.open}|${indicators.prevCandle.high}|${indicators.prevCandle.low}|${indicators.prevCandle.close}|${indicators.prevCandle.volume}` : '',
+      // K线完成进度
+      (candleProgress ?? 0.1).toFixed(4),
+      // 价格
+      (price ?? 0).toFixed(2),
+      // 策略提示词内容哈希（提示词更新时缓存失效）
+      promptConfig?.userPrompt ? Buffer.from(promptConfig.userPrompt).toString('base64').substring(0, 16) : ''
+    ].join('_')
 
     // 简化键（避免过长）
     const hash = Buffer.from(indicatorHash).toString('base64').substring(0, 32)
