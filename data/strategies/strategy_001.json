@@ -4,7 +4,7 @@
   "version": 1,
   "createdAt": "2026-04-19T16:03:49.383Z",
   "updatedAt": "2026-05-07T15:18:37.391Z",
-  "isActive": false,
+  "isActive": true,
   "marketData": {
     "symbols": [
       "SOL/USDT",
