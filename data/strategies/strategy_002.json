@@ -3,7 +3,7 @@
   "name": "策略02",
   "version": 1,
   "createdAt": "2026-04-19T16:06:46.003Z",
-  "updatedAt": "2026-05-07T15:19:14.336Z",
+  "updatedAt": "2026-05-08T06:03:20.638Z",
   "isActive": true,
   "marketData": {
     "symbols": [
@@ -17,7 +17,7 @@
       "BNB/USDT"
     ],
     "timeframes": [
-      "15m"
+      "1h"
     ]
   },
   "indicators": [
@@ -26,12 +26,12 @@
       "type": "EMA",
       "params": {
         "periods": [
-          20,
-          60
+          50,
+          200
         ]
       },
       "timeframes": [
-        "15m"
+        "1h"
       ],
       "enabled": true
     },
@@ -42,7 +42,7 @@
         "period": 14
       },
       "timeframes": [
-        "15m"
+        "1h"
       ],
       "enabled": true
     },
@@ -53,31 +53,7 @@
         "period": 14
       },
       "timeframes": [
-        "15m"
-      ],
-      "enabled": true
-    },
-    {
-      "id": "4",
-      "type": "MACD",
-      "params": {
-        "fastPeriod": 12,
-        "slowPeriod": 26,
-        "signalPeriod": 9
-      },
-      "timeframes": [
-        "15m"
-      ],
-      "enabled": true
-    },
-    {
-      "id": "5",
-      "type": "ATR",
-      "params": {
-        "period": 14
-      },
-      "timeframes": [
-        "15m"
+        "1h"
       ],
       "enabled": true
     }
@@ -87,28 +63,17 @@
       "id": "5",
       "type": "OI",
       "params": {
-        "changePeriod": 24,
-        "trendThresholdPercent": 0.03
+        "changePeriod": 12,
+        "trendThresholdPercent": 0.05
       },
       "timeframes": [
-        "15m"
-      ],
-      "enabled": true
-    },
-    {
-      "id": "6",
-      "type": "Volume",
-      "params": {
-        "comparePeriod": 20
-      },
-      "timeframes": [
-        "15m"
+        "1h"
       ],
       "enabled": true
     }
   ],
   "aiPrompt": {
-    "userPrompt": "强趋势回调交易策略\n一、做多 LONG 完整规则\n1. 趋势方向与强度（必须满足）\n- 趋势方向：EMA20 > EMA60\n- 强度过滤：ADX < 25，禁止开仓\n2. 回调入场机会\n价格回调至 [EMA60, EMA20] 区间内，且价格位置接近EMA60（优先选择靠近区间下沿的回调点位）。\n3. 辅助共振确认\n- RSI指标：RSI < 65\n- OI资金共振：持仓量OI变化率 > 0\n- K线信号：在回调入场区域出现反转K线（如看涨吞没形态、锤子线或长下影Pin Bar）\n4. 交易原则\n如果同时满足 “强趋势（方向+强度）+ 回调区域 + OI资金共振” 三大核心要素，RSI和K线信号作为辅助确认，就开仓。\n二、做空 SHORT 完整规则\n1. 趋势方向与强度（必须满足）\n- 趋势方向：EMA20 < EMA60\n- 强度过滤：ADX < 25，禁止开仓\n2. 回调入场机会\n价格反弹至 [EMA20, EMA60] 区间内，且价格位置接近EMA60（优先选择靠近区间上沿的反弹点位）。\n3. 辅助共振确认\n- RSI指标：RSI > 35\n- OI资金共振：持仓量OI变化率 < 0\n- K线信号：在反弹入场区域出现反转K线（如看跌吞没形态、流星线或长上影Pin Bar）\n4. 交易原则\n如果同时满足 “强趋势（方向+强度）+ 回调区域 + OI资金共振” 三大核心要素，RSI和K线信号作为辅助确认，就开仓。",
+    "userPrompt": "OI资金共振+K线信号交易策略\n一、做多 LONG 完整规则\n1. 趋势方向：EMA50 > EMA200\n2. 共振确认\nOI资金共振：持仓量OI变化率 > 0\nK线信号（二选一）：\nPin Bar：影线/实体比例 ≥ 3：1，且实体部分最大占比 ≤ 0.3（即实体长度不超过整根K线长度的30%）\n吞没形态：吞没阳线实体 / 被吞没阴线实体 ≥ 1.6\n3. 交易原则\n如果同时满足 “OI资金共振”加上K线信号（二选一满足即可）确认，就开仓。\n二、做空 SHORT 完整规则\n1. 趋势方向：EMA50 < EMA200\n2. 共振确认\nOI资金共振：持仓量OI变化率 < 0\nK线信号（二选一）：\nPin Bar：影线/实体比例 ≥ 3：1，且实体部分最大占比 ≤ 0.3（即实体长度不超过整根K线长度的30%）\n吞没形态：吞没阴线实体 / 被吞没阳线实体 ≥ 1.6\n3. 交易原则\n如果同时满足 “OI资金共振”加上K线信号（二选一满足即可）确认，就开仓。",
     "temperature": 0.2,
     "maxTokens": 2000,
     "model": "deepseek-v4-flash",
@@ -137,7 +102,7 @@
   },
   "executionConfig": {
     "scanInterval": 5,
-    "leverage": 3,
+    "leverage": 5,
     "marginMode": "cross",
     "positionMode": "one-way"
   },

@@ -3,7 +3,7 @@
   "name": "策略04",
   "version": 1,
   "createdAt": "2026-04-22T09:40:30.913Z",
-  "updatedAt": "2026-05-07T15:20:53.934Z",
+  "updatedAt": "2026-05-08T08:38:19.931Z",
   "isActive": true,
   "marketData": {
     "symbols": [
@@ -37,17 +37,6 @@
     },
     {
       "id": "2",
-      "type": "RSI",
-      "params": {
-        "period": 14
-      },
-      "timeframes": [
-        "1h"
-      ],
-      "enabled": true
-    },
-    {
-      "id": "3",
       "type": "ADX",
       "params": {
         "period": 14
@@ -58,19 +47,7 @@
       "enabled": true
     }
   ],
-  "statistics": [
-    {
-      "id": "5",
-      "type": "Volume",
-      "params": {
-        "comparePeriod": 20
-      },
-      "timeframes": [
-        "1h"
-      ],
-      "enabled": true
-    }
-  ],
+  "statistics": [],
   "aiPrompt": {
     "userPrompt": "金叉死叉策略\n一、死叉做空 SHORT 完整规则\n1. 做空预判信号（预判死叉）\n核心条件（全部满足，方可直接开空）\n- 当前价格 < EMA200\n- EMA50 > EMA200\n- |EMA50 - EMA200| / EMA200 < 0.18%（EMA50与EMA200极度贴近）\n2. 执行规则\n- 所有条件全部满足时，做空开仓\n二、金叉做多 LONG 完整规则\n1. 做多预判信号（预判金叉）\n核心条件（全部满足，方可直接开多）\n- 当前价格 > EMA200\n- EMA50 < EMA200\n- |EMA50 - EMA200| / EMA200 < 0.18%（EMA50与EMA200极度贴近）\n2. 执行规则\n- 所有条件全部满足时，做多开仓",
     "temperature": 0.3,
@@ -87,7 +64,7 @@
     ],
     "maxDailyTrades": 2,
     "maxDailyLoss": 10,
-    "maxHoldTimeMinutes": 1200,
+    "maxHoldTimeMinutes": 360,
     "trailingStop": {
       "enabled": true,
       "activationRatio": 1,
@@ -218,25 +195,27 @@
   ],
   "performance": {
     "strategyId": "strategy_004",
-    "totalTrades": 1,
-    "totalWins": 1,
+    "totalTrades": 2,
+    "totalWins": 2,
     "totalLosses": 0,
     "winRate": 100,
-    "totalProfit": 0.9006880050000002,
+    "totalProfit": 1.5885127150000002,
     "totalLoss": 0,
-    "netProfit": 0.9006880050000002,
+    "netProfit": 1.5885127150000002,
     "profitFactor": null,
     "maxDrawdown": 0,
-    "averageProfitPerTrade": 0.9006880050000002,
+    "averageProfitPerTrade": 0.7942563575000001,
     "averageLossPerTrade": 0,
     "largestWin": 0.9006880050000002,
     "largestLoss": 0,
-    "averageHoldTime": 712.6408333333334,
-    "consecutiveWins": 1,
+    "averageHoldTime": 646.1117666666667,
+    "consecutiveWins": 2,
     "consecutiveLosses": 0,
-    "maxConsecutiveWins": 1,
+    "maxConsecutiveWins": 2,
     "maxConsecutiveLosses": 0,
-    "updatedAt": "2026-04-28T04:24:39.209Z"
+    "dailyPnL": 0.6878247100000001,
+    "todayTrades": 1,
+    "updatedAt": "2026-05-08T09:00:43.908Z"
   },
   "sessions": [],
   "currentSessionId": null

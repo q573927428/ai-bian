@@ -43,8 +43,14 @@
     "enableVolume": true
   },
   "concurrencyPool": {
-    "indicator": { "maxConcurrency": 16 },
-    "ai": { "maxConcurrency": 6 },
-    "tradeApi": { "maxConcurrency": 4 }
+    "indicator": {
+      "maxConcurrency": 16
+    },
+    "ai": {
+      "maxConcurrency": 6
+    },
+    "tradeApi": {
+      "maxConcurrency": 4
+    }
   }
 }
