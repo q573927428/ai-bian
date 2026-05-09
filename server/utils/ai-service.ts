@@ -82,19 +82,27 @@ export async function callAIAPI(
     throw new Error('API Key 未配置')
   }
 
+  // 构建请求体 - 火山引擎方舟平台不支持 response_format 参数
+  const requestBody: Record<string, any> = {
+    model: providerConfig.model,
+    messages,
+    temperature,
+    max_tokens: maxTokens,
+  }
+
+  // 仅当 responseFormat 为 json_object 且提供商不是 doubao 时才添加
+  // 火山引擎方舟平台不支持 response_format 参数
+  if (responseFormat && responseFormat.type === 'json_object' && providerConfig.apiUrl.indexOf('volces.com') === -1) {
+    requestBody.response_format = responseFormat
+  }
+
   const response = await fetch(`${providerConfig.apiUrl}/chat/completions`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${providerConfig.apiKey}`,
     },
-    body: JSON.stringify({
-      model: providerConfig.model,
-      messages,
-      temperature,
-      max_tokens: maxTokens,
-      response_format: responseFormat
-    }),
+    body: JSON.stringify(requestBody),
   })
 
   if (!response.ok) {
