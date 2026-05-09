@@ -599,7 +599,12 @@ ${promptConfig.userPrompt}
 
         // 获取 AI 提供商配置（优先使用策略配置，否则使用默认配置）
         const provider = promptConfig?.provider || (runtimeConfig.aiProvider as AIProvider) || 'deepseek'
-        const providerConfig = getProviderConfig(provider, runtimeConfig)
+        // 传递策略自定义的 apiUrl/apiKey/model 覆盖默认值（用于 OpenAI 兼容自定义配置）
+        const providerConfig = getProviderConfig(provider, runtimeConfig, {
+          apiKey: promptConfig?.apiKey,
+          apiUrl: promptConfig?.apiUrl,
+          model: promptConfig?.model
+        })
         
         // 构建系统提示词
         const systemPrompt = await this.buildSystemPrompt()

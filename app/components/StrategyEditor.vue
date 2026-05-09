@@ -212,6 +212,16 @@
                 </el-form-item>
               </el-col>
             </el-row>
+            <!-- OpenAI 兼容自定义配置 -->
+            <template v-if="form.aiPrompt.provider === 'openai'">
+              <el-divider content-position="left">OpenAI 兼容自定义配置</el-divider>
+              <el-form-item label="API URL">
+                <el-input v-model="form.aiPrompt.apiUrl" placeholder="https://api.openai.com/v1" />
+              </el-form-item>
+              <el-form-item label="API Key">
+                <el-input v-model="form.aiPrompt.apiKey" type="password" show-password placeholder="sk-..." />
+              </el-form-item>
+            </template>
             <!-- <el-row :gutter="12">
               <el-col :xs="24" :span="12">
                 <el-form-item label="温度">

@@ -149,6 +149,9 @@ export interface AIPromptConfig {
   maxTokens: number;                   // 最大token数
   model: AIModel;                      // AI模型
   provider: AIProvider;                // AI提供商
+  // OpenAI 兼容自定义配置（当 provider 为 openai 时可选）
+  apiUrl?: string;                     // 自定义 API URL
+  apiKey?: string;                     // 自定义 API Key
 }
 
 // 风险管理配置

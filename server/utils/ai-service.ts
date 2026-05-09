@@ -31,36 +31,50 @@ export interface AICallOptions {
 
 /**
  * 获取 AI 提供商配置
+ * @param overrides 可选的自定义配置（来自策略的 aiPrompt），可覆盖默认值
  */
-export function getProviderConfig(provider: AIProvider, runtimeConfig: any): AIProviderConfig {
-  switch (provider) {
-    case 'deepseek':
-      return {
-        apiKey: runtimeConfig.deepseekApiKey,
-        apiUrl: runtimeConfig.deepseekApiUrl,
-        model: runtimeConfig.deepseekModel
-      }
-    case 'doubao':
-      return {
-        apiKey: runtimeConfig.doubaoApiKey,
-        apiUrl: runtimeConfig.doubaoApiUrl,
-        model: runtimeConfig.doubaoModel
-      }
-    case 'qwen':
-      return {
-        apiKey: runtimeConfig.qwenApiKey,
-        apiUrl: runtimeConfig.qwenApiUrl,
-        model: runtimeConfig.qwenModel
-      }
-    case 'openai':
-      return {
-        apiKey: runtimeConfig.openaiApiKey,
-        apiUrl: runtimeConfig.openaiApiUrl,
-        model: runtimeConfig.openaiModel
-      }
-    default:
-      throw new Error(`不支持的 AI 提供商: ${provider}`)
+export function getProviderConfig(provider: AIProvider, runtimeConfig: any, overrides?: { apiKey?: string; apiUrl?: string; model?: string }): AIProviderConfig {
+  const baseConfig = (() => {
+    switch (provider) {
+      case 'deepseek':
+        return {
+          apiKey: runtimeConfig.deepseekApiKey,
+          apiUrl: runtimeConfig.deepseekApiUrl,
+          model: runtimeConfig.deepseekModel
+        }
+      case 'doubao':
+        return {
+          apiKey: runtimeConfig.doubaoApiKey,
+          apiUrl: runtimeConfig.doubaoApiUrl,
+          model: runtimeConfig.doubaoModel
+        }
+      case 'qwen':
+        return {
+          apiKey: runtimeConfig.qwenApiKey,
+          apiUrl: runtimeConfig.qwenApiUrl,
+          model: runtimeConfig.qwenModel
+        }
+      case 'openai':
+        return {
+          apiKey: runtimeConfig.openaiApiKey,
+          apiUrl: runtimeConfig.openaiApiUrl,
+          model: runtimeConfig.openaiModel
+        }
+      default:
+        throw new Error(`不支持的 AI 提供商: ${provider}`)
+    }
+  })()
+
+  // 如果有自定义覆盖配置，则合并（优先使用自定义值）
+  if (overrides) {
+    return {
+      apiKey: overrides.apiKey || baseConfig.apiKey,
+      apiUrl: overrides.apiUrl || baseConfig.apiUrl,
+      model: overrides.model || baseConfig.model
+    }
   }
+
+  return baseConfig
 }
 
 /**
