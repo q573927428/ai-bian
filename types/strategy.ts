@@ -105,6 +105,9 @@ export interface Strategy {
   // 执行配置
   executionConfig: ExecutionConfig;
   
+  // 结构化规则（可选）
+  structuredRules?: any;
+  
   // 版本历史
   versionHistory: VersionHistory[];
 
@@ -195,6 +198,7 @@ export interface CreateStrategyInput {
   aiPrompt: AIPromptConfig;
   riskManagement: RiskConfig;
   executionConfig: ExecutionConfig;
+  structuredRules?: any;
 }
 
 // 更新策略输入
@@ -206,6 +210,7 @@ export interface UpdateStrategyInput {
   aiPrompt?: AIPromptConfig;
   riskManagement?: RiskConfig;
   executionConfig?: ExecutionConfig;
+  structuredRules?: any;
 }
 
 // ==================== 策略状态 ====================

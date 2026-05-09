@@ -54,6 +54,7 @@ export class StrategyStore {
       aiPrompt: input.aiPrompt,
       riskManagement: input.riskManagement,
       executionConfig: input.executionConfig,
+      structuredRules: input.structuredRules,
       versionHistory: [],
       // 初始化运行数据
       performance: {
@@ -230,6 +231,7 @@ export class StrategyStore {
       if (updates.aiPrompt !== undefined) strategy.aiPrompt = updates.aiPrompt
       if (updates.riskManagement !== undefined) strategy.riskManagement = updates.riskManagement
       if (updates.executionConfig !== undefined) strategy.executionConfig = updates.executionConfig
+      if (updates.structuredRules !== undefined) strategy.structuredRules = updates.structuredRules
 
       // 只更新 updatedAt，不修改 version
       strategy.updatedAt = now
@@ -275,6 +277,7 @@ export class StrategyStore {
       if (updates.aiPrompt !== undefined) strategy.aiPrompt = updates.aiPrompt
       if (updates.riskManagement !== undefined) strategy.riskManagement = updates.riskManagement
       if (updates.executionConfig !== undefined) strategy.executionConfig = updates.executionConfig
+      if (updates.structuredRules !== undefined) strategy.structuredRules = updates.structuredRules
 
       // 更新元数据
       strategy.version = newVersion
