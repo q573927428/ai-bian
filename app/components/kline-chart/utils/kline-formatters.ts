@@ -4,19 +4,27 @@
 
 /**
  * 格式化时间戳为可读字符串
- * @param timestamp 时间戳（秒）
+ * @param timestamp 时间戳（支持秒或毫秒）
  * @returns 格式化后的时间字符串
  */
 export function formatTime(timestamp: number): string {
   if (!timestamp) return '--'
   
-  const date = new Date(timestamp * 1000)
+  // 自动检测时间戳格式（秒还是毫秒）
+  let timestampMs = timestamp
+  if (timestamp < 1000000000000) {
+    // 如果小于这个值，认为是秒级时间戳
+    timestampMs = timestamp * 1000
+  }
+  
+  const date = new Date(timestampMs)
   return date.toLocaleString('zh-CN', {
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
     hour: '2-digit',
-    minute: '2-digit'
+    minute: '2-digit',
+    second: '2-digit'
   })
 }
 
