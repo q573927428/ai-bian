@@ -18,6 +18,10 @@ interface MultiStrategyAICache {
   timestamp: number
 }
 
+interface StructuredRules {
+  dsl?: string
+}
+
 const aiCache = new Map<string, MultiStrategyAICache>()
 
 /**
@@ -105,13 +109,17 @@ export class MultiStrategyAIAnalyzer {
       }
 
       // 2. 构建完整提示词
+      const strategy = await strategyStore.getStrategy(strategyId)
+      const structuredRules = (strategy as any)?.structuredRules as StructuredRules | undefined
+
       const fullPrompt = this.buildFullPrompt(
         promptConfig,
         symbol,
         price,
         indicators,
         volume,
-        candleProgress
+        candleProgress,
+        structuredRules
       )
 
       // 3. 调用原有的 AI 分析函数
@@ -408,9 +416,22 @@ export class MultiStrategyAIAnalyzer {
     price: number,
     indicators: TechnicalIndicators,
     volume: number,
-    candleProgress: number = 0.1
+    candleProgress: number = 0.1,
+    structuredRules?: StructuredRules
   ): string {
     const data = this.preparePromptData(symbol, price, indicators, volume, candleProgress)
+    const structuredRulesDslText = (() => {
+      const fromPrompt = (promptConfig as any)?.structuredRulesDsl
+      if (typeof fromPrompt === 'string' && fromPrompt.trim()) {
+        return fromPrompt.trim()
+      }
+      if (structuredRules?.dsl && typeof structuredRules.dsl === 'string') {
+        return structuredRules.dsl.trim()
+      }
+      return ''
+    })()
+
+    //${structuredRulesDslText ? `${structuredRulesDslText}\n` : ''} 如果需要使用则加入到  ## 四、策略（唯一规则）里面
     
     return `
 ## 一、当前市场真实数据（仅使用以下数据）

@@ -3,7 +3,7 @@
   "name": "策略02",
   "version": 1,
   "createdAt": "2026-04-19T16:06:46.003Z",
-  "updatedAt": "2026-05-09T03:01:33.894Z",
+  "updatedAt": "2026-05-09T06:21:02.681Z",
   "isActive": true,
   "marketData": {
     "symbols": [
@@ -76,8 +76,8 @@
     "userPrompt": "OI资金共振 + K线信号交易策略\n一、做多（LONG）规则\n1. 趋势：EMA50 > EMA200\n2. 共振与K线：OI变化率>0（OI资金共振），且满足任一K线信号：\n- Pin Bar：影线/实体≥3 且 实体长度/K线总长度≤0.3\n- 吞没形态：当前阳线实体/前一根阴线实体≥1.6\n3. 开仓：上述3个条件同时成立方可开多\n二、做空（SHORT）规则\n1. 趋势：EMA50 < EMA200\n2. 共振与K线：OI变化率<0（OI资金共振），且满足任一K线信号：\n- Pin Bar：影线/实体≥3 且 实体长度/K线总长度≤0.3\n- 吞没形态：当前阴线实体/前一根阳线实体≥1.6\n3. 开仓：上述3个条件同时成立方可开空",
     "temperature": 0.2,
     "maxTokens": 2000,
-    "model": "deepseek-v4-flash",
-    "provider": "deepseek"
+    "model": "doubao-seed-2-0-pro-260215",
+    "provider": "doubao"
   },
   "riskManagement": {
     "maxRiskPercentage": 20,

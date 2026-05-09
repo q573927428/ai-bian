@@ -129,7 +129,7 @@
                       :max="1.0"
                       :step="0.01"
                       :precision="2"
-                    /> %
+                    /> <small class="unitf">%</small>
                   </el-form-item>
                 </el-col>
               </el-row>
@@ -145,7 +145,7 @@
               </div>
             </template>
             <el-form-item label="扫描间隔">
-              <el-input-number v-model="form.executionConfig.scanInterval" :min="5" :max="120" :step="5" /> 分钟
+              <el-input-number v-model="form.executionConfig.scanInterval" :min="5" :max="120" :step="5" /> <small class="unitf">分钟</small>
             </el-form-item>
             <el-form-item label="杠杆">
               <el-select v-model="form.executionConfig.leverage" style="width: 100%">
@@ -181,7 +181,7 @@
               <el-input
                 v-model="form.aiPrompt.userPrompt"
                 type="textarea"
-                :rows="21"
+                :rows="22"
                 placeholder="当EMA金叉且RSI<30时，开多仓..."
               />
             </el-form-item>
@@ -226,6 +226,27 @@
             </el-row> -->
           </el-card>
 
+          <!-- 规则 DSL（简易编辑） -->
+          <!-- <el-card class="form-section">
+            <template #header>
+              <div class="section-header">
+                <el-icon><ElIconEditPen /></el-icon>
+                <span>5.1 规则 DSL</span>
+              </div>
+            </template>
+            <el-form-item label="规则DSL">
+              <el-input
+                v-model="structuredRulesDsl"
+                type="textarea"
+                :rows="10"
+                placeholder="可选：填写 DSL；留空则由 AI 自动生成。示例：LONG:\nEMA50 > EMA200\nAND OI_CHANGE > 0\n\nSHORT:\nEMA50 < EMA200"
+              />
+              <div v-if="structuredRulesDslError" class="json-error">
+                {{ structuredRulesDslError }}
+              </div>
+            </el-form-item>
+          </el-card> -->
+
           <!-- 风险管理配置 -->
           <el-card class="form-section">
             <template #header>
@@ -236,49 +257,49 @@
             </template>
             <el-row :gutter="12">
               <el-col :xs="24" :span="12">
-                <el-form-item label="单笔风险(%)">
-                  <el-input-number v-model="form.riskManagement.maxRiskPercentage" :min="1" :max="50" style="width: 100%" />
+                <el-form-item label="单笔风险">
+                  <el-input-number v-model="form.riskManagement.maxRiskPercentage" :min="1" :max="50" /> <small class="unitf">%</small>
                 </el-form-item>
               </el-col>
               <el-col :xs="24" :span="12">
                 <el-form-item label="止损ATR倍">
-                  <el-input-number v-model="form.riskManagement.stopLossATRMultiplier" :min="1" :max="5" :step="0.5" style="width: 100%" />
+                  <el-input-number v-model="form.riskManagement.stopLossATRMultiplier" :min="1" :max="5" :step="0.5" /> <small class="unitf">R</small>
                 </el-form-item>
               </el-col>
             </el-row>
             <el-row :gutter="12">
               <el-col :xs="24" :span="12">
                 <el-form-item label="TP1止盈">
-                  <el-input-number v-model="form.riskManagement.takeProfitRatios[0]" :min="1" :max="10" :step="0.5" style="width: 100%" />
+                  <el-input-number v-model="form.riskManagement.takeProfitRatios[0]" :min="1" :max="10" :step="0.5" /> <small class="unitf">R</small>
                 </el-form-item>
               </el-col>
               <el-col :xs="24" :span="12">
                 <el-form-item label="TP2止盈">
-                  <el-input-number v-model="form.riskManagement.takeProfitRatios[1]" :min="1" :max="10" :step="0.5" style="width: 100%" />
+                  <el-input-number v-model="form.riskManagement.takeProfitRatios[1]" :min="1" :max="10" :step="0.5" /> <small class="unitf">R</small>
                 </el-form-item>
               </el-col>
             </el-row>
             <el-row :gutter="12">
               <el-col :xs="24" :span="12">
                 <el-form-item label="多头RSI阈值">
-                  <el-input-number v-model="form.riskManagement.rsiExtreme!.long" :min="5" :max="95" :step="1" style="width: 100%" />
+                  <el-input-number v-model="form.riskManagement.rsiExtreme!.long" :min="5" :max="95" :step="1" />
                 </el-form-item>
               </el-col>
               <el-col :xs="24" :span="12">
                 <el-form-item label="空头RSI阈值">
-                  <el-input-number v-model="form.riskManagement.rsiExtreme!.short" :min="5" :max="95" :step="1" style="width: 100%" />
+                  <el-input-number v-model="form.riskManagement.rsiExtreme!.short" :min="5" :max="95" :step="1" />
                 </el-form-item>
               </el-col>
             </el-row>
             <el-row :gutter="12">
               <el-col :xs="24" :span="12">
                 <el-form-item label="每日交易">
-                  <el-input-number v-model="form.riskManagement.maxDailyTrades" :min="1" :max="20" style="width: 100%" />
+                  <el-input-number v-model="form.riskManagement.maxDailyTrades" :min="1" :max="20" />
                 </el-form-item>
               </el-col>
               <el-col :xs="24" :span="12">
                 <el-form-item label="持仓超时">
-                  <el-input-number v-model="form.riskManagement.maxHoldTimeMinutes" :min="60" :max="10080" :step="60" /> 分钟
+                  <el-input-number v-model="form.riskManagement.maxHoldTimeMinutes" :min="60" :max="10080" :step="60" /> <small class="unitf">分钟</small>
                 </el-form-item>
               </el-col>
             </el-row>
@@ -303,11 +324,27 @@
 
       <!-- 操作按钮 -->
       <div class="form-actions">
-        <el-button @click="$emit('cancel')">取消</el-button>
-        <el-button type="primary" @click="handleSave" :loading="saving">
-          保存策略
-        </el-button>
+        <div class="button-group">
+          <el-button @click="$emit('cancel')">取消</el-button>
+          <el-button type="primary" @click="handleSave" :loading="saving">
+            保存策略
+          </el-button>
+        </div>
+        <div v-if="structuredRulesDslError" class="json-error">
+          {{ structuredRulesDslError }}
+        </div>
       </div>
+
+      <el-dialog v-model="generatedRulesDialogVisible" title="确认自动生成 DSL" width="720px">
+        <div class="form-tip" style="margin-bottom: 8px;">
+          已根据 AI 交易逻辑提示词生成候选 DSL，请确认后应用并保存。
+        </div>
+        <el-input :model-value="generatedStructuredRulesPreview" type="textarea" :rows="18" readonly />
+        <template #footer>
+          <el-button @click="cancelGeneratedRules">取消</el-button>
+          <el-button type="primary" @click="confirmGeneratedRulesAndSave">确认应用并保存</el-button>
+        </template>
+      </el-dialog>
     </el-form>
   </div>
 </template>
@@ -327,6 +364,12 @@ const emit = defineEmits<{
 }>()
 
 const saving = ref(false)
+const structuredRulesDsl = ref('')
+const structuredRulesDslError = ref('')
+const generatedRulesDialogVisible = ref(false)
+const generatedStructuredRulesPreview = ref('')
+const generatedStructuredRulesObject = ref<{ dsl: string } | null>(null)
+const pendingSavePayload = ref<any>(null)
 
 // 已配置的 AI 提供商列表
 const configuredProviders = ref<Array<{ id: string; name: string; configured: boolean }>>([])
@@ -424,7 +467,7 @@ const selectedStatistics = ref<string[]>(['OI', 'Volume'])
 
 // OI参数
 const oiParams = reactive({
-  changePeriod: 6,
+  changePeriod: 12,
   trendThresholdPercent: 0.05
 })
 
@@ -574,7 +617,10 @@ watch(() => props.strategy, (newVal) => {
       marketData: newVal.marketData,
       aiPrompt: newVal.aiPrompt,
       riskManagement: newVal.riskManagement,
-      executionConfig: newVal.executionConfig
+      executionConfig: newVal.executionConfig,
+      indicators: newVal.indicators,
+      statistics: newVal.statistics,
+      structuredRules: (newVal as any).structuredRules
     })
 
     // 同步选中的指标
@@ -592,9 +638,17 @@ watch(() => props.strategy, (newVal) => {
     // 同步 OI 参数
     const oiStat = newVal.statistics.find(s => s.type === 'OI' && s.enabled)
     if (oiStat && oiStat.params) {
-      oiParams.changePeriod = oiStat.params.changePeriod ?? 6
+      oiParams.changePeriod = oiStat.params.changePeriod ?? 12
       oiParams.trendThresholdPercent = oiStat.params.trendThresholdPercent ?? 0.05
     }
+
+    const sr = (newVal as any).structuredRules
+    structuredRulesDsl.value = (sr && typeof sr.dsl === 'string') ? sr.dsl : ''
+    if (sr) {
+      ;(form as any).structuredRules = sr
+    }
+  } else {
+    structuredRulesDsl.value = ''
   }
 }, { immediate: true })
 
@@ -602,17 +656,70 @@ watch(() => props.strategy, (newVal) => {
 const handleSave = async () => {
   try {
     saving.value = true
+    structuredRulesDslError.value = ''
+    const raw = structuredRulesDsl.value.trim()
+    if (raw) {
+      ;(form as any).structuredRules = { dsl: raw }
+    } else {
+      delete (form as any).structuredRules
+    }
 
     // 简单排序：保存时按从短到长排序周期
     form.marketData.timeframes.sort((a, b) =>
       (timeframePriority[a] || 99) - (timeframePriority[b] || 99)
     )
 
-    emit('save', { ...form })
+    const payload = { ...form }
+
+    // // 若 structuredRules 为空，则走后端 AI 自动生成并弹窗确认
+    // const hasStructuredRules = !!structuredRulesDsl.value.trim()
+    // if (!hasStructuredRules) {
+    //   const resp = await $fetch<{ success: boolean; data?: { structuredRules: { dsl: string } } }>('/api/ai/generate-structured-rules', {
+    //     method: 'POST',
+    //     body: {
+    //       userPrompt: payload.aiPrompt?.userPrompt || '',
+    //       provider: payload.aiPrompt?.provider || 'deepseek'
+    //     }
+    //   })
+
+    //   const generated = resp?.data?.structuredRules
+    //   if (generated) {
+    //     generatedStructuredRulesObject.value = generated
+    //     generatedStructuredRulesPreview.value = generated.dsl || ''
+    //     pendingSavePayload.value = payload
+    //     generatedRulesDialogVisible.value = true
+    //     return
+    //   }
+    // }
+
+    emit('save', payload)
   } finally {
     saving.value = false
   }
 }
+
+const confirmGeneratedRulesAndSave = () => {
+  if (!pendingSavePayload.value || !generatedStructuredRulesObject.value) {
+    generatedRulesDialogVisible.value = false
+    return
+  }
+
+  const generated = generatedStructuredRulesObject.value
+  structuredRulesDsl.value = generated.dsl || ''
+  ;(pendingSavePayload.value as any).structuredRules = generated
+  emit('save', pendingSavePayload.value)
+
+  generatedRulesDialogVisible.value = false
+  pendingSavePayload.value = null
+  generatedStructuredRulesObject.value = null
+}
+
+const cancelGeneratedRules = () => {
+  generatedRulesDialogVisible.value = false
+  pendingSavePayload.value = null
+  generatedStructuredRulesObject.value = null
+}
+
 </script>
 
 <style scoped>
@@ -661,19 +768,38 @@ const handleSave = async () => {
 
 .form-actions {
   display: flex;
-  justify-content: flex-end;
+  flex-direction: column;
+  align-items: flex-end;
   gap: 10px;
   margin-top: 20px;
   padding: 20px 0;
   border-top: 1px solid #ebeef5;
 }
 
+.button-group {
+  display: flex;
+  gap: 10px;
+}
+
 .form-tip {
-  margin-top: 5px;
+  display: block;
   font-size: 12px;
   color: #909399;
 }
 
+.json-error {
+  display: block;
+  color: #f56c6c;
+  font-size: 12px;
+}
+
+.json-actions {
+  display: block;
+}
+
+.unitf{
+  margin-left: 8px;
+}
 .trailing-stop-row {
   display: flex;
   align-items: center;
