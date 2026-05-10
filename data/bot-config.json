@@ -18,6 +18,7 @@
     50,
     200
   ],
+  "volumeEmaPeriod": 12,
   "aiCacheTtlMinutes": 10,
   "aiAnalysisConfig": {
     "enabled": true,

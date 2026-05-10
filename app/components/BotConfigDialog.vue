@@ -52,6 +52,9 @@
           <el-form-item label="慢速EMA周期">
             <el-input-number v-model="form.emaPeriods[1]" :min="1" :max="500" />
           </el-form-item>
+          <el-form-item label="成交量EMA周期">
+            <el-input-number v-model="form.volumeEmaPeriod" :min="1" :max="30" />
+          </el-form-item>
 
           <!-- AI分析配置 -->
           <el-divider content-position="left">AI分析日志配置</el-divider>

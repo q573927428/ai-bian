@@ -27,7 +27,7 @@ interface SymbolData {
   klineData: Map<Timeframe, OHLCV[]>
   oiData?: { value: number; timestamp: number }
   oiHistory?: Array<{ value: number; timestamp: number }>
-  volumeData?: Map<Timeframe, { current: number; average: number; ratio: number; timestamp: number }>
+  volumeData?: Map<Timeframe, { current: number; prev: number; average: number; emaAverage: number; emaPeriod: number; ratio: number; timestamp: number }>
   indicators: Map<string, IndicatorData>
 }
 
@@ -69,6 +69,9 @@ export class IndicatorsHub {
   // 统计数据TTL
   private readonly STATS_TTL = 300 * 1000 // 5分钟
 
+  // Volume 缓存 TTL（毫秒）
+  private readonly VOLUME_CACHE_TTL = 120 * 1000 // 2分钟
+
   // 进行中的请求
   private pendingRequests: Map<string, Promise<any>> = new Map()
 
@@ -91,6 +94,22 @@ export class IndicatorsHub {
     '1h': '1h',
     '4h': '4h',
     '1d': '1d'
+  }
+
+  private getVolumeEmaPeriod(): number {
+    const configured = Number(this.config.volumeEmaPeriod ?? 12)
+    if (!Number.isFinite(configured)) return 12
+    return Math.max(2, Math.floor(configured))
+  }
+
+  private calculateVolumeEma(volumes: number[], period: number): number {
+    if (volumes.length === 0) return 0
+    const safePeriod = Math.max(2, Math.floor(period))
+    const emaSeries = EMA.calculate({ period: safePeriod, values: volumes })
+    if (emaSeries.length > 0) {
+      return emaSeries[emaSeries.length - 1] ?? volumes[volumes.length - 1] ?? 0
+    }
+    return volumes[volumes.length - 1] ?? 0
   }
 
   /**
@@ -534,7 +553,8 @@ export class IndicatorsHub {
       const cacheKey = `${symbol}_${timeframe}_Volume`
       let volumeData = symbolData.volumeData?.get(timeframe)
 
-      if (!volumeData) {
+      const now = Date.now()
+      if (!volumeData || (now - volumeData.timestamp > this.VOLUME_CACHE_TTL)) {
         // 按需计算成交量
         const klines = this.getKlines(symbol, timeframe)
         if (!klines || klines.length < 20) {
@@ -542,12 +562,19 @@ export class IndicatorsHub {
         }
 
         const currentVolume = klines[klines.length - 1]?.volume || 0
+        const prevVolume = klines[klines.length - 2]?.volume || 0
         const averageVolume = klines.slice(-20).reduce((sum, c) => sum + c.volume, 0) / 20
+        const volumeEmaPeriod = this.getVolumeEmaPeriod()
+        const volumeSeries = klines.map(c => c.volume)
+        const emaAverage = this.calculateVolumeEma(volumeSeries, volumeEmaPeriod)
         volumeData = {
           current: currentVolume,
+          prev: prevVolume,
           average: averageVolume,
+          emaAverage,
+          emaPeriod: volumeEmaPeriod,
           ratio: averageVolume > 0 ? currentVolume / averageVolume : 0,
-          timestamp: Date.now()
+          timestamp: now
         }
 
         if (!symbolData.volumeData) {
@@ -562,7 +589,10 @@ export class IndicatorsHub {
         timestamp: volumeData.timestamp,
         values: {
           current: volumeData.current,
+          prev: volumeData.prev,
           average: volumeData.average,
+          emaAverage: volumeData.emaAverage,
+          emaPeriod: volumeData.emaPeriod,
           ratio: volumeData.ratio
         }
       }
@@ -915,32 +945,56 @@ export class IndicatorsHub {
   }
 
   /**
-   * 刷新单个交易对和周期的数据
+   * 刷新单个交易对和周期的数据（事件驱动）
+   * 
+   * 注意：由于 updateLastKLine 只更新 volume 不改变 timestamp，
+   * getKLineFileMTime 的 MAX(timestamp) 检测无法感知 volume 变化，
+   * 因此这里必须强制重新加载 K线数据，不能依赖 getKlines 的文件修改时间检测。
    */
   private async refreshSymbolTimeframe(symbol: string, timeframe: Timeframe): Promise<void> {
     try {
-      // 1. 检查并重新加载该周期的 K线
-      this.getKlines(symbol, timeframe)
+      const symbolData = this.symbolDataCache.get(symbol)
+      if (!symbolData) return
+
+      // 1. 强制重新加载该周期的 K线（绕过文件修改时间检测）
+      const mappedTimeframe = this.TIMEFRAME_MAP[timeframe]
+      if (mappedTimeframe) {
+        const limit = this.config.indicatorsConfig?.requiredCandles || 500
+        const klines = getSimpleKLineAsOHLCV(symbol, mappedTimeframe, limit)
+        if (klines.length > 0) {
+          symbolData.klineData.set(timeframe, klines)
+          // 更新文件修改时间记录，保持一致性
+          const mtime = getKLineFileMTime(symbol, mappedTimeframe)
+          if (mtime) {
+            this.fileMTimes.set(`${symbol}_${timeframe}`, mtime)
+          }
+        }
+      }
 
       // 2. 重新计算该周期的成交量指标
-      const symbolData = this.symbolDataCache.get(symbol)
-      if (symbolData) {
-        const klines = symbolData.klineData.get(timeframe)
-        if (klines && klines.length > 0) {
-          const currentVolume = klines[klines.length - 1]?.volume || 0
-          const averageVolume = klines.slice(-20).reduce((sum, c) => sum + c.volume, 0) / 20
-          const volumeData = {
-            current: currentVolume,
-            average: averageVolume,
-            ratio: averageVolume > 0 ? currentVolume / averageVolume : 0,
-            timestamp: Date.now()
-          }
-          
-          if (!symbolData.volumeData) {
-            symbolData.volumeData = new Map()
-          }
-          symbolData.volumeData.set(timeframe, volumeData)
+      const klines = symbolData.klineData.get(timeframe)
+      if (klines && klines.length > 0) {
+        const currentVolume = klines[klines.length - 1]?.volume || 0
+        const prevVolume = klines[klines.length - 2]?.volume || 0
+        const averageVolume = klines.slice(-20).reduce((sum, c) => sum + c.volume, 0) / 20
+        const volumeEmaPeriod = this.getVolumeEmaPeriod()
+        const volumeSeries = klines.map(c => c.volume)
+        const emaAverage = this.calculateVolumeEma(volumeSeries, volumeEmaPeriod)
+        const now = Date.now()
+        const volumeData = {
+          current: currentVolume,
+          prev: prevVolume,
+          average: averageVolume,
+          emaAverage,
+          emaPeriod: volumeEmaPeriod,
+          ratio: averageVolume > 0 ? currentVolume / averageVolume : 0,
+          timestamp: now
         }
+        
+        if (!symbolData.volumeData) {
+          symbolData.volumeData = new Map()
+        }
+        symbolData.volumeData.set(timeframe, volumeData)
       }
 
       // logger.info('IndicatorsHub', `${symbol} ${timeframe} 数据已刷新（事件驱动）`)

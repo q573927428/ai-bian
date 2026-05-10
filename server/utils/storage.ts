@@ -251,6 +251,11 @@ export async function getBotConfig(): Promise<BotConfig> {
     if (!config.emaPeriods || !Array.isArray(config.emaPeriods)) {
       config.emaPeriods = [20, 200]
     }
+
+    // 成交量EMA周期默认值
+    if (!Number.isFinite(config.volumeEmaPeriod) || Number(config.volumeEmaPeriod) < 2) {
+      config.volumeEmaPeriod = 12
+    }
     
     return config
   } catch (error: any) {
@@ -293,6 +298,7 @@ function getDefaultBotConfig(): BotConfig {
       adxSlopePeriod: 3 // ADX斜率计算回看周期
     },
     emaPeriods: [20, 200], // EMA周期数组
+    volumeEmaPeriod: 12, // 成交量EMA均值周期
     aiCacheTtlMinutes: 10, // AI缓存时间（分钟）
     aiAnalysisConfig: {
       enabled: true, // 是否启用AI分析日志

@@ -719,6 +719,11 @@ export class StrategyEngine {
           oi: enabledOI,
           volume: enabledVolume
         },
+        volumeCurrent: enabledVolume ? volumeData.current : undefined,
+        volumePrev: enabledVolume ? volumeData.prev : undefined,
+        volumeAverage: enabledVolume ? volumeData.average : undefined,
+        volumeEmaAverage: enabledVolume ? volumeData.emaAverage : undefined,
+        volumeEmaPeriod: enabledVolume ? volumeData.emaPeriod : undefined,
         lastCandle,
         prevCandle
       }

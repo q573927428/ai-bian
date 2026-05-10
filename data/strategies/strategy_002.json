@@ -3,7 +3,7 @@
   "name": "策略02",
   "version": 1,
   "createdAt": "2026-04-19T16:06:46.003Z",
-  "updatedAt": "2026-05-09T06:21:02.681Z",
+  "updatedAt": "2026-05-09T10:18:41.213Z",
   "isActive": true,
   "marketData": {
     "symbols": [
@@ -73,11 +73,13 @@
     }
   ],
   "aiPrompt": {
-    "userPrompt": "OI资金共振 + K线信号交易策略\n一、做多（LONG）规则\n1. 趋势：EMA50 > EMA200\n2. 共振与K线：OI变化率>0（OI资金共振），且满足任一K线信号：\n- Pin Bar：影线/实体≥3 且 实体长度/K线总长度≤0.3\n- 吞没形态：当前阳线实体/前一根阴线实体≥1.6\n3. 开仓：上述3个条件同时成立方可开多\n二、做空（SHORT）规则\n1. 趋势：EMA50 < EMA200\n2. 共振与K线：OI变化率<0（OI资金共振），且满足任一K线信号：\n- Pin Bar：影线/实体≥3 且 实体长度/K线总长度≤0.3\n- 吞没形态：当前阴线实体/前一根阳线实体≥1.6\n3. 开仓：上述3个条件同时成立方可开空",
+    "userPrompt": "OI资金共振+K线信号交易策略\n一、做多 LONG 完整规则\n1. 趋势方向：EMA50 > EMA200\n2. K线信号：\n① Pin Bar：影线/实体比例 ≥ 3：1，且实体部分最大占比 ≤ 0.3（即实体长度不超过整根K线长度的30%）；\n②  吞没形态：吞没阳线实体 / 被吞没阴线实体 ≥ 1.6。\n3. 交易原则：K线信号满足其中一个，就开仓。\n二、做空 SHORT 完整规则\n1. 趋势方向：EMA50 < EMA200\n2. K线信号：\n① Pin Bar：影线/实体比例 ≥ 3：1，且实体部分最大占比 ≤ 0.3（即实体长度不超过整根K线长度的30%）；\n②  吞没形态：吞没阳线实体 / 被吞没阴线实体 ≥ 1.6。\n3. 交易原则：K线信号满足其中一个，就开仓。",
     "temperature": 0.2,
     "maxTokens": 2000,
-    "model": "doubao-seed-2-0-pro-260215",
-    "provider": "doubao"
+    "model": "Doubao-Seed-2.0-Code",
+    "provider": "openai",
+    "apiUrl": "https://ark.cn-beijing.volces.com/api/coding/v3",
+    "apiKey": "ark-626c2a11-1c1e-4f02-90d0-b08ae91472e2-aebfb"
   },
   "riskManagement": {
     "maxRiskPercentage": 20,
@@ -285,27 +287,27 @@
   ],
   "performance": {
     "strategyId": "strategy_002",
-    "totalTrades": 11,
+    "totalTrades": 13,
     "totalWins": 3,
-    "totalLosses": 8,
-    "winRate": 27.27272727272727,
+    "totalLosses": 10,
+    "winRate": 23.076923076923077,
     "totalProfit": 0.7198775650000002,
-    "totalLoss": 1.9793353549999881,
-    "netProfit": -1.259457789999988,
-    "profitFactor": 0.3636966131997397,
+    "totalLoss": 4.668724519999978,
+    "netProfit": -3.9488469549999783,
+    "profitFactor": 0.1541914846155891,
     "maxDrawdown": 0,
     "averageProfitPerTrade": 0.2399591883333334,
-    "averageLossPerTrade": 0.24741691937499852,
+    "averageLossPerTrade": 0.46687245199999783,
     "largestWin": 0.37559987999999733,
-    "largestLoss": 0.6981299500000029,
-    "averageHoldTime": 280.23600909090914,
+    "largestLoss": 2.6281926650000016,
+    "averageHoldTime": 300.33121282051286,
     "consecutiveWins": 0,
-    "consecutiveLosses": 2,
+    "consecutiveLosses": 4,
     "maxConsecutiveWins": 1,
-    "maxConsecutiveLosses": 3,
-    "dailyPnL": -0.5259798999999968,
-    "todayTrades": 3,
-    "updatedAt": "2026-05-04T08:41:08.174Z"
+    "maxConsecutiveLosses": 4,
+    "dailyPnL": -0.06119649999998836,
+    "todayTrades": 1,
+    "updatedAt": "2026-05-10T07:00:46.007Z"
   },
   "sessions": [],
   "currentSessionId": null

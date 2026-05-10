@@ -366,11 +366,14 @@ export class MultiStrategyAIAnalyzer {
 
     // 成交量对比（策略01/03成交量放大判断需要）
     const volumeCompareLines: string[] = []
-    if (indicators.enabledIndicators?.volume && indicators.prevCandle) {
-      const prevVolume = indicators.prevCandle.volume
-      if (prevVolume > 0) {
-        const volumeRatio = Number(estimatedVolume) / prevVolume
-        volumeCompareLines.push(`- 预计成交量/前K量: ${volumeRatio.toFixed(2)}倍`)
+    if (indicators.enabledIndicators?.volume) {
+      if (indicators.volumeEmaAverage !== undefined && indicators.volumeEmaPeriod !== undefined) {
+        const volumeEma = Number(indicators.volumeEmaAverage)
+        if (volumeEma > 0) {
+          const volumeRatio = Number(estimatedVolume) / volumeEma
+          volumeCompareLines.push(`- 预计成交量/成交量EMA均值(${indicators.volumeEmaPeriod}周期): ${volumeRatio.toFixed(2)}倍`)
+        }
+        volumeCompareLines.push(`- 成交量EMA均值(${indicators.volumeEmaPeriod}周期): ${volumeEma.toFixed(2)}`)
       }
     }
 

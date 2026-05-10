@@ -65,6 +65,11 @@ export interface TechnicalIndicators {
   }
   lastCandle?: OHLCV
   prevCandle?: OHLCV
+  volumeCurrent?: number
+  volumePrev?: number
+  volumeAverage?: number
+  volumeEmaAverage?: number
+  volumeEmaPeriod?: number
 }
 
 // ==================== AI分析结果 ====================
@@ -156,6 +161,7 @@ export interface BotConfig {
   monitorInterval: number
   indicatorsConfig: IndicatorsConfig
   emaPeriods: number[]
+  volumeEmaPeriod?: number
   aiCacheTtlMinutes: number
   aiAnalysisConfig: AIAnalysisSaveConfig
   minConfidence: number
