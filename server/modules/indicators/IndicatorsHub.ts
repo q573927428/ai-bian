@@ -280,15 +280,15 @@ export class IndicatorsHub {
     const symbolData = this.symbolDataCache.get(symbol)
     if (!symbolData) return
 
-    // 清除该交易对和周期的所有指标缓存
-    for (const [key] of symbolData.indicators) {
-      if (key.startsWith(`${symbol}_${timeframe}_`)) {
+    // 强制清除该周期所有指标缓存（解决 symbol 格式不匹配问题）
+    for (const [key, data] of symbolData.indicators) {
+      if (data.timeframe === timeframe) {
         symbolData.indicators.delete(key)
       }
     }
 
     // 清除成交量缓存
-    symbolData.volumeData?.delete(timeframe)
+    symbolData.volumeData?.delete(timeframe);
   }
 
   /**

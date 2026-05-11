@@ -435,8 +435,10 @@ export function getKLineFileMTime(
   timeframe: KLineTimeframe
 ): string | null {
   const normSymbol = normalizeSymbol(symbol)
-  
-  const row = queryOne<{ last_ts: number | null; last_volume: number | null }>(
+  const row = queryOne<{
+    last_ts: number | null
+    last_volume: number | null
+  }>(
     `SELECT 
       MAX(timestamp) as last_ts,
       (SELECT volume 
@@ -446,10 +448,8 @@ export function getKLineFileMTime(
      FROM kline_data`,
     [normSymbol, timeframe]
   )
-  
   if (!row || row.last_ts === null) return null
-  
-  // ✅ 字符串拼接，永不溢出、永不碰撞
+  // 关键：字符串组合，永不重复
   return `${row.last_ts}_${row.last_volume ?? 0}`
 }
 

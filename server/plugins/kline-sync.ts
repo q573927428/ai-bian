@@ -8,7 +8,7 @@ import { KLineSimpleSyncService } from '../modules/kline-simple-sync'
 import type { KLineSyncConfig } from '../../types/kline-simple'
 import { eventHandler, readBody } from 'h3'
 import { setSyncService, getSyncService } from '../utils/kline-sync-service'
-import { initKLineDb, closeKLineDb } from '../utils/kline-simple-storage'
+import { initKLineDb, closeKLineDb, hasKLineData } from '../utils/kline-simple-storage'
 
 // 默认配置
 const DEFAULT_SYNC_CONFIG: KLineSyncConfig = {
@@ -268,28 +268,18 @@ async function startInitialSync(): Promise<void> {
   try {
     console.log('📊 开始K线数据初始同步...')
     
-    // 检查是否需要初始同步 - 通过检查数据文件是否存在
+    // 检查是否需要初始同步 - 通过检查SQLite数据库中是否有数据
     const config = syncService.getConfig()
     let needsInitialSync = false
     
-    // 导入文件系统模块来检查文件是否存在
-    const fs = await import('fs/promises')
-    const path = await import('path')
-    
     for (const symbol of config.symbols) {
       for (const timeframe of config.timeframes) {
-        // 构建数据文件路径 - 注意：文件名格式是 BTCUSDT-15m.json（使用连字符）
-        const dataDir = path.join(process.cwd(), 'data', 'kline-simple')
-        const fileName = `${symbol.replace('/', '')}-${timeframe}.json`
-        const filePath = path.join(dataDir, fileName)
+        // 检查数据库中是否有该交易对/周期的数据
+        const hasData = hasKLineData(symbol, timeframe)
         
-        try {
-          // 检查文件是否存在
-          await fs.access(filePath)
-          // console.log(`✅ 数据文件已存在: ${symbol}/${timeframe}`)
-        } catch {
-          // 文件不存在，需要初始同步
-          console.log(`⚠️  数据文件不存在: ${symbol}/${timeframe}，需要初始同步`)
+        if (!hasData) {
+          // 数据库中无数据，需要初始同步
+          console.log(`⚠️  数据库中无数据: ${symbol}/${timeframe}，需要初始同步`)
           needsInitialSync = true
         }
       }
