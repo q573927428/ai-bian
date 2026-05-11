@@ -480,6 +480,7 @@ ${promptConfig.userPrompt}
 }
 
 ### 输出字段说明：
+- confidence: 开仓信心度（宏观）
 - scoreBreakdown: 评分拆解，包含 baseScore/hardScore/softScore/penaltyScore/finalScore
 - riskLevel: 风险等级，LOW/MEDIUM/HIGH
 
@@ -488,7 +489,7 @@ ${promptConfig.userPrompt}
 - hardScore：硬条件得分，范围 0~50（按硬条件满足比例线性给分）
 - softScore：软条件得分，范围 0~20（按软条件满足比例线性给分）
 - penaltyScore：惩罚分，范围 -10~0（条件冲突、波动过大、趋势弱时扣分）
-- finalScore：必须等于 baseScore + hardScore + softScore + penaltyScore（并限制在 0~100）
+- finalScore：策略规则匹配度（微观），必须等于 baseScore + hardScore + softScore + penaltyScore（并限制在 0~100），仅反映策略条件满足程度
 - 禁止输出不满足上述范围或不满足求和关系的值
 `;
   }
@@ -504,15 +505,14 @@ ${promptConfig.userPrompt}
 【核心原则】
 1. 你只做分析，不替用户做最终决策。
 2. 先根据策略规则及所需数据确定唯一方向（LONG/SHORT），之后只按该方向执行交易判断：LONG只用做多规则，SHORT只用做空规则。
-3. 请基于你实际检查出的满足条件的数量，以及每个条件预先设定的重要性权重，真实计算一个 0~100 的置信度分数：满足越多、越重要的条件，分数越高。
-4. 所有条件必须逐条验证，带上真实数值。
-5. 输出必须是合法JSON，无任何多余内容。
-6. confidence 不代表是否开仓，而是当前市场结构与策略理想条件的接近程度。
-7. 禁止因为单个条件不满足直接输出 confidence=0。
-8. scoreBreakdown.finalScore 为最终总分（0-100），必须与各子项计算逻辑一致。
-9. riskLevel 综合市场波动性、趋势强度等给出风险等级。
-10. scoreBreakdown 必须满足：baseScore∈[0,30]，hardScore∈[0,50]，softScore∈[0,20]，penaltyScore∈[-10,0]。
-11. finalScore 必须严格等于 baseScore + hardScore + softScore + penaltyScore（再截断到0~100）。
+3. 所有条件必须逐条验证，带上真实数值。
+4. 输出必须是合法JSON，无任何多余内容。
+5. confidence 不代表是否开仓，而是是结合市场波动性、趋势强度、风险等级等宏观因素的开仓信心度（0-100）（宏观）
+6. 禁止因为单个条件不满足直接输出 confidence=0。
+7. scoreBreakdown.finalScore 为策略规则匹配度（0-100），仅反映策略条件满足程度（微观）。
+8. scoreBreakdown 必须满足：baseScore∈[0,30]，hardScore∈[0,50]，softScore∈[0,20]，penaltyScore∈[-10,0]。
+9. finalScore 必须严格等于 baseScore + hardScore + softScore + penaltyScore（再截断到0~100）。
+10. riskLevel 综合市场波动性、趋势强度等给出风险等级。
 
 
 ----------------------------------
