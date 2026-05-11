@@ -882,8 +882,8 @@ export class StrategyEngine {
       logger.info('账户', `余额: ${account.availableBalance} USDT`)
 
       // 余额检查
-      if (account.availableBalance < 60) {
-        logger.warn('开仓', `账户余额（${account.availableBalance} USDT）不足60 USDT，无法开仓`)
+      if (account.availableBalance < 30) {
+        logger.warn('开仓', `账户余额（${account.availableBalance} USDT）不足30 USDT，无法开仓`)
         return
       }
 
