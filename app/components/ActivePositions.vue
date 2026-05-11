@@ -6,12 +6,17 @@
       </div>
     </template>
     <div class="positions-list">
-      <div v-for="position in positions" :key="position.symbol" class="position-item">
+      <div
+        v-for="position in positions"
+        :key="position.symbol"
+        class="position-item"
+        :style="getPositionItemStyle(position)"
+      >
         <!-- 顶部信息栏 -->
         <div class="position-header">
           <el-row :gutter="16">
             <!-- 左侧：交易对/标签、盈亏/平仓按钮 -->
-            <el-col :xs="24" :md="6">
+            <el-col :xs="24" :md="24">
               <div class="left-section">
                 <!-- 交易对和标签 -->
                 <div class="symbol-info">
@@ -20,11 +25,20 @@
                     <span class="open-time">{{ formatOpenTime(position.openTime) }}</span>
                   </div>
                   <div class="tag-row">
-                    <el-tag type="info" size="small" effect="dark" class="strategy-tag">
+                    <el-tag type="warning" size="small" effect="dark" class="strategy-tag">
                       {{ position.strategyId }}
                     </el-tag>
                     <el-tag :type="position.direction === 'long' ? 'success' : 'danger'" size="small" effect="dark">
                       {{ position.direction === 'long' ? '做多' : '做空' }}
+                    </el-tag>
+                    <el-tag
+                      type="warning"
+                      size="small"
+                      :loading="closingSymbols.includes(position.symbol)"
+                      @click="handleClosePosition(position.symbol)"
+                      class="close-btn"
+                    >
+                      平仓
                     </el-tag>
                   </div>
                 </div>
@@ -42,7 +56,7 @@
               </div>
             </el-col>
             <!-- 右侧：详细信息 -->
-            <el-col :xs="24" :md="18">
+            <el-col :xs="24" :md="24">
               <div class="info-section">
                 <div class="info-row">
                   <div class="info-item">
@@ -78,15 +92,6 @@
                     <span class="info-value">${{ position.initialStopLoss ? position.initialStopLoss.toFixed(2) : '--' }}</span>
                   </div>
                   <div class="info-item">
-                    <el-tag
-                      type="warning"
-                      size="small"
-                      :loading="closingSymbols.includes(position.symbol)"
-                      @click="handleClosePosition(position.symbol)"
-                      class="close-btn"
-                    >
-                      平仓
-                    </el-tag>
                     <div v-if="position.reasoning" class="ai-toggle-btn-inline" @click="toggleAISection(position.symbol)">
                       <el-icon class="toggle-icon" :class="{ 'rotated': expandedAISections.includes(position.symbol) }">
                         <ElIconArrowDown />
@@ -146,16 +151,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, getCurrentInstance } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { useBotStore } from '../stores/bot'
-import type { ComponentInternalInstance } from 'vue'
 
 const botStore = useBotStore()
 const positions = ref<any[]>([])
 const closingSymbols = ref<string[]>([])
 const expandedAISections = ref<string[]>([])
-const instance = getCurrentInstance() as ComponentInternalInstance
-const proxy = instance?.proxy as any
 
 // 加载持仓信息
 const loadPositions = async () => {
@@ -214,6 +217,29 @@ function formatOpenTime(openTime: string | number | Date): string {
   })
 }
 
+// 根据盈亏获取持仓项的背景样式
+function getPositionItemStyle(position: any): Record<string, string> {
+  const pnl = calculateUnrealizedPnl(position)
+  if (pnl > 0) {
+    return {
+      background: 'linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%)',
+      border: '1px solid #d1fae5',
+      boxShadow: 'inset 5px 0 0 #d1fae5',
+    }
+  } else if (pnl < 0) {
+    return {
+      background: 'linear-gradient(135deg, #fef2f2 0%, #fecaca 100%)',
+      border: '1px solid #f56c6c',
+      boxShadow: 'inset 5px 0 0 #f56c6c',
+    }
+  }
+  return {
+    background: 'linear-gradient(135deg, #ebeef5 0%, #ebeef5 100%)',
+    border: '1px solid #c4c6cb',
+    boxShadow: 'inset 5px 0 0 #c4c6cb',
+  }
+}
+
 // 判断是否为移动止损（移动止损与初始止损不同）
 function isTrailingStopLoss(position: any): boolean {
   if (!position.stopLoss || !position.initialStopLoss) return false
@@ -233,13 +259,15 @@ const toggleAISection = (symbol: string) => {
 // 手动平仓
 const handleClosePosition = async (symbol: string) => {
   try {
-    await proxy.$msgbox({
-      title: '确认平仓',
-      message: `确定要平仓 ${symbol} 吗？`,
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
-      type: 'warning'
-    })
+    await ElMessageBox.confirm(
+      `确定要平仓 ${symbol} 吗？`,
+      '确认平仓',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }
+    )
 
     closingSymbols.value.push(symbol)
 
@@ -249,12 +277,12 @@ const handleClosePosition = async (symbol: string) => {
     } as any) as any
 
     if (response.success) {
-      proxy.$message.success(response.message)
+      ElMessage.success(response.message)
       await loadPositions()
     }
   } catch (error: any) {
     if (error !== 'cancel') {
-      proxy.$message.error(error.message || '平仓失败')
+      ElMessage.error(error.message || '平仓失败')
       console.error('平仓失败:', error)
     }
   } finally {
@@ -305,7 +333,6 @@ onUnmounted(() => {
   border: 1px solid #ebeef5;
   border-radius: 12px;
   padding: 12px;
-  background: linear-gradient(135deg, #f5f3ff 0%, #f0f9ff 100%);
   transition: all 0.3s ease;
 }
 
@@ -321,6 +348,7 @@ onUnmounted(() => {
   align-items: center;
   height: 100%;
   gap: 16px;
+  padding-bottom: 15px;
 }
 
 .symbol-info {
@@ -385,7 +413,6 @@ onUnmounted(() => {
 }
 
 .info-section {
-  border: 1px solid #c7d2fe;
   border-radius: 16px;
   padding: 12px;
   background: #ffffff;
@@ -417,7 +444,7 @@ onUnmounted(() => {
 
 .info-value {
   color: #1f2937;
-  font-size: 16px;
+  font-size: 14px;
   font-weight: 600;
 }
 
@@ -499,7 +526,7 @@ onUnmounted(() => {
 
 .scores-grid {
   display: grid;
-  grid-template-columns: repeat(6, 1fr);
+  grid-template-columns: repeat(3, 1fr);
   gap: 10px;
 }
 

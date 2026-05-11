@@ -71,16 +71,17 @@
               </div>
             </el-card>
 
-    <!-- 盈亏胜率走势图表 -->
-    <ClientOnly>
-      <ProfitWinRateChart />
-    </ClientOnly>
+            <!-- 当前持仓组件 -->
+            <ClientOnly>
+              <ActivePositions />
+            </ClientOnly>
 
-    <!-- 系统日志组件 -->
-    <ClientOnly>
-      <SystemLogs />
-    </ClientOnly>
-  </el-col>
+            <!-- 盈亏胜率走势图表 -->
+            <ClientOnly>
+              <ProfitWinRateChart />
+            </ClientOnly>
+
+          </el-col>
 
           <!-- 右侧 - 持仓和交易历史 -->
           <el-col :xs="24" :sm="24" :md="16" :lg="16">
@@ -88,11 +89,6 @@
             <!-- 加密货币价格卡片组件 -->
             <ClientOnly>
               <CryptoPriceCards />
-            </ClientOnly>
-
-            <!-- 当前持仓组件 -->
-            <ClientOnly>
-              <ActivePositions />
             </ClientOnly>
 
             <!-- 策略组件 -->
@@ -103,6 +99,11 @@
             <!-- 历史订单组件 -->
             <ClientOnly>
               <TradeHistory />
+            </ClientOnly>
+
+             <!-- 系统日志组件 -->
+             <ClientOnly>
+              <SystemLogs />
             </ClientOnly>
 
           </el-col>

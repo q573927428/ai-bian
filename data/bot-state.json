@@ -1,13 +1,13 @@
 {
-  "status": "IDLE",
+  "status": "MONITORING",
   "circuitBreaker": {
     "isTriggered": false,
     "reason": "",
-    "timestamp": 1778396446220,
-    "dailyLoss": 1.7674792400531505,
-    "consecutiveLosses": 2
+    "timestamp": 1778470461719,
+    "dailyLoss": 2.34622158706399,
+    "consecutiveLosses": 1
   },
-  "dailyPnL": -2.68938916499999,
+  "dailyPnL": -3.2294682000000057,
   "isRunning": false,
-  "lastTradeTime": 1778396446220
+  "lastTradeTime": 1778470461719
 }
