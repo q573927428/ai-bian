@@ -17,8 +17,12 @@ export interface PreScreenConfig {
   minAtrPercent?: number // 默认 0.0038 (0.38%)
   maxAtrPercent?: number // 默认 0.05 (5%)
 
-  // 成交量阈值
-  minVolumeRatio?: number // 默认 0.5 (至少是前一根K线的50%)
+  // 成交量预估模式：基于K线完成进度预估整根K线成交量后与历史均值比较
+  // 解决未收盘K线成交量偏低的问题
+  minEstimatedVolumeRatio?: number // 默认 0.3 (预估成交量至少是历史均值的30%)
+
+  // K线完成进度阈值：低于此进度时跳过成交量检查（数据太少不可靠）
+  minCandleProgressForVolume?: number // 默认 0.1 (10%)
 
   // 启用/禁用特定筛选项
   enableAdx?: boolean
@@ -47,6 +51,8 @@ export interface PreScreenInput {
   // 成交量相关
   currentVolume?: number
   prevVolume?: number
+  volumeAverage?: number // 过去N根K线的平均成交量（用于预估模式）
+  candleProgress?: number // 当前K线完成进度 0-1（由 StrategyEngine 实时计算，拿不到时用 BotConfig.defaultCandleProgress 兜底）
 }
 
 /**
@@ -72,7 +78,8 @@ export const PRESCREEN_DEFAULTS: Required<PreScreenConfig> = {
   minAdxSlope: 0,
   minAtrPercent: 0.002,
   maxAtrPercent: 0.05,
-  minVolumeRatio: 0.5,
+  minEstimatedVolumeRatio: 0.3,
+  minCandleProgressForVolume: 0.1,
   enableAdx: true,
   enableAdxSlope: true,
   enableAtr: true,
@@ -106,7 +113,8 @@ export class AIPreScreener {
       minAdxSlope: this.config.minAdxSlope,
       minAtrPercent: this.config.minAtrPercent,
       maxAtrPercent: this.config.maxAtrPercent,
-      minVolumeRatio: this.config.minVolumeRatio,
+      minEstimatedVolumeRatio: this.config.minEstimatedVolumeRatio,
+      minCandleProgressForVolume: this.config.minCandleProgressForVolume,
       enableAdx: this.config.enableAdx,
       enableAdxSlope: this.config.enableAdxSlope,
       enableAtr: this.config.enableAtr,
@@ -156,13 +164,18 @@ export class AIPreScreener {
       }
     }
 
-    // 成交量检查
+    // 成交量检查（支持预估模式，解决未收盘K线成交量偏低的问题）
     if (passed && this.config.enableVolume && input.currentVolume !== undefined && input.prevVolume !== undefined) {
-      const volumeCheck = this.checkVolume(input.currentVolume, input.prevVolume)
+      const volumeCheck = this.checkVolume(
+        input.currentVolume,
+        input.prevVolume,
+        input.volumeAverage,
+        input.candleProgress
+      )
       checks.volume = volumeCheck
       if (!volumeCheck.passed) {
         passed = false
-        failReason = `成交量不满足: 当前 ${input.currentVolume.toFixed(2)} / 前一根 ${input.prevVolume.toFixed(2)} = ${(input.currentVolume / input.prevVolume * 100).toFixed(1)}% < ${(this.config.minVolumeRatio! * 100)}%`
+        failReason = volumeCheck.reason || `成交量不满足`
       }
     }
 
@@ -232,16 +245,57 @@ export class AIPreScreener {
   }
 
   /**
-   * 成交量检查
+   * 成交量检查（预估模式）
+   *
+   * 基于K线完成进度预估整根K线成交量，与历史均值比较。
+   * 解决未收盘K线成交量偏低的问题。
+   *
+   * 逻辑：
+   * 1. 必须有 candleProgress 和 volumeAverage 才能检查
+   * 2. 若 candleProgress < minCandleProgressForVolume，跳过（数据太少不可靠）
+   * 3. 否则：estimatedVolume = currentVolume / candleProgress，与 volumeAverage 比较
    */
-  private checkVolume(currentVolume: number, prevVolume: number): { passed: boolean; value: number; threshold: string } {
-    const ratio = prevVolume > 0 ? currentVolume / prevVolume : 0
-    const minVolumeRatio = this.config.minVolumeRatio!
-    const passed = ratio >= minVolumeRatio
+  private checkVolume(
+    currentVolume: number,
+    _prevVolume: number,
+    volumeAverage?: number,
+    candleProgress?: number
+  ): { passed: boolean; value: number; threshold: string; reason?: string } {
+    // 缺少必要数据时跳过检查
+    if (candleProgress === undefined || candleProgress <= 0 || volumeAverage === undefined || volumeAverage <= 0) {
+      return {
+        passed: true,
+        value: 0,
+        threshold: '跳过(缺少进度或历史均值数据)',
+        reason: undefined
+      }
+    }
+
+    const minProgress = this.config.minCandleProgressForVolume!
+
+    // 进度太低，跳过检查（数据太少，预估不可靠）
+    if (candleProgress < minProgress) {
+      return {
+        passed: true,
+        value: 0,
+        threshold: `跳过(进度${(candleProgress * 100).toFixed(1)}% < ${(minProgress * 100).toFixed(0)}%)`,
+        reason: undefined
+      }
+    }
+
+    // 预估整根K线成交量
+    const estimatedVolume = currentVolume / candleProgress
+    const estimatedRatio = estimatedVolume / volumeAverage
+    const minEstimatedRatio = this.config.minEstimatedVolumeRatio!
+
+    const passed = estimatedRatio >= minEstimatedRatio
     return {
       passed,
-      value: ratio,
-      threshold: `>= ${(minVolumeRatio * 100)}%`
+      value: estimatedRatio,
+      threshold: `预估成交量/历史均值 >= ${(minEstimatedRatio * 100).toFixed(0)}%`,
+      reason: passed
+        ? undefined
+        : `成交量预估不足: 当前${currentVolume.toFixed(2)} 进度${(candleProgress * 100).toFixed(1)}% 预估${estimatedVolume.toFixed(2)} / 历史均值${volumeAverage.toFixed(2)} = ${(estimatedRatio * 100).toFixed(1)}% < ${(minEstimatedRatio * 100).toFixed(0)}%`
     }
   }
 

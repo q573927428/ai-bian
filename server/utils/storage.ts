@@ -317,7 +317,8 @@ function getDefaultBotConfig(): BotConfig {
       minAdxSlope: 0, // ADX斜率最小阈值
       minAtrPercent: 0.002, // ATR最小波动率 (0.2%)
       maxAtrPercent: 0.05, // ATR最大波动率
-      minVolumeRatio: 0.5, // 成交量最小比率
+      minEstimatedVolumeRatio: 0.3, // 预估成交量/历史均值最小比率
+      minCandleProgressForVolume: 0.1, // K线完成进度阈值，低于此值跳过成交量检查
       enableAdx: true, // 启用ADX筛选
       enableAdxSlope: true, // 启用ADX斜率筛选
       enableAtr: true, // 启用ATR筛选

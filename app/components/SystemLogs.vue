@@ -46,7 +46,7 @@
               </el-link>
             </div>
             <div v-if="expandedLogs.has(index)" class="detailed-log">
-              <div class="detailed-log-header">=== 详细AI日志 ===</div>
+              <!-- <div class="detailed-log-header">=== 详细AI日志 ===</div> -->
               <div class="detailed-log-content">{{ getDetailedLog(log.message) }}</div>
             </div>
           </template>
@@ -59,7 +59,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useBotStore } from '../stores/bot'
 import dayjs from 'dayjs'
 
@@ -128,8 +128,19 @@ async function fetchStrategies() {
   }
 }
 
-// 记录展开状态的日志索引
+// 记录展开状态的日志索引，默认展开所有有详细日志的条目
 const expandedLogs = ref<Set<number>>(new Set())
+
+// 当筛选日志变化时，自动展开所有有详细日志的条目
+watch(filteredLogs, (logs) => {
+  const newSet = new Set<number>()
+  logs.forEach((log, index) => {
+    if (hasDetailedLog(log.message)) {
+      newSet.add(index)
+    }
+  })
+  expandedLogs.value = newSet
+}, { immediate: true })
 
 const DETAILED_LOG_SEPARATOR = '===详细AI日志==='
 

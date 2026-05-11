@@ -14,7 +14,7 @@
       @closed="handleClosed"
     >
       <div v-loading="loading" class="config-container">
-        <el-form v-if="form" :model="form" :label-width="isMobile ? '100px' : '180px'">
+        <el-form v-if="form" :model="form" :label-width="isMobile ? '150px' : '180px'">
           <!-- 交易对配置 -->
           <el-divider content-position="left">交易对配置</el-divider>
           <el-form-item label="交易对列表">
@@ -104,8 +104,11 @@
             <el-form-item label="启用成交量筛选">
               <el-switch v-model="form.preScreenConfig.enableVolume" />
             </el-form-item>
-            <el-form-item label="成交量最小比率" v-if="form.preScreenConfig.enableVolume">
-              <el-input-number v-model="form.preScreenConfig.minVolumeRatio" :min="0" :max="5" :step="0.01" />
+            <el-form-item label="预估成交量比率" v-if="form.preScreenConfig.enableVolume">
+              <el-input-number v-model="form.preScreenConfig.minEstimatedVolumeRatio" :min="0" :max="2" :step="0.05" />
+            </el-form-item>
+            <el-form-item label="K线进度阈值检查" v-if="form.preScreenConfig.enableVolume">
+              <el-input-number v-model="form.preScreenConfig.minCandleProgressForVolume" :min="0" :max="1" :step="0.05" />
             </el-form-item>
           </template>
 

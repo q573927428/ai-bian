@@ -120,8 +120,12 @@ export interface PreScreenConfig {
   minAtrPercent?: number // 默认 0.002 (0.2%)
   maxAtrPercent?: number // 默认 0.05 (5%)
 
-  // 成交量阈值
-  minVolumeRatio?: number // 默认 0.5 (至少是前一根K线的50%)
+  // 成交量预估模式：基于K线完成进度预估整根K线成交量后与历史均值比较
+  // 解决未收盘K线成交量偏低的问题
+  minEstimatedVolumeRatio?: number // 默认 0.3 (预估成交量至少是历史均值的30%)
+
+  // K线完成进度阈值：低于此进度时跳过成交量检查（数据太少不可靠）
+  minCandleProgressForVolume?: number // 默认 0.1 (10%)
 
   // 启用/禁用特定筛选项
   enableAdx?: boolean

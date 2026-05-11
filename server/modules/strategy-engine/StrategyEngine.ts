@@ -687,7 +687,9 @@ export class StrategyEngine {
         atr: enabledATR ? indicatorsData.get(`${mainTimeframe}_ATR`)?.values?.atr : undefined,
         currentPrice: price,
         currentVolume: volumeData.current,
-        prevVolume: volumeData.prev
+        prevVolume: volumeData.prev,
+        volumeAverage: volumeData.average,
+        candleProgress
       })
 
       if (!preScreenResult.passed) {
