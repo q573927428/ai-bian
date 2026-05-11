@@ -228,10 +228,10 @@ export class StrategyPositionMonitor {
       logParts.push(`最大浮亏:${floatingPnl.toFixed(4)}USDT(${floatingPnlPercent.toFixed(2)}%)`)
     }
 
-    // 有更新时记录日志
-    if (logParts.length > 0) {
-      logger.info('持仓追踪', `${position.symbol} ${logParts.join(' | ')}`)
-    }
+    // // 有更新时记录日志
+    // if (logParts.length > 0) {
+    //   logger.info('持仓追踪', `${position.symbol} ${logParts.join(' | ')}`)
+    // }
 
     if (Object.keys(updates).length > 0) {
       this.positionManager.updatePosition(position.symbol, updates)
