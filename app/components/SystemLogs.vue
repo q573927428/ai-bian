@@ -100,14 +100,12 @@ const filteredLogs = computed(() => {
   
   // 再按策略筛选
   if (selectedStrategy.value) {
-    const strategyName = strategies.value.find(s => s.id === selectedStrategy.value)?.name
-    if (strategyName) {
-      logs = logs.filter(log => 
-        log.message.includes(strategyName) || 
-        log.category.includes(strategyName) ||
-        (log.data?.strategyId === selectedStrategy.value)
-      )
-    }
+    const strategyId = selectedStrategy.value
+    logs = logs.filter(log => 
+      log.message.includes(strategyId) || 
+      log.category.includes(strategyId) ||
+      (log.data?.strategyId === strategyId)
+    )
   }
   
   return logs
