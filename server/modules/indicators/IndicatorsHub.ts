@@ -80,8 +80,8 @@ export class IndicatorsHub {
   // 最大并发数
   private readonly MAX_CONCURRENT = 3
 
-  // 文件修改时间跟踪
-  private fileMTimes: Map<string, number> = new Map()
+  // 文件修改时间跟踪（字符串复合标识：timestamp_volume）
+  private fileMTimes: Map<string, string> = new Map()
 
   // 已订阅的事件发射器
   private subscribedEventEmitters: Set<EventEmitter> = new Set()
@@ -927,9 +927,8 @@ export class IndicatorsHub {
   /**
    * 刷新单个交易对和周期的数据（事件驱动）
    * 
-   * 注意：由于 updateLastKLine 只更新 volume 不改变 timestamp，
-   * getKLineFileMTime 的 MAX(timestamp) 检测无法感知 volume 变化，
-   * 因此这里必须强制重新加载 K线数据，不能依赖 getKlines 的文件修改时间检测。
+   * 注意：getKLineFileMTime 已修复为返回复合标识（timestamp + volume），
+   * 现在能感知 volume 变化。但事件驱动路径仍需强制重新加载以确保实时性。
    */
   private async refreshSymbolTimeframe(symbol: string, timeframe: Timeframe): Promise<void> {
     try {

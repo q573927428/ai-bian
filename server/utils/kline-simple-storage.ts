@@ -424,22 +424,33 @@ export function getSimpleKLineAsOHLCV(
 }
 
 /**
- * 获取最后更新时间（毫秒，兼容旧 API）
+ * 获取最后更新标识（解决 volume 更新不感知问题）
+ * 
+ * 返回字符串复合标识：`最大时间戳_最后一根K线volume`，
+ * 只要 timestamp 或 volume 任意一个变了，返回值就不同。
+ * 使用字符串拼接，永不溢出、永不碰撞。
  */
 export function getKLineFileMTime(
   symbol: string,
   timeframe: KLineTimeframe
-): number | null {
+): string | null {
   const normSymbol = normalizeSymbol(symbol)
   
-  const row = queryOne<{ last_ts: number | null }>(
-    `SELECT MAX(timestamp) as last_ts FROM kline_data 
-     WHERE symbol = ? AND timeframe = ?`,
+  const row = queryOne<{ last_ts: number | null; last_volume: number | null }>(
+    `SELECT 
+      MAX(timestamp) as last_ts,
+      (SELECT volume 
+       FROM kline_data 
+       WHERE symbol = ? AND timeframe = ? 
+       ORDER BY timestamp DESC LIMIT 1) as last_volume
+     FROM kline_data`,
     [normSymbol, timeframe]
   )
   
   if (!row || row.last_ts === null) return null
-  return row.last_ts * 1000 // 转换为毫秒
+  
+  // ✅ 字符串拼接，永不溢出、永不碰撞
+  return `${row.last_ts}_${row.last_volume ?? 0}`
 }
 
 /**
