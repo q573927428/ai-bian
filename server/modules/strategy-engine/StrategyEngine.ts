@@ -508,7 +508,7 @@ export class StrategyEngine {
     const oiStatConfig = strategy.statistics.find((s: any) => s.type === 'OI' && s.enabled)
     if (oiStatConfig) {
       const oiTimeframe = oiStatConfig?.timeframes?.[0] || mainTimeframe
-      const changePeriod = Number(oiStatConfig?.params?.changePeriod ?? 6)
+      const changePeriod = Number(oiStatConfig?.params?.changePeriod ?? 12)
       const trendThresholdPercent = Number(oiStatConfig?.params?.trendThresholdPercent ?? 0.05)
       const lookbackMinutes = Math.max(1, changePeriod) * this.timeframeToMinutes(oiTimeframe)
 

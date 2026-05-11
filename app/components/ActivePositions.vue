@@ -223,8 +223,8 @@ function getPositionItemStyle(position: any): Record<string, string> {
   if (pnl > 0) {
     return {
       background: 'linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%)',
-      border: '1px solid #d1fae5',
-      boxShadow: 'inset 5px 0 0 #d1fae5',
+      border: '1px solid #10b981',
+      boxShadow: 'inset 5px 0 0 #10b981',
     }
   } else if (pnl < 0) {
     return {

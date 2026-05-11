@@ -26,7 +26,6 @@ interface SymbolData {
   symbol: string
   klineData: Map<Timeframe, OHLCV[]>
   oiData?: { value: number; timestamp: number }
-  oiHistory?: Array<{ value: number; timestamp: number }>
   volumeData?: Map<Timeframe, { current: number; prev: number; average: number; emaAverage: number; emaPeriod: number; ratio: number; timestamp: number }>
   indicators: Map<string, IndicatorData>
 }
@@ -350,24 +349,6 @@ export class IndicatorsHub {
           value: currentValue,
           timestamp: currentTimestamp
         }
-        
-        // 初始化历史记录数组
-        if (!symbolData.oiHistory) {
-          symbolData.oiHistory = []
-        }
-        
-        // 添加到历史记录
-        symbolData.oiHistory.push({
-          value: currentValue,
-          timestamp: currentTimestamp
-        })
-        
-        // 保留最近30条记录
-        if (symbolData.oiHistory.length > 30) {
-          symbolData.oiHistory = symbolData.oiHistory.slice(-30)
-        }
-        
-        // logger.info('IndicatorsHub', `${symbol} OI已缓存: ${oiData.openInterest}, 历史记录: ${symbolData.oiHistory.length}条`)
       } finally {
         this.pendingRequests.delete(cacheKey)
       }
@@ -501,32 +482,31 @@ export class IndicatorsHub {
       if (!oi) {
         throw new Error(`${symbol} OI数据未初始化`)
       }
-      
-      // 计算变化率和趋势
+
+      const trendThresholdPercent = Math.max(0.001, Number(options?.trendThresholdPercent ?? 0.05))
+      const defaultLookbackMinutes = this.timeframeToMinutes(timeframe)
+      const lookbackMinutes = Math.max(1, Math.floor(options?.lookbackMinutes ?? defaultLookbackMinutes))
+      const limitCandles = Math.max(2, Math.ceil(lookbackMinutes / this.timeframeToMinutes(timeframe)))
+
       let changePercent = 0
       let trend: 'increasing' | 'decreasing' | 'flat' = 'flat'
-      
-      // 如果有历史数据，计算变化率
-      if (symbolData.oiHistory && symbolData.oiHistory.length >= 2) {
-        const history = symbolData.oiHistory
-        const currentValue = history[history.length - 1]?.value ?? 0
 
-        const defaultLookbackMinutes = this.timeframeToMinutes(timeframe)
-        const lookbackMinutes = Math.max(1, Math.floor(options?.lookbackMinutes ?? defaultLookbackMinutes))
-        const trendThresholdPercent = Math.max(0.001, Number(options?.trendThresholdPercent ?? 0.05))
-        const targetTimestamp = Date.now() - lookbackMinutes * 60 * 1000
+      // 获取历史 OI 序列（用于计算变化率）
+      const oiHistory = await this.binance.fetchOpenInterestHistory(
+        symbol,
+        timeframe,
+        undefined,
+        limitCandles
+      )
 
-        // 优先选择目标时间点之前最近的一条，保证变化率窗口稳定
-        let previousPoint = [...history].reverse().find(item => item.timestamp <= targetTimestamp)
-        if (!previousPoint) {
-          previousPoint = history[0]
-        }
-        const previousValue = previousPoint?.value ?? 0
-        
-        if (previousValue > 0) {
-          changePercent = ((currentValue - previousValue) / previousValue) * 100
-          
-          // 确定趋势
+      if (oiHistory && oiHistory.length >= 2) {
+        const oldestOI = oiHistory[0]?.openInterest ?? 0
+        // 使用 fetchOpenInterest 缓存的最新 OI 值作为 newestOI
+        const newestOI = oi.value
+
+        if (oldestOI > 0) {
+          changePercent = ((newestOI - oldestOI) / oldestOI) * 100
+
           if (changePercent > trendThresholdPercent) {
             trend = 'increasing'
           } else if (changePercent < -trendThresholdPercent) {
@@ -536,7 +516,7 @@ export class IndicatorsHub {
           }
         }
       }
-      
+
       return {
         symbol,
         timeframe,

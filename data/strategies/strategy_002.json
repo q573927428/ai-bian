@@ -3,7 +3,7 @@
   "name": "策略02",
   "version": 1,
   "createdAt": "2026-04-19T16:06:46.003Z",
-  "updatedAt": "2026-05-09T10:18:41.213Z",
+  "updatedAt": "2026-05-11T04:15:18.480Z",
   "isActive": true,
   "marketData": {
     "symbols": [
@@ -58,22 +58,9 @@
       "enabled": true
     }
   ],
-  "statistics": [
-    {
-      "id": "5",
-      "type": "OI",
-      "params": {
-        "changePeriod": 12,
-        "trendThresholdPercent": 0.05
-      },
-      "timeframes": [
-        "1h"
-      ],
-      "enabled": true
-    }
-  ],
+  "statistics": [],
   "aiPrompt": {
-    "userPrompt": "OI资金共振+K线信号交易策略\n一、做多 LONG 完整规则\n1. 趋势方向：EMA50 > EMA200\n2. K线信号：\n① Pin Bar：影线/实体比例 ≥ 3：1，且实体部分最大占比 ≤ 0.3（即实体长度不超过整根K线长度的30%）；\n②  吞没形态：吞没阳线实体 / 被吞没阴线实体 ≥ 1.6。\n3. 交易原则：K线信号满足其中一个，就开仓。\n二、做空 SHORT 完整规则\n1. 趋势方向：EMA50 < EMA200\n2. K线信号：\n① Pin Bar：影线/实体比例 ≥ 3：1，且实体部分最大占比 ≤ 0.3（即实体长度不超过整根K线长度的30%）；\n②  吞没形态：吞没阳线实体 / 被吞没阴线实体 ≥ 1.6。\n3. 交易原则：K线信号满足其中一个，就开仓。",
+    "userPrompt": "OI资金共振+K线信号交易策略\n一、做多 LONG 完整规则\n1. 趋势方向：EMA50 > EMA200。\n2. 当前K线完成进度大于30%。\n3. 当前价格位于 EMA200 ±2.5% 区间内。\n4. K线信号：\n① Pin Bar：影线/实体比例 ≥ 3：1，且实体部分最大占比 ≤ 30%（即实体长度不超过整根K线长度的30%）；\n②  吞没形态：吞没阳线实体 / 被吞没阴线实体 ≥ 1.6。\n3. 交易原则：K线信号满足其中一个，就开仓。\n二、做空 SHORT 完整规则\n1. 趋势方向：EMA50 < EMA200。\n2. 当前K线完成进度大于30%。\n3. 当前价格位于 EMA200 ±2.5% 区间内。\n4. K线信号：\n① Pin Bar：影线/实体比例 ≥ 3：1，且实体部分最大占比 ≤ 30%（即实体长度不超过整根K线长度的30%）；\n②  吞没形态：吞没阳线实体 / 被吞没阴线实体 ≥ 1.6。\n3. 交易原则：K线信号满足其中一个，就开仓。",
     "temperature": 0.2,
     "maxTokens": 2000,
     "model": "Doubao-Seed-2.0-Code",
@@ -300,14 +287,14 @@
     "averageLossPerTrade": 0.7180175199999986,
     "largestWin": 0.37559987999999733,
     "largestLoss": 3.2294682000000057,
-    "averageHoldTime": 295.07172261904765,
+    "averageHoldTime": 295.0955095238095,
     "consecutiveWins": 0,
     "consecutiveLosses": 5,
     "maxConsecutiveWins": 1,
     "maxConsecutiveLosses": 5,
     "dailyPnL": -3.2294682000000057,
     "todayTrades": 1,
-    "updatedAt": "2026-05-11T03:34:21.584Z"
+    "updatedAt": "2026-05-11T03:34:41.563Z"
   },
   "sessions": [],
   "currentSessionId": null

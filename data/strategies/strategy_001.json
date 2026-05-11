@@ -3,7 +3,7 @@
   "name": "策略01",
   "version": 1,
   "createdAt": "2026-04-19T16:03:49.383Z",
-  "updatedAt": "2026-05-08T11:08:50.611Z",
+  "updatedAt": "2026-05-11T09:15:47.820Z",
   "isActive": false,
   "marketData": {
     "symbols": [
@@ -72,7 +72,7 @@
       "id": "5",
       "type": "OI",
       "params": {
-        "changePeriod": 6,
+        "changePeriod": 12,
         "trendThresholdPercent": 0.03
       },
       "timeframes": [
