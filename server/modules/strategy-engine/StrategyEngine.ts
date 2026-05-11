@@ -768,19 +768,19 @@ export class StrategyEngine {
       }
 
       if (signal.direction === 'idle') {
-        logger.info('扫描结果', `${signal.symbol} @${signal.price} IDLE 置信度（${signal.confidence} < ${minConfidence}）评分（${finalScore}） [${strategyName} - ${signal.strategyId}] ===详细AI日志=== ${enhancedLog}`)
+        logger.info('扫描结果', `${signal.symbol} @${signal.price} IDLE 置信度（${signal.confidence} < ${minConfidence}）评分（${finalScore}） [${signal.strategyId}] ===详细AI日志=== ${enhancedLog}`)
         return null
       } else if (signal.confidence < minConfidence) {
-        logger.info('扫描结果', `${signal.symbol} @${signal.price} ${signal.direction.toUpperCase()} 置信度（${signal.confidence} < ${minConfidence}）评分（${finalScore}） [${strategyName} - ${signal.strategyId}] ===详细AI日志=== ${enhancedLog}`)
+        logger.info('扫描结果', `${signal.symbol} @${signal.price} ${signal.direction.toUpperCase()} 置信度（${signal.confidence} < ${minConfidence}）评分（${finalScore}） [${signal.strategyId}] ===详细AI日志=== ${enhancedLog}`)
         return null
       } else if (!isFinalScoreOK) {
-        logger.info('扫描结果', `${signal.symbol} @${signal.price} ${signal.direction.toUpperCase()} 置信度（${signal.confidence} >= ${minConfidence}）评分（${finalScore} < ${minFinalScore}）[${strategyName} - ${signal.strategyId}] ===详细AI日志=== ${enhancedLog}`)
+        logger.info('扫描结果', `${signal.symbol} @${signal.price} ${signal.direction.toUpperCase()} 置信度（${signal.confidence} >= ${minConfidence}）评分（${finalScore} < ${minFinalScore}）[${signal.strategyId}] ===详细AI日志=== ${enhancedLog}`)
         return null
       } else if (!isRiskLevelOK) {
-        logger.info('扫描结果', `${signal.symbol} @${signal.price} ${signal.direction.toUpperCase()} 置信度（${signal.confidence} >= ${minConfidence}）评分（${finalScore} >= ${minFinalScore}）风险等级（${signal.riskLevel} > ${maxRiskLevel}）[${strategyName} - ${signal.strategyId}] ===详细AI日志=== ${enhancedLog}`)
+        logger.info('扫描结果', `${signal.symbol} @${signal.price} ${signal.direction.toUpperCase()} 置信度（${signal.confidence} >= ${minConfidence}）评分（${finalScore} >= ${minFinalScore}）风险等级（${signal.riskLevel} > ${maxRiskLevel}）[${signal.strategyId}] ===详细AI日志=== ${enhancedLog}`)
         return null
       } else {
-        logger.success('扫描结果', `${signal.symbol} @${signal.price} ${signal.direction.toUpperCase()} 置信度（${signal.confidence} >= ${minConfidence}）评分（${finalScore} >= ${minFinalScore}）风险等级（${signal.riskLevel} < ${maxRiskLevel}）[${strategyName} - ${signal.strategyId}] ===详细AI日志=== ${enhancedLog}`)
+        logger.success('扫描结果', `${signal.symbol} @${signal.price} ${signal.direction.toUpperCase()} 置信度（${signal.confidence} >= ${minConfidence}）评分（${finalScore} >= ${minFinalScore}）风险等级（${signal.riskLevel} < ${maxRiskLevel}）[${signal.strategyId}] ===详细AI日志=== ${enhancedLog}`)
       }
 
       // 补充止损价
