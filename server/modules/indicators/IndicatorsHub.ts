@@ -950,7 +950,10 @@ export class IndicatorsHub {
         }
       }
 
-      // 2. 重新计算该周期的成交量指标
+      // 2. 清除该周期的技术指标缓存（关键修复：确保指标值随K线更新而重新计算）
+      this.invalidateIndicatorsCache(symbol, timeframe)
+
+      // 3. 重新计算该周期的成交量指标
       const klines = symbolData.klineData.get(timeframe)
       if (klines && klines.length > 0) {
         const currentVolume = klines[klines.length - 1]?.volume || 0
