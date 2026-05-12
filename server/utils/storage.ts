@@ -309,6 +309,7 @@ function getDefaultBotConfig(): BotConfig {
     minConfidence: 70, // 信号最小置信度阈值
     minFinalScore: 70, // 最终评分阈值
     maxRiskLevel: 'MEDIUM', // 最大风险等级
+    defaultTimeframe: '1h', // 默认K线周期
     defaultCandleProgress: 0.1, // 默认K线进度（用于无法获取最新K线时兜底）
     commissionRate: 0.0005, // 手续费率
     preScreenConfig: {

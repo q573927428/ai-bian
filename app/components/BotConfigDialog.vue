@@ -127,6 +127,16 @@
               <el-option label="高" value="HIGH" />
             </el-select>
           </el-form-item>
+          <el-form-item label="默认K线周期">
+            <el-select v-model="form.defaultTimeframe" style="width: 180px">
+              <el-option label="5分钟" value="5m" />
+              <el-option label="15分钟" value="15m" />
+              <el-option label="1小时" value="1h" />
+              <el-option label="4小时" value="4h" />
+              <el-option label="1天" value="1d" />
+              <el-option label="1周" value="1w" />
+            </el-select>
+          </el-form-item>
           <el-form-item label="默认K线进度">
             <el-input-number v-model="form.defaultCandleProgress" :min="0" :max="1" :step="0.05" />
           </el-form-item>

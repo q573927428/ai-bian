@@ -27,8 +27,9 @@
     "minConfidence": 10
   },
   "minConfidence": 70,
-  "minFinalScore": 80,
+  "minFinalScore": 99,
   "maxRiskLevel": "MEDIUM",
+  "defaultTimeframe": "1h",
   "defaultCandleProgress": 0.1,
   "commissionRate": 0.0005,
   "preScreenConfig": {

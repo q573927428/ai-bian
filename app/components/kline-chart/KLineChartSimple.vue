@@ -126,8 +126,8 @@ const computedTimeframe = computed(() => {
   // 如果props提供了timeframe，则使用提供的值
   if (props.timeframe) return props.timeframe
   
-  // 否则使用默认值 1h
-  return '1h'
+  // 否则从配置读取默认周期，配置未加载时使用 '1h' 作为兜底
+  return botStore.config?.defaultTimeframe || '1h'
 })
 
 // 响应式数据
@@ -163,6 +163,10 @@ watch(() => computedTimeframe.value, (newTimeframe, oldTimeframe) => {
     // 确保初始值正确
     if (newTimeframe && newTimeframe !== selectedTimeframe.value) {
       selectedTimeframe.value = newTimeframe
+      // 如果数据未加载（klineData 为空），再加载数据
+      if (klineData.value.length === 0) {
+        loadKLineData()
+      }
     }
     return
   }
@@ -625,8 +629,15 @@ watch(() => props.timeframe, (newTimeframe, oldTimeframe) => {
 
 // 组件挂载时初始化
 onMounted(() => {
-  // 直接加载K线数据（会异步加载交易历史）
-  loadKLineData()
+  // 如果配置已经加载完成，直接加载数据；否则等待配置加载
+  if (botStore.config) {
+    // 配置已加载，设置正确的初始周期并加载数据
+    selectedTimeframe.value = computedTimeframe.value
+    loadKLineData()
+  } else {
+    // 配置未加载，等待 watch 首次触发时再加载数据
+    // 注意：不要在这里 loadKLineData()，避免重复请求
+  }
   // 订阅共享价格更新
   botStore.subscribeToPrices(priceSubscriberId.value)
   // 启动新K线检测

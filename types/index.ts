@@ -171,6 +171,7 @@ export interface BotConfig {
   minConfidence: number
   minFinalScore?: number
   maxRiskLevel?: RiskLevel
+  defaultTimeframe?: string
   defaultCandleProgress: number
   commissionRate: number
   preScreenConfig?: PreScreenConfig
