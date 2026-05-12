@@ -306,7 +306,7 @@ export class StrategyPositionMonitor {
       const isActivated = this.trailingStopActivated.get(position.symbol) || false
       if (!isActivated && profitRatio >= trailingStopConfig.activationRatio) {
         this.trailingStopActivated.set(position.symbol, true)
-        logger.info('移动止损', `${position.symbol} 移动止损已激活，盈亏比: ${profitRatio.toFixed(2)}`)
+        logger.info('移动止损', `${position.symbol} 移动止损已激活，盈亏比: ${profitRatio.toFixed(2)} [${position.strategyId}]`)
         return false
       }
 
