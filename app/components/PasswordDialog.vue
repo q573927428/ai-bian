@@ -28,7 +28,6 @@
 
 <script setup lang="ts">
 import { ref, watch, nextTick, computed } from 'vue'
-import { ElMessage } from 'element-plus'
 
 interface Props {
   modelValue: boolean

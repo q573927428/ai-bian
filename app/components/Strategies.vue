@@ -345,7 +345,6 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
 import type { Strategy } from '../../types/strategy'
 import StrategyEditor from '../components/StrategyEditor.vue'
 import StrategyVersionHistory from '../components/StrategyVersionHistory.vue'

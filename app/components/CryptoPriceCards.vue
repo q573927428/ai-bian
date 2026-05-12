@@ -27,13 +27,13 @@
       </div>
     </template>
 
-     <!-- TradingView弹窗 -->
-    <KLineChartSimple :symbol="selectedSymbol || 'BTCUSDT'" />
+    <!-- K线图表弹窗（懒加载，点击卡片时才渲染） -->
+    <ClientOnly>
+      <KLineChartSimple :symbol="selectedSymbol || 'BTCUSDT'" />
+    </ClientOnly>
     
     <!-- 水平线 -->
-     <div class="horizontal-line"></div>
-
-
+    <div class="horizontal-line"></div>
 
     <!-- WebSocket状态提示 -->
     <!-- <div v-if="!isWebSocketConnected" class="connection-warning">
@@ -84,37 +84,10 @@
             }"
           >
             ${{ formatPrice(crypto.price) }}
-          </div>
-          <div class="price-change-row">
-            <div class="price-change-amount" :class="crypto.change24h >= 0 ? 'positive' : 'negative'">
-              {{ crypto.change24h >= 0 ? '+' : '-' }}{{ formatPrice(Math.abs(crypto.change24h)) }}  
-            </div>
-            <div class="volume-24h">
-              24h: {{ formatVolume(crypto.volume24h) }}
-            </div>
+            <span class="volume-24h">{{ formatVolume(crypto.volume24h) }}</span>
           </div>
         </div>
 
-        <!-- <div class="price-card-footer">
-          <div class="price-range">
-            <div class="range-item">
-              <span class="range-label">高:</span>
-              <span class="range-value">${{ formatPrice(crypto.high24h) }}</span>
-            </div>
-            <div class="range-item">
-              <span class="range-label">低:</span>
-              <span class="range-value">${{ formatPrice(crypto.low24h) }}</span>
-            </div>
-          </div>
-          <div class="volume-info">
-            <span class="volume-label">24h量:</span>
-            <span class="volume-value">{{ formatVolume(crypto.volume24h) }}</span>
-          </div>
-        </div> -->
-
-        <!-- <div class="last-update">
-          更新: {{ formatTime(crypto.lastUpdate) }}
-        </div> -->
       </div>
     </div>
 
@@ -132,8 +105,6 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
-import dayjs from 'dayjs'
-import TradingViewChartModal from './TradingViewChartModal.vue'
 import KLineChartSimple from '../components/kline-chart/KLineChartSimple.vue'
 import { useBotStore } from '../stores/bot'
 
@@ -227,10 +198,7 @@ function updateCryptoPrices(prices: Record<string, any>) {
       updatedPrices.push({
         symbol,
         price: newPrice,
-        change24h: priceData.change24h || 0,
         change24hPercent: priceData.change24hPercent || 0,
-        high24h: priceData.high24h || 0,
-        low24h: priceData.low24h || 0,
         volume24h: priceData.volume24h || 0,
         lastUpdate: priceData.timestamp || Date.now()
       })
@@ -239,10 +207,7 @@ function updateCryptoPrices(prices: Record<string, any>) {
       updatedPrices.push({
         symbol,
         price: 0,
-        change24h: 0,
         change24hPercent: 0,
-        high24h: 0,
-        low24h: 0,
         volume24h: 0,
         lastUpdate: Date.now()
       })
@@ -330,10 +295,6 @@ function formatVolume(volume: number): string {
   }
 }
 
-function formatTime(timestamp: number): string {
-  return dayjs(timestamp).format('HH:mm:ss')
-}
-
 function getSymbolDisplay(symbol: string): string {
   return symbol.replace('USDT', '')
 }
@@ -375,10 +336,7 @@ onUnmounted(() => {
 interface CryptoPrice {
   symbol: string
   price: number
-  change24h: number
   change24hPercent: number
-  high24h: number
-  low24h: number
   volume24h: number
   lastUpdate: number
 }
@@ -522,11 +480,14 @@ interface WebSocketStatusResponse {
 
 .current-price {
   font-size: 16px;
-  font-weight: 700;
+  font-weight: 600;
   color: #303133;
   line-height: 1.2;
   margin-bottom: 4px;
   transition: all 0.3s ease;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 
 /* 简洁的价格上涨动画 */
@@ -573,30 +534,11 @@ interface WebSocketStatusResponse {
   }
 }
 
-.price-change-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-top: 4px;
-}
-
-.price-change-amount {
-  font-size: 12px;
-  font-weight: 500;
-}
-
-.price-change-amount.positive {
-  color: #67c23a;
-}
-
-.price-change-amount.negative {
-  color: #f56c6c;
-}
-
 .volume-24h {
   font-size: 11px;
   color: #909399;
   font-weight: 500;
+  margin-left: 6px;
 }
 
 .price-card-footer {
@@ -666,18 +608,18 @@ interface WebSocketStatusResponse {
   
   .price-card {
     padding: 6px;
-    min-height: 75px;
+    min-height: 55px;
     flex: 1 0 calc(50% - 6px); /* 手机端一行显示2个 */
     min-width: 0; /* 移除最小宽度限制 */
   }
   
   .crypto-symbol {
-    font-size: 12px;
+    font-size: 14px;
   }
   
   .crypto-icon {
-    width: 12px;
-    height: 12px;
+    width: 16px;
+    height: 16px;
   }
   
   .current-price {
@@ -685,16 +627,12 @@ interface WebSocketStatusResponse {
   }
   
   .price-change {
-    font-size: 8px;
+    font-size: 12px;
     padding: 1px 2px;
   }
   
-  .price-change-amount {
-    font-size: 10px;
-  }
-  
   .volume-24h {
-    font-size: 9px;
+    font-size: 12px;
   }
   
   .price-card-header {

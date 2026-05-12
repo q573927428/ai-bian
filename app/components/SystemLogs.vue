@@ -8,15 +8,26 @@
             <el-tab-pane label="扫描" name="scan" />
             <el-tab-pane label="持仓" name="position" />
           </el-tabs>
-          <el-select v-model="selectedStrategy" placeholder="策略筛选" clearable class="strategy-select">
-            <el-option label="全部" value="" />
-            <el-option 
-              v-for="strategy in strategies" 
-              :key="strategy.id" 
-              :label="strategy.name" 
-              :value="strategy.id" 
-            />
-          </el-select>
+          <div class="filter-group">
+            <el-select v-model="selectedStrategy" placeholder="策略筛选" clearable class="filter-select">
+              <el-option label="全部策略" value="" />
+              <el-option 
+                v-for="strategy in strategies" 
+                :key="strategy.id" 
+                :label="strategy.name" 
+                :value="strategy.id" 
+              />
+            </el-select>
+            <el-select v-model="selectedSymbol" placeholder="交易对筛选" clearable class="filter-select">
+              <el-option label="全部交易对" value="" />
+              <el-option 
+                v-for="symbol in symbols" 
+                :key="symbol" 
+                :label="symbol" 
+                :value="symbol" 
+              />
+            </el-select>
+          </div>
         </div>
       </div>
     </template>
@@ -69,8 +80,13 @@ const botStore = useBotStore()
 const activeTab = ref<string>('all')
 // 当前选中的策略
 const selectedStrategy = ref<string>('')
+// 当前选中的交易对
+const selectedSymbol = ref<string>('')
 // 策略列表
 const strategies = ref<Array<{ id: string; name: string }>>([])
+// 交易对列表
+const symbols = ref<string[]>([])
+
 
 // 倒序显示日志，最新的在最上面
 const reversedLogs = computed(() => [...botStore.logs].reverse())
@@ -108,7 +124,18 @@ const filteredLogs = computed(() => {
     )
   }
   
+  // 再按交易对筛选
+  if (selectedSymbol.value) {
+    const symbol = selectedSymbol.value
+    logs = logs.filter(log => 
+      log.message.includes(symbol) || 
+      log.category.includes(symbol) ||
+      (log.data?.symbol === symbol)
+    )
+  }
+  
   return logs
+
 })
 
 // 获取策略列表
@@ -168,13 +195,23 @@ function toggleLog(index: number): void {
   }
 }
 
+// 获取交易对列表
+function fetchSymbols() {
+  if (botStore.botConfig?.symbols && Array.isArray(botStore.botConfig.symbols)) {
+    symbols.value = botStore.botConfig.symbols
+  }
+}
+
 // 组件加载时获取日志并订阅共享轮询
 onMounted(async () => {
   // 获取策略列表
   await fetchStrategies()
+  // 获取交易对列表
+  fetchSymbols()
   // 订阅共享轮询
   botStore.subscribeToPolling('system-logs')
 })
+
 
 // 组件卸载时取消订阅共享轮询
 onUnmounted(() => {
@@ -203,12 +240,18 @@ onUnmounted(() => {
   gap: 16px;
 }
 
-.strategy-select {
-  width: 120px;
+.filter-group {
+  display: flex;
+  gap: 8px;
   flex-shrink: 0;
 }
 
+.filter-select {
+  width: 130px;
+}
+
 .card-header span {
+
   font-weight: 600;
   font-size: 15px;
 }
@@ -298,6 +341,21 @@ onUnmounted(() => {
 
 /* 响应式优化 - 手机端 */
 @media (max-width: 768px) {
+  .header-top {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .filter-group {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .filter-select {
+    flex: 1;
+    min-width: 0;
+  }
+
   .log-item {
     flex-direction: column;
     gap: 4px;
@@ -313,6 +371,7 @@ onUnmounted(() => {
     margin-top: 2px;
   }
 }
+
 
 /* 平板和桌面端 */
 @media (min-width: 769px) {

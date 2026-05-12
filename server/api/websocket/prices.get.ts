@@ -58,10 +58,7 @@ export default defineEventHandler(async (event) => {
           filteredPrices[symbol] = {
             symbol,
             price: wsPrice.price || parseFloat(ticker.last) || 0,
-            change24h: parseFloat(ticker.change) || 0,
             change24hPercent: parseFloat(ticker.percentage) || 0,
-            high24h: parseFloat(ticker.high) || 0,
-            low24h: parseFloat(ticker.low) || 0,
             volume24h: parseFloat(ticker.quoteVolume) || parseFloat(ticker.volume) || 0,
             timestamp: Date.now()
           }
@@ -70,10 +67,7 @@ export default defineEventHandler(async (event) => {
           filteredPrices[symbol] = {
             symbol,
             price: wsPrice.price || 0,
-            change24h: 0,
             change24hPercent: 0,
-            high24h: 0,
-            low24h: 0,
             volume24h: 0,
             timestamp: Date.now()
           }
@@ -82,10 +76,7 @@ export default defineEventHandler(async (event) => {
           filteredPrices[symbol] = {
             symbol,
             price: parseFloat(ticker.last) || 0,
-            change24h: parseFloat(ticker.change) || 0,
             change24hPercent: parseFloat(ticker.percentage) || 0,
-            high24h: parseFloat(ticker.high) || 0,
-            low24h: parseFloat(ticker.low) || 0,
             volume24h: parseFloat(ticker.quoteVolume) || parseFloat(ticker.volume) || 0,
             timestamp: Date.now()
           }
@@ -94,10 +85,7 @@ export default defineEventHandler(async (event) => {
           filteredPrices[symbol] = {
             symbol,
             price: 0,
-            change24h: 0,
             change24hPercent: 0,
-            high24h: 0,
-            low24h: 0,
             volume24h: 0,
             timestamp: Date.now()
           }

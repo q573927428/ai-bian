@@ -95,14 +95,12 @@ export const useBotStore = defineStore('bot', {
 
       if (this.priceSubscribers.size === 1 && !this.priceTimer) {
         this.startPricePolling()
+      } else if (Object.keys(this.prices).length === 0) {
+        // 仅当价格数据为空且轮询未启动时才立即获取一次
+        this.fetchPrices()
       }
 
       console.log(`[Price] 订阅者 ${subscriberId} 加入，当前订阅者: ${this.priceSubscribers.size}`)
-
-      // 立即获取一次价格
-      if (Object.keys(this.prices).length === 0) {
-        this.fetchPrices()
-      }
     },
 
     // 取消订阅价格更新

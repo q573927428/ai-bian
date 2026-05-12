@@ -326,7 +326,7 @@ onUnmounted(() => {
 
 .chart-container {
   width: 100%;
-  height: 243px;
+  height: 228px;
 }
 
 .empty-state {
