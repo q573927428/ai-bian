@@ -735,7 +735,7 @@ export class KLineSimpleSyncService {
       this.isHighFrequencySyncing = true
       
       // 只对较短周期进行高频同步
-      const highFreqTimeframes: KLineTimeframe[] = ['5m', '15m', '1h']
+      const highFreqTimeframes: KLineTimeframe[] = ['5m', '15m', '1h', '4h']
       
       for (const timeframe of highFreqTimeframes) {
         if (!this.timeframeConfigs.get(timeframe)?.enabled) {

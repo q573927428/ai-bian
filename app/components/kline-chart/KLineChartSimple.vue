@@ -143,46 +143,28 @@ const showEMALines = ref(true)
 // EMA周期选择 - 从botStore.config获取，如果未加载完成则使用默认值
 const selectedEmaPeriods = ref<number[]>(botStore.config?.emaPeriods?.length ? [...botStore.config.emaPeriods] : [20, 200])
 
-// 监听botStore.config加载/更新后同步EMA周期
-watch(() => botStore.config?.emaPeriods, (newPeriods) => {
-  if (newPeriods && newPeriods.length > 0) {
-    const currentStr = JSON.stringify(selectedEmaPeriods.value)
-    const newStr = JSON.stringify(newPeriods)
-    if (currentStr !== newStr) {
-      selectedEmaPeriods.value = [...newPeriods]
-    }
-  }
-}, { immediate: true, deep: true })
-
 // 请求代次（用于防止过期响应覆盖）
 let requestGeneration = 0
 
-// 监听botStore.config变化（当配置加载完成后）
-watch(() => botStore.config, () => {
+// 监听botStore.config变化（仅用于首次初始化加载配置）
+// 注意：后续配置轮询更新时，不再覆盖用户手动选择的周期和EMA配置
+watch(() => botStore.config, (newConfig, oldConfig) => {
   // 首次初始化时
   if (!hasInitialized) {
     hasInitialized = true
+    
+    // 首次从配置读取EMA周期
+    if (newConfig?.emaPeriods && newConfig.emaPeriods.length > 0) {
+      selectedEmaPeriods.value = [...newConfig.emaPeriods]
+    }
+    
     selectedTimeframe.value = computedTimeframe.value
     loadKLineData()
     return
   }
   
-  // 配置更新时，如果周期发生变化
-  const newTimeframe = computedTimeframe.value
-  if (newTimeframe && newTimeframe !== selectedTimeframe.value) {
-    // 清空当前K线数据，避免显示旧周期的数据
-    klineData.value = []
-    tradeHistory.value = []
-    hideTooltip()
-    
-    // 清理图表上的订单标记
-    if (chartCanvasRef.value) {
-      chartCanvasRef.value.clearMarkers()
-    }
-    
-    selectedTimeframe.value = newTimeframe
-    loadKLineData()
-  }
+  // 后续配置更新时，不做任何覆盖操作
+  // 避免覆盖用户手动选择的K线周期和EMA周期
 })
 
 const klineData = ref<SimpleKLineData[]>([])
@@ -531,6 +513,34 @@ watch(() => botStore.prices[(props.symbol || 'BTCUSDT')], (newPrice) => {
 // 新K线检测相关 - 复用bot store的共享轮询
 const klineCheckSubscriberId = 'kline-chart-new-kline-check'
 
+// 获取最后一根K线数据（含成交量），用于更新图表
+const fetchLastBar = async () => {
+  const symbolToUse = props.symbol || 'BTCUSDT'
+  const timeframeToUse = selectedTimeframe.value
+  if (!symbolToUse || !timeframeToUse || klineData.value.length === 0) return
+
+  try {
+    const params = new URLSearchParams({ symbol: symbolToUse, timeframe: timeframeToUse })
+    const response = await fetch(`/api/kline-simple/last-bar?${params}`)
+    const result = await response.json()
+
+    if (result.success && result.data && chartCanvasRef.value) {
+      const lastBar = result.data as SimpleKLineData
+      // 只更新时间戳匹配的最后一根K线（避免跨周期误更新）
+      const lastIndex = klineData.value.length - 1
+      const lastKline = klineData.value[lastIndex]
+      if (lastKline && lastKline.t === lastBar.t) {
+        // 同步更新响应式数据，确保后续价格更新不会覆盖成交量
+        klineData.value[lastIndex] = lastBar
+        // 更新图表显示
+        chartCanvasRef.value.updateLastKline(lastBar)
+      }
+    }
+  } catch (err) {
+    // 静默处理，不影响主流程
+  }
+}
+
 // 检查是否需要加载新K线
 const checkForNewKline = () => {
   if (klineData.value.length === 0 || !selectedTimeframe.value) return
@@ -550,13 +560,10 @@ const checkForNewKline = () => {
   
   // 如果当前时间已经超过了最后一根K线的时间周期 + 后端延迟时间，说明后端应该已经拉取到新K线了
   if (currentKlineTimestamp > lastKline.t && (now - currentKlineTimestamp) >= backendDelaySeconds) {
-    console.log(`🔄 检测到新K线周期开始（已过${backendDelaySeconds}秒延迟），重新加载数据 (${selectedTimeframe.value})`)
     loadKLineData()
-  } else if (currentKlineTimestamp > lastKline.t) {
-    // 新周期已经开始，但后端延迟时间还没到
-    const remainingSeconds = backendDelaySeconds - (now - currentKlineTimestamp)
-    console.log(`⏳ 新K线周期已开始，等待后端拉取数据（剩余${remainingSeconds}秒）`)
-  }
+  } 
+  // 每次轮询都尝试获取最后一根K线的最新数据（含成交量），更新图表
+  fetchLastBar()
 }
 
 // 启动新K线检测（复用共享轮询）
