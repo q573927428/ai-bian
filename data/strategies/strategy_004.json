@@ -3,7 +3,7 @@
   "name": "策略04",
   "version": 1,
   "createdAt": "2026-04-22T09:40:30.913Z",
-  "updatedAt": "2026-05-09T07:41:34.121Z",
+  "updatedAt": "2026-05-11T09:43:15.580Z",
   "isActive": true,
   "marketData": {
     "symbols": [
@@ -49,7 +49,7 @@
   ],
   "statistics": [],
   "aiPrompt": {
-    "userPrompt": "金叉死叉策略\n一、死叉做空 SHORT 完整规则\n1. 做空预判信号（预判死叉）\n核心条件（全部满足，方可直接开空）\n- 当前价格 < EMA200\n- EMA50 > EMA200\n- |EMA50 - EMA200| / EMA200 < 0.18%（EMA50与EMA200极度贴近）\n2. 执行规则\n- 所有条件全部满足时，做空开仓\n二、金叉做多 LONG 完整规则\n1. 做多预判信号（预判金叉）\n核心条件（全部满足，方可直接开多）\n- 当前价格 > EMA200\n- EMA50 < EMA200\n- |EMA50 - EMA200| / EMA200 < 0.18%（EMA50与EMA200极度贴近）\n2. 执行规则\n- 所有条件全部满足时，做多开仓",
+    "userPrompt": "金叉死叉策略\n一、死叉做空 SHORT （预判死叉）完整规则\n1. 当前价格 < EMA200\n2. EMA50 > EMA200\n3. |EMA50 - EMA200| / EMA200 < 0.18%（EMA50与EMA200极度贴近）\n以上所有条件全部满足时，做空开仓\n二、金叉做多 LONG （预判金叉）完整规则\n1. 当前价格 > EMA200\n2. EMA50 < EMA200\n3. |EMA50 - EMA200| / EMA200 < 0.18%（EMA50与EMA200极度贴近）\n以上所有条件全部满足时，做多开仓",
     "temperature": 0.3,
     "maxTokens": 2000,
     "model": "Doubao-Seed-2.0-Code",

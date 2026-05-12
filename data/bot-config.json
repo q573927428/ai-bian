@@ -27,14 +27,14 @@
     "minConfidence": 10
   },
   "minConfidence": 70,
-  "minFinalScore": 99,
+  "minFinalScore": 80,
   "maxRiskLevel": "MEDIUM",
   "defaultCandleProgress": 0.1,
   "commissionRate": 0.0005,
   "preScreenConfig": {
     "minAdx": 15,
     "maxAdx": 60,
-    "minAdxSlope": 0,
+    "minAdxSlope": -1,
     "minAtrPercent": 0.0032,
     "maxAtrPercent": 0.05,
     "minEstimatedVolumeRatio": 0.3,

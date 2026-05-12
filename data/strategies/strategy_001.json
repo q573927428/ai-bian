@@ -3,8 +3,8 @@
   "name": "策略01",
   "version": 1,
   "createdAt": "2026-04-19T16:03:49.383Z",
-  "updatedAt": "2026-05-11T09:15:47.820Z",
-  "isActive": false,
+  "updatedAt": "2026-05-11T15:13:07.630Z",
+  "isActive": true,
   "marketData": {
     "symbols": [
       "SOL/USDT",
@@ -54,17 +54,6 @@
         "5m"
       ],
       "enabled": true
-    },
-    {
-      "id": "4",
-      "type": "ATR",
-      "params": {
-        "period": 14
-      },
-      "timeframes": [
-        "5m"
-      ],
-      "enabled": true
     }
   ],
   "statistics": [
@@ -93,20 +82,22 @@
     }
   ],
   "aiPrompt": {
-    "userPrompt": "激进动量交易策略\n一、做多 LONG 完整规则\n1. 方向\n- 趋势方向：EMA7 > EMA50\n2. 入场触发信号（至少满足1项）\n- 价格向上突破 EMA20\n- 价格回踩EMA20区域后，形成看涨吞没形态或长下影线Pin Bar\n- 出现动量阳线：当前K线实体 > 前1根K线实体的1.5倍\n3. 方向评分（满足1项得1分，总分score）\n- ① 35 < RSI < 65\n- ② 持仓量OI增加\n- ③ 预计成交量 > 前1根K线成交量的1.2倍\n- ④ EMA7 > EMA20 > EMA50\n4. 执行规则\n入场触发信号满足≥1项，且方向评分score ≥ 3 → 做多开仓\n二、做空 SHORT 完整规则\n1. 方向\n- 趋势方向：EMA7 < EMA50\n2. 入场触发信号（至少满足1项）\n- 价格向下跌破 EMA20\n- 价格反弹至EMA20区域后，形成看跌吞没形态或长上影线Pin Bar\n- 出现动量阴线：当前K线实体 > 前1根K线实体的1.5倍\n3. 方向评分（满足1项得1分，总分score）\n- ① 35 < RSI < 65\n- ② 持仓量OI增加\n- ③ 预计成交量 > 前1根K线成交量的1.2倍\n- ④ EMA7 < EMA20 < EMA50\n4. 执行规则\n入场触发信号满足≥1项，且方向评分score ≥ 3 → 做空开仓",
+    "userPrompt": "激进动量交易策略\n一、做多 LONG 完整规则\n1. 趋势方向：EMA7 > EMA50\n2. 入场触发信号\n- 当前价格大于 EMA20 或者 阳线 当前预计成交量 ≥ 成交量EMA均值的1.8 倍\n3. 方向评分（满足1项得1分，总分score）\n- ① 35 < RSI < 65\n- ② 持仓量OI增加\n- ③ 预计成交量 ≥ 成交量EMA均值（12周期）的1.2 倍\n- ④ EMA7 > EMA20 > EMA50\n4. 执行规则\n入场触发信号满足，且方向评分score ≥ 3 → 做多开仓\n二、做空 SHORT 完整规则\n1. 趋势方向：EMA7 < EMA50\n2. 入场触发信号\n- 价格向下跌破 EMA20 或者 阴线 当前预计成交量 ≥ 成交量EMA均值的1.8 倍\n3. 方向评分（满足1项得1分，总分score）\n- ① 35 < RSI < 65\n- ② 持仓量OI增加\n- ③ 预计成交量 ≥ 成交量EMA均值（12周期）的1.2 倍\n- ④ EMA7 < EMA20 < EMA50\n4. 执行规则\n入场触发信号满足，且方向评分score ≥ 3 → 做空开仓",
     "temperature": 0.3,
     "maxTokens": 2000,
-    "model": "deepseek-v4-flash",
-    "provider": "deepseek"
+    "model": "Doubao-Seed-2.0-Code",
+    "provider": "openai",
+    "apiUrl": "https://ark.cn-beijing.volces.com/api/coding/v3",
+    "apiKey": "ark-626c2a11-1c1e-4f02-90d0-b08ae91472e2-aebfb"
   },
   "riskManagement": {
     "maxRiskPercentage": 10,
     "stopLossATRMultiplier": 2,
     "takeProfitRatios": [
-      1.5,
-      2.5
+      1,
+      1.5
     ],
-    "maxDailyTrades": 5,
+    "maxDailyTrades": 3,
     "maxDailyLoss": 10,
     "maxHoldTimeMinutes": 120,
     "trailingStop": {
@@ -121,8 +112,8 @@
     }
   },
   "executionConfig": {
-    "scanInterval": 10,
-    "leverage": 5,
+    "scanInterval": 5,
+    "leverage": 3,
     "marginMode": "cross",
     "positionMode": "one-way"
   },
@@ -281,27 +272,27 @@
   ],
   "performance": {
     "strategyId": "strategy_001",
-    "totalTrades": 11,
-    "totalWins": 3,
-    "totalLosses": 8,
-    "winRate": 27.27272727272727,
-    "totalProfit": 0.7511997449999956,
-    "totalLoss": 1.712550579999999,
-    "netProfit": -0.9613508350000033,
-    "profitFactor": 0.43864382971975996,
-    "maxDrawdown": 1076.0275070273156,
-    "averageProfitPerTrade": 0.25039991499999853,
-    "averageLossPerTrade": 0.21406882249999987,
-    "largestWin": 0.3149729449999983,
-    "largestLoss": 0.39693763500000323,
-    "averageHoldTime": 51.894242424242435,
+    "totalTrades": 3,
+    "totalWins": 1,
+    "totalLosses": 2,
+    "winRate": 33.33333333333333,
+    "totalProfit": 0.011028549999999734,
+    "totalLoss": 0.5650310850000018,
+    "netProfit": -0.5540025350000021,
+    "profitFactor": 0.01951848366006217,
+    "maxDrawdown": 0,
+    "averageProfitPerTrade": 0.011028549999999734,
+    "averageLossPerTrade": 0.2825155425000009,
+    "largestWin": 0.011028549999999734,
+    "largestLoss": 0.3088321249999965,
+    "averageHoldTime": 115.58951666666667,
     "consecutiveWins": 0,
-    "consecutiveLosses": 2,
-    "maxConsecutiveWins": 2,
-    "maxConsecutiveLosses": 4,
-    "dailyPnL": -0.3088321249999965,
-    "todayTrades": 1,
-    "updatedAt": "2026-05-02T21:37:54.712Z"
+    "consecutiveLosses": 1,
+    "maxConsecutiveWins": 1,
+    "maxConsecutiveLosses": 1,
+    "dailyPnL": -0.2451704100000055,
+    "todayTrades": 2,
+    "updatedAt": "2026-05-12T02:20:51.061Z"
   },
   "sessions": [],
   "currentSessionId": null
