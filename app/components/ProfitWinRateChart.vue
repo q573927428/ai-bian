@@ -3,7 +3,7 @@
     <template #header>
       <div class="card-header">
         <span>📈 盈亏走势</span>
-        <el-button type="primary" size="small" text :loading="loading" @click="loadData">
+        <el-button type="primary" size="small" text :loading="loading" @click="refreshData">
           <el-icon><ElIconRefresh /></el-icon>
           刷新
         </el-button>
@@ -77,8 +77,10 @@ import { ref, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import * as echarts from 'echarts'
 import type { TradeHistory } from '../../types'
 import { useStrategiesStore } from '../stores/strategies'
+import { useTradeHistoryStore } from '../stores/tradeHistory'
 
 const strategiesStore = useStrategiesStore()
+const tradeHistoryStore = useTradeHistoryStore()
 
 const chartRef = ref<HTMLElement | null>(null)
 const loading = ref(false)
@@ -95,36 +97,27 @@ const stats = ref({
   totalFee: 0
 })
 let chartInstance: echarts.ECharts | null = null
-let allHistory: TradeHistory[] = []
 
 // 加载历史数据
-const loadData = async () => {
+const loadData = async (force = false) => {
   loading.value = true
   try {
-    const response = await $fetch('/api/bot/history', {
-      params: {
-        page: 1,
-        pageSize: 1000, // 加载足够多的数据
-      },
-    }) as any
+    await tradeHistoryStore.fetchAllHistory(force)
+    const allHistory = tradeHistoryStore.allHistory
+    
+    // 提取所有策略和交易对
+    const strategySet = new Set<string>()
+    const symbolSet = new Set<string>()
+    
+    allHistory.forEach(trade => {
+      if (trade.strategyId) strategySet.add(trade.strategyId)
+      symbolSet.add(trade.symbol)
+    })
 
-    if (response.success) {
-      allHistory = response.data || []
-      
-      // 提取所有策略和交易对
-      const strategySet = new Set<string>()
-      const symbolSet = new Set<string>()
-      
-      allHistory.forEach(trade => {
-        if (trade.strategyId) strategySet.add(trade.strategyId)
-        symbolSet.add(trade.symbol)
-      })
+    strategies.value = strategiesStore.strategies.filter(s => strategySet.has(s.id))
+    symbols.value = Array.from(symbolSet).sort()
 
-      strategies.value = strategiesStore.strategies.filter(s => strategySet.has(s.id))
-      symbols.value = Array.from(symbolSet).sort()
-
-      processChartData()
-    }
+    processChartData()
   } catch (error) {
     console.error('加载历史数据失败:', error)
   } finally {
@@ -132,10 +125,15 @@ const loadData = async () => {
   }
 }
 
+// 强制刷新
+const refreshData = async () => {
+  await loadData(true)
+}
+
 // 处理图表数据
 const processChartData = () => {
   // 过滤数据
-  let filteredData = [...allHistory]
+  let filteredData = [...tradeHistoryStore.allHistory]
   
   if (selectedStrategy.value) {
     filteredData = filteredData.filter(t => t.strategyId === selectedStrategy.value)

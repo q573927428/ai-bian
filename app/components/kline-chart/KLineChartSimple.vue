@@ -70,6 +70,7 @@ import KLineChartInfo from './KLineChartInfo.vue'
 
 // 导入bot store
 import { useBotStore } from '../../stores/bot'
+import { useTradeHistoryStore } from '../../stores/tradeHistory'
 
 // 图表组件引用
 const chartCanvasRef = ref<InstanceType<typeof KLineChartCanvas> | null>(null)
@@ -82,6 +83,7 @@ import { calculateADXSeries } from '../../utils/adx-calculator'
 
 // 初始化bot store
 const botStore = useBotStore()
+const tradeHistoryStore = useTradeHistoryStore()
 
 // 是否已经初始化过（防止初始加载时不必要的切换）
 let hasInitialized = false
@@ -155,24 +157,19 @@ watch(() => botStore.config?.emaPeriods, (newPeriods) => {
 // 请求代次（用于防止过期响应覆盖）
 let requestGeneration = 0
 
-// 监听computedTimeframe变化（当botStore.config加载完成后）
-watch(() => computedTimeframe.value, (newTimeframe, oldTimeframe) => {
-  // 首次初始化时不触发切换
+// 监听botStore.config变化（当配置加载完成后）
+watch(() => botStore.config, () => {
+  // 首次初始化时
   if (!hasInitialized) {
     hasInitialized = true
-    // 确保初始值正确
-    if (newTimeframe && newTimeframe !== selectedTimeframe.value) {
-      selectedTimeframe.value = newTimeframe
-      // 如果数据未加载（klineData 为空），再加载数据
-      if (klineData.value.length === 0) {
-        loadKLineData()
-      }
-    }
+    selectedTimeframe.value = computedTimeframe.value
+    loadKLineData()
     return
   }
   
-  if (newTimeframe && newTimeframe !== oldTimeframe && newTimeframe !== selectedTimeframe.value) {
-
+  // 配置更新时，如果周期发生变化
+  const newTimeframe = computedTimeframe.value
+  if (newTimeframe && newTimeframe !== selectedTimeframe.value) {
     // 清空当前K线数据，避免显示旧周期的数据
     klineData.value = []
     tradeHistory.value = []
@@ -251,18 +248,9 @@ const loadTradeHistory = async () => {
   loadingHistory.value = true
   
   try {
-    const response = await fetch(`/api/bot/history?page=1&pageSize=100`)
-    const result = await response.json()
-    
-    if (result.success && result.data) {
-      const filteredOrders = result.data.filter((order: TradeHistory) => {
-        const orderSymbol = order.symbol.replace('/', '')
-        const currentSymbol = symbolToUse.replace('/', '')
-        return orderSymbol === currentSymbol
-      })
-      
-      tradeHistory.value = filteredOrders
-    }
+    await tradeHistoryStore.fetchAllHistory(false)
+    const filteredOrders = tradeHistoryStore.getHistoryBySymbol(symbolToUse)
+    tradeHistory.value = filteredOrders
   } catch (err: any) {
     console.error('加载交易历史失败:', err)
   } finally {

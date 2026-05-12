@@ -3,7 +3,7 @@
     <template #header>
       <div class="card-header">
         <span>📋 历史订单 ({{ total }})</span>
-        <el-button type="primary" size="small" text :loading="loading" @click="loadHistory">
+        <el-button type="primary" size="small" text :loading="loading" @click="refreshHistory">
           <el-icon><ElIconRefresh /></el-icon>
           刷新
         </el-button>
@@ -154,6 +154,9 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
 import type { TradeHistory } from '../../types'
+import { useTradeHistoryStore } from '../stores/tradeHistory'
+
+const tradeHistoryStore = useTradeHistoryStore()
 
 const orders = ref<TradeHistory[]>([])
 const currentPage = ref(1)
@@ -166,18 +169,27 @@ const loading = ref(false)
 const loadHistory = async () => {
   loading.value = true
   try {
-    const response = await $fetch('/api/bot/history', {
-      params: {
-        page: currentPage.value,
-        pageSize: pageSize.value,
-      },
-    }) as any
+    await tradeHistoryStore.fetchAllHistory(false)
+    const paginated = tradeHistoryStore.getPaginatedHistory(currentPage.value, pageSize.value)
+    orders.value = paginated.data
+    total.value = paginated.total
+    totalPages.value = paginated.totalPages
+  } catch (error) {
+    console.error('加载历史订单失败:', error)
+  } finally {
+    loading.value = false
+  }
+}
 
-    if (response.success) {
-      orders.value = response.data || []
-      total.value = response.pagination?.total || 0
-      totalPages.value = response.pagination?.totalPages || 0
-    }
+// 强制刷新
+const refreshHistory = async () => {
+  loading.value = true
+  try {
+    await tradeHistoryStore.fetchAllHistory(true)
+    const paginated = tradeHistoryStore.getPaginatedHistory(currentPage.value, pageSize.value)
+    orders.value = paginated.data
+    total.value = paginated.total
+    totalPages.value = paginated.totalPages
   } catch (error) {
     console.error('加载历史订单失败:', error)
   } finally {
