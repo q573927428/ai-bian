@@ -714,3 +714,56 @@ function getUpdatedAt(symbol: string, timeframe: string): number {
   
   return row?.last_ts ?? 0
 }
+
+/**
+ * 从本地1h K线数据计算24h涨跌幅和成交量（方案B：精确滚动24h）
+ * 
+ * 计算逻辑：
+ * - change24hPercent: 当前价格 vs 24小时前（第24根1h K线）的收盘价
+ * - volume24h: 最近24根1h K线的volume之和（排除当前未收盘的K线）
+ * 
+ * @param symbol 交易对（如 BTC/USDT 或 BTCUSDT）
+ * @returns { change24hPercent, volume24h } 或 null（数据不足时）
+ */
+export function getLocal24hStatsPrecise(symbol: string): {
+  change24hPercent: number
+  volume24h: number
+} | null {
+  const normSymbol = normalizeSymbol(symbol)
+  
+  // 获取最近25根1h K线（24小时 + 1根当前未收盘的）
+  const rows = queryAll<{
+    close: number; volume: number; timestamp: number
+  }>(
+    `SELECT close, volume, timestamp FROM kline_data 
+     WHERE symbol = ? AND timeframe = '1h'
+     ORDER BY timestamp DESC LIMIT 25`,
+    [normSymbol]
+  )
+  
+  if (rows.length < 2) return null
+  
+  // 当前价格 = 最新的收盘价（可能是未收盘K线的当前价）
+  const currentPrice = rows[0]!.close
+  
+  // 24小时前的价格：取第24根K线的收盘价（0-indexed）
+  // 如果不够24根，用最早的那根
+  const prevPrice = rows.length >= 24 
+    ? rows[23]!.close
+    : rows[rows.length - 1]!.close
+  
+  // 成交量：最近24根1h K线的volume之和（包含当前未收盘的K线）
+  // 取 rows[0] 到 rows[23]（共24根）
+  const volumeRows = rows.slice(0, 24)
+  const volume24h = volumeRows.reduce((sum, r) => sum + r.volume, 0)
+  
+  // 计算涨跌幅
+  const change24hPercent = prevPrice > 0 
+    ? Number(((currentPrice - prevPrice) / prevPrice * 100).toFixed(2))
+    : 0
+  
+  return {
+    change24hPercent,
+    volume24h: Number(volume24h.toFixed(2))
+  }
+}

@@ -6,13 +6,12 @@
 import type { NitroApp } from 'nitropack'
 import { KLineSimpleSyncService } from '../modules/kline-simple-sync'
 import type { KLineSyncConfig } from '../../types/kline-simple'
-import { eventHandler, readBody } from 'h3'
 import { setSyncService, getSyncService } from '../utils/kline-sync-service'
 import { initKLineDb, closeKLineDb, hasKLineData } from '../utils/kline-simple-storage'
 
 // 默认配置
 const DEFAULT_SYNC_CONFIG: KLineSyncConfig = {
-  symbols: ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'DOGEUSDT', 'HYPEUSDT', 'XAUUSDT', 'XAGUSDT', 'BNBUSDT' ],
+  symbols: ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'DOGEUSDT', 'HYPEUSDT', 'XAUUSDT', 'XAGUSDT', 'BNBUSDT'],
   timeframes: ['5m', '15m', '1h', '4h', '1d', '1w'],
   maxBars: 11000,
   syncInterval: 600, // 按周期调度，此值不再使用，但保留用于API兼容性
@@ -41,9 +40,6 @@ export default defineNitroPlugin(async (nitroApp: NitroApp) => {
     setSyncService(syncService)
     
     // console.log('✅ K线同步服务配置:', JSON.stringify(config, null, 2))
-    
-    // 注册API端点
-    registerApiEndpoints(nitroApp)
     
     await startInitialSync()
     
@@ -84,175 +80,6 @@ async function getSyncConfig(): Promise<KLineSyncConfig> {
     ...DEFAULT_SYNC_CONFIG,
     symbols: configSymbols
   }
-}
-
-/**
- * 注册API端点
- */
-function registerApiEndpoints(nitroApp: NitroApp): void {
-  const syncService = getSyncService()
-  if (!syncService) return
-  
-  // 获取同步状态
-  nitroApp.router?.get('/api/kline-sync/status', eventHandler(async (event) => {
-    try {
-      const status = syncService?.getSyncStatus() || []
-      return {
-        success: true,
-        data: status,
-        timestamp: Date.now()
-      }
-    } catch (error: any) {
-      return {
-        success: false,
-        error: error.message,
-        timestamp: Date.now()
-      }
-    }
-  }))
-  
-  // 手动触发同步
-  nitroApp.router?.post('/api/kline-sync/sync', eventHandler(async (event) => {
-    try {
-      const body = await readBody(event)
-      const { force = false } = body
-      
-      if (!syncService) {
-        throw new Error('同步服务未初始化')
-      }
-      
-      const results = await syncService.syncAllKLine({ force })
-      
-      return {
-        success: true,
-        data: results,
-        message: `同步完成: ${results.filter(r => r.success).length}/${results.length} 成功`,
-        timestamp: Date.now()
-      }
-    } catch (error: any) {
-      return {
-        success: false,
-        error: error.message,
-        timestamp: Date.now()
-      }
-    }
-  }))
-  
-  // 获取服务配置
-  nitroApp.router?.get('/api/kline-sync/config', eventHandler(async (event) => {
-    try {
-      const config = syncService?.getConfig() || DEFAULT_SYNC_CONFIG
-      return {
-        success: true,
-        data: config,
-        timestamp: Date.now()
-      }
-    } catch (error: any) {
-      return {
-        success: false,
-        error: error.message,
-        timestamp: Date.now()
-      }
-    }
-  }))
-  
-  // 更新服务配置
-  nitroApp.router?.put('/api/kline-sync/config', eventHandler(async (event) => {
-    try {
-      const body = await readBody(event)
-      
-      if (!syncService) {
-        throw new Error('同步服务未初始化')
-      }
-      
-      syncService.updateConfig(body)
-      
-      return {
-        success: true,
-        message: '配置更新成功',
-        data: syncService.getConfig(),
-        timestamp: Date.now()
-      }
-    } catch (error: any) {
-      return {
-        success: false,
-        error: error.message,
-        timestamp: Date.now()
-      }
-    }
-  }))
-  
-  // 手动同步历史数据
-  nitroApp.router?.post('/api/kline-sync/history', eventHandler(async (event) => {
-    try {
-      const body = await readBody(event)
-      const { symbol, timeframe, totalBars = DEFAULT_SYNC_CONFIG.maxBars, batchSize = 1000 } = body
-      
-      if (!syncService) {
-        throw new Error('同步服务未初始化')
-      }
-      
-      if (!symbol || !timeframe) {
-        throw new Error('缺少必要参数: symbol 和 timeframe')
-      }
-      
-      const result = await syncService.manualSyncHistory(symbol, timeframe, {
-        totalBars,
-        batchSize
-      })
-      
-      return {
-        success: result.success,
-        data: result,
-        message: result.message,
-        timestamp: Date.now()
-      }
-    } catch (error: any) {
-      return {
-        success: false,
-        error: error.message,
-        timestamp: Date.now()
-      }
-    }
-  }))
-  
-  // 启动/停止定时同步
-  nitroApp.router?.post('/api/kline-sync/auto-sync', eventHandler(async (event) => {
-    try {
-      const body = await readBody(event)
-      const { action } = body // 'start' 或 'stop'
-      
-      if (!syncService) {
-        throw new Error('同步服务未初始化')
-      }
-      
-      if (action === 'start') {
-        syncService.startAutoSync()
-        return {
-          success: true,
-          message: '定时同步已启动',
-          timestamp: Date.now()
-        }
-      } else if (action === 'stop') {
-        syncService.stopAutoSync()
-        return {
-          success: true,
-          message: '定时同步已停止',
-          timestamp: Date.now()
-        }
-      } else {
-        throw new Error('无效的action参数，必须是 "start" 或 "stop"')
-      }
-    } catch (error: any) {
-      return {
-        success: false,
-        error: error.message,
-        timestamp: Date.now()
-      }
-    }
-  }))
-  
-  // console.log('✅ K线同步服务API端点已注册')
 }
 
 /**
