@@ -3,21 +3,16 @@
   "name": "策略04",
   "version": 1,
   "createdAt": "2026-04-22T09:40:30.913Z",
-  "updatedAt": "2026-05-11T09:43:15.580Z",
+  "updatedAt": "2026-05-13T03:11:55.003Z",
   "isActive": true,
   "marketData": {
     "symbols": [
-      "SOL/USDT",
-      "DOGE/USDT",
-      "HYPE/USDT",
       "BTC/USDT",
-      "ETH/USDT",
-      "XAU/USDT",
-      "XAG/USDT",
-      "BNB/USDT"
+      "ETH/USDT"
     ],
     "timeframes": [
-      "1h"
+      "4h",
+      "1d"
     ]
   },
   "indicators": [
@@ -27,29 +22,65 @@
       "params": {
         "periods": [
           50,
+          120,
           200
         ]
       },
       "timeframes": [
-        "1h"
+        "4h"
       ],
       "enabled": true
     },
     {
       "id": "2",
+      "type": "RSI",
+      "params": {
+        "period": 14
+      },
+      "timeframes": [
+        "4h"
+      ],
+      "enabled": true
+    },
+    {
+      "id": "3",
       "type": "ADX",
       "params": {
         "period": 14
       },
       "timeframes": [
-        "1h"
+        "4h"
       ],
       "enabled": true
     }
   ],
-  "statistics": [],
+  "statistics": [
+    {
+      "id": "5",
+      "type": "OI",
+      "params": {
+        "changePeriod": 6,
+        "trendThresholdPercent": 0.05
+      },
+      "timeframes": [
+        "4h"
+      ],
+      "enabled": true
+    },
+    {
+      "id": "6",
+      "type": "Volume",
+      "params": {
+        "comparePeriod": 20
+      },
+      "timeframes": [
+        "4h"
+      ],
+      "enabled": true
+    }
+  ],
   "aiPrompt": {
-    "userPrompt": "金叉死叉策略\n一、死叉做空 SHORT （预判死叉）完整规则\n1. 当前价格 < EMA200\n2. EMA50 > EMA200\n3. |EMA50 - EMA200| / EMA200 < 0.18%（EMA50与EMA200极度贴近）\n以上所有条件全部满足时，做空开仓\n二、金叉做多 LONG （预判金叉）完整规则\n1. 当前价格 > EMA200\n2. EMA50 < EMA200\n3. |EMA50 - EMA200| / EMA200 < 0.18%（EMA50与EMA200极度贴近）\n以上所有条件全部满足时，做多开仓",
+    "userPrompt": "长线做多 LONG 完整规则\n1. EMA50 > EMA120 且 EMA120 > EMA200\n2. 持仓量 OI 变化率 ＞ 0 （资金持续增仓看多）\n3. 当前价格位于 EMA200 ±3.5% 区间内\n4. 当前预计成交量 ≥ 成交量 EMA 均值 1.2 倍\n5. RSI > 40\n满足所有条件就做多",
     "temperature": 0.3,
     "maxTokens": 2000,
     "model": "Doubao-Seed-2.0-Code",
@@ -58,15 +89,15 @@
     "apiKey": "ark-626c2a11-1c1e-4f02-90d0-b08ae91472e2-aebfb"
   },
   "riskManagement": {
-    "maxRiskPercentage": 20,
-    "stopLossATRMultiplier": 2.5,
+    "maxRiskPercentage": 30,
+    "stopLossATRMultiplier": 3,
     "takeProfitRatios": [
-      1.5,
-      2.5
+      3,
+      5
     ],
     "maxDailyTrades": 2,
     "maxDailyLoss": 10,
-    "maxHoldTimeMinutes": 360,
+    "maxHoldTimeMinutes": 10080,
     "trailingStop": {
       "enabled": true,
       "activationRatio": 1,
@@ -79,7 +110,7 @@
     }
   },
   "executionConfig": {
-    "scanInterval": 5,
+    "scanInterval": 15,
     "leverage": 5,
     "marginMode": "cross",
     "positionMode": "one-way"

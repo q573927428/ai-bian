@@ -3,7 +3,7 @@
   "name": "策略01",
   "version": 1,
   "createdAt": "2026-04-19T16:03:49.383Z",
-  "updatedAt": "2026-05-11T15:13:07.630Z",
+  "updatedAt": "2026-05-12T08:12:20.404Z",
   "isActive": true,
   "marketData": {
     "symbols": [
@@ -14,7 +14,7 @@
       "XAG/USDT"
     ],
     "timeframes": [
-      "5m"
+      "15m"
     ]
   },
   "indicators": [
@@ -29,7 +29,7 @@
         ]
       },
       "timeframes": [
-        "5m"
+        "15m"
       ],
       "enabled": true
     },
@@ -40,7 +40,7 @@
         "period": 14
       },
       "timeframes": [
-        "5m"
+        "15m"
       ],
       "enabled": true
     },
@@ -51,7 +51,7 @@
         "period": 14
       },
       "timeframes": [
-        "5m"
+        "15m"
       ],
       "enabled": true
     }
@@ -65,7 +65,7 @@
         "trendThresholdPercent": 0.03
       },
       "timeframes": [
-        "5m"
+        "15m"
       ],
       "enabled": true
     },
@@ -76,7 +76,7 @@
         "comparePeriod": 20
       },
       "timeframes": [
-        "5m"
+        "15m"
       ],
       "enabled": true
     }
@@ -102,7 +102,7 @@
     "maxHoldTimeMinutes": 120,
     "trailingStop": {
       "enabled": true,
-      "activationRatio": 0.8,
+      "activationRatio": 0.6,
       "trailDistance": 1,
       "minMoveDistance": 0.16
     },
@@ -272,27 +272,27 @@
   ],
   "performance": {
     "strategyId": "strategy_001",
-    "totalTrades": 3,
-    "totalWins": 1,
-    "totalLosses": 2,
-    "winRate": 33.33333333333333,
-    "totalProfit": 0.011028549999999734,
-    "totalLoss": 0.5650310850000018,
-    "netProfit": -0.5540025350000021,
-    "profitFactor": 0.01951848366006217,
+    "totalTrades": 8,
+    "totalWins": 3,
+    "totalLosses": 5,
+    "winRate": 37.5,
+    "totalProfit": 0.15322565000000044,
+    "totalLoss": 1.5836823500000017,
+    "netProfit": -1.4304567000000012,
+    "profitFactor": 0.09675276737156303,
     "maxDrawdown": 0,
-    "averageProfitPerTrade": 0.011028549999999734,
-    "averageLossPerTrade": 0.2825155425000009,
-    "largestWin": 0.011028549999999734,
-    "largestLoss": 0.3088321249999965,
-    "averageHoldTime": 115.58951666666667,
+    "averageProfitPerTrade": 0.05107521666666681,
+    "averageLossPerTrade": 0.3167364700000003,
+    "largestWin": 0.08571910000000109,
+    "largestLoss": 0.47288600000000186,
+    "averageHoldTime": 132.1491041666667,
     "consecutiveWins": 0,
-    "consecutiveLosses": 1,
+    "consecutiveLosses": 2,
     "maxConsecutiveWins": 1,
-    "maxConsecutiveLosses": 1,
-    "dailyPnL": -0.2451704100000055,
-    "todayTrades": 2,
-    "updatedAt": "2026-05-12T02:20:51.061Z"
+    "maxConsecutiveLosses": 2,
+    "dailyPnL": -0.48928726499999853,
+    "todayTrades": 3,
+    "updatedAt": "2026-05-13T03:23:31.004Z"
   },
   "sessions": [],
   "currentSessionId": null

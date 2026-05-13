@@ -35,7 +35,7 @@
   "preScreenConfig": {
     "minAdx": 15,
     "maxAdx": 60,
-    "minAdxSlope": -1,
+    "minAdxSlope": -0.5,
     "minAtrPercent": 0.0032,
     "maxAtrPercent": 0.05,
     "minEstimatedVolumeRatio": 0.3,
