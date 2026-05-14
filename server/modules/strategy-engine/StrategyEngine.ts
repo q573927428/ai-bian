@@ -300,7 +300,7 @@ export class StrategyEngine {
         // 使用 void 忽略异步操作的 Promise，避免 setInterval 堆积
         void this.globalStrategyLoop()
       }, this.globalScanInterval)
-      logger.info('StrategyEngine', `全局策略循环已启动, 间隔 ${this.globalScanInterval / 1000}秒`)
+      // logger.info('StrategyEngine', `全局策略循环已启动, 间隔 ${this.globalScanInterval / 1000}秒`)
     }
   }
 

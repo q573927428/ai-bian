@@ -75,7 +75,24 @@ export class WebSocketManager {
     // 订阅WebSocket
     this.wsService.subscribePrices([symbol])
     
-    console.log(`📡 添加价格订阅: ${symbol}, 订阅者数量: ${callbacks.length}`)
+    // console.log(`📡 添加价格订阅: ${symbol}, 订阅者数量: ${callbacks.length}`)
+  }
+
+  /**
+   * 重置指定交易对的所有订阅者（用于前端刷新后清理旧订阅）
+   */
+  resetSymbolSubscriptions(symbols: string[]): void {
+    symbols.forEach(symbol => {
+      const callbacks = this.subscribers.get(symbol)
+      if (callbacks) {
+        // 清除所有订阅者
+        callbacks.length = 0
+        this.subscribers.delete(symbol)
+        // 取消WebSocket订阅
+        this.wsService.unsubscribe([symbol])
+        console.log(`🔄 重置订阅: ${symbol}`)
+      }
+    })
   }
 
   /**
@@ -96,9 +113,9 @@ export class WebSocketManager {
     if (callbacks.length === 0) {
       this.subscribers.delete(symbol)
       this.wsService.unsubscribe([symbol])
-      console.log(`📡 取消价格订阅: ${symbol}`)
+      // console.log(`📡 取消价格订阅: ${symbol}`)
     } else {
-      console.log(`📡 移除价格订阅者: ${symbol}, 剩余订阅者: ${callbacks.length}`)
+      // console.log(`📡 移除价格订阅者: ${symbol}, 剩余订阅者: ${callbacks.length}`)
     }
   }
 

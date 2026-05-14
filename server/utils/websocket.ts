@@ -12,8 +12,16 @@ import { WebSocketStatus } from '../../types/websocket'
 import WebSocket from 'ws'
 
 // 币安WebSocket端点
+// 注意: 币安期货WebSocket有3个分流入口:
+//   /public  - 高频公共行情/盘口数据（如 @depth）
+//   /market  - 常规公共市场数据（如 @ticker, @markPrice, @kline）
+//   /private - 用户私有数据
+// 如果未指定分流路径，仅能接收 /public 类别的数据
+// 参考: https://binance-docs.github.io/apidocs/futures/cn/#WebSocket_Base_URL
 const BINANCE_WS_ENDPOINTS = {
   futures: 'wss://fstream.binance.com/ws',
+  futuresMarket: 'wss://fstream.binance.com/market/ws',
+  futuresPublic: 'wss://fstream.binance.com/public/ws',
   futuresTestnet: 'wss://stream.binancefuture.com/ws',
   spot: 'wss://stream.binance.com:9443/ws',
   spotTestnet: 'wss://testnet.binance.vision/ws'
@@ -70,8 +78,10 @@ export class BinanceWebSocketService {
 
     return new Promise((resolve, reject) => {
       try {
-        // 使用期货主网
-        this.ws = new WebSocket(BINANCE_WS_ENDPOINTS.futures)
+        // 使用币安期货WebSocket /market 分流路径
+        // @ticker、@markPrice、@kline 等常规市场数据属于 /market 类别
+        // 如果使用无分流路径的 /ws，将无法收到 /market 类别的数据
+        this.ws = new WebSocket(BINANCE_WS_ENDPOINTS.futuresMarket)
         
         this.ws.onopen = () => {
           console.log('✅ WebSocket连接成功')
@@ -199,6 +209,14 @@ export class BinanceWebSocketService {
 
     this.ws.send(JSON.stringify(subscribeMessage))
     
+    // 更新映射关系
+    symbols.forEach(symbol => {
+      const wsSymbol = this.formatSymbolForWebSocket(symbol)
+      if (!this.symbolMapping.has(wsSymbol)) {
+        this.symbolMapping.set(wsSymbol, symbol)
+      }
+    })
+    
     // 更新订阅配置
     if (!this.state.subscriptions.intervals) {
       this.state.subscriptions.intervals = []
@@ -244,7 +262,6 @@ export class BinanceWebSocketService {
       symbol => !symbols.includes(symbol)
     )
     
-    console.log(`📡 取消订阅: ${symbols.join(', ')}`)
   }
 
   /**
@@ -346,20 +363,29 @@ export class BinanceWebSocketService {
    * 处理ticker消息
    */
   private handleTickerMessage(data: any): void {
-    const symbol = data.s
+    const binanceSymbol = data.s.toLowerCase()
+    const originalSymbol = this.symbolMapping.get(binanceSymbol)
+
+    if (!originalSymbol) {
+      // 没有找到映射，可能是未订阅的symbol
+      return
+    }
+
     const priceData: PriceData = {
-      symbol,
+      symbol: originalSymbol,
       price: parseFloat(data.c),
       timestamp: data.E,
       volume: parseFloat(data.v),
       bid: parseFloat(data.b),
       ask: parseFloat(data.a),
       bidSize: parseFloat(data.B),
-      askSize: parseFloat(data.A)
+      askSize: parseFloat(data.A),
+      change24hPercent: data.P !== undefined ? parseFloat(data.P) : undefined,
+      volume24h: data.q !== undefined ? parseFloat(data.q) : undefined
     }
 
     // 更新缓存
-    this.priceCache.set(symbol, priceData)
+    this.priceCache.set(originalSymbol, priceData)
 
     // 触发事件
     this.emitEvent({
@@ -373,12 +399,19 @@ export class BinanceWebSocketService {
    * 处理K线消息
    */
   private handleKlineMessage(data: any): void {
-    const symbol = data.s
+    const binanceSymbol = data.s.toLowerCase()
+    const originalSymbol = this.symbolMapping.get(binanceSymbol)
+
+    if (!originalSymbol) {
+      // 没有找到映射，可能是未订阅的symbol
+      return
+    }
+
     const interval = data.k.i
     const kline = data.k
     
     const klineData: KlineData = {
-      symbol,
+      symbol: originalSymbol,
       interval,
       open: parseFloat(kline.o),
       high: parseFloat(kline.h),
@@ -390,10 +423,10 @@ export class BinanceWebSocketService {
     }
 
     // 更新缓存
-    if (!this.klineCache.has(symbol)) {
-      this.klineCache.set(symbol, new Map())
+    if (!this.klineCache.has(originalSymbol)) {
+      this.klineCache.set(originalSymbol, new Map())
     }
-    this.klineCache.get(symbol)!.set(interval, klineData)
+    this.klineCache.get(originalSymbol)!.set(interval, klineData)
 
     // 触发事件
     this.emitEvent({

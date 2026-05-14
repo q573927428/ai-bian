@@ -40,23 +40,34 @@ export default defineEventHandler(async (event) => {
       setClientCallbacks(clientId, symbolCallbacks)
     }
 
-    // 为每个交易对创建回调函数
-    const priceCallback = (priceData: any) => {
-      // 这里可以处理价格更新，例如记录日志或触发其他操作
-      // console.log(`📈 客户端 ${clientId} 收到价格更新: ${priceData.symbol} = ${priceData.price}`)
+    // 获取该客户端已有的共享回调（同一客户端所有交易对共享同一个回调）
+    let sharedCallback: ((data: any) => void) | null = null
+    if (symbolCallbacks.size > 0) {
+      // 从已有回调中取第一个作为共享回调
+      const firstSymbol = symbolCallbacks.keys().next().value
+      if (firstSymbol) {
+        sharedCallback = symbolCallbacks.get(firstSymbol) || null
+      }
+    }
+
+    // 如果没有共享回调，创建一个新的
+    if (!sharedCallback) {
+      sharedCallback = (priceData: any) => {
+        // 这里可以处理价格更新，例如记录日志或触发其他操作
+        // console.log(`📈 客户端 ${clientId} 收到价格更新: ${priceData.symbol} = ${priceData.price}`)
+      }
     }
 
     // 订阅所有交易对
     symbols.forEach(symbol => {
-      // 如果已经订阅了这个交易对，先取消旧的订阅
-      const existingCallback = symbolCallbacks!.get(symbol)
-      if (existingCallback) {
-        webSocketManager.unsubscribePrice(symbol, existingCallback)
+      // 如果已经订阅了这个交易对，跳过（复用已有回调，不重复添加）
+      if (symbolCallbacks!.has(symbol)) {
+        return
       }
       
       // 订阅新的
-      webSocketManager.subscribePrice(symbol, priceCallback)
-      symbolCallbacks!.set(symbol, priceCallback)
+      webSocketManager.subscribePrice(symbol, sharedCallback!)
+      symbolCallbacks!.set(symbol, sharedCallback!)
       
       // console.log(`✅ 客户端 ${clientId} 订阅: ${symbol}`)
     })

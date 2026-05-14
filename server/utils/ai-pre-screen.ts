@@ -107,19 +107,19 @@ export class AIPreScreener {
    */
   initFromBotConfig(preScreenConfig?: PreScreenConfig): void {
     this.config = { ...PRESCREEN_DEFAULTS, ...preScreenConfig }
-    logger.info('AIPreScreener', 'AI预筛配置已加载', {
-      minAdx: this.config.minAdx,
-      maxAdx: this.config.maxAdx,
-      minAdxSlope: this.config.minAdxSlope,
-      minAtrPercent: this.config.minAtrPercent,
-      maxAtrPercent: this.config.maxAtrPercent,
-      minEstimatedVolumeRatio: this.config.minEstimatedVolumeRatio,
-      minCandleProgressForVolume: this.config.minCandleProgressForVolume,
-      enableAdx: this.config.enableAdx,
-      enableAdxSlope: this.config.enableAdxSlope,
-      enableAtr: this.config.enableAtr,
-      enableVolume: this.config.enableVolume
-    })
+    // logger.info('AIPreScreener', 'AI预筛配置已加载', {
+    //   minAdx: this.config.minAdx,
+    //   maxAdx: this.config.maxAdx,
+    //   minAdxSlope: this.config.minAdxSlope,
+    //   minAtrPercent: this.config.minAtrPercent,
+    //   maxAtrPercent: this.config.maxAtrPercent,
+    //   minEstimatedVolumeRatio: this.config.minEstimatedVolumeRatio,
+    //   minCandleProgressForVolume: this.config.minCandleProgressForVolume,
+    //   enableAdx: this.config.enableAdx,
+    //   enableAdxSlope: this.config.enableAdxSlope,
+    //   enableAtr: this.config.enableAtr,
+    //   enableVolume: this.config.enableVolume
+    // })
   }
 
   /**

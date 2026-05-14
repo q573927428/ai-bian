@@ -48,7 +48,7 @@ export class ConcurrencyPool<T = any> {
       ...config,
       queueTimeout: config.queueTimeout ?? 30000
     }
-    logger.info('ConcurrencyPool', `并发池已创建: ${config.name}, 最大并发: ${config.maxConcurrency}`)
+    // logger.info('ConcurrencyPool', `并发池已创建: ${config.name}, 最大并发: ${config.maxConcurrency}`)
   }
 
   /**

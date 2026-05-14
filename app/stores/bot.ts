@@ -35,6 +35,9 @@ export const useBotStore = defineStore('bot', {
     priceSubscribers: new Set<string>(), // 价格订阅者
     priceTimer: null as NodeJS.Timeout | null,
     lastPriceUpdate: 0,
+    priceClientId: null as string | null, // WebSocket 客户端 ID（页面刷新时从sessionStorage恢复）
+    subscribedSymbols: [] as string[], // 已订阅的交易对列表
+
   }),
 
   getters: {
@@ -90,7 +93,7 @@ export const useBotStore = defineStore('bot', {
     },
 
     // 订阅价格更新
-    subscribeToPrices(subscriberId: string) {
+    async subscribeToPrices(subscriberId: string) {
       this.priceSubscribers.add(subscriberId)
 
       if (this.priceSubscribers.size === 1 && !this.priceTimer) {
@@ -104,40 +107,151 @@ export const useBotStore = defineStore('bot', {
     },
 
     // 取消订阅价格更新
-    unsubscribeFromPrices(subscriberId: string) {
+    async unsubscribeFromPrices(subscriberId: string) {
       this.priceSubscribers.delete(subscriberId)
 
       if (this.priceSubscribers.size === 0 && this.priceTimer) {
-        this.stopPricePolling()
+        await this.stopPricePolling()
       }
 
       console.log(`[Price] 订阅者 ${subscriberId} 离开，当前订阅者: ${this.priceSubscribers.size}`)
     },
 
+    // 订阅 WebSocket 交易对
+    async subscribeWebSocketSymbols() {
+      // 如果没有配置，先获取配置
+      if (!this.botConfig) {
+        await this.fetchBotConfig()
+      }
+
+      const symbols = this.getPriceSymbols()
+      if (symbols.length === 0) return
+
+      // 尝试从 sessionStorage 恢复 clientId（页面刷新后保持同一客户端身份）
+      if (!this.priceClientId && typeof sessionStorage !== 'undefined') {
+        const savedClientId = sessionStorage.getItem('ws_price_client_id')
+        if (savedClientId) {
+          this.priceClientId = savedClientId
+        }
+      }
+
+      // 检查是否需要重新订阅（交易对列表变化）
+      const needsResubscribe = 
+        symbols.length !== this.subscribedSymbols.length ||
+        symbols.some(s => !this.subscribedSymbols.includes(s))
+
+      if (!needsResubscribe && this.priceClientId) {
+        return // 已经订阅过相同的交易对
+      }
+
+      try {
+        console.log('[Price] 订阅 WebSocket 交易对:', symbols)
+        
+        const response = await $fetch<any>('/api/websocket/subscribe', {
+          method: 'POST',
+          body: {
+            symbols,
+            clientId: this.priceClientId || undefined
+          }
+        })
+
+        if (response.success && response.data) {
+          this.priceClientId = response.data.clientId
+          this.subscribedSymbols = symbols
+          
+          // 持久化 clientId 到 sessionStorage（页面刷新后恢复）
+          if (typeof sessionStorage !== 'undefined' && this.priceClientId) {
+            sessionStorage.setItem('ws_price_client_id', this.priceClientId)
+          }
+          
+          // 立即获取一次价格
+          if (response.data.currentPrices) {
+            this.prices = response.data.currentPrices
+            this.lastPriceUpdate = Date.now()
+          }
+          
+          console.log('[Price] WebSocket 订阅成功, clientId:', this.priceClientId)
+        }
+      } catch (error) {
+        console.error('[Price] WebSocket 订阅失败:', error)
+      }
+    },
+
+
+    // 取消订阅 WebSocket 交易对
+    async unsubscribeWebSocketSymbols() {
+      if (!this.priceClientId || this.subscribedSymbols.length === 0) {
+        return
+      }
+
+      try {
+        console.log('[Price] 取消订阅 WebSocket 交易对:', this.subscribedSymbols)
+        
+        await $fetch<any>('/api/websocket/unsubscribe', {
+          method: 'POST',
+          body: {
+            symbols: this.subscribedSymbols,
+            clientId: this.priceClientId
+          }
+        })
+
+        this.subscribedSymbols = []
+        console.log('[Price] WebSocket 取消订阅成功')
+      } catch (error) {
+        console.error('[Price] WebSocket 取消订阅失败:', error)
+      }
+    },
+
     // 启动价格轮询
-    startPricePolling() {
+    async startPricePolling() {
       if (this.priceTimer) {
         return
       }
 
       console.log('[Price] 启动共享价格轮询，间隔: 5000ms')
 
-      this.priceTimer = setInterval(() => {
-        this.fetchPrices()
+      // 先订阅 WebSocket 交易对
+      await this.subscribeWebSocketSymbols()
+
+      this.priceTimer = setInterval(async () => {
+        // 检查是否需要重新订阅
+        await this.subscribeWebSocketSymbols()
+        await this.fetchPrices()
       }, 5000)
 
       // 立即执行一次
-      this.fetchPrices()
+      await this.fetchPrices()
     },
 
     // 停止价格轮询
-    stopPricePolling() {
+    async stopPricePolling() {
       if (this.priceTimer) {
         clearInterval(this.priceTimer)
         this.priceTimer = null
         console.log('[Price] 停止共享价格轮询')
       }
+
+      // 取消 WebSocket 订阅
+      await this.unsubscribeWebSocketSymbols()
     },
+
+    // 页面卸载时清理 WebSocket 订阅
+    cleanupOnUnload() {
+      if (!this.priceClientId || this.subscribedSymbols.length === 0) return
+      try {
+        $fetch('/api/websocket/unsubscribe', {
+          method: 'POST',
+          body: {
+            symbols: this.subscribedSymbols,
+            clientId: this.priceClientId
+          }
+        })
+      } catch (error) {
+        console.error('[Price] 页面卸载取消订阅失败:', error)
+      }
+    },
+
+
 
     // 获取单个交易对的价格
     getPrice(symbol: string) {

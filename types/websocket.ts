@@ -19,6 +19,8 @@ export interface PriceData {
   ask?: number
   bidSize?: number
   askSize?: number
+  change24hPercent?: number  // 24h涨跌幅（来自币安ticker的P字段）
+  volume24h?: number         // 24h成交量（来自币安ticker的q字段）
 }
 
 // K线数据
