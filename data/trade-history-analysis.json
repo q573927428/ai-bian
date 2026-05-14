@@ -1,0 +1,31 @@
+{
+  "timestamp": 1778773455765,
+  "summary": "总体胜率27.5%，总亏损9.98USDT。SHORT方向表现较好（胜率50.0%），LONG方向表现较差（胜率20.0%）。止盈交易全部盈利（2.13USDT），止损交易亏损严重（-9.79USDT）",
+  "keyPatterns": [
+    "SHORT盈利模式：SHORT方向胜率50.0%，优于LONG的20.0%",
+    "止盈模式：take_profit的2笔交易全部盈利，总盈利2.13USDT",
+    "止损亏损模式：stop_loss的11笔交易仅18.2%盈利，总亏损-9.79USDT",
+    "最佳交易对：ETH/USDT(胜率60.0%,盈亏2.00USDT)、SOL/USDT(胜率33.3%,盈亏-0.40USDT)"
+  ],
+  "successFactors": [
+    "SHORT方向交易表现更好，胜率50.0%",
+    "take_profit止盈时全部盈利，总盈利2.13USDT",
+    "ETH/USDT胜率60.0%、SOL/USDT胜率33.3%，表现最佳",
+    "成功交易入场RSI平均41.5，处于合理区间",
+    "成功交易入场ADX平均34.0，趋势强度适中"
+  ],
+  "failureFactors": [
+    "LONG方向胜率仅20.0%，亏损严重",
+    "stop_loss止损交易亏损占比大，总亏损-9.79USDT",
+    "BNB/USDT胜率0.0%、BTC/USDT胜率0.0%，应避免交易",
+    "失败交易入场RSI平均53.5，可能处于极端区域",
+    "失败交易入场ADX平均28.5，趋势强度不足或过度"
+  ],
+  "optimizationSuggestions": [
+    "优先考虑SHORT方向交易，严格控制LONG方向开仓条件",
+    "优化止损策略，减少不必要的止损触发",
+    "暂时避免BNB/USDT和BTC/USDT交易对",
+    "提高入场RSI和ADX的筛选标准，避免低质量信号",
+    "设置合理的止盈目标，增加take_profit止盈比例"
+  ]
+}

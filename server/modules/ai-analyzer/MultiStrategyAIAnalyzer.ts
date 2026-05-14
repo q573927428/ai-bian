@@ -9,6 +9,7 @@ import { strategyStore } from '../strategy-store/StrategyStore'
 import { getProviderConfig, callAIAPI, extractJSONContent, type AIChatMessage } from '../../utils/ai-service'
 import { concurrencyPoolManager } from '../../utils/concurrency-pool'
 import { getAIAnalysisWriter } from '../../utils/jsonl-batch-writer'
+import { getLatestAnalysis, formatAnalysisToPromptSection, checkDailyAnalysis } from '../../utils/trade-history-analyzer'
 
 /**
  * AI 分析缓存
@@ -496,12 +497,19 @@ ${promptConfig.userPrompt}
 
   /**
    * 构建系统提示词（包含历史学习经验）
+   * 从 trade-history-analysis.json 读取已保存的分析结果
    */
   private async buildSystemPrompt(): Promise<string> {
+    // 异步触发每日分析检查（不阻塞主流程）
+    checkDailyAnalysis().catch(() => {})
+
+    const historyAnalysis = await getLatestAnalysis()
+    const historySection = historyAnalysis ? formatAnalysisToPromptSection(historyAnalysis) : ''
+
     return `
 你是专业的量化交易策略执行引擎。
 对当前市场数据进行客观分析、计算真实置信度。
-
+${historySection}
 【核心原则】
 1. 你只做分析，不替用户做最终决策。
 2. 先根据策略规则及所需数据确定唯一方向（LONG/SHORT），之后只按该方向执行交易判断：LONG只用做多规则，SHORT只用做空规则。
