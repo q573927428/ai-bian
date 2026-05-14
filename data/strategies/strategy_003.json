@@ -3,7 +3,7 @@
   "name": "策略03",
   "version": 1,
   "createdAt": "2026-04-19T16:14:17.182Z",
-  "updatedAt": "2026-05-12T02:55:38.434Z",
+  "updatedAt": "2026-05-14T03:34:18.054Z",
   "isActive": true,
   "marketData": {
     "symbols": [
@@ -84,7 +84,7 @@
     }
   ],
   "aiPrompt": {
-    "userPrompt": "机械稳健共振策略\n一、做多 LONG 完整规则\n1. 趋势方向判定 EMA50 > EMA200\n2. 入场硬性条件（全部必须满足）\nOI 资金共振：持仓量 OI 变化率 > 0\n价格位置合理：当前价格位于 EMA200 ±2.5% 区间内。\n成交量放大：当前预计成交量 ≥ 成交量EMA均值的1.6 倍\n3. 辅助条件（至少满足 1 项）\nA. RSI 有效区间：35 < RSI < 65\nB. 价格回踩：当前价格位于 EMA50 ±1% 区间内\nC. K 线形态确认：收实体阳线，或者下影线比例 ≤ 0.9%\n4. 开仓决策\n四项硬性条件全部达标 + 任意 1 项及以上辅助条件满足 → 触发做多开仓\n二、做空 SHORT 完整规则\n1. 趋势方向判定 EMA50 < EMA200\n2. 入场硬性条件（全部必须满足）\nOI 资金共振：持仓量 OI 变化率 < 0\n价格位置合理：当前价格位于 EMA200 ±2.5% 区间内。\n成交量放大：当前预计成交量 ≥ 成交量EMA均值的1.6 倍\n3. 辅助条件（至少满足 1 项）\nA. RSI 有效区间：35 < RSI < 65\nB. 价格反弹：当前价格位于 EMA50 ±1% 区间内\nC. K 线形态确认：收实体阴线，或者上影线比例 ≤ 0.9%\n4. 开仓决策\n四项硬性条件全部达标 + 任意 1 项及以上辅助条件满足 → 触发做空开仓",
+    "userPrompt": "机械稳健共振策略\n一、做多 LONG 完整规则\n1. 趋势方向判定 EMA50 > EMA200\n2. 入场硬性条件（全部必须满足）\nOI 资金共振：持仓量 OI 变化率 > 0\n价格位置合理：当前价格位于 EMA200 ±2.5% 区间内。\n成交量放大：当前预计成交量 ≥ 成交量EMA均值的1.6 倍\n3. 辅助条件（至少满足 1 项）\nA. RSI 有效区间：35 < RSI < 65\nB. 价格回踩：当前价格位于 EMA50 ±1% 区间内\nC. K 线形态确认：阳线或者下影线比例 ≤ 0.9%\n4. 开仓决策\n四项硬性条件全部达标 + 任意 1 项及以上辅助条件满足 → 触发做多开仓\n二、做空 SHORT 完整规则\n1. 趋势方向判定 EMA50 < EMA200\n2. 入场硬性条件（全部必须满足）\nOI 资金共振：持仓量 OI 变化率 < 0\n价格位置合理：当前价格位于 EMA200 ±2.5% 区间内。\n成交量放大：当前预计成交量 ≥ 成交量EMA均值的1.6 倍\n3. 辅助条件（至少满足 1 项）\nA. RSI 有效区间：35 < RSI < 65\nB. 价格反弹：当前价格位于 EMA50 ±1% 区间内\nC. K 线形态确认：阴线或者上影线比例 ≤ 0.9%\n4. 开仓决策\n四项硬性条件全部达标 + 任意 1 项及以上辅助条件满足 → 触发做空开仓",
     "temperature": 0.3,
     "maxTokens": 2000,
     "model": "Doubao-Seed-2.0-Code",
@@ -101,7 +101,7 @@
     ],
     "maxDailyTrades": 3,
     "maxDailyLoss": 10,
-    "maxHoldTimeMinutes": 360,
+    "maxHoldTimeMinutes": 720,
     "trailingStop": {
       "enabled": true,
       "activationRatio": 0.8,
@@ -266,27 +266,27 @@
   ],
   "performance": {
     "strategyId": "strategy_003",
-    "totalTrades": 10,
+    "totalTrades": 11,
     "totalWins": 2,
-    "totalLosses": 8,
-    "winRate": 20,
+    "totalLosses": 9,
+    "winRate": 18.181818181818183,
     "totalProfit": 3.436461600000001,
-    "totalLoss": 4.77566686499999,
-    "netProfit": -1.3392052649999893,
-    "profitFactor": 0.7195773275529779,
+    "totalLoss": 4.909162954999985,
+    "netProfit": -1.4727013549999843,
+    "profitFactor": 0.7000096822004988,
     "maxDrawdown": 0,
     "averageProfitPerTrade": 1.7182308000000004,
-    "averageLossPerTrade": 0.5969583581249988,
+    "averageLossPerTrade": 0.5454625505555539,
     "largestWin": 1.7994795000000017,
     "largestLoss": 2.4030681,
-    "averageHoldTime": 370.61646833333333,
+    "averageHoldTime": 369.68195000000003,
     "consecutiveWins": 0,
-    "consecutiveLosses": 1,
+    "consecutiveLosses": 2,
     "maxConsecutiveWins": 2,
     "maxConsecutiveLosses": 7,
-    "dailyPnL": -0.0689595,
+    "dailyPnL": -0.13349608999999524,
     "todayTrades": 1,
-    "updatedAt": "2026-05-12T19:00:31.013Z"
+    "updatedAt": "2026-05-13T18:47:27.691Z"
   },
   "sessions": [],
   "currentSessionId": null

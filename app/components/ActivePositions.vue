@@ -22,14 +22,18 @@
                 <div class="symbol-info">
                   <div class="symbol-row">
                     <span class="symbol">{{ position.symbol }}</span>
+                    <span class="leverage" >{{ position.leverage }}x</span>
                     <span class="open-time">{{ formatOpenTime(position.openTime) }}</span>
                   </div>
                   <div class="tag-row">
-                    <el-tag type="warning" size="small" effect="dark" class="strategy-tag">
+                    <el-tag :type="position.direction === 'long' ? 'success' : 'danger'" effect="dark">
+                      {{ position.direction === 'long' ? '做多' : '做空' }}
+                    </el-tag>
+                    <el-tag :type="position.direction === 'long' ? 'success' : 'danger'">
                       {{ position.strategyId }}
                     </el-tag>
-                    <el-tag :type="position.direction === 'long' ? 'success' : 'danger'" size="small" effect="dark">
-                      {{ position.direction === 'long' ? '做多' : '做空' }}
+                    <el-tag>
+                      {{ position.quantity }}
                     </el-tag>
                     <el-tag
                       type="warning"
@@ -67,14 +71,10 @@
                     <span class="info-label">当前价</span>
                     <span class="info-value">${{ getCurrentPrice(position.symbol) > 0 ? getCurrentPrice(position.symbol).toFixed(2) : '--' }}</span>
                   </div>
-                  <div class="info-item">
+                  <!-- <div class="info-item">
                     <span class="info-label">数量</span>
                     <span class="info-value">{{ position.quantity }}</span>
-                  </div>
-                  <div class="info-item">
-                    <span class="info-label">杠杆</span>
-                    <span class="info-value">{{ position.leverage }}x</span>
-                  </div>
+                  </div> -->
                   <div class="info-item">
                     <span class="info-label">TP1</span>
                     <span class="info-value">${{ position.takeProfit1 ? position.takeProfit1.toFixed(2) : '--' }}</span>
@@ -358,7 +358,7 @@ onUnmounted(() => {
 
 .tag-row {
   display: flex;
-  gap: 12px;
+  gap: 6px;
 }
 
 .symbol-row {
@@ -372,6 +372,11 @@ onUnmounted(() => {
   font-weight: 700;
   color: #1f2937;
   font-size: 18px;
+}
+.leverage{
+  font-size: 18px;
+  color: #64748b;
+  font-weight: 600;
 }
 
 .open-time {
@@ -419,7 +424,7 @@ onUnmounted(() => {
 
 .info-row {
   display: grid;
-  grid-template-columns: repeat(8, 1fr);
+  grid-template-columns: repeat(6, 1fr);
   gap: 16px;
   justify-content: center;
   align-items: center;
@@ -593,7 +598,7 @@ onUnmounted(() => {
   }
 
   .info-row {
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(3, 1fr);
     gap: 12px;
   }
   .info-value {

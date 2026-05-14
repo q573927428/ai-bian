@@ -3,7 +3,7 @@
   "name": "策略04",
   "version": 1,
   "createdAt": "2026-04-22T09:40:30.913Z",
-  "updatedAt": "2026-05-13T03:11:55.003Z",
+  "updatedAt": "2026-05-14T03:30:21.934Z",
   "isActive": true,
   "marketData": {
     "symbols": [
@@ -11,8 +11,7 @@
       "ETH/USDT"
     ],
     "timeframes": [
-      "4h",
-      "1d"
+      "4h"
     ]
   },
   "indicators": [
@@ -110,8 +109,8 @@
     }
   },
   "executionConfig": {
-    "scanInterval": 15,
-    "leverage": 5,
+    "scanInterval": 5,
+    "leverage": 10,
     "marginMode": "cross",
     "positionMode": "one-way"
   },
