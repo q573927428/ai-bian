@@ -211,7 +211,8 @@ export class MultiStrategyAIAnalyzer {
    */
   private calculatePriceDeviationFromEMA(price: number, emaValue: number): number {
     if (!emaValue || emaValue === 0) return 0
-    return Math.abs(price - emaValue) / emaValue
+    return (price - emaValue) / emaValue;  //区分正负
+    //return Math.abs(price - emaValue) / emaValue // 绝对值 不区分正负
   }
 
   /**
