@@ -34,8 +34,8 @@
   "commissionRate": 0.0005,
   "preScreenConfig": {
     "minAdx": 15,
-    "maxAdx": 60,
-    "minAdxSlope": -0.5,
+    "maxAdx": 50,
+    "minAdxSlope": -0.8,
     "minAtrPercent": 0.0032,
     "maxAtrPercent": 0.05,
     "minEstimatedVolumeRatio": 0.3,
@@ -43,14 +43,14 @@
     "enableAdx": true,
     "enableAdxSlope": true,
     "enableAtr": true,
-    "enableVolume": false
+    "enableVolume": true
   },
   "concurrencyPool": {
     "indicator": {
       "maxConcurrency": 16
     },
     "ai": {
-      "maxConcurrency": 6
+      "maxConcurrency": 12
     },
     "tradeApi": {
       "maxConcurrency": 4
