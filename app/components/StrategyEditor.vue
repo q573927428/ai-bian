@@ -125,9 +125,9 @@
                   <el-form-item label="判定阈值">
                     <el-input-number
                       v-model="oiParams.trendThresholdPercent"
-                      :min="0.01"
+                      :min="0.001"
                       :max="1.0"
-                      :step="0.01"
+                      :step="0.001"
                       :precision="2"
                     /> <small class="unitf">%</small>
                   </el-form-item>
@@ -273,19 +273,19 @@
               </el-col>
               <el-col :xs="24" :span="12">
                 <el-form-item label="止损ATR倍">
-                  <el-input-number v-model="form.riskManagement.stopLossATRMultiplier" :min="1" :max="5" :step="0.5" /> <small class="unitf">R</small>
+                  <el-input-number v-model="form.riskManagement.stopLossATRMultiplier" :min="1" :max="5" :step="0.1" /> <small class="unitf">R</small>
                 </el-form-item>
               </el-col>
             </el-row>
             <el-row :gutter="12">
               <el-col :xs="24" :span="12">
                 <el-form-item label="TP1止盈">
-                  <el-input-number v-model="form.riskManagement.takeProfitRatios[0]" :min="1" :max="10" :step="0.5" /> <small class="unitf">R</small>
+                  <el-input-number v-model="form.riskManagement.takeProfitRatios[0]" :min="1" :max="10" :step="0.1" /> <small class="unitf">R</small>
                 </el-form-item>
               </el-col>
               <el-col :xs="24" :span="12">
                 <el-form-item label="TP2止盈">
-                  <el-input-number v-model="form.riskManagement.takeProfitRatios[1]" :min="1" :max="10" :step="0.5" /> <small class="unitf">R</small>
+                  <el-input-number v-model="form.riskManagement.takeProfitRatios[1]" :min="1" :max="10" :step="0.1" /> <small class="unitf">R</small>
                 </el-form-item>
               </el-col>
             </el-row>
@@ -319,7 +319,7 @@
                 <span class="trailing-stop-group">
                   <el-switch v-model="form.riskManagement.trailingStop.enabled" />
                   <span class="stat-label">激活: </span>
-                  <el-input-number v-model="form.riskManagement.trailingStop.activationRatio" :min="0.5" :max="3" :step="0.5" />
+                  <el-input-number v-model="form.riskManagement.trailingStop.activationRatio" :min="0.5" :max="3" :step="0.1" />
                 </span>
                 <span class="trailing-stop-group">
                   <span class="stat-label">距离: </span>
