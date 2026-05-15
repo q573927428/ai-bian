@@ -116,7 +116,7 @@
                     <el-input-number
                       v-model="oiParams.changePeriod"
                       :min="1"
-                      :max="30"
+                      :max="60"
                       :step="1"
                     />
                   </el-form-item>
