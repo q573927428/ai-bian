@@ -132,9 +132,8 @@ export class StrategyPositionCloser {
       })
 
       // 5. 计算盈亏（扣除手续费）
-      const { pnl: grossPnl, pnlPercentage: grossPnlPercentage } = calculatePnL(finalExitPrice, position.position!)
+      const { pnl: grossPnl, pnlPercentage: grossPnlPercentage, netPnlPercentage } = calculatePnL(finalExitPrice, position.position!)
       const netPnl = grossPnl - totalCommission
-      const netPnlPercentage = (netPnl / (Math.abs(position.quantity) * position.entryPrice)) * 100
 
       logger.info('平仓', `平仓盈亏: 毛利 ${grossPnl.toFixed(2)} USDT (${grossPnlPercentage.toFixed(3)}%), 净利 ${netPnl.toFixed(2)} USDT (${netPnlPercentage.toFixed(3)}%)`)
 
