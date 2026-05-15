@@ -135,10 +135,11 @@ const computedTimeframe = computed(() => {
 // 响应式数据
 const selectedTimeframe = ref(computedTimeframe.value)
 
-// 标记控制状态
-const showEMAMarkers = ref(false)
-const showOrderMarkers = ref(false)
-const showEMALines = ref(true)
+// 标记控制状态 - 从配置读取默认值
+const chartMarkerConfig = computed(() => botStore.config?.chartMarkerConfig || {})
+const showEMAMarkers = ref(chartMarkerConfig.value.showEMAMarkers ?? false)
+const showOrderMarkers = ref(chartMarkerConfig.value.showOrderMarkers ?? false)
+const showEMALines = ref(chartMarkerConfig.value.showEMALines ?? true)
 
 // EMA周期选择 - 从botStore.config获取，如果未加载完成则使用默认值
 const selectedEmaPeriods = ref<number[]>(botStore.config?.emaPeriods?.length ? [...botStore.config.emaPeriods] : [20, 200])
@@ -156,6 +157,14 @@ watch(() => botStore.config, (newConfig, oldConfig) => {
     // 首次从配置读取EMA周期
     if (newConfig?.emaPeriods && newConfig.emaPeriods.length > 0) {
       selectedEmaPeriods.value = [...newConfig.emaPeriods]
+    }
+    
+    // 首次从配置读取标记开关默认值
+    if (newConfig?.chartMarkerConfig) {
+      const cfg = newConfig.chartMarkerConfig
+      if (cfg.showEMAMarkers !== undefined) showEMAMarkers.value = cfg.showEMAMarkers
+      if (cfg.showOrderMarkers !== undefined) showOrderMarkers.value = cfg.showOrderMarkers
+      if (cfg.showEMALines !== undefined) showEMALines.value = cfg.showEMALines
     }
     
     selectedTimeframe.value = computedTimeframe.value

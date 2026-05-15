@@ -159,6 +159,13 @@ export interface BotConcurrencyConfig {
   tradeApi: { maxConcurrency: number }
 }
 
+// 图表标记控制配置
+export interface ChartMarkerConfig {
+  showEMAMarkers?: boolean
+  showOrderMarkers?: boolean
+  showEMALines?: boolean
+}
+
 // 机器人系统配置
 export interface BotConfig {
   symbols: string[]
@@ -176,6 +183,7 @@ export interface BotConfig {
   commissionRate: number
   preScreenConfig?: PreScreenConfig
   concurrencyPool?: BotConcurrencyConfig
+  chartMarkerConfig?: ChartMarkerConfig
 }
 
 // ==================== 仓位与订单 ====================

@@ -147,6 +147,20 @@
             <el-input-number v-model="form.monitorInterval" :min="1" :max="600" :step="1" />
           </el-form-item>
 
+          <!-- 图表标记控制配置 -->
+          <el-divider content-position="left">图表标记控制</el-divider>
+          <template v-if="form.chartMarkerConfig">
+            <el-form-item label="显示EMA金叉死叉标记">
+              <el-switch v-model="form.chartMarkerConfig.showEMAMarkers" />
+            </el-form-item>
+            <el-form-item label="显示历史订单标记">
+              <el-switch v-model="form.chartMarkerConfig.showOrderMarkers" />
+            </el-form-item>
+            <el-form-item label="显示EMA快慢线">
+              <el-switch v-model="form.chartMarkerConfig.showEMALines" />
+            </el-form-item>
+          </template>
+
           <!-- 并发池配置 -->
           <el-divider content-position="left">并发池配置</el-divider>
           <template v-if="form.concurrencyPool">

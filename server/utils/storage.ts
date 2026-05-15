@@ -330,5 +330,10 @@ function getDefaultBotConfig(): BotConfig {
       ai: { maxConcurrency: 6 }, // AI分析并发数
       tradeApi: { maxConcurrency: 4 }, // 交易API并发数
     },
+    chartMarkerConfig: {
+      showEMAMarkers: false, // 显示EMA金叉死叉标记
+      showOrderMarkers: false, // 显示历史订单开仓平仓标记
+      showEMALines: true, // 显示EMA快慢线
+    },
   }
 }

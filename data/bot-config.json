@@ -55,5 +55,10 @@
     "tradeApi": {
       "maxConcurrency": 4
     }
+  },
+  "chartMarkerConfig": {
+    "showEMAMarkers": false,
+    "showOrderMarkers": false,
+    "showEMALines": true
   }
 }
