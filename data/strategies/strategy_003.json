@@ -3,7 +3,7 @@
   "name": "策略03",
   "version": 1,
   "createdAt": "2026-04-19T16:14:17.182Z",
-  "updatedAt": "2026-05-14T03:34:18.054Z",
+  "updatedAt": "2026-05-15T05:04:31.626Z",
   "isActive": true,
   "marketData": {
     "symbols": [
@@ -63,8 +63,8 @@
       "id": "5",
       "type": "OI",
       "params": {
-        "changePeriod": 12,
-        "trendThresholdPercent": 0.03
+        "changePeriod": 8,
+        "trendThresholdPercent": 0.006
       },
       "timeframes": [
         "1h"
@@ -84,7 +84,7 @@
     }
   ],
   "aiPrompt": {
-    "userPrompt": "机械稳健共振策略\n一、做多 LONG 完整规则\n1. 趋势方向判定 EMA50 > EMA200\n2. 入场硬性条件（全部必须满足）\nOI 资金共振：持仓量 OI 变化率 > 0\n价格位置合理：当前价格位于 EMA200 ±2.5% 区间内。\n成交量放大：当前预计成交量 ≥ 成交量EMA均值的1.6 倍\n3. 辅助条件（至少满足 1 项）\nA. RSI 有效区间：35 < RSI < 65\nB. 价格回踩：当前价格位于 EMA50 ±1% 区间内\nC. K 线形态确认：阳线或者下影线比例 ≤ 0.9%\n4. 开仓决策\n四项硬性条件全部达标 + 任意 1 项及以上辅助条件满足 → 触发做多开仓\n二、做空 SHORT 完整规则\n1. 趋势方向判定 EMA50 < EMA200\n2. 入场硬性条件（全部必须满足）\nOI 资金共振：持仓量 OI 变化率 < 0\n价格位置合理：当前价格位于 EMA200 ±2.5% 区间内。\n成交量放大：当前预计成交量 ≥ 成交量EMA均值的1.6 倍\n3. 辅助条件（至少满足 1 项）\nA. RSI 有效区间：35 < RSI < 65\nB. 价格反弹：当前价格位于 EMA50 ±1% 区间内\nC. K 线形态确认：阴线或者上影线比例 ≤ 0.9%\n4. 开仓决策\n四项硬性条件全部达标 + 任意 1 项及以上辅助条件满足 → 触发做空开仓",
+    "userPrompt": "机械稳健共振策略\n一、做多 LONG 完整规则\n1. 趋势方向判定 EMA50 > EMA200\n2. 入场硬性条件（全部必须满足）\nOI 资金共振：持仓量 OI 变化率 > 0.6%\n价格位置合理：当前价格位于 EMA200 ±2% 区间内。\n成交量放大：当前预计成交量 ≥ 成交量EMA均值的1.6 倍\n3. 辅助条件（至少满足 1 项）\nA. RSI 有效区间：35 < RSI < 65\nB. 价格回踩：当前价格位于 EMA50 ±1% 区间内\nC. K 线形态确认：阳线或者下影线比例 ≤ 0.9%\n4. 开仓决策\n四项硬性条件全部达标 + 任意 1 项及以上辅助条件满足 → 触发做多开仓\n二、做空 SHORT 完整规则\n1. 趋势方向判定 EMA50 < EMA200\n2. 入场硬性条件（全部必须满足）\nOI 资金共振：持仓量 OI 变化率 < -0.6%\n价格位置合理：当前价格位于 EMA200 ±1.8% 区间内。\n成交量放大：当前预计成交量 ≥ 成交量EMA均值的1.8 倍\n3. 辅助条件（至少满足 1 项）\nA. RSI 有效区间：35 < RSI < 65\nB. 价格反弹：当前价格位于 EMA50 ±0.8% 区间内\nC. K 线形态确认：阴线或者上影线比例 ≤ 0.9%\n4. 开仓决策\n四项硬性条件全部达标 + 任意 1 项及以上辅助条件满足 → 触发做空开仓",
     "temperature": 0.3,
     "maxTokens": 2000,
     "model": "Doubao-Seed-2.0-Code",
@@ -94,17 +94,17 @@
   },
   "riskManagement": {
     "maxRiskPercentage": 20,
-    "stopLossATRMultiplier": 2.5,
+    "stopLossATRMultiplier": 1.5,
     "takeProfitRatios": [
-      1.5,
-      2.5
+      2,
+      4
     ],
     "maxDailyTrades": 3,
     "maxDailyLoss": 10,
     "maxHoldTimeMinutes": 720,
     "trailingStop": {
       "enabled": true,
-      "activationRatio": 0.8,
+      "activationRatio": 1.5,
       "trailDistance": 1.2,
       "minMoveDistance": 0.16
     },
@@ -266,27 +266,27 @@
   ],
   "performance": {
     "strategyId": "strategy_003",
-    "totalTrades": 11,
+    "totalTrades": 12,
     "totalWins": 2,
-    "totalLosses": 9,
-    "winRate": 18.181818181818183,
+    "totalLosses": 10,
+    "winRate": 16.666666666666664,
     "totalProfit": 3.436461600000001,
-    "totalLoss": 4.909162954999985,
-    "netProfit": -1.4727013549999843,
-    "profitFactor": 0.7000096822004988,
+    "totalLoss": 7.6733215499999945,
+    "netProfit": -4.236859949999994,
+    "profitFactor": 0.44784537929340434,
     "maxDrawdown": 0,
     "averageProfitPerTrade": 1.7182308000000004,
-    "averageLossPerTrade": 0.5454625505555539,
+    "averageLossPerTrade": 0.7673321549999994,
     "largestWin": 1.7994795000000017,
-    "largestLoss": 2.4030681,
-    "averageHoldTime": 369.68195000000003,
+    "largestLoss": 2.7641585950000094,
+    "averageHoldTime": 351.0591861111111,
     "consecutiveWins": 0,
-    "consecutiveLosses": 2,
+    "consecutiveLosses": 3,
     "maxConsecutiveWins": 2,
     "maxConsecutiveLosses": 7,
-    "dailyPnL": -0.13349608999999524,
+    "dailyPnL": -2.7641585950000094,
     "todayTrades": 1,
-    "updatedAt": "2026-05-13T18:47:27.691Z"
+    "updatedAt": "2026-05-14T16:11:39.641Z"
   },
   "sessions": [],
   "currentSessionId": null

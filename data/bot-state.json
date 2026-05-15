@@ -1,13 +1,13 @@
 {
   "status": "MONITORING",
   "circuitBreaker": {
-    "isTriggered": true,
-    "reason": "连续5笔止损，触发熔断",
-    "timestamp": 1778762728720,
-    "dailyLoss": 0.492676410318064,
-    "consecutiveLosses": 5
+    "isTriggered": false,
+    "reason": "",
+    "timestamp": 1778807260416,
+    "dailyLoss": 5.808835434573471,
+    "consecutiveLosses": 0
   },
-  "dailyPnL": -0.6791296500000121,
+  "dailyPnL": 8.290720204999962,
   "isRunning": false,
-  "lastTradeTime": 1778762728720
+  "lastTradeTime": 1778807260416
 }

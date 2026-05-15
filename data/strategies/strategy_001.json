@@ -3,7 +3,7 @@
   "name": "策略01",
   "version": 1,
   "createdAt": "2026-04-19T16:03:49.383Z",
-  "updatedAt": "2026-05-12T08:12:20.404Z",
+  "updatedAt": "2026-05-15T04:58:54.806Z",
   "isActive": true,
   "marketData": {
     "symbols": [
@@ -11,10 +11,13 @@
       "DOGE/USDT",
       "HYPE/USDT",
       "XAU/USDT",
-      "XAG/USDT"
+      "XAG/USDT",
+      "BTC/USDT",
+      "ETH/USDT",
+      "BNB/USDT"
     ],
     "timeframes": [
-      "15m"
+      "5m"
     ]
   },
   "indicators": [
@@ -23,13 +26,12 @@
       "type": "EMA",
       "params": {
         "periods": [
-          7,
-          20,
+          14,
           50
         ]
       },
       "timeframes": [
-        "15m"
+        "5m"
       ],
       "enabled": true
     },
@@ -40,7 +42,7 @@
         "period": 14
       },
       "timeframes": [
-        "15m"
+        "5m"
       ],
       "enabled": true
     },
@@ -51,7 +53,7 @@
         "period": 14
       },
       "timeframes": [
-        "15m"
+        "5m"
       ],
       "enabled": true
     }
@@ -61,11 +63,11 @@
       "id": "5",
       "type": "OI",
       "params": {
-        "changePeriod": 12,
-        "trendThresholdPercent": 0.03
+        "changePeriod": 8,
+        "trendThresholdPercent": 0.001
       },
       "timeframes": [
-        "15m"
+        "5m"
       ],
       "enabled": true
     },
@@ -76,13 +78,13 @@
         "comparePeriod": 20
       },
       "timeframes": [
-        "15m"
+        "5m"
       ],
       "enabled": true
     }
   ],
   "aiPrompt": {
-    "userPrompt": "激进动量交易策略\n一、做多 LONG 完整规则\n1. 趋势方向：EMA7 > EMA50\n2. 入场触发信号\n- 当前价格大于 EMA20 或者 阳线 当前预计成交量 ≥ 成交量EMA均值的1.8 倍\n3. 方向评分（满足1项得1分，总分score）\n- ① 35 < RSI < 65\n- ② 持仓量OI增加\n- ③ 预计成交量 ≥ 成交量EMA均值（12周期）的1.2 倍\n- ④ EMA7 > EMA20 > EMA50\n4. 执行规则\n入场触发信号满足，且方向评分score ≥ 3 → 做多开仓\n二、做空 SHORT 完整规则\n1. 趋势方向：EMA7 < EMA50\n2. 入场触发信号\n- 价格向下跌破 EMA20 或者 阴线 当前预计成交量 ≥ 成交量EMA均值的1.8 倍\n3. 方向评分（满足1项得1分，总分score）\n- ① 35 < RSI < 65\n- ② 持仓量OI增加\n- ③ 预计成交量 ≥ 成交量EMA均值（12周期）的1.2 倍\n- ④ EMA7 < EMA20 < EMA50\n4. 执行规则\n入场触发信号满足，且方向评分score ≥ 3 → 做空开仓",
+    "userPrompt": "5m超短期机械稳健共振策略\n一、做多 LONG 完整规则\n1. 趋势方向判定 EMA14 > EMA20\n2. 入场硬性条件（全部必须满足）\nOI 资金共振：持仓量 OI 变化率 > 0.1%\n价格位置合理：当前价格位于 EMA20 ±1.2% 区间内。\n成交量放大：当前预计成交量 ≥ 成交量EMA均值的1.6 倍\n3. 辅助条件（至少满足 1 项）\nA. RSI 有效区间：35 < RSI < 65\nB. 价格回踩：当前价格位于 EMA14 ±0.5% 区间内\nC. K 线形态确认：阳线或者下影线比例 ≤ 0.9%\n4. 开仓决策\n四项硬性条件全部达标 + 任意 1 项及以上辅助条件满足 → 触发做多开仓\n二、做空 SHORT 完整规则\n1. 趋势方向判定 EMA14 < EMA20\n2. 入场硬性条件（全部必须满足）\nOI 资金共振：持仓量 OI 变化率 < -0.1%\n价格位置合理：当前价格位于 EMA20 ±1.2% 区间内。\n成交量放大：当前预计成交量 ≥ 成交量EMA均值的1.6 倍\n3. 辅助条件（至少满足 1 项）\nA. RSI 有效区间：35 < RSI < 65\nB. 价格反弹：当前价格位于 EMA14 ±0.5% 区间内\nC. K 线形态确认：阴线或者上影线比例 ≤ 0.9%\n4. 开仓决策\n四项硬性条件全部达标 + 任意 1 项及以上辅助条件满足 → 触发做空开仓",
     "temperature": 0.3,
     "maxTokens": 2000,
     "model": "Doubao-Seed-2.0-Code",
@@ -92,28 +94,28 @@
   },
   "riskManagement": {
     "maxRiskPercentage": 10,
-    "stopLossATRMultiplier": 2,
+    "stopLossATRMultiplier": 1,
     "takeProfitRatios": [
-      1,
-      1.5
+      1.5,
+      2.5
     ],
-    "maxDailyTrades": 3,
+    "maxDailyTrades": 8,
     "maxDailyLoss": 10,
-    "maxHoldTimeMinutes": 120,
+    "maxHoldTimeMinutes": 60,
     "trailingStop": {
       "enabled": true,
-      "activationRatio": 0.6,
-      "trailDistance": 1,
+      "activationRatio": 1,
+      "trailDistance": 0.8,
       "minMoveDistance": 0.16
     },
     "rsiExtreme": {
-      "long": 80,
-      "short": 20
+      "long": 75,
+      "short": 25
     }
   },
   "executionConfig": {
     "scanInterval": 5,
-    "leverage": 3,
+    "leverage": 5,
     "marginMode": "cross",
     "positionMode": "one-way"
   },
@@ -272,27 +274,27 @@
   ],
   "performance": {
     "strategyId": "strategy_001",
-    "totalTrades": 12,
-    "totalWins": 4,
+    "totalTrades": 13,
+    "totalWins": 5,
     "totalLosses": 8,
-    "winRate": 33.33333333333333,
-    "totalProfit": 1.129453789999997,
+    "winRate": 38.46153846153847,
+    "totalProfit": 2.1266642899999972,
     "totalLoss": 2.9186854500000066,
-    "netProfit": -1.7892316600000095,
-    "profitFactor": 0.3869734540938608,
+    "netProfit": -0.7920211600000093,
+    "profitFactor": 0.7286377125702231,
     "maxDrawdown": 0,
-    "averageProfitPerTrade": 0.28236344749999925,
+    "averageProfitPerTrade": 0.4253328579999994,
     "averageLossPerTrade": 0.3648356812500008,
-    "largestWin": 0.9762281399999966,
+    "largestWin": 0.9972105000000003,
     "largestLoss": 0.8432442000000036,
-    "averageHoldTime": 144.36517083333334,
-    "consecutiveWins": 0,
-    "consecutiveLosses": 3,
+    "averageHoldTime": 162.5210487179487,
+    "consecutiveWins": 1,
+    "consecutiveLosses": 0,
     "maxConsecutiveWins": 1,
     "maxConsecutiveLosses": 3,
-    "dailyPnL": -0.2660908000000002,
+    "dailyPnL": 0.9972105000000003,
     "todayTrades": 1,
-    "updatedAt": "2026-05-13T18:56:27.709Z"
+    "updatedAt": "2026-05-15T01:07:40.205Z"
   },
   "sessions": [],
   "currentSessionId": null
