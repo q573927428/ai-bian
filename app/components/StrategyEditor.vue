@@ -128,7 +128,7 @@
                       :min="0.001"
                       :max="1.0"
                       :step="0.001"
-                      :precision="2"
+                      :precision="3"
                     /> <small class="unitf">%</small>
                   </el-form-item>
                 </el-col>
