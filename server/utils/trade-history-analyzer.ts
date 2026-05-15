@@ -42,11 +42,18 @@ async function loadTradeHistory(): Promise<TradeHistory[]> {
 }
 
 /**
- * 保存分析结果到文件
+ * 保存分析结果到文件（增量追加，保留所有历史记录）
  */
 async function saveAnalysisResult(result: LearningResult): Promise<void> {
   try {
-    await writeFile(ANALYSIS_RESULT_PATH, JSON.stringify(result, null, 2), 'utf-8')
+    let records: LearningResult[] = []
+    if (existsSync(ANALYSIS_RESULT_PATH)) {
+      const data = await readFile(ANALYSIS_RESULT_PATH, 'utf-8')
+      const parsed = JSON.parse(data)
+      records = Array.isArray(parsed) ? parsed : [parsed]
+    }
+    records.push(result)
+    await writeFile(ANALYSIS_RESULT_PATH, JSON.stringify(records, null, 2), 'utf-8')
     cachedAnalysis = result
     lastAnalysisTime = result.timestamp
   } catch (error: any) {
@@ -308,10 +315,12 @@ export async function getLatestAnalysis(): Promise<LearningResult | null> {
       return null
     }
     const data = await readFile(ANALYSIS_RESULT_PATH, 'utf-8')
-    const result = JSON.parse(data) as LearningResult
-    cachedAnalysis = result
-    lastAnalysisTime = result.timestamp
-    return result
+    const parsed = JSON.parse(data)
+    const records: LearningResult[] = Array.isArray(parsed) ? parsed : [parsed]
+    const latest = records[records.length - 1] ?? null
+    cachedAnalysis = latest
+    lastAnalysisTime = latest?.timestamp ?? 0
+    return latest
   } catch (error: any) {
     console.warn('[TradeHistoryAnalyzer] 读取分析结果失败:', error.message)
     return null
