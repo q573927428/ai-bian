@@ -170,7 +170,7 @@
 
       <el-table-column
         label="数量"
-        width="80"
+        width="70"
         align="right"
         prop="quantity"
         sortable="custom"
@@ -246,7 +246,7 @@
 
       <el-table-column
         label="持仓"
-        width="100"
+        min-width="90"
         align="center"
         prop="holdingMinutes"
         sortable="custom"
@@ -391,11 +391,25 @@ function formatHoldingTime(openTime: number, closeTime: number): string {
   if (!openTime || !closeTime) return '--'
   const diffMs = closeTime - openTime
   if (diffMs < 0) return '--'
-  const minutes = Math.floor(diffMs / 60000)
-  if (minutes < 60) return `${minutes}分钟`
-  const hours = Math.floor(minutes / 60)
-  const remainMinutes = minutes % 60
-  return remainMinutes > 0 ? `${hours}小时${remainMinutes}分钟` : `${hours}小时`
+  const totalMinutes = Math.floor(diffMs / 60000)
+  if (totalMinutes < 60) return `${totalMinutes}分钟`
+  const hours = Math.floor(totalMinutes / 60)
+  const remainMinutes = totalMinutes % 60
+  if (hours >= 24) {
+    const days = Math.floor(hours / 24)
+    const remainHours = hours % 24
+    if (remainHours > 0 && remainMinutes > 0) {
+      return `${days}天 ${remainHours}时 ${remainMinutes}分`
+    }
+    if (remainHours > 0) {
+      return `${days}天 ${remainHours}小时`
+    }
+    if (remainMinutes > 0) {
+      return `${days}天 ${remainMinutes}分`
+    }
+    return `${days}天`
+  }
+  return remainMinutes > 0 ? `${hours}小时 ${remainMinutes}分` : `${hours}小时`
 }
 
 // 获取平仓分类标签
