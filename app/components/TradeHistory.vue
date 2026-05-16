@@ -108,6 +108,7 @@
 
     <!-- 表格 -->
     <el-table
+      ref="tableRef"
       v-else
       :data="orders"
       stripe
@@ -116,7 +117,90 @@
       style="width: 100%"
       :header-cell-style="{ background: '#f5f7fa', color: '#303133', fontWeight: 600 }"
       @sort-change="handleSortChange"
+      :row-key="(row: any) => row.id"
     >
+      <!-- 展开行 -->
+      <el-table-column type="expand" width="1">
+        <template #default="{ row }">
+          <div class="expand-detail">
+            <div class="detail-grid">
+              <div class="detail-item">
+                <span class="detail-label">入场置信度</span>
+                <span class="detail-value">{{ row.entryConfidence ?? '--' }}</span>
+              </div>
+              <div class="detail-item">
+                <span class="detail-label">入场评分</span>
+                <span class="detail-value">{{ row.entryScore ?? '--' }}</span>
+              </div>
+              <div class="detail-item">
+                <span class="detail-label">风险等级</span>
+                <span class="detail-value">
+                  <el-tag
+                    :type="getRiskLevelType(row.entryRiskLevel)"
+                    size="small"
+                  >
+                    {{ row.entryRiskLevel ?? '--' }}
+                  </el-tag>
+                </span>
+              </div>
+              <div class="detail-item">
+                <span class="detail-label">止损价</span>
+                <span class="detail-value">${{ row.stopLossPrice?.toFixed(2) ?? '--' }}</span>
+              </div>
+              <div class="detail-item">
+                <span class="detail-label">止盈1价</span>
+                <span class="detail-value">${{ row.takeProfit1Price?.toFixed(2) ?? '--' }}</span>
+              </div>
+              <div class="detail-item">
+                <span class="detail-label">止盈2价</span>
+                <span class="detail-value">${{ row.takeProfit2Price?.toFixed(2) ?? '--' }}</span>
+              </div>
+              <div class="detail-item">
+                <span class="detail-label">最高价</span>
+                <span class="detail-value">${{ row.highestPrice?.toFixed(2) ?? '--' }}</span>
+              </div>
+              <div class="detail-item">
+                <span class="detail-label">最低价</span>
+                <span class="detail-value">${{ row.lowestPrice?.toFixed(2) ?? '--' }}</span>
+              </div>
+              <div class="detail-item">
+                <span class="detail-label">最大浮盈</span>
+                <span class="detail-value text-success">${{ row.maxFloatingProfit?.toFixed(2) ?? '--' }}</span>
+              </div>
+              <div class="detail-item">
+                <span class="detail-label">最大浮亏</span>
+                <span class="detail-value text-danger">${{ row.maxFloatingLoss?.toFixed(2) ?? '--' }}</span>
+              </div>
+              <div class="detail-item">
+                <span class="detail-label">最大浮盈%</span>
+                <span class="detail-value text-success">{{ row.maxFloatingProfitPercent?.toFixed(2) ?? '--' }}%</span>
+              </div>
+              <div class="detail-item">
+                <span class="detail-label">最大浮亏%</span>
+                <span class="detail-value text-danger">{{ row.maxFloatingLossPercent?.toFixed(2) ?? '--' }}%</span>
+              </div>
+            </div>
+            <div v-if="row.entryIndicators" class="detail-section">
+              <span class="detail-label">入场指标</span>
+              <div class="indicators-tags">
+                <el-tag
+                  v-for="(val, key) in row.entryIndicators"
+                  :key="key"
+                  size="small"
+                  effect="plain"
+                >
+                  {{ key }}: {{ typeof val === 'number' ? val.toFixed(2) : val }}
+                </el-tag>
+              </div>
+            </div>
+            <div v-if="row.aiReasoning" class="detail-section">
+              <span class="detail-label">AI 推理</span>
+              <span class="detail-value reason-text">平仓原因：{{ row.reason }}； {{ row.aiReasoning }}</span>
+            </div>
+          </div>
+        </template>
+      </el-table-column>
+
       <el-table-column label="交易对" width="100" fixed>
         <template #default="{ row }">
           <span class="symbol">{{ row.symbol }}</span>
@@ -261,8 +345,13 @@
           <el-tag
             :type="getCloseCategoryType(row.closeCategory)"
             size="small"
+            class="close-category-tag"
+            @click="toggleExpand(row)"
           >
-            {{ getCloseCategoryLabel(row.closeCategory) }}
+            <span class="tag-text">{{ getCloseCategoryLabel(row.closeCategory) }}</span>
+            <el-icon class="tag-icon">
+              <ElIconArrowRight />
+            </el-icon>
           </el-tag>
         </template>
       </el-table-column>
@@ -300,7 +389,28 @@ const totalPages = ref(0)
 const loading = ref(false)
 const showFilter = ref(false)
 
+// 表格实例引用
+const tableRef = ref<any>(null)
+
+// 切换展开/折叠（使用 el-table 的 toggleRowExpansion）
+const toggleExpand = (row: TradeHistory) => {
+  if (tableRef.value) {
+    tableRef.value.toggleRowExpansion(row)
+  }
+}
+
+// 获取风险等级类型
+function getRiskLevelType(level?: string): 'success' | 'warning' | 'danger' | 'info' {
+  const types: Record<string, 'success' | 'warning' | 'danger' | 'info'> = {
+    LOW: 'success',
+    MEDIUM: 'warning',
+    HIGH: 'danger',
+  }
+  return level ? types[level] || 'info' : 'info'
+}
+
 // 本地筛选条件（与 store 同步）
+
 const filter = reactive<FilterConfig>({
   symbol: '',
   direction: '',
@@ -553,4 +663,78 @@ onUnmounted(() => {
   padding-top: 12px;
   border-top: 1px solid #ebeef5;
 }
+
+.expand-detail {
+  background: #fafafa;
+  border: 1px solid #ebeef5;
+  border-radius: 6px;
+  padding: 16px;
+  margin: 10px;
+}
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.detail-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.detail-label {
+  font-size: 12px;
+  color: #909399;
+}
+
+.detail-value {
+  font-size: 14px;
+  color: #303133;
+  font-weight: 500;
+}
+
+.detail-section {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px dashed #e4e7ed;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.indicators-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.reason-text {
+  font-size: 13px;
+  line-height: 1.6;
+  color: #606266;
+  word-break: break-all;
+}
+
+/* 平仓原因标签 - 文字和图标同行 */
+.close-category-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  cursor: pointer;
+}
+
+.close-category-tag .tag-text {
+  line-height: 1;
+}
+
+.close-category-tag .tag-icon {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 1px;
+}
 </style>
+
+

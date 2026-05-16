@@ -358,8 +358,8 @@ export class StrategyPositionCloser {
       // 计算盈亏（包含手续费）
       const { pnl: grossPnl, pnlPercentage: grossPnlPercentage, netPnl, netPnlPercentage, totalCommission } = calculatePnL(exitPrice, tempPosition, this.config.commissionRate || 0.0005)
 
-      // 记录交易历史并更新状态（手动平仓）
-      await recordTrade(position.strategyId, tempPosition, exitPrice, '手动平仓', totalCommission, netPnl, netPnlPercentage, this.config.commissionRate || 0.0005)
+      // 记录交易历史并更新状态（手动平仓，传入完整的 positionInfo 以保存入场指标和持仓统计）
+      await recordTrade(position.strategyId, tempPosition, exitPrice, '手动平仓', totalCommission, netPnl, netPnlPercentage, this.config.commissionRate || 0.0005, position)
 
       // 安全初始化 state
       this.ensureStateInitialized()
@@ -579,8 +579,8 @@ export class StrategyPositionCloser {
       // 计算盈亏（包含手续费）
       const { pnl: grossPnl, pnlPercentage: grossPnlPercentage, netPnl, netPnlPercentage, totalCommission } = calculatePnL(exitPrice, tempPosition, this.config.commissionRate || 0.0005)
 
-      // 记录交易历史并更新状态
-      await recordTrade(position.strategyId, tempPosition, exitPrice, reason, totalCommission, netPnl, netPnlPercentage, this.config.commissionRate || 0.0005)
+      // 记录交易历史并更新状态（传入完整的 positionInfo 以保存入场指标和持仓统计）
+      await recordTrade(position.strategyId, tempPosition, exitPrice, reason, totalCommission, netPnl, netPnlPercentage, this.config.commissionRate || 0.0005, position)
 
       // 安全初始化 state
       this.ensureStateInitialized()
