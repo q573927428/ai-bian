@@ -73,6 +73,10 @@
           <el-form-item label="最低置信度(AI)">
             <el-input-number v-model="form.aiAnalysisConfig.minConfidence" :min="0" :max="100" />
           </el-form-item>
+          <el-form-item label="启用历史分析经验">
+            <el-switch v-model="form.aiAnalysisConfig.enableHistorySection" />
+            <span style="margin-left: 8px; font-size: 12px; color: #909399;">在系统提示词中包含历史分析经验</span>
+          </el-form-item>
 
           <!-- AI预筛配置 -->
           <el-divider content-position="left">AI预筛配置</el-divider>

@@ -142,6 +142,7 @@ export interface AIAnalysisSaveConfig {
   maxRecords: number
   saveIdle: boolean
   minConfidence?: number
+  enableHistorySection?: boolean
 }
 
 // 技术指标配置

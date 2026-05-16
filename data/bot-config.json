@@ -24,7 +24,8 @@
     "enabled": true,
     "maxRecords": 3500,
     "saveIdle": true,
-    "minConfidence": 10
+    "minConfidence": 10,
+    "enableHistorySection": true
   },
   "minConfidence": 70,
   "minFinalScore": 99,

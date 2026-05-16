@@ -504,8 +504,14 @@ ${promptConfig.userPrompt}
     // 异步触发每日分析检查（不阻塞主流程）
     checkDailyAnalysis().catch(() => {})
 
-    const historyAnalysis = await getLatestAnalysis()
-    const historySection = historyAnalysis ? formatAnalysisToPromptSection(historyAnalysis) : ''
+    // 读取开关配置：是否在系统提示词中包含历史分析经验，默认开启
+    const enableHistorySection = this.config.aiAnalysisConfig?.enableHistorySection ?? true
+
+    let historySection = ''
+    if (enableHistorySection) {
+      const historyAnalysis = await getLatestAnalysis()
+      historySection = historyAnalysis ? formatAnalysisToPromptSection(historyAnalysis) : ''
+    }
 
     return `
 你是专业的量化交易策略执行引擎。

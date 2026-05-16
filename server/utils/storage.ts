@@ -305,6 +305,7 @@ function getDefaultBotConfig(): BotConfig {
       maxRecords: 3500, // 单文件最大保存条数
       saveIdle: true, // 是否保存IDLE分析记录
       minConfidence: 50,
+      enableHistorySection: true, // 是否在系统提示词中包含历史分析经验
     },
     minConfidence: 70, // 信号最小置信度阈值
     minFinalScore: 70, // 最终评分阈值
