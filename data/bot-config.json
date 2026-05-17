@@ -12,7 +12,8 @@
   "monitorInterval": 60,
   "indicatorsConfig": {
     "requiredCandles": 500,
-    "adxSlopePeriod": 3
+    "adxSlopePeriod": 3,
+    "emaSlopePeriod": 3
   },
   "emaPeriods": [
     50,

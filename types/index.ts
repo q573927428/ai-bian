@@ -40,7 +40,7 @@ export interface OHLCV {
 // 技术指标
 export interface TechnicalIndicators {
   emaMap: Record<string, number>
-  emaList: Array<{ period: number; name: string; value: number }>
+  emaList: Array<{ period: number; name: string; value: number; slope?: number }>
   adxPeriodLabel: string
   adx?: number
   adxSlope?: number
@@ -149,6 +149,7 @@ export interface AIAnalysisSaveConfig {
 export interface IndicatorsConfig {
   requiredCandles: number
   adxSlopePeriod: number
+  emaSlopePeriod?: number
   emaPeriods?: any
   openInterest?: any
 }

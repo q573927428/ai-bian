@@ -406,9 +406,20 @@ export class IndicatorsHub {
       return cached
     }
 
+    // EMA斜率计算周期，默认3
+    const emaSlopePeriod = this.config.indicatorsConfig?.emaSlopePeriod ?? 3
+
     const emaValues = emaPeriods.map((period) => {
       const values = EMA.calculate({ period, values: closes })
       return values[values.length - 1] ?? closes[closes.length - 1]
+    })
+
+    const emaSlopes = emaPeriods.map((period) => {
+      const values = EMA.calculate({ period, values: closes })
+      const currentEMA = values[values.length - 1] ?? closes[closes.length - 1] ?? 0
+      const prevIndex = Math.max(0, values.length - 1 - emaSlopePeriod)
+      const prevEMA = values[prevIndex] ?? currentEMA
+      return prevEMA > 0 ? (currentEMA - prevEMA) / prevEMA : 0
     })
 
     const emaMap = Object.fromEntries(
@@ -418,7 +429,8 @@ export class IndicatorsHub {
     const emaList = emaPeriods.map((period, index) => ({
       period,
       name: `EMA${period}`,
-      value: emaValues[index]
+      value: emaValues[index],
+      slope: emaSlopes[index]
     }))
 
     const indicatorData: IndicatorData = {

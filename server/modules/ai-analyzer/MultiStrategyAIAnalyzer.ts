@@ -247,7 +247,10 @@ export class MultiStrategyAIAnalyzer {
       )
 
       technicalIndicatorLines.push(
-        ...sorted.map(e => `- ${e.name}: ${(e.value ?? 0).toFixed(4)}`)
+        ...sorted.map(e => {
+          const slopeStr = e.slope !== undefined ? ` (斜率: ${(e.slope * 100).toFixed(2)}%)` : ''
+          return `- ${e.name}: ${(e.value ?? 0).toFixed(4)}${slopeStr}`
+        })
       )
 
       const compare = (a: number, b: number) => a > b ? '>' : a < b ? '<' : '='

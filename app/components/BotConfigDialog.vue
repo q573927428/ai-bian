@@ -43,6 +43,9 @@
           <el-form-item label="ADX斜率周期">
             <el-input-number v-model="form.indicatorsConfig.adxSlopePeriod" :min="1" :max="20" />
           </el-form-item>
+          <el-form-item label="EMA斜率周期">
+            <el-input-number v-model="form.indicatorsConfig.emaSlopePeriod" :min="1" :max="20" />
+          </el-form-item>
 
           <!-- EMA配置 -->
           <el-divider content-position="left">EMA配置</el-divider>
