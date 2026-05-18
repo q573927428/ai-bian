@@ -26,7 +26,7 @@
     "maxRecords": 3500,
     "saveIdle": true,
     "minConfidence": 10,
-    "enableHistorySection": true
+    "enableHistorySection": false
   },
   "minConfidence": 70,
   "minFinalScore": 99,
@@ -37,10 +37,10 @@
   "preScreenConfig": {
     "minAdx": 15,
     "maxAdx": 50,
-    "minAdxSlope": -0.8,
+    "minAdxSlope": -0.9,
     "minAtrPercent": 0.0032,
     "maxAtrPercent": 0.05,
-    "minEstimatedVolumeRatio": 0.3,
+    "minEstimatedVolumeRatio": 0.5,
     "minCandleProgressForVolume": 0.1,
     "enableAdx": true,
     "enableAdxSlope": true,
@@ -49,10 +49,10 @@
   },
   "concurrencyPool": {
     "indicator": {
-      "maxConcurrency": 16
+      "maxConcurrency": 20
     },
     "ai": {
-      "maxConcurrency": 12
+      "maxConcurrency": 20
     },
     "tradeApi": {
       "maxConcurrency": 4

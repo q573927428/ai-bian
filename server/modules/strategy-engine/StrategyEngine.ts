@@ -730,18 +730,16 @@ export class StrategyEngine {
         prevCandle
       }
 
-      // 使用并发池控制AI调用
-      const signal = await this.concurrencyPoolManager.getAIPool().submit(async () => {
-        return await this.aiAnalyzer.analyze(
-          strategyId,
-          symbol,
-          promptConfig,
-          indicators,
-          price,
-          volume,
-          candleProgress
-        )
-      })
+      // 调用 AI 分析器（内部已有并发池控制，此处不再重复包装）
+      const signal = await this.aiAnalyzer.analyze(
+        strategyId,
+        symbol,
+        promptConfig,
+        indicators,
+        price,
+        volume,
+        candleProgress
+      )
 
       if (!signal) {
         return null
