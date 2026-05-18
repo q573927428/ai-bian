@@ -44,7 +44,7 @@ import {
 } from '../../utils/ema-calculator'
 import { calculateRSISeries } from '../../utils/rsi-calculator'
 import { calculateADXSeries } from '../../utils/adx-calculator'
-import { prepareCandlestickData, prepareVolumeData, getChartOptions, isDOGESymbol } from './utils/kline-helpers'
+import { prepareCandlestickData, prepareVolumeData, getChartOptions, getPricePrecision } from './utils/kline-helpers'
 import { useBotStore } from '../../stores/bot'
 
 // 定义props
@@ -251,15 +251,16 @@ const computedTimeframe = computed(() => {
   return '1h'
 })
 
-// 判断是否为DOGE交易对
-const isDOGE = computed(() => isDOGESymbol(props.symbol))
-
-// 价格格式配置
-const priceFormat = computed(() => ({
-  type: 'price' as const,
-  precision: isDOGE.value ? 5 : 2,
-  minMove: isDOGE.value ? 0.00001 : 0.01
-}))
+// 根据实际价格数据自适应图表轴精度
+const priceFormat = computed(() => {
+  const prices = props.klineData.map(k => k.c)
+  const { precision, minMove } = getPricePrecision(prices)
+  return {
+    type: 'price' as const,
+    precision,
+    minMove
+  }
+})
 
 // 生成订单标记数据
 const generateMarkers = () => {

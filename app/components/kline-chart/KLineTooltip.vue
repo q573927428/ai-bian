@@ -13,25 +13,25 @@
       <span class="data-item">
         <span class="label">开=</span>
         <span class="value" :class="{ 'price-up': data.close > data.open, 'price-down': data.close < data.open }">
-          {{ formatPrice(data.open, isDOGE) }}
+          {{ formatPrice(data.open) }}
         </span>
       </span>
       <span class="data-item">
         <span class="label">高=</span>
         <span class="value" :class="{ 'price-up': data.close > data.open, 'price-down': data.close < data.open }">
-          {{ formatPrice(data.high, isDOGE) }}
+          {{ formatPrice(data.high) }}
         </span>
       </span>
       <span class="data-item">
         <span class="label">低=</span>
         <span class="value" :class="{ 'price-up': data.close > data.open, 'price-down': data.close < data.open }">
-          {{ formatPrice(data.low, isDOGE) }}
+          {{ formatPrice(data.low) }}
         </span>
       </span>
       <span class="data-item">
         <span class="label">收=</span>
         <span class="value" :class="{ 'price-up': data.close > data.open, 'price-down': data.close < data.open }">
-          {{ formatPrice(data.close, isDOGE) }}
+          {{ formatPrice(data.close) }}
         </span>
       </span>
       <span class="data-item">
@@ -77,7 +77,6 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { formatPrice, formatVolume, formatPercent } from './utils/kline-formatters'
-import { isDOGESymbol } from './utils/kline-helpers'
 
 // 定义props
 interface Props {
@@ -132,8 +131,6 @@ const style = computed(() => ({
   top: props.position.top
 }))
 
-// 判断是否为DOGE交易对
-const isDOGE = computed(() => isDOGESymbol(props.symbol))
 </script>
 
 <style scoped>

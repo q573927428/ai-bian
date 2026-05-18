@@ -29,15 +29,26 @@ export function formatTime(timestamp: number): string {
 }
 
 /**
- * 格式化价格
+ * 格式化价格（根据价格大小自适应小数位数）
  * @param price 价格
- * @param isDOGESymbol 是否为DOGE交易对（需要更多小数位）
  * @returns 格式化后的价格字符串
  */
-export function formatPrice(price: number, isDOGESymbol: boolean = false): string {
-  if (!price) return '--'
-  const precision = isDOGESymbol ? 3 : 2
-  return price.toFixed(precision)
+export function formatPrice(price: number): string {
+  if (price === null || price === undefined || isNaN(price)) return '--'
+  if (price === 0) return '0'
+  
+  if (price < 0.001) {
+    return price.toFixed(4)
+  } else if (price < 1) {
+    return price.toFixed(3)
+  } else if (price < 1000) {
+    return price.toFixed(2)
+  } else {
+    return price.toLocaleString('en-US', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    })
+  }
 }
 
 /**

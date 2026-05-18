@@ -65,17 +65,29 @@ export function generateClientId(): string {
 }
 
 /**
- * 判断是否为DOGE交易对
- * @param symbol 交易对符号
- * @returns 是否为DOGE交易对
+ * 根据价格数据自动计算图表轴精度和最小价格变动
+ * @param priceData 价格数据数组（如收盘价序列），用于判断价格量级
+ * @returns { precision, minMove } 精度配置
  */
-export function isDOGESymbol(symbol: string): boolean {
-  const upperSymbol = symbol.toUpperCase()
-  // 支持多种格式：DOGEUSDT, DOGE/USDT, DOGE-USD, DOGE等
-  return upperSymbol.includes('DOGE') && 
-         !upperSymbol.includes('DOGECOIN') && // 排除包含DOGECOIN但不是DOGE的情况
-         !upperSymbol.includes('DOGEFI') &&   // 排除DOGEFI等衍生品
-         !upperSymbol.includes('DOGEDAO')     // 排除其他DOGE相关但不是DOGE的代币
+export function getPricePrecision(priceData: number[]): { precision: number; minMove: number } {
+  // 计算有效价格的平均值（排除0值）
+  const validPrices = priceData.filter(p => p > 0)
+  if (validPrices.length === 0) {
+    return { precision: 2, minMove: 0.01 }
+  }
+  
+  // 取平均值来判断价格量级
+  const avgPrice = validPrices.reduce((sum, p) => sum + p, 0) / validPrices.length
+  
+  if (avgPrice >= 1000) {
+    return { precision: 2, minMove: 0.01 }
+  } else if (avgPrice >= 1) {
+    return { precision: 3, minMove: 0.001 }
+  } else if (avgPrice >= 0.001) {
+    return { precision: 5, minMove: 0.00001 }
+  } else {
+    return { precision: 8, minMove: 0.00000001 }
+  }
 }
 
 /**

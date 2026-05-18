@@ -65,11 +65,11 @@
                 <div class="info-row">
                   <div class="info-item">
                     <span class="info-label">入场价</span>
-                    <span class="info-value">${{ position.entryPrice.toFixed(2) }}</span>
+                    <span class="info-value">${{ formatPrice(position.entryPrice) }}</span>
                   </div>
                   <div class="info-item">
                     <span class="info-label">当前价</span>
-                    <span class="info-value">${{ getCurrentPrice(position.symbol) > 0 ? getCurrentPrice(position.symbol).toFixed(2) : '--' }}</span>
+                    <span class="info-value">${{ getCurrentPrice(position.symbol) > 0 ? formatPrice(getCurrentPrice(position.symbol)) : '--' }}</span>
                   </div>
                   <!-- <div class="info-item">
                     <span class="info-label">数量</span>
@@ -77,19 +77,19 @@
                   </div> -->
                   <div class="info-item">
                     <span class="info-label">TP1</span>
-                    <span class="info-value">${{ position.takeProfit1 ? position.takeProfit1.toFixed(2) : '--' }}</span>
+                    <span class="info-value">${{ position.takeProfit1 ? formatPrice(position.takeProfit1) : '--' }}</span>
                   </div>
                   <div class="info-item">
                     <span class="info-label">TP2</span>
-                    <span class="info-value">${{ position.takeProfit2 ? position.takeProfit2.toFixed(2) : '--' }}</span>
+                    <span class="info-value">${{ position.takeProfit2 ? formatPrice(position.takeProfit2) : '--' }}</span>
                   </div>
                   <div class="info-item" v-if="isTrailingStopLoss(position)">
                     <span class="info-label">移动</span>
-                    <span class="info-value">${{ position.stopLoss ? position.stopLoss.toFixed(2) : '--' }}</span>
+                    <span class="info-value">${{ position.stopLoss ? formatPrice(position.stopLoss) : '--' }}</span>
                   </div>
                   <div class="info-item" v-else>
                     <span class="info-label">初始</span>
-                    <span class="info-value">${{ position.initialStopLoss ? position.initialStopLoss.toFixed(2) : '--' }}</span>
+                    <span class="info-value">${{ position.initialStopLoss ? formatPrice(position.initialStopLoss) : '--' }}</span>
                   </div>
                   <div class="info-item">
                     <div v-if="position.reasoning" class="ai-toggle-btn-inline" @click="toggleAISection(position.symbol)">
@@ -153,6 +153,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
 import { useBotStore } from '../stores/bot'
+import { formatPrice } from './kline-chart/utils/kline-formatters'
 
 const botStore = useBotStore()
 const positions = ref<any[]>([])
