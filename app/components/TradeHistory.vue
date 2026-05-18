@@ -219,7 +219,7 @@
         </template>
       </el-table-column>
 
-      <el-table-column label="策略" min-width="110">
+      <el-table-column label="策略" min-width="100">
         <template #default="{ row }">
           <el-tag v-if="row.strategyId" type="info" size="small" effect="plain">
             {{ row.strategyId }}
@@ -529,7 +529,7 @@ function getCloseCategoryLabel(category?: string): string {
     take_profit: '止盈',
     timeout: '超时',
     manual: '手动',
-    trailing_stop: '移动止损',
+    trailing_stop: '止损',
     unknown: '未知',
   }
   return category ? labels[category] || category : '--'
@@ -589,6 +589,10 @@ onUnmounted(() => {
   padding-bottom: 12px;
   border-bottom: 1px solid #ebeef5;
   margin-bottom: 8px;
+}
+
+:deep(.el-table__expand-icon) {
+  display: none !important;
 }
 
 .filter-row {
