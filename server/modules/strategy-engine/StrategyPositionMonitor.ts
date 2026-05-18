@@ -23,9 +23,28 @@ export class StrategyPositionMonitor {
 
   private monitorTimer: NodeJS.Timeout | null = null
 
-  // 移动止损激活状态: symbol -> boolean
+  // 移动止损激活状态: positionKey(strategyId:symbol:openTime) -> boolean
   private trailingStopActivated: Map<string, boolean> = new Map()
   private monitorCount: number = 0
+
+  /**
+   * 生成仓位唯一键，避免同 symbol 不同仓位之间状态污染
+   */
+  private getPositionKey(position: PositionInfo): string {
+    return `${position.strategyId}:${position.symbol}:${position.openTime}`
+  }
+
+  /**
+   * 清理已不存在仓位的移动止损激活状态
+   */
+  private cleanupTrailingStopState(positions: PositionInfo[]): void {
+    const activeKeys = new Set(positions.map(p => this.getPositionKey(p)))
+    for (const key of this.trailingStopActivated.keys()) {
+      if (!activeKeys.has(key)) {
+        this.trailingStopActivated.delete(key)
+      }
+    }
+  }
 
   constructor(
     binance: BinanceService,
@@ -89,8 +108,12 @@ export class StrategyPositionMonitor {
 
     if (positions.length === 0) {
       this.monitorCount = 0
+      this.trailingStopActivated.clear()
       return
     }
+
+    // 清理陈旧的移动止损激活状态，避免跨仓位污染
+    this.cleanupTrailingStopState(positions)
 
     // 每隔一次输出日志（频率为监控间隔的两倍）
     const logEvery = 2
@@ -284,6 +307,7 @@ export class StrategyPositionMonitor {
     try {
       const trailingStopConfig = strategy.riskManagement.trailingStop
       const entryPrice = position.entryPrice
+      const positionKey = this.getPositionKey(position)
       
       // 优先使用 position.position.stopLoss，如果没有则用 position.stopLoss
       const stopLoss = position.position?.stopLoss ?? position.stopLoss ?? 0
@@ -303,9 +327,9 @@ export class StrategyPositionMonitor {
       const profitRatio = currentProfit / risk
 
       // 检查是否激活移动止损
-      const isActivated = this.trailingStopActivated.get(position.symbol) || false
+      const isActivated = this.trailingStopActivated.get(positionKey) || false
       if (!isActivated && profitRatio >= trailingStopConfig.activationRatio) {
-        this.trailingStopActivated.set(position.symbol, true)
+        this.trailingStopActivated.set(positionKey, true)
         logger.info('移动止损', `${position.symbol} 移动止损已激活，盈亏比: ${profitRatio.toFixed(2)} [${position.strategyId}]`)
         return false
       }
@@ -350,6 +374,10 @@ export class StrategyPositionMonitor {
               newStopLoss
             )
 
+            // 获取当前移动止损次数
+            const currentCount = position.position?.trailingStopData?.trailingStopCount ?? 0
+            const newCount = currentCount + 1
+
             // 更新仓位信息 - 同时更新 position 字段和顶层字段
             const positionUpdate: any = {
               stopLoss: newStopLoss,
@@ -361,13 +389,41 @@ export class StrategyPositionMonitor {
               positionUpdate.position = {
                 ...position.position,
                 stopLoss: newStopLoss,
-                stopLossOrderId: stopOrder.orderId
+                stopLossOrderId: stopOrder.orderId,
+                trailingStopData: {
+                  trailingStopCount: newCount,
+                  lastTrailedPrice: newStopLoss,
+                  lastTrailedTime: Date.now()
+                }
+              }
+            } else {
+              // 如果没有 position 对象，创建一个包含 trailingStopData 的
+              positionUpdate.position = {
+                symbol: position.symbol,
+                direction: position.direction === 'long' ? 'LONG' : 'SHORT',
+                entryPrice: position.entryPrice,
+                quantity: position.quantity,
+                leverage: position.leverage,
+                stopLoss: newStopLoss,
+                initialStopLoss: position.initialStopLoss || position.stopLoss || 0,
+                takeProfit1: position.takeProfit1 || 0,
+                takeProfit2: position.takeProfit2 || 0,
+                openTime: position.openTime,
+                highestPrice: position.highestPrice,
+                lowestPrice: position.lowestPrice,
+                orderId: position.orderId,
+                stopLossOrderId: stopOrder.orderId,
+                trailingStopData: {
+                  trailingStopCount: newCount,
+                  lastTrailedPrice: newStopLoss,
+                  lastTrailedTime: Date.now()
+                }
               }
             }
             
             this.positionManager.updatePosition(position.symbol, positionUpdate)
 
-            logger.info('移动止损', `${position.symbol} 止损已更新到: ${newStopLoss}`)
+            logger.info('移动止损', `${position.symbol} 止损已更新到: ${newStopLoss} (第${newCount}次移动)`)
           } catch (error: any) {
             logger.error('移动止损', `${position.symbol} 更新止损失败: ${error.message}`)
           }
@@ -381,7 +437,7 @@ export class StrategyPositionMonitor {
         if (stopHit) {
           logger.info('移动止损', `${position.symbol} 触发移动止损，价格: ${currentPrice}`)
           await this.positionCloser.closePosition(position.symbol, '移动止损', currentPrice)
-          this.trailingStopActivated.delete(position.symbol)
+          this.trailingStopActivated.delete(positionKey)
           return true
         }
       }
@@ -458,6 +514,10 @@ export class StrategyPositionMonitor {
    * 重置移动止损状态
    */
   resetTrailingStop(symbol: string): void {
-    this.trailingStopActivated.delete(symbol)
+    for (const key of this.trailingStopActivated.keys()) {
+      if (key.includes(`:${symbol}:`)) {
+        this.trailingStopActivated.delete(key)
+      }
+    }
   }
 }
