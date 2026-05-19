@@ -8,15 +8,15 @@
       <div class="card-header">
         <span>⚙️ 系统配置</span>
           <div class="header-actions">
-            <el-button size="small" type="primary" @click="createStrategy">
+            <el-button size="small" text type="primary" @click="createStrategy">
               <el-icon><ElIconPlus /></el-icon>
               创建
             </el-button>
-            <el-button size="small" @click="loadStrategies">
+            <el-button size="small" text @click="loadStrategies">
               <el-icon><ElIconRefresh /></el-icon>
               刷新
             </el-button>
-            <el-button size="small" type="warning" @click="clearAICache">
+            <el-button size="small" text type="warning" @click="clearAICache">
               <el-icon><ElIconDelete /></el-icon>
               清理
             </el-button>
@@ -88,7 +88,16 @@
             >
               分析
             </el-button> -->
-            <el-button size="small" @click="showVersionHistory(row)">版本</el-button>
+            <el-button 
+              size="small" 
+              type="primary" 
+              @click="openForcePosition(row)" 
+              :disabled="!row.isActive"
+              :loading="forcingStrategies.has(row.id)"
+            >
+              开仓
+            </el-button>
+            <!-- <el-button size="small" @click="showVersionHistory(row)">版本</el-button> -->
             <el-button size="small" type="danger" @click="deleteStrategy(row)">删除</el-button>
           </template>
         </el-table-column>
@@ -140,6 +149,42 @@
 
     <!-- 密码验证对话框 -->
     <PasswordDialog v-model="showPasswordDialog" @success="handlePasswordSuccess" />
+
+    <!-- 强制开仓弹窗 -->
+    <el-dialog v-model="showForceOpenDialog" title="强制开仓" width="420px" :close-on-click-modal="false">
+      <div v-if="forceOpenStrategy">
+        <div style="margin-bottom: 16px;">
+          <div style="margin-bottom: 6px; font-weight: 500;">策略：{{ forceOpenStrategy.name }}</div>
+          <div style="margin-bottom: 16px;">
+            <div style="margin-bottom: 6px;">选择交易对</div>
+            <el-select v-model="forceOpenSymbol" placeholder="请选择交易对" style="width: 100%;">
+              <el-option
+                v-for="sym in availableSymbols"
+                :key="sym"
+                :label="sym"
+                :value="sym"
+              />
+            </el-select>
+          </div>
+          <div>
+            <div style="margin-bottom: 6px;">选择方向</div>
+            <el-radio-group v-model="forceOpenDirection">
+              <el-radio-button value="long">做多 LONG</el-radio-button>
+              <el-radio-button value="short">做空 SHORT</el-radio-button>
+            </el-radio-group>
+          </div>
+        </div>
+        <div style="color: #909399; font-size: 13px; margin-top: 8px;">
+          将以置信度100%、finalScore100触发策略开仓。
+        </div>
+      </div>
+      <template #footer>
+        <el-button @click="showForceOpenDialog = false">取消</el-button>
+        <el-button type="danger" @click="confirmForceOpen" :disabled="!forceOpenSymbol">
+          确认开仓
+        </el-button>
+      </template>
+    </el-dialog>
 
     <!-- 策略详情对话框 -->
     <el-dialog v-model="showDetailDialog" :title="`${detailStrategy?.name} 运行详情`" width="90%" :close-on-click-modal="false">
@@ -344,11 +389,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import type { Strategy } from '../../types/strategy'
 import StrategyEditor from '../components/StrategyEditor.vue'
 import StrategyVersionHistory from '../components/StrategyVersionHistory.vue'
 import PasswordDialog from '../components/PasswordDialog.vue'
+import { useBotStore } from '../stores/bot'
 
 const strategies = ref<Strategy[]>([])
 const loading = ref(false)
@@ -360,6 +406,7 @@ const editingStrategy = ref<Strategy | null>(null)
 const viewingStrategy = ref<Strategy | null>(null)
 const detailStrategy = ref<Strategy | null>(null)
 const testingStrategies = ref<Set<string>>(new Set())
+const forcingStrategies = ref<Set<string>>(new Set())
 const detailLoading = ref(false)
 const activeDetailTab = ref('performance')
 
@@ -371,6 +418,16 @@ const pendingSaveData = ref<any>(null)
 // 密码验证相关
 const showPasswordDialog = ref(false)
 const pendingAction = ref<{ type: string; data?: any } | null>(null)
+
+// 强制开仓弹窗
+const showForceOpenDialog = ref(false)
+const forceOpenStrategy = ref<Strategy | null>(null)
+const forceOpenSymbol = ref('')
+const forceOpenDirection = ref<'long' | 'short'>('long')
+
+// bot store（获取交易对列表）
+const botStore = useBotStore()
+const availableSymbols = computed(() => botStore.botConfig?.symbols || [])
 
 // 详情数据
 const performance = ref<any>({})
@@ -396,6 +453,9 @@ const handlePasswordSuccess = () => {
       break
     case 'test':
       doTestStrategy(data as Strategy)
+      break
+    case 'force':
+      doForceOpenPosition(data as Strategy)
       break
     case 'version':
       viewingStrategy.value = data as Strategy
@@ -637,6 +697,57 @@ const doTestStrategy = async (strategy: Strategy) => {
     ElMessage.error(`分析失败: ${error.message}`)
   } finally {
     testingStrategies.value.delete(strategy.id)
+  }
+}
+
+// 强制开仓 - 触发入口（先弹密码验证，通过后弹开仓选择窗）
+const openForcePosition = (strategy: Strategy) => {
+  pendingAction.value = { type: 'force', data: strategy }
+  showPasswordDialog.value = true
+}
+
+// 密码验证通过后 → 打开强制开仓选择弹窗
+const doForceOpenPosition = (strategy: Strategy) => {
+  forceOpenStrategy.value = strategy
+  forceOpenSymbol.value = availableSymbols.value[0] || strategy.marketData.symbols[0] || ''
+  forceOpenDirection.value = 'long'
+  showForceOpenDialog.value = true
+}
+
+// 确认强制开仓
+const confirmForceOpen = async () => {
+  if (!forceOpenStrategy.value || !forceOpenSymbol.value) {
+    // @ts-ignore
+    ElMessage.error('请选择交易对')
+    return
+  }
+  
+  const strategy = forceOpenStrategy.value
+  const symbol = forceOpenSymbol.value
+  const direction = forceOpenDirection.value
+  
+  showForceOpenDialog.value = false
+  
+  forcingStrategies.value.add(strategy.id)
+  
+  try {
+    const res = await $fetch(`/api/strategies/${strategy.id}/force-open`, {
+      method: 'POST' as any,
+      body: { symbol, direction }
+    }) as any
+
+    if (res.success) {
+      // @ts-ignore
+      ElMessage.success(`强制开仓成功: ${symbol} ${direction === 'long' ? '做多' : '做空'}`)
+    } else {
+      // @ts-ignore
+      ElMessage.error(res.error || '开仓失败')
+    }
+  } catch (error: any) {
+    // @ts-ignore
+    ElMessage.error(`开仓失败: ${error.message}`)
+  } finally {
+    forcingStrategies.value.delete(strategy.id)
   }
 }
 

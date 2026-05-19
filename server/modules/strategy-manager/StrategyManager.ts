@@ -363,4 +363,17 @@ export class StrategyManager {
 
     return this.engine.analyzeSymbolForTest(strategyId, symbol)
   }
+
+  /**
+   * 强制开仓 - 直接构造 TradeSignal 并执行，置信度=100 finalScore=100
+   */
+  async forceOpenPosition(strategyId: StrategyId, symbol: string, direction: 'long' | 'short'): Promise<any> {
+    if (!this.engine) {
+      throw new Error('执行引擎未设置')
+    }
+
+    logger.info('StrategyManager', `强制开仓: ${strategyId} - ${symbol} ${direction}`)
+
+    return this.engine.forceOpenPosition(strategyId, symbol, direction)
+  }
 }

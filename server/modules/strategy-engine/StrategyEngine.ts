@@ -867,7 +867,7 @@ export class StrategyEngine {
   /**
    * 执行交易信号
    */
-  private async executeSignal(instance: StrategyInstance, signal: TradeSignal, indicatorsData: Map<string, any>): Promise<void> {
+  public async executeSignal(instance: StrategyInstance, signal: TradeSignal, indicatorsData: Map<string, any>): Promise<void> {
     let symbolLocked = false
     let positionRecorded = false
     try {
@@ -1174,6 +1174,76 @@ export class StrategyEngine {
 
     return {
       message: `分析完成: ${symbol}`,
+      timestamp: new Date().toISOString()
+    }
+  }
+
+  /**
+   * 强制开仓 - 构造 TradeSignal 并直接执行
+   * 将置信度和 finalScore 设为 100 以绕过所有风控阈值
+   */
+  async forceOpenPosition(strategyId: StrategyId, symbol: string, direction: 'long' | 'short'): Promise<any> {
+    const instance = this.runningStrategies.get(strategyId)
+    if (!instance) {
+      throw new Error(`策略未运行: ${strategyId}`)
+    }
+
+    logger.info('强制开仓', `手动开仓: ${symbol} ${direction} [策略: ${strategyId}]`)
+
+    // 1. 检查仓位冲突
+    if (await this.positionManager.hasConflict(symbol, strategyId)) {
+      throw new Error(`${symbol} 已有仓位，无法开仓`)
+    }
+
+    // 2. 构建市场快照获取当前价格
+    const snapshot = await this.concurrencyPoolManager.getIndicatorPool().submit(async () => {
+      return await this.scheduler.buildMarketSnapshot(symbol)
+    })
+
+    const price = snapshot.price
+    if (!price || price <= 0) {
+      throw new Error(`${symbol} 无法获取当前价格`)
+    }
+
+    // 3. 从快照中提取指标数据（用于 executeSignal 内部计算止盈止损）
+    const mainTimeframe = instance.strategy.marketData.timeframes[0] || '15m'
+    const indicatorsData = this.extractIndicatorsFromSnapshot(snapshot, mainTimeframe)
+    
+    // 提取 ATR 数据供 executeSignal 计算止损
+    const atrData = indicatorsData.get(`${mainTimeframe}_ATR`)
+    const atrValue = atrData?.value || atrData?.atr || price * 0.01
+
+    // 4. 构建 TradeSignal（止盈止损由 executeSignal 根据策略 riskManagement 配置自动计算）
+    const signal: TradeSignal = {
+      strategyId,
+      symbol,
+      direction,
+      action: 'open',
+      price,
+      stopLoss: 0, // 由 executeSignal 根据策略配置重新计算
+      takeProfit: [], // 由 executeSignal 根据策略配置重新计算
+      confidence: 100,
+      reasoning: `手动强制开仓 - ${symbol} ${direction}`,
+      indicators: { atr: atrValue },
+      timestamp: new Date().toISOString(),
+      scoreBreakdown: {
+        baseScore: 30,
+        hardScore: 50,
+        softScore: 20,
+        penaltyScore: 0,
+        finalScore: 100
+      },
+      riskLevel: 'LOW'
+    }
+
+    // 5. 调用 executeSignal 执行开仓（内部会用策略的 riskManagement 计算止盈止损）
+
+    await this.executeSignal(instance, signal, indicatorsData)
+
+    return {
+      success: true,
+      message: `强制开仓成功: ${symbol} ${direction}`,
+      price,
       timestamp: new Date().toISOString()
     }
   }
