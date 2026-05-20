@@ -66,6 +66,7 @@ export function checkTP1Condition(
 ): { shouldClose: boolean; reason: string } {
   const rsi = indicators.rsi
   const adxSlope = indicators.adxSlope
+  const emaSlope = indicators.emaSlope
   const { entryPrice, initialStopLoss, direction } = position
   const risk = Math.abs(entryPrice - initialStopLoss)
   
@@ -83,8 +84,8 @@ export function checkTP1Condition(
   const rsiTriggered = (direction === 'LONG' && rsi >= takeProfitConfig.rsiExtreme.long) ||
                       (direction === 'SHORT' && rsi <= takeProfitConfig.rsiExtreme.short)
   
-  // 辅助条件：ADX走弱或RSI触发
-  const auxiliaryCondition = adxSlope < 0 || rsiTriggered
+  // 辅助条件：ADX走弱、EMA走弱或RSI触发
+  const auxiliaryCondition = adxSlope < 0 || emaSlope < 0 || rsiTriggered
   
   const triggered = riskRewardTriggered && auxiliaryCondition
   
@@ -93,6 +94,7 @@ export function checkTP1Condition(
     const reasons: string[] = []
     reasons.push(`盈亏比 ${riskRewardRatio.toFixed(2)}:1`)
     if (adxSlope < 0) reasons.push(`ADX走弱`)
+    if (emaSlope < 0) reasons.push(`EMA走弱`)
     if (rsiTriggered) reasons.push(`RSI ${rsi.toFixed(1)}`)
     reason = `达到TP1条件：${reasons.join('，')}`
   } else {

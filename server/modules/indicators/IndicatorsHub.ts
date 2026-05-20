@@ -829,12 +829,13 @@ export class IndicatorsHub {
 
   /**
    * 从策略配置的 timeframes 中选择 entry 周期来计算指标（用于止盈止损）
-   * 只计算止盈止损需要的：rsi 和 adxSlope
+   * 只计算止盈止损需要的：rsi、adxSlope 和 emaSlope
    */
   async getIndicatorsForRiskManagement(
     symbol: string,
-    strategyTimeframes: Timeframe[]
-  ): Promise<{ rsi: number; adxSlope: number }> {
+    strategyTimeframes: Timeframe[],
+    minEmaPeriod: number = 50
+  ): Promise<{ rsi: number; adxSlope: number; emaSlope: number }> {
     try {
       // 1. 分配周期角色，找到 entry 周期
       const roles = this.assignTimeframeRoles(strategyTimeframes)
@@ -865,7 +866,15 @@ export class IndicatorsHub {
       const previousADX = adxValues[previousADXIndex]?.adx ?? currentADX
       const adxSlope = currentADX - previousADX
 
-      return { rsi, adxSlope }
+      // EMA 斜率（使用策略最小周期）
+      const emaValues = EMA.calculate({ period: minEmaPeriod, values: closes })
+      const currentEMA = emaValues[emaValues.length - 1] ?? closes[closes.length - 1] ?? 0
+      const emaSlopePeriod = this.config.indicatorsConfig?.emaSlopePeriod ?? 3
+      const prevEMAIndex = Math.max(0, emaValues.length - 1 - emaSlopePeriod)
+      const prevEMA = emaValues[prevEMAIndex] ?? currentEMA
+      const emaSlope = prevEMA > 0 ? (currentEMA - prevEMA) / prevEMA : 0
+
+      return { rsi, adxSlope, emaSlope }
     } catch (error: any) {
       logger.error('IndicatorsHub', `获取止盈止损指标失败 ${symbol}: ${error.message}`)
       throw error

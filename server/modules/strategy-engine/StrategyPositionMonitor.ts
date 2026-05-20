@@ -274,8 +274,12 @@ export class StrategyPositionMonitor {
 
       // 从 IndicatorsHub 获取指标（从策略 timeframes 中选择 entry 周期）
       const strategyTimeframes = strategy.marketData?.timeframes || ['15m']
+      // 从策略 indicators 中提取最小 EMA 周期
+      const emaConfig = strategy.indicators?.find((ind: any) => ind.type === 'EMA' && ind.enabled)
+      const emaPeriods: number[] = emaConfig?.params?.periods || []
+      const minEmaPeriod = emaPeriods.length > 0 ? Math.min(...emaPeriods) : 50
       const indicatorsHub = IndicatorsHub.getInstance(this.binance, this.config)
-      const indicators = await indicatorsHub.getIndicatorsForRiskManagement(position.symbol, strategyTimeframes)
+      const indicators = await indicatorsHub.getIndicatorsForRiskManagement(position.symbol, strategyTimeframes, minEmaPeriod)
 
       // 检查 TP2 条件
       const tp2Result = checkTP2Condition(posForCheck, currentPrice, indicators, takeProfit)
