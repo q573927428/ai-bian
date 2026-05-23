@@ -539,7 +539,7 @@ ${historySection}
 2. 先根据策略规则及所需数据确定唯一方向（LONG/SHORT），之后只按该方向执行交易判断：LONG只用做多规则，SHORT只用做空规则。
 3. 所有条件必须逐条验证，带上真实数值。
 4. 输出必须是合法JSON，无任何多余内容。
-5. confidence 不代表是否开仓，而是是结合市场波动性、趋势强度、风险等级、币安广场活跃度等宏观因素的开仓信心度（0-100）（宏观）
+5. confidence 不代表是否开仓，而是是结合市场波动性、趋势强度、风险等级、币安广场热度等宏观因素的开仓信心度（0-100）（宏观）
 6. 禁止因为单个条件不满足直接输出 confidence=0。
 7. scoreBreakdown.finalScore 为策略规则匹配度（0-100），仅反映策略条件满足程度（微观）。
 8. scoreBreakdown 必须满足：baseScore∈[0,30]，hardScore∈[0,50]，softScore∈[0,20]，penaltyScore∈[-10,0]。
