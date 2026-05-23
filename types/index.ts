@@ -54,6 +54,11 @@ export interface TechnicalIndicators {
   openInterest?: number
   openInterestChangePercent?: number
   openInterestTrend?: 'increasing' | 'decreasing' | 'flat'
+  squareHeat?: number
+  squareHeatPostCount?: number
+  squareHeatTrend?: 'increasing' | 'normal' | 'decreasing'
+  squareHeatChangePercent?: number
+  squareHeatHistoryAvg?: number
   enabledIndicators: {
     ema: boolean
     rsi: boolean
@@ -62,6 +67,7 @@ export interface TechnicalIndicators {
     atr: boolean
     oi: boolean
     volume: boolean
+    squareHeat: boolean
   }
   lastCandle?: OHLCV
   prevCandle?: OHLCV

@@ -504,7 +504,7 @@ export class StrategyEngine {
     // 3. 从快照中提取指标数据
     const indicatorsData = this.extractIndicatorsFromSnapshot(snapshot, mainTimeframe)
 
-    // 4. 补充策略特定的指标（OI和EMA）
+    // 4. 补充策略特定的指标（OI、SquareHeat 和 EMA）
     const oiStatConfig = strategy.statistics.find((s: any) => s.type === 'OI' && s.enabled)
     if (oiStatConfig) {
       const oiTimeframe = oiStatConfig?.timeframes?.[0] || mainTimeframe
@@ -520,6 +520,17 @@ export class StrategyEngine {
         indicatorsData.set(`${oiTimeframe}_OI`, oiData)
       } catch (error: any) {
         logger.warn('StrategyEngine', `获取OI失败 ${symbol} ${oiTimeframe}: ${error.message}`)
+      }
+    }
+
+    // 补充 SquareHeat 数据（不依赖 timeframe）
+    const squareHeatStatConfig = strategy.statistics.find((s: any) => s.type === 'SquareHeat' && s.enabled)
+    if (squareHeatStatConfig) {
+      try {
+        const squareHeatData = await this.indicatorsHub.getIndicators(symbol, '1h', 'SquareHeat')
+        indicatorsData.set(`SquareHeat_SquareHeat`, squareHeatData)
+      } catch (error: any) {
+        logger.warn('StrategyEngine', `获取SquareHeat失败 ${symbol}: ${error.message}`)
       }
     }
 
@@ -618,6 +629,7 @@ export class StrategyEngine {
       const enabledATR = instance.strategy.indicators.some((i: any) => i.type === 'ATR' && i.enabled)
       const enabledOI = instance.strategy.statistics.some((s: any) => s.type === 'OI' && s.enabled)
       const enabledVolume = instance.strategy.statistics.some((s: any) => s.type === 'Volume' && s.enabled)
+      const enabledSquareHeat = instance.strategy.statistics.some((s: any) => s.type === 'SquareHeat' && s.enabled)
 
       // 获取K线数据用于价格行为分析
       let lastCandle, prevCandle
@@ -711,6 +723,11 @@ export class StrategyEngine {
         openInterest: enabledOI ? indicatorsData.get(`${oiTimeframe}_OI`)?.values?.value : undefined,
         openInterestChangePercent: enabledOI ? indicatorsData.get(`${oiTimeframe}_OI`)?.values?.changePercent : undefined,
         openInterestTrend: enabledOI ? indicatorsData.get(`${oiTimeframe}_OI`)?.values?.trend : undefined,
+        squareHeat: enabledSquareHeat ? indicatorsData.get(`SquareHeat_SquareHeat`)?.values?.heat : undefined,
+        squareHeatPostCount: enabledSquareHeat ? indicatorsData.get(`SquareHeat_SquareHeat`)?.values?.postCount : undefined,
+        squareHeatTrend: enabledSquareHeat ? indicatorsData.get(`SquareHeat_SquareHeat`)?.values?.trend : undefined,
+        squareHeatChangePercent: enabledSquareHeat ? indicatorsData.get(`SquareHeat_SquareHeat`)?.values?.changePercent : undefined,
+        squareHeatHistoryAvg: enabledSquareHeat ? indicatorsData.get(`SquareHeat_SquareHeat`)?.values?.historyAvg : undefined,
         adxPeriodLabel: mainTimeframe,
         enabledIndicators: {
           ema: enabledEMAs,
@@ -719,7 +736,8 @@ export class StrategyEngine {
           adx: enabledADX,
           atr: enabledATR,
           oi: enabledOI,
-          volume: enabledVolume
+          volume: enabledVolume,
+          squareHeat: enabledSquareHeat
         },
         volumeCurrent: enabledVolume ? volumeData.current : undefined,
         volumePrev: enabledVolume ? volumeData.prev : undefined,

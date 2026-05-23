@@ -104,6 +104,7 @@
               <el-checkbox-group v-model="selectedStatistics">
                 <el-checkbox label="OI">OI 持仓量</el-checkbox>
                 <el-checkbox label="Volume">成交量</el-checkbox>
+                <el-checkbox label="SquareHeat">币安广场热度</el-checkbox>
               </el-checkbox-group>
             </el-form-item>
 
@@ -612,6 +613,15 @@ watch([selectedStatistics, () => form.marketData.timeframes, () => oiParams.chan
       type: 'Volume',
       params: { comparePeriod: 20 },
       timeframes: smallestTimeframe,
+      enabled: true
+    })
+  }
+  if (selectedStatistics.value.includes('SquareHeat')) {
+    newStatistics.push({
+      id: String(id++),
+      type: 'SquareHeat',
+      params: {},
+      timeframes: ['1h'],
       enabled: true
     })
   }

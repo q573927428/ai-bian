@@ -18,6 +18,7 @@ import {
   hasKLineData 
 } from '../../utils/kline-simple-storage'
 import { EventEmitter } from 'node:events'
+import { getSquareHeat } from '../../utils/square-heat'
 
 /**
  * 统一数据缓存条目
@@ -54,7 +55,7 @@ export class IndicatorsHub {
 
   // 常用指标类型
   private readonly ALL_INDICATORS: IndicatorType[] = ['EMA', 'RSI', 'MACD', 'ATR', 'ADX']
-  private readonly ALL_STATISTICS: StatisticsType[] = ['OI', 'Volume']
+  private readonly ALL_STATISTICS: StatisticsType[] = ['OI', 'Volume', 'SquareHeat']
 
   // K线数据TTL（毫秒）
   private readonly KLINE_TTL: Record<Timeframe, number> = {
@@ -539,6 +540,33 @@ export class IndicatorsHub {
           changePercent: changePercent
         }
       }
+    }
+
+    if (type === 'SquareHeat') {
+      // SquareHeat 不依赖 timeframe，使用独立缓存
+      const cacheKey = `${symbol}_SquareHeat`
+      const cached = symbolData.indicators.get(cacheKey)
+      if (cached) {
+        return cached
+      }
+
+      const heatData = await getSquareHeat(symbol)
+
+      const indicatorData: IndicatorData = {
+        symbol,
+        timeframe,
+        timestamp: heatData.lastUpdated,
+        values: {
+          heat: heatData.heat,
+          postCount: heatData.postCount,
+          trend: heatData.trend,
+          changePercent: heatData.changePercent,
+          historyAvg: heatData.historyAvg,
+        }
+      }
+
+      symbolData.indicators.set(cacheKey, indicatorData)
+      return indicatorData
     }
 
     if (type === 'Volume') {

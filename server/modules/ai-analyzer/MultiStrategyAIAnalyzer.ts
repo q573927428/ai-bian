@@ -318,6 +318,21 @@ export class MultiStrategyAIAnalyzer {
       }
     }
 
+    // SquareHeat行
+    const squareHeatLines: string[] = []
+    if (indicators.enabledIndicators?.squareHeat) {
+      if (indicators.squareHeat !== undefined) {
+        squareHeatLines.push(`- 币安广场热度: ${indicators.squareHeat.toFixed(1)}/100`)
+      }
+      if (indicators.squareHeatTrend) {
+        const trendLabel = indicators.squareHeatTrend === 'increasing' ? '📈 增长' : indicators.squareHeatTrend === 'decreasing' ? '📉 下降' : '➡️ 正常'
+        squareHeatLines.push(`- 币安广场活跃度趋势: ${trendLabel}`)
+      }
+      if (indicators.squareHeatChangePercent !== undefined) {
+        squareHeatLines.push(`- 币安广场活跃度变化: ${indicators.squareHeatChangePercent > 0 ? '+' : ''}${indicators.squareHeatChangePercent.toFixed(1)}%`)
+      }
+    }
+
     // 启用指标列表
     const enabledIndicatorsList: string[] = []
     if (indicators.enabledIndicators?.ema) enabledIndicatorsList.push('EMA')
@@ -327,6 +342,7 @@ export class MultiStrategyAIAnalyzer {
     if (indicators.enabledIndicators?.atr) enabledIndicatorsList.push('ATR')
     if (indicators.enabledIndicators?.oi) enabledIndicatorsList.push('持仓量(OI)')
     if (indicators.enabledIndicators?.volume) enabledIndicatorsList.push('成交量')
+    if (indicators.enabledIndicators?.squareHeat) enabledIndicatorsList.push('币安广场热度')
 
     // K线数据
     const formatCandle = (candle: any) => {
@@ -406,6 +422,7 @@ export class MultiStrategyAIAnalyzer {
       technicalIndicatorLines,
       adxLines,
       oiLines,
+      squareHeatLines,
       enabledIndicatorsList,
       // 通用预计算数据（按策略启用指标条件输出）
       candleBodyLines,
@@ -459,6 +476,7 @@ ${data.candleBodyLines.length > 0 ? data.candleBodyLines.join('\n') : ''}
 ${data.technicalIndicatorLines.join('\n')}
 ${data.adxLines.length > 0 ? data.adxLines.join('\n') : ''}
 ${data.oiLines.length > 0 ? data.oiLines.join('\n') : ''}
+${data.squareHeatLines.length > 0 ? data.squareHeatLines.join('\n') : ''}
 ${data.emaDeviationLines.length > 0 ? data.emaDeviationLines.join('\n') : ''}
 ${data.volumeCompareLines.length > 0 ? data.volumeCompareLines.join('\n') : ''}
 ${data.priceInRangeLines.length > 0 ? data.priceInRangeLines.join('\n') : ''}
