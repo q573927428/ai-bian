@@ -1,4 +1,4 @@
-const HASHTAG = 'XAG'
+const HASHTAG = 'hype'
 
 async function run() {
   const now = Math.floor(Date.now() / 1000)
@@ -19,6 +19,7 @@ async function run() {
   const posts = json.data.feedData || []
 
   let count12h = 0
+  let viewCount = 0
 
   for (const post of posts) {
     const diff = now - post.date
@@ -26,6 +27,7 @@ async function run() {
     if (diff <= 3600 * 12) {
       count12h++
     }
+    viewCount += post.viewCount
   }
 
 //   console.log('\n====== 12H 热度 ======')
@@ -34,7 +36,7 @@ async function run() {
 
 //   console.log('第一页帖子数:', posts.length)
 
-  console.log(`#${HASHTAG} 12小时帖子数:, ${count12h}`)
+  console.log(`#${HASHTAG} 12小时帖子数:, ${count12h} , ${viewCount}`)
 }
 
 run()
