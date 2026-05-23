@@ -322,7 +322,7 @@ export class MultiStrategyAIAnalyzer {
     const squareHeatLines: string[] = []
     if (indicators.enabledIndicators?.squareHeat) {
       if (indicators.squareHeat !== undefined) {
-        squareHeatLines.push(`- 币安广场热度: ${indicators.squareHeat.toFixed(1)}/100`)
+        squareHeatLines.push(`- 币安广场热度: ${indicators.squareHeat}`)
       }
       if (indicators.squareHeatTrend) {
         const trendLabel = indicators.squareHeatTrend === 'increasing' ? '📈 增长' : indicators.squareHeatTrend === 'decreasing' ? '📉 下降' : '➡️ 正常'
@@ -570,7 +570,7 @@ ${historySection}
 【reasoning 要求】
 - 必须包含：方向、关键指标数值、每条条件是否满足、风险等级
 - 统一用✔️代表条件满足，❌代表不满足
-- 格式示例：方向：LONG，EMA7(52100) > EMA50(51800)；置信度：60；风险等级:MEDIUM；RSI(48)∈[30,65] ✔️；OI增加+1.2% ✔️；预计成交量(5114.13) < 1.8倍 前K量(10464.66) ❌；ATR波动率 0.52% > 0.38% ✔️。
+- 格式示例：方向：LONG，EMA7(52100) > EMA50(51800)；置信度：60；风险等级:MEDIUM；RSI(48)∈[30,65] ✔️；OI增加+1.2% ✔️；预计成交量(5114.13) < 1.8倍 前K量(10464.66) ❌；ATR波动率 0.52% > 0.38% ✔️；币安广场热度(3)：➡️正常。
 - 所有指标只展示原始数值与大小/区间对比结论，只写判定结果，不写运算逻辑和过程
 - 格式清晰、无换行、无计算过程、不矛盾、精简直白
 
