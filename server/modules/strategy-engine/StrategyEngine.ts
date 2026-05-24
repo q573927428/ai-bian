@@ -728,6 +728,9 @@ export class StrategyEngine {
         squareHeatTrend: enabledSquareHeat ? indicatorsData.get(`SquareHeat_SquareHeat`)?.values?.trend : undefined,
         squareHeatChangePercent: enabledSquareHeat ? indicatorsData.get(`SquareHeat_SquareHeat`)?.values?.changePercent : undefined,
         squareHeatHistoryAvg: enabledSquareHeat ? indicatorsData.get(`SquareHeat_SquareHeat`)?.values?.historyAvg : undefined,
+        squareHeatBullishPercent: enabledSquareHeat ? indicatorsData.get(`SquareHeat_SquareHeat`)?.values?.bullishPercent : undefined,
+        squareHeatBearishPercent: enabledSquareHeat ? indicatorsData.get(`SquareHeat_SquareHeat`)?.values?.bearishPercent : undefined,
+        squareHeatNeutralCount: enabledSquareHeat ? indicatorsData.get(`SquareHeat_SquareHeat`)?.values?.neutralCount : undefined,
         adxPeriodLabel: mainTimeframe,
         enabledIndicators: {
           ema: enabledEMAs,

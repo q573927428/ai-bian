@@ -8,16 +8,22 @@ import { join } from 'node:path'
  */
 export interface SquareHeatResult {
   symbol: string
-  /** 当前热度值 0~100（基于12小时帖子数） */
+  /** 当前热度值 0~100（基于24小时帖子数） */
   heat: number
-  /** 12小时帖子数 */
+  /** 24小时帖子数 */
   postCount: number
   /** 活跃度趋势：增长 / 正常 / 下降 */
   trend: 'increasing' | 'normal' | 'decreasing'
   /** 与历史均值相比的变化百分比 */
   changePercent: number
-  /** 历史均值（12小时帖子数） */
+  /** 历史均值（24小时帖子数） */
   historyAvg: number
+  /** 看涨占比（基于看涨+看跌，0~100） */
+  bullishPercent: number
+  /** 看跌占比（基于看涨+看跌，0~100） */
+  bearishPercent: number
+  /** 中性帖子数（未表明方向） */
+  neutralCount: number
   lastUpdated: number
 }
 
@@ -137,97 +143,162 @@ export async function getSquareHeat(symbol: string): Promise<SquareHeatResult> {
 }
 
 /**
- * 调用币安广场 API 获取最新帖子，统计 12 小时内帖子数
+ * 调用币安广场 API 获取最新帖子，统计 24 小时内帖子数
  */
 async function fetchSquareHeat(baseAsset: string): Promise<SquareHeatResult> {
-  try {
-    // BTC 特殊处理：币安广场 #BTC 获取不到数据，需要用 #BTCUSDT
-    const hashtag = baseAsset === 'BTC' ? 'BTCUSDT' : baseAsset
-    const url =
-      `https://www.binance.com/bapi/composite/v4/friendly/pgc/content/queryByHashtag` +
-      `?hashtag=%23${hashtag}&pageNum=1&pageSize=100&sortBy=LATEST`
+  // 重试配置
+  const MAX_RETRIES = 2
+  const RETRY_DELAY = 1000 // 1秒
 
-    const res = await fetch(url, {
-      headers: {
-        'user-agent': 'Mozilla/5.0'
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      // BTC 特殊处理：币安广场 #BTC 获取不到数据，需要用 #BTCUSDT
+      const hashtag = baseAsset === 'BTC' ? 'BTCUSDT' : baseAsset
+      const url =
+        `https://www.binance.com/bapi/composite/v4/friendly/pgc/content/queryByHashtag` +
+        `?hashtag=%23${hashtag}&pageNum=1&pageSize=200&sortBy=LATEST`
+
+      const res = await fetch(url, {
+        headers: {
+          'user-agent': 'Mozilla/5.0'
+        }
+      })
+
+      const json = await res.json()
+      const posts = json.data?.feedData || []
+
+      const now = Math.floor(Date.now() / 1000)
+      const TWENTY_FOUR_HOURS = 3600 * 24
+      const FORTY_EIGHT_HOURS = 3600 * 48
+
+      // 先统计 24h 内看涨+看跌的帖子数，判断是否需要扩展窗口
+      let bullishBearish24h = 0
+      for (const post of posts) {
+        const diff = now - post.date
+        if (diff <= TWENTY_FOUR_HOURS) {
+          const tendency = Number(post.tendency)
+          if (tendency === 1 || tendency === 2) {
+            bullishBearish24h++
+          }
+        }
       }
-    })
 
-    const json = await res.json()
-    const posts = json.data?.feedData || []
+      // 如果 24h 内看涨+看跌帖子数 < 10，扩展到 48h 获取更多样本
+      const use48h = bullishBearish24h < 10
+      const sentimentWindow = use48h ? FORTY_EIGHT_HOURS : TWENTY_FOUR_HOURS
 
-    const now = Math.floor(Date.now() / 1000)
-    const TWELVE_HOURS = 3600 * 12
+      // 按时间窗口统计总帖子数、看涨、看跌、中性
+      let postCount = 0
+      let bullish = 0   // tendency=1 看涨
+      let bearish = 0   // tendency=2 看跌
+      let neutral = 0   // tendency=0 中性
+      for (const post of posts) {
+        const diff = now - post.date
+        if (diff <= sentimentWindow) {
+          postCount++
+          const tendency = Number(post.tendency)
+          if (tendency === 1) {
+            bullish++
+          } else if (tendency === 2) {
+            bearish++
+          } else if (tendency === 0) {
+            neutral++
+          }
+        }
+      }
 
-    // 统计 12 小时内的帖子数
-    let postCount = 0
-    for (const post of posts) {
-      const diff = now - post.date
-      if (diff <= TWELVE_HOURS) {
-        postCount++
+      // 热度直接使用时间窗口内的帖子数
+      const heat = postCount
+
+      // 计算涨跌占比（基于看涨+看跌）
+      const trendTotal = bullish + bearish
+      const bullishPercent = trendTotal > 0 ? Number(((bullish / trendTotal) * 100).toFixed(2)) : 0
+      const bearishPercent = trendTotal > 0 ? Number(((bearish / trendTotal) * 100).toFixed(2)) : 0
+
+      // ========== 历史对比逻辑 ==========
+      const history = historyStore.get(baseAsset) || []
+      const nowMs = Date.now()
+
+      // 计算历史均值（排除当前这次）
+      const historyAvg = history.length > 0
+        ? history.reduce((sum, h) => sum + h.postCount, 0) / history.length
+        : 0
+
+      // 计算变化百分比
+      let changePercent = 0
+      let trend: 'increasing' | 'normal' | 'decreasing' = 'normal'
+
+      if (historyAvg > 0) {
+        changePercent = ((postCount - historyAvg) / historyAvg) * 100
+
+        // 增长超过 5% 算增长，下降超过 5% 算下降，其余正常
+        if (changePercent > 5) {
+          trend = 'increasing'
+        } else if (changePercent < -5) {
+          trend = 'decreasing'
+        } else {
+          trend = 'normal'
+        }
+      }
+      // 没有历史数据时，trend 保持 'normal'
+
+      // 保存本次数据到历史记录
+      history.push({ postCount, timestamp: nowMs })
+      // 只保留最近 MAX_HISTORY 条
+      if (history.length > MAX_HISTORY) {
+        history.splice(0, history.length - MAX_HISTORY)
+      }
+      historyStore.set(baseAsset, history)
+
+      // 持久化到文件
+      saveHistoryToFile()
+
+      return {
+        symbol: baseAsset,
+        heat,
+        postCount,
+        trend,
+        changePercent: Number(changePercent.toFixed(1)),
+        historyAvg: Number(historyAvg.toFixed(1)),
+        bullishPercent,
+        bearishPercent,
+        neutralCount: neutral,
+        lastUpdated: nowMs,
+      }
+    } catch {
+      // 如果不是最后一次尝试，等待后重试
+      if (attempt < MAX_RETRIES) {
+        await new Promise(resolve => setTimeout(resolve, RETRY_DELAY))
+        continue
+      }
+      // 最后一次尝试失败，返回默认值
+      return {
+        symbol: baseAsset,
+        heat: 0,
+        postCount: 0,
+        trend: 'normal',
+        changePercent: 0,
+        historyAvg: 0,
+        bullishPercent: 0,
+        bearishPercent: 0,
+        neutralCount: 0,
+        lastUpdated: Date.now(),
       }
     }
+  }
 
-    // 热度直接使用 12 小时帖子数（pageSize=100 决定了上限为 100）
-    const heat = postCount
-
-    // ========== 历史对比逻辑 ==========
-    const history = historyStore.get(baseAsset) || []
-    const nowMs = Date.now()
-
-    // 计算历史均值（排除当前这次）
-    const historyAvg = history.length > 0
-      ? history.reduce((sum, h) => sum + h.postCount, 0) / history.length
-      : 0
-
-    // 计算变化百分比
-    let changePercent = 0
-    let trend: 'increasing' | 'normal' | 'decreasing' = 'normal'
-
-    if (historyAvg > 0) {
-      changePercent = ((postCount - historyAvg) / historyAvg) * 100
-
-      // 增长超过 5% 算增长，下降超过 5% 算下降，其余正常
-      if (changePercent > 5) {
-        trend = 'increasing'
-      } else if (changePercent < -5) {
-        trend = 'decreasing'
-      } else {
-        trend = 'normal'
-      }
-    }
-    // 没有历史数据时，trend 保持 'normal'
-
-    // 保存本次数据到历史记录
-    history.push({ postCount, timestamp: nowMs })
-    // 只保留最近 MAX_HISTORY 条
-    if (history.length > MAX_HISTORY) {
-      history.splice(0, history.length - MAX_HISTORY)
-    }
-    historyStore.set(baseAsset, history)
-
-    // 持久化到文件
-    saveHistoryToFile()
-
-    return {
-      symbol: baseAsset,
-      heat,
-      postCount,
-      trend,
-      changePercent: Number(changePercent.toFixed(1)),
-      historyAvg: Number(historyAvg.toFixed(1)),
-      lastUpdated: nowMs,
-    }
-  } catch {
-    return {
-      symbol: baseAsset,
-      heat: 0,
-      postCount: 0,
-      trend: 'normal',
-      changePercent: 0,
-      historyAvg: 0,
-      lastUpdated: Date.now(),
-    }
+  // 所有重试都失败
+  return {
+    symbol: baseAsset,
+    heat: 0,
+    postCount: 0,
+    trend: 'normal',
+    changePercent: 0,
+    historyAvg: 0,
+    bullishPercent: 0,
+    bearishPercent: 0,
+    neutralCount: 0,
+    lastUpdated: Date.now(),
   }
 }
 

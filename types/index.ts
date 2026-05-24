@@ -59,6 +59,9 @@ export interface TechnicalIndicators {
   squareHeatTrend?: 'increasing' | 'normal' | 'decreasing'
   squareHeatChangePercent?: number
   squareHeatHistoryAvg?: number
+  squareHeatBullishPercent?: number
+  squareHeatBearishPercent?: number
+  squareHeatNeutralCount?: number
   enabledIndicators: {
     ema: boolean
     rsi: boolean

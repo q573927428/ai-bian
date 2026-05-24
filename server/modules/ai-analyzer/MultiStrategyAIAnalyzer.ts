@@ -326,7 +326,17 @@ export class MultiStrategyAIAnalyzer {
         ? ` ${indicators.squareHeatChangePercent > 0 ? '+' : ''}${indicators.squareHeatChangePercent.toFixed(1)}%`
         : ''
       const trendLabel = indicators.squareHeatTrend === 'increasing' ? '📈增长' : indicators.squareHeatTrend === 'decreasing' ? '📉下降' : '➡️正常'
-      squareHeatLines.push(`- 币安广场热度(${heat})${change}：${trendLabel}`)
+
+      // 涨跌比展示
+      let sentimentStr = ''
+      const bullishP = indicators.squareHeatBullishPercent
+      const bearishP = indicators.squareHeatBearishPercent
+      if (bullishP !== undefined && bearishP !== undefined) {
+        const sentimentIcon = bullishP > bearishP ? '🟢' : bullishP < bearishP ? '🔴' : '⚪'
+        sentimentStr = `；社区情绪${sentimentIcon}: 看涨${bullishP.toFixed(2)}% / 看跌${bearishP.toFixed(2)}%`
+      }
+
+      squareHeatLines.push(`- 币安广场热度(${heat})${change}：${trendLabel}${sentimentStr}`)
     }
 
     // 启用指标列表
@@ -539,7 +549,7 @@ ${historySection}
 2. 先根据策略规则及所需数据确定唯一方向（LONG/SHORT），之后只按该方向执行交易判断：LONG只用做多规则，SHORT只用做空规则。
 3. 所有条件必须逐条验证，带上真实数值。
 4. 输出必须是合法JSON，无任何多余内容。
-5. confidence 不代表是否开仓，而是是结合市场波动性、趋势强度、风险等级、币安广场热度等宏观因素的开仓信心度（0-100）（宏观）
+5. confidence 不代表是否开仓，而是是结合市场波动性、趋势强度、风险等级、币安广场热度、社区情绪等宏观因素的开仓信心度（0-100）（宏观）
 6. 禁止因为单个条件不满足直接输出 confidence=0。
 7. scoreBreakdown.finalScore 为策略规则匹配度（0-100），仅反映策略条件满足程度（微观）。
 8. scoreBreakdown 必须满足：baseScore∈[0,30]，hardScore∈[0,50]，softScore∈[0,20]，penaltyScore∈[-10,0]。
@@ -566,7 +576,7 @@ ${historySection}
 【reasoning 要求】
 - 必须包含：方向、关键指标数值、每条条件是否满足、风险等级
 - 统一用✔️代表条件满足，❌代表不满足
-- 格式示例：方向：LONG，EMA7(52100) > EMA50(51800)；置信度：60；风险等级:MEDIUM；RSI(48)∈[30,65] ✔️；OI增加+1.2% ✔️；预计成交量(5114.13) < 1.8倍 前K量(10464.66) ❌；ATR波动率 0.52% > 0.38% ✔️；币安广场热度(31) -3.2%：➡️正常。
+- 格式示例：方向：LONG，EMA7(52100) > EMA50(51800)；置信度：60；风险等级:MEDIUM；RSI(48)∈[30,65] ✔️；OI增加+1.2% ✔️；预计成交量(5114.13) < 1.8倍 前K量(10464.66) ❌；ATR波动率 0.52% > 0.38% ✔️；币安广场热度(31) -3.2%：➡️正常；社区情绪🟢: 看涨77.78% / 看跌22.22%。
 - 所有指标只展示原始数值与大小/区间对比结论，只写判定结果，不写运算逻辑和过程
 - 格式清晰、无换行、无计算过程、不矛盾、精简直白
 
