@@ -1,4 +1,4 @@
-const HASHTAG = 'hype'
+const HASHTAG = 'bnb'
 
 async function run() {
   const now = Math.floor(Date.now() / 1000)
@@ -6,7 +6,7 @@ async function run() {
   const url =
     `https://www.binance.com/bapi/composite/v4/friendly/pgc/content/queryByHashtag` +
     `?hashtag=${HASHTAG}` +
-    `&pageNum=1&pageSize=200&sortBy=LATEST`
+    `&pageNum=1&pageSize=200`
 
   const res = await fetch(url, {
     headers: {
