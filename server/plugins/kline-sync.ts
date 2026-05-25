@@ -13,7 +13,7 @@ import { initKLineDb, closeKLineDb, hasKLineData } from '../utils/kline-simple-s
 const DEFAULT_SYNC_CONFIG: KLineSyncConfig = {
   symbols: ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'DOGEUSDT', 'HYPEUSDT', 'XAUUSDT', 'XAGUSDT', 'BNBUSDT'],
   timeframes: ['5m', '15m', '1h', '4h', '1d', '1w'],
-  maxBars: 11000,
+  maxBars: 3333,
   syncInterval: 600, // 按周期调度，此值不再使用，但保留用于API兼容性
   timeframeConfigs: [
     { timeframe: '5m', syncInterval: 60, enabled: true },     // ✅ 1分钟

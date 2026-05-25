@@ -25,7 +25,7 @@ let dbInitPromise: Promise<void> | null = null
 let dirty = false
 let saveTimer: NodeJS.Timeout | null = null
 
-const MAX_BARS = 11000
+const MAX_BARS = 3333
 const SAVE_THROTTLE_MS = 6000000 // 60分钟节流保存（不管写入多频繁，固定每60分钟保存一次）
 
 function getDbPath(): string {
