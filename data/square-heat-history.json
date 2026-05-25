@@ -1,0 +1,782 @@
+{
+    "SOL": [
+      {
+        "postCount": 69,
+        "timestamp": 1779575310374
+      },
+      {
+        "postCount": 64,
+        "timestamp": 1779579221276
+      },
+      {
+        "postCount": 64,
+        "timestamp": 1779583110503
+      },
+      {
+        "postCount": 113,
+        "timestamp": 1779584518751
+      },
+      {
+        "postCount": 107,
+        "timestamp": 1779588419558
+      },
+      {
+        "postCount": 108,
+        "timestamp": 1779592322968
+      },
+      {
+        "postCount": 110,
+        "timestamp": 1779596224140
+      },
+      {
+        "postCount": 119,
+        "timestamp": 1779600124048
+      },
+      {
+        "postCount": 118,
+        "timestamp": 1779604024588
+      },
+      {
+        "postCount": 127,
+        "timestamp": 1779631322379
+      },
+      {
+        "postCount": 118,
+        "timestamp": 1779635222584
+      },
+      {
+        "postCount": 120,
+        "timestamp": 1779639167033
+      },
+      {
+        "postCount": 110,
+        "timestamp": 1779650223333
+      },
+      {
+        "postCount": 109,
+        "timestamp": 1779654123386
+      },
+      {
+        "postCount": 111,
+        "timestamp": 1779658022891
+      },
+      {
+        "postCount": 110,
+        "timestamp": 1779661662110
+      },
+      {
+        "postCount": 105,
+        "timestamp": 1779683542012
+      },
+      {
+        "postCount": 105,
+        "timestamp": 1779684317809
+      },
+      {
+        "postCount": 105,
+        "timestamp": 1779684497225
+      },
+      {
+        "postCount": 108,
+        "timestamp": 1779685428971
+      },
+      {
+        "postCount": 104,
+        "timestamp": 1779689328079
+      },
+      {
+        "postCount": 104,
+        "timestamp": 1779693228198
+      },
+      {
+        "postCount": 100,
+        "timestamp": 1779697127930
+      },
+      {
+        "postCount": 99,
+        "timestamp": 1779697291867
+      }
+    ],
+    "DOGE": [
+      {
+        "postCount": 104,
+        "timestamp": 1779607621963
+      },
+      {
+        "postCount": 110,
+        "timestamp": 1779611523759
+      },
+      {
+        "postCount": 110,
+        "timestamp": 1779615438874
+      },
+      {
+        "postCount": 108,
+        "timestamp": 1779619059354
+      },
+      {
+        "postCount": 128,
+        "timestamp": 1779629821380
+      },
+      {
+        "postCount": 124,
+        "timestamp": 1779633508306
+      },
+      {
+        "postCount": 127,
+        "timestamp": 1779637323901
+      },
+      {
+        "postCount": 124,
+        "timestamp": 1779641222863
+      },
+      {
+        "postCount": 120,
+        "timestamp": 1779644824598
+      },
+      {
+        "postCount": 114,
+        "timestamp": 1779648724921
+      },
+      {
+        "postCount": 109,
+        "timestamp": 1779652340175
+      },
+      {
+        "postCount": 108,
+        "timestamp": 1779655947733
+      },
+      {
+        "postCount": 103,
+        "timestamp": 1779659610378
+      },
+      {
+        "postCount": 101,
+        "timestamp": 1779663422877
+      },
+      {
+        "postCount": 102,
+        "timestamp": 1779667037330
+      },
+      {
+        "postCount": 102,
+        "timestamp": 1779670922320
+      },
+      {
+        "postCount": 105,
+        "timestamp": 1779674827795
+      },
+      {
+        "postCount": 107,
+        "timestamp": 1779678724276
+      },
+      {
+        "postCount": 106,
+        "timestamp": 1779682625928
+      },
+      {
+        "postCount": 104,
+        "timestamp": 1779684342279
+      },
+      {
+        "postCount": 104,
+        "timestamp": 1779684535286
+      },
+      {
+        "postCount": 104,
+        "timestamp": 1779685457481
+      },
+      {
+        "postCount": 101,
+        "timestamp": 1779689330387
+      },
+      {
+        "postCount": 96,
+        "timestamp": 1779692943275
+      }
+    ],
+    "ETH": [
+      {
+        "postCount": 192,
+        "timestamp": 1779588769645
+      },
+      {
+        "postCount": 193,
+        "timestamp": 1779592393645
+      },
+      {
+        "postCount": 194,
+        "timestamp": 1779596221624
+      },
+      {
+        "postCount": 195,
+        "timestamp": 1779600121387
+      },
+      {
+        "postCount": 195,
+        "timestamp": 1779604021717
+      },
+      {
+        "postCount": 192,
+        "timestamp": 1779613320711
+      },
+      {
+        "postCount": 191,
+        "timestamp": 1779617220846
+      },
+      {
+        "postCount": 191,
+        "timestamp": 1779621121286
+      },
+      {
+        "postCount": 193,
+        "timestamp": 1779629221583
+      },
+      {
+        "postCount": 187,
+        "timestamp": 1779633122450
+      },
+      {
+        "postCount": 187,
+        "timestamp": 1779637022602
+      },
+      {
+        "postCount": 182,
+        "timestamp": 1779640922097
+      },
+      {
+        "postCount": 185,
+        "timestamp": 1779644822683
+      },
+      {
+        "postCount": 187,
+        "timestamp": 1779648722875
+      },
+      {
+        "postCount": 188,
+        "timestamp": 1779652337399
+      },
+      {
+        "postCount": 191,
+        "timestamp": 1779656223047
+      },
+      {
+        "postCount": 191,
+        "timestamp": 1779660122320
+      },
+      {
+        "postCount": 189,
+        "timestamp": 1779683537240
+      },
+      {
+        "postCount": 192,
+        "timestamp": 1779684398256
+      },
+      {
+        "postCount": 192,
+        "timestamp": 1779684669239
+      },
+      {
+        "postCount": 191,
+        "timestamp": 1779685554349
+      },
+      {
+        "postCount": 191,
+        "timestamp": 1779689423947
+      },
+      {
+        "postCount": 189,
+        "timestamp": 1779693232073
+      },
+      {
+        "postCount": 191,
+        "timestamp": 1779696934793
+      }
+    ],
+    "HYPE": [
+      {
+        "postCount": 98,
+        "timestamp": 1779618801771
+      },
+      {
+        "postCount": 96,
+        "timestamp": 1779622620442
+      },
+      {
+        "postCount": 98,
+        "timestamp": 1779626520375
+      },
+      {
+        "postCount": 93,
+        "timestamp": 1779630162241
+      },
+      {
+        "postCount": 92,
+        "timestamp": 1779634068058
+      },
+      {
+        "postCount": 97,
+        "timestamp": 1779637941006
+      },
+      {
+        "postCount": 94,
+        "timestamp": 1779642140881
+      },
+      {
+        "postCount": 96,
+        "timestamp": 1779645750887
+      },
+      {
+        "postCount": 100,
+        "timestamp": 1779649624707
+      },
+      {
+        "postCount": 102,
+        "timestamp": 1779653281509
+      },
+      {
+        "postCount": 103,
+        "timestamp": 1779656889746
+      },
+      {
+        "postCount": 106,
+        "timestamp": 1779664944019
+      },
+      {
+        "postCount": 107,
+        "timestamp": 1779668823131
+      },
+      {
+        "postCount": 108,
+        "timestamp": 1779672432984
+      },
+      {
+        "postCount": 105,
+        "timestamp": 1779676070148
+      },
+      {
+        "postCount": 109,
+        "timestamp": 1779679680014
+      },
+      {
+        "postCount": 107,
+        "timestamp": 1779683545245
+      },
+      {
+        "postCount": 109,
+        "timestamp": 1779684357428
+      },
+      {
+        "postCount": 109,
+        "timestamp": 1779684572358
+      },
+      {
+        "postCount": 110,
+        "timestamp": 1779685537166
+      },
+      {
+        "postCount": 109,
+        "timestamp": 1779689353265
+      },
+      {
+        "postCount": 109,
+        "timestamp": 1779692972121
+      },
+      {
+        "postCount": 110,
+        "timestamp": 1779696828777
+      },
+      {
+        "postCount": 110,
+        "timestamp": 1779697293407
+      }
+    ],
+    "XAU": [
+      {
+        "postCount": 75,
+        "timestamp": 1779592662045
+      },
+      {
+        "postCount": 71,
+        "timestamp": 1779596531177
+      },
+      {
+        "postCount": 74,
+        "timestamp": 1779600136531
+      },
+      {
+        "postCount": 75,
+        "timestamp": 1779603774908
+      },
+      {
+        "postCount": 66,
+        "timestamp": 1779607698609
+      },
+      {
+        "postCount": 67,
+        "timestamp": 1779611348663
+      },
+      {
+        "postCount": 67,
+        "timestamp": 1779615203846
+      },
+      {
+        "postCount": 66,
+        "timestamp": 1779618821225
+      },
+      {
+        "postCount": 63,
+        "timestamp": 1779622661325
+      },
+      {
+        "postCount": 64,
+        "timestamp": 1779626559674
+      },
+      {
+        "postCount": 65,
+        "timestamp": 1779630180551
+      },
+      {
+        "postCount": 62,
+        "timestamp": 1779633826198
+      },
+      {
+        "postCount": 62,
+        "timestamp": 1779637636717
+      },
+      {
+        "postCount": 63,
+        "timestamp": 1779641547806
+      },
+      {
+        "postCount": 62,
+        "timestamp": 1779645158072
+      },
+      {
+        "postCount": 62,
+        "timestamp": 1779648804159
+      },
+      {
+        "postCount": 39,
+        "timestamp": 1779652646435
+      },
+      {
+        "postCount": 40,
+        "timestamp": 1779656308196
+      },
+      {
+        "postCount": 39,
+        "timestamp": 1779660303157
+      },
+      {
+        "postCount": 38,
+        "timestamp": 1779664061418
+      },
+      {
+        "postCount": 53,
+        "timestamp": 1779686092520
+      },
+      {
+        "postCount": 54,
+        "timestamp": 1779689776525
+      },
+      {
+        "postCount": 57,
+        "timestamp": 1779693623304
+      },
+      {
+        "postCount": 60,
+        "timestamp": 1779697230772
+      }
+    ],
+    "XAG": [
+      {
+        "postCount": 36,
+        "timestamp": 1779600134082
+      },
+      {
+        "postCount": 34,
+        "timestamp": 1779603769573
+      },
+      {
+        "postCount": 27,
+        "timestamp": 1779607668498
+      },
+      {
+        "postCount": 25,
+        "timestamp": 1779611305343
+      },
+      {
+        "postCount": 25,
+        "timestamp": 1779615188800
+      },
+      {
+        "postCount": 25,
+        "timestamp": 1779618816665
+      },
+      {
+        "postCount": 22,
+        "timestamp": 1779622645824
+      },
+      {
+        "postCount": 21,
+        "timestamp": 1779626539987
+      },
+      {
+        "postCount": 19,
+        "timestamp": 1779630164413
+      },
+      {
+        "postCount": 17,
+        "timestamp": 1779633773471
+      },
+      {
+        "postCount": 12,
+        "timestamp": 1779657458504
+      },
+      {
+        "postCount": 11,
+        "timestamp": 1779661069877
+      },
+      {
+        "postCount": 11,
+        "timestamp": 1779664964049
+      },
+      {
+        "postCount": 11,
+        "timestamp": 1779668825548
+      },
+      {
+        "postCount": 11,
+        "timestamp": 1779672435265
+      },
+      {
+        "postCount": 11,
+        "timestamp": 1779676110438
+      },
+      {
+        "postCount": 12,
+        "timestamp": 1779679924375
+      },
+      {
+        "postCount": 17,
+        "timestamp": 1779683547575
+      },
+      {
+        "postCount": 17,
+        "timestamp": 1779684360345
+      },
+      {
+        "postCount": 17,
+        "timestamp": 1779684601033
+      },
+      {
+        "postCount": 17,
+        "timestamp": 1779685539117
+      },
+      {
+        "postCount": 18,
+        "timestamp": 1779689368620
+      },
+      {
+        "postCount": 18,
+        "timestamp": 1779692973989
+      },
+      {
+        "postCount": 18,
+        "timestamp": 1779696590512
+      }
+    ],
+    "BNB": [
+      {
+        "postCount": 52,
+        "timestamp": 1779548554681
+      },
+      {
+        "postCount": 52,
+        "timestamp": 1779548766235
+      },
+      {
+        "postCount": 56,
+        "timestamp": 1779568954340
+      },
+      {
+        "postCount": 86,
+        "timestamp": 1779601338666
+      },
+      {
+        "postCount": 86,
+        "timestamp": 1779605268109
+      },
+      {
+        "postCount": 85,
+        "timestamp": 1779609209554
+      },
+      {
+        "postCount": 79,
+        "timestamp": 1779626225322
+      },
+      {
+        "postCount": 72,
+        "timestamp": 1779632422316
+      },
+      {
+        "postCount": 74,
+        "timestamp": 1779636167840
+      },
+      {
+        "postCount": 80,
+        "timestamp": 1779639785569
+      },
+      {
+        "postCount": 78,
+        "timestamp": 1779643632085
+      },
+      {
+        "postCount": 78,
+        "timestamp": 1779647257491
+      },
+      {
+        "postCount": 83,
+        "timestamp": 1779661083283
+      },
+      {
+        "postCount": 86,
+        "timestamp": 1779664979370
+      },
+      {
+        "postCount": 91,
+        "timestamp": 1779668828053
+      },
+      {
+        "postCount": 93,
+        "timestamp": 1779672459353
+      },
+      {
+        "postCount": 96,
+        "timestamp": 1779676145826
+      },
+      {
+        "postCount": 98,
+        "timestamp": 1779679927052
+      },
+      {
+        "postCount": 98,
+        "timestamp": 1779683549985
+      },
+      {
+        "postCount": 97,
+        "timestamp": 1779684402677
+      },
+      {
+        "postCount": 97,
+        "timestamp": 1779684671000
+      },
+      {
+        "postCount": 96,
+        "timestamp": 1779685575220
+      },
+      {
+        "postCount": 98,
+        "timestamp": 1779689439661
+      }
+    ],
+    "BTC": [
+      {
+        "postCount": 19,
+        "timestamp": 1779583783098
+      },
+      {
+        "postCount": 51,
+        "timestamp": 1779585000254
+      },
+      {
+        "postCount": 50,
+        "timestamp": 1779588767283
+      },
+      {
+        "postCount": 51,
+        "timestamp": 1779592722178
+      },
+      {
+        "postCount": 52,
+        "timestamp": 1779596522988
+      },
+      {
+        "postCount": 52,
+        "timestamp": 1779600423565
+      },
+      {
+        "postCount": 51,
+        "timestamp": 1779604322676
+      },
+      {
+        "postCount": 53,
+        "timestamp": 1779608222780
+      },
+      {
+        "postCount": 51,
+        "timestamp": 1779631924057
+      },
+      {
+        "postCount": 51,
+        "timestamp": 1779635824114
+      },
+      {
+        "postCount": 55,
+        "timestamp": 1779639724299
+      },
+      {
+        "postCount": 55,
+        "timestamp": 1779643624230
+      },
+      {
+        "postCount": 51,
+        "timestamp": 1779647521918
+      },
+      {
+        "postCount": 52,
+        "timestamp": 1779651423861
+      },
+      {
+        "postCount": 46,
+        "timestamp": 1779655323934
+      },
+      {
+        "postCount": 44,
+        "timestamp": 1779659221908
+      },
+      {
+        "postCount": 45,
+        "timestamp": 1779663121847
+      },
+      {
+        "postCount": 45,
+        "timestamp": 1779667024649
+      },
+      {
+        "postCount": 43,
+        "timestamp": 1779674824759
+      },
+      {
+        "postCount": 41,
+        "timestamp": 1779678721986
+      },
+      {
+        "postCount": 39,
+        "timestamp": 1779682624196
+      },
+      {
+        "postCount": 38,
+        "timestamp": 1779684374582
+      },
+      {
+        "postCount": 38,
+        "timestamp": 1779684619767
+      },
+      {
+        "postCount": 41,
+        "timestamp": 1779695998923
+      }
+    ]
+  }

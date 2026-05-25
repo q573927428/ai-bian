@@ -16,8 +16,8 @@
     "emaSlopePeriod": 3
   },
   "emaPeriods": [
-    50,
-    200
+    30,
+    120
   ],
   "volumeEmaPeriod": 12,
   "aiCacheTtlMinutes": 10,
@@ -28,7 +28,7 @@
     "minConfidence": 10,
     "enableHistorySection": false
   },
-  "minConfidence": 60,
+  "minConfidence": 68,
   "minFinalScore": 99,
   "maxRiskLevel": "MEDIUM",
   "defaultTimeframe": "1h",
