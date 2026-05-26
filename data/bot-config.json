@@ -29,7 +29,7 @@
     "enableHistorySection": false
   },
   "minConfidence": 68,
-  "minFinalScore": 99,
+  "minFinalScore": 78,
   "maxRiskLevel": "MEDIUM",
   "defaultTimeframe": "1h",
   "defaultCandleProgress": 0.1,
