@@ -3,7 +3,7 @@
   "name": "策略03",
   "version": 1,
   "createdAt": "2026-04-19T16:14:17.182Z",
-  "updatedAt": "2026-05-25T08:20:07.499Z",
+  "updatedAt": "2026-05-26T06:39:40.112Z",
   "isActive": true,
   "marketData": {
     "symbols": [
@@ -49,6 +49,17 @@
     {
       "id": "3",
       "type": "ADX",
+      "params": {
+        "period": 14
+      },
+      "timeframes": [
+        "1h"
+      ],
+      "enabled": true
+    },
+    {
+      "id": "4",
+      "type": "ATR",
       "params": {
         "period": 14
       },

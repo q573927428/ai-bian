@@ -3,7 +3,7 @@
   "name": "策略02",
   "version": 1,
   "createdAt": "2026-04-19T16:06:46.003Z",
-  "updatedAt": "2026-05-25T14:58:28.519Z",
+  "updatedAt": "2026-05-26T06:39:14.127Z",
   "isActive": true,
   "marketData": {
     "symbols": [
@@ -55,6 +55,17 @@
         "15m"
       ],
       "enabled": true
+    },
+    {
+      "id": "4",
+      "type": "ATR",
+      "params": {
+        "period": 14
+      },
+      "timeframes": [
+        "15m"
+      ],
+      "enabled": true
     }
   ],
   "statistics": [
@@ -92,7 +103,7 @@
     }
   ],
   "aiPrompt": {
-    "userPrompt": "15m短期机械稳健共振策略\n一、做多 LONG 完整规则\n趋势:\n- EMA30 > EMA120\n入场硬性条件（全部必须满足）:\n1. OI 变化率 > 0.2%\n2. 价格偏离 EMA120 ≤ +0.8%\n3. 当前预计成交量 ≥ 成交量EMA均值的1.6 倍\n辅助条件（至少满足 2 项）:\n1. 35 < RSI < 65\n2. 价格偏离 EMA30 ≤ +0.5%\n3. 当前K线为阳线\n4. 当前K线下影线比例 ≤ 20%\n5. EMA30 斜率 > 0\n开仓决策:\n- 硬条件全部满足\n- 辅助条件 >= 2项\n=> 做多开仓\n\n二、做空 SHORT 完整规则\n趋势：\n- EMA30 < EMA120\n入场硬性条件（全部必须满足）:\n1. OI 变化率 < -0.2%\n2. 价格偏离 EMA120 ≥ -0.8%\n3. 当前预计成交量 ≥ 成交量EMA均值的1.6 倍\n辅助条件（至少满足 2 项）:\n1. 35 < RSI < 65\n2. 价格偏离 EMA30 ≥ -0.5%\n3. 当前K线为阴线\n4. 当前K线上影线比例 ≤ 20%\n5. EMA30 斜率 < 0\n开仓决策:\n- 硬条件全部满足\n- 辅助条件 >= 2项\n=> 做空开仓",
+    "userPrompt": "15m短期机械稳健共振策略\n一、做多 LONG 完整规则\n趋势:\n- EMA30 > EMA120\n入场硬性条件（全部必须满足）:\n1. OI 变化率 > 0.2%\n2. 价格偏离 EMA120 ≤ +0.8%\n3. 当前预计成交量 ≥ 成交量EMA均值的1.8 倍\n辅助条件（至少满足 2 项）:\n1. 35 < RSI < 65\n2. 价格偏离 EMA30 ≤ +0.5%\n3. 当前K线为阳线\n4. 当前K线下影线比例 ≤ 20%\n5. EMA30 斜率 > 0\n开仓决策:\n- 硬条件全部满足\n- 辅助条件 >= 2项\n=> 做多开仓\n\n二、做空 SHORT 完整规则\n趋势：\n- EMA30 < EMA120\n入场硬性条件（全部必须满足）:\n1. OI 变化率 < -0.2%\n2. 价格偏离 EMA120 ≥ -0.8%\n3. 当前预计成交量 ≥ 成交量EMA均值的1.8 倍\n辅助条件（至少满足 2 项）:\n1. 35 < RSI < 65\n2. 价格偏离 EMA30 ≥ -0.5%\n3. 当前K线为阴线\n4. 当前K线上影线比例 ≤ 20%\n5. EMA30 斜率 < 0\n开仓决策:\n- 硬条件全部满足\n- 辅助条件 >= 2项\n=> 做空开仓",
     "temperature": 0.2,
     "maxTokens": 2000,
     "model": "Doubao-Seed-2.0-Code",
@@ -107,9 +118,9 @@
       1.5,
       2
     ],
-    "maxDailyTrades": 5,
+    "maxDailyTrades": 3,
     "maxDailyLoss": 10,
-    "maxHoldTimeMinutes": 360,
+    "maxHoldTimeMinutes": 120,
     "trailingStop": {
       "enabled": true,
       "activationRatio": 0.8,
