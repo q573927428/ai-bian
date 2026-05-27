@@ -894,6 +894,10 @@ const updateChart = () => {
   
   if (props.klineData.length === 0) return
   
+  // 过滤无效数据：close <= 0 的 K 线视为无效（价格尚未就绪或旧 symbol 数据残留）
+  const validData = props.klineData.filter(k => k.c > 0 && k.o > 0 && k.h > 0 && k.l > 0)
+  if (validData.length === 0) return
+  
   // 更新价格精度（切换交易对时数据到达后需更新 Y 轴精度，避免沿用旧交易对的 precision）
   const currentPriceFormat = priceFormat.value
   candlestickSeries.applyOptions({ priceFormat: currentPriceFormat })
@@ -901,9 +905,9 @@ const updateChart = () => {
     ema.applyOptions({ priceFormat: currentPriceFormat })
   }
   
-  // 准备数据
-  const candlestickData = prepareCandlestickData(props.klineData)
-  const volumeData = prepareVolumeData(props.klineData)
+  // 准备数据（使用过滤后的有效数据）
+  const candlestickData = prepareCandlestickData(validData)
+  const volumeData = prepareVolumeData(validData)
   
   // 设置数据
   candlestickSeries.setData(candlestickData)

@@ -378,6 +378,7 @@ const getTimeframeSeconds = (timeframe: string): number => {
 // 使用 botStore 共享价格更新最后一根K线
 const updateLastKlineWithPrice = (price: number) => {
   if (klineData.value.length === 0) return
+  if (price <= 0) return
   
   const lastIndex = klineData.value.length - 1
   const lastKline = klineData.value[lastIndex]
@@ -541,7 +542,7 @@ const checkAndUpdatePrice = () => {
   const currentSymbol = (props.symbol || 'BTCUSDT')
   const price = botStore.getPrice(currentSymbol)
   
-  if (!price || klineData.value.length === 0) return
+  if (!price || !price.price || price.price <= 0 || klineData.value.length === 0) return
   
   const lastKline = klineData.value[klineData.value.length - 1]
   if (!lastKline) return
@@ -656,12 +657,21 @@ const handleSymbolChange = async (newSymbol: string, oldSymbol: string) => {
   }
 }
 
-// 创建防抖函数（500ms延迟）
-const debouncedHandleSymbolChange = debounce(handleSymbolChange, 500)
+// 创建防抖函数（200ms延迟）
+const debouncedHandleSymbolChange = debounce(handleSymbolChange, 200)
 
 // 监听symbol变化（使用防抖）
 watch(() => props.symbol, (newSymbol, oldSymbol) => {
   if (newSymbol && newSymbol !== oldSymbol) {
+    // 立即清空数据，避免子组件在防抖延迟期间使用旧 symbol 的数据渲染
+    requestGeneration++
+    klineData.value = []
+    tradeHistory.value = []
+    hideTooltip()
+    if (chartCanvasRef.value) {
+      chartCanvasRef.value.clearMarkers()
+    }
+    
     debouncedHandleSymbolChange(newSymbol, oldSymbol)
   }
 })
