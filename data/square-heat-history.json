@@ -1,10 +1,6 @@
 {
   "SOL": [
     {
-      "postCount": 59,
-      "timestamp": 1779806995952
-    },
-    {
       "postCount": 60,
       "timestamp": 1779810896148
     },
@@ -95,6 +91,10 @@
     {
       "postCount": 101,
       "timestamp": 1779891627908
+    },
+    {
+      "postCount": 102,
+      "timestamp": 1779896837041
     }
   ],
   "DOGE": [

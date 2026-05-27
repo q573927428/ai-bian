@@ -142,7 +142,7 @@
     "enableAtr": true,
     "enableVolume": true
   },
-  "minConfidence": 68,
+  "minConfidence": 99,
   "minFinalScore": 80,
   "maxRiskLevel": "MEDIUM",
   "versionHistory": [
