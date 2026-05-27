@@ -3,7 +3,7 @@
   "name": "策略03",
   "version": 1,
   "createdAt": "2026-04-19T16:14:17.182Z",
-  "updatedAt": "2026-05-26T06:59:57.155Z",
+  "updatedAt": "2026-05-27T10:01:20.591Z",
   "isActive": true,
   "marketData": {
     "symbols": [
@@ -26,7 +26,7 @@
       "type": "EMA",
       "params": {
         "periods": [
-          30,
+          20,
           120
         ]
       },
@@ -104,7 +104,7 @@
     }
   ],
   "aiPrompt": {
-    "userPrompt": "1h机械稳健共振策略\n一、做多 LONG 完整规则\n趋势:\n- EMA7 > EMA120\n入场硬性条件（全部必须满足）:\n1. OI 变化率 > 0.3%\n2. 价格偏离 EMA120 ≤ +1.5%\n3. 当前预计成交量 ≥ 成交量EMA均值的1.5 倍\n辅助条件（至少满足 2 项）:\n1. 30 < RSI < 70\n2. 价格偏离 EMA7 ≤ +1.2%\n3. EMA7 斜率 > 0\n开仓决策:\n- 硬条件全部满足\n- 辅助条件 >= 2项\n=> 做多开仓\n\n二、做空 SHORT 完整规则\n趋势：\n- EMA7 < EMA120\n入场硬性条件（全部必须满足）:\n1. OI 变化率 < -0.3%\n2. 价格偏离 EMA120 ≥ -1.5%\n3. 当前预计成交量 ≥ 成交量EMA均值的1.5 倍\n辅助条件（至少满足 2 项）:\n1. 30 < RSI < 70\n2. 价格偏离 EMA7 ≥ -1.2%\n3. EMA7 斜率 < 0\n开仓决策:\n- 硬条件全部满足\n- 辅助条件 >= 2项\n=> 做空开仓",
+    "userPrompt": "1h机械稳健共振策略\n一、做多 LONG 完整规则\n趋势:\n- 当前价格 > EMA120\n入场硬性条件（全部必须满足）:\n1. OI 变化率 > 0.3%\n2. 价格偏离 EMA120 ≤ +1.5%\n3. 当前预计成交量 ≥ 成交量EMA均值的1.5 倍\n辅助条件（至少满足 2 项）:\n1. 30 < RSI < 70\n2. 价格偏离 EMA20 ≤ +1.2%\n3. EMA20 斜率 > 0\n开仓决策:\n- 硬条件全部满足\n- 辅助条件 >= 2项\n=> 做多开仓\n\n二、做空 SHORT 完整规则\n趋势：\n- 当前价格 < EMA120\n入场硬性条件（全部必须满足）:\n1. OI 变化率 < -0.3%\n2. 价格偏离 EMA120 ≥ -1.5%\n3. 当前预计成交量 ≥ 成交量EMA均值的1.5 倍\n辅助条件（至少满足 2 项）:\n1. 30 < RSI < 70\n2. 价格偏离 EMA20 ≥ -1.2%\n3. EMA20 斜率 < 0\n开仓决策:\n- 硬条件全部满足\n- 辅助条件 >= 2项\n=> 做空开仓",
     "temperature": 0.3,
     "maxTokens": 2000,
     "model": "Doubao-Seed-2.0-Code",
@@ -139,6 +139,22 @@
     "marginMode": "cross",
     "positionMode": "one-way"
   },
+  "preScreenConfig": {
+    "minAdx": 13,
+    "maxAdx": 55,
+    "minAdxSlope": -1.1,
+    "minAtrPercent": 0.0032,
+    "maxAtrPercent": 0.05,
+    "minEstimatedVolumeRatio": 0.6,
+    "minCandleProgressForVolume": 0.1,
+    "enableAdx": true,
+    "enableAdxSlope": true,
+    "enableAtr": true,
+    "enableVolume": true
+  },
+  "minConfidence": 68,
+  "minFinalScore": 78,
+  "maxRiskLevel": "MEDIUM",
   "versionHistory": [
     {
       "version": 1,
@@ -256,6 +272,22 @@
           "marginMode": "cross",
           "positionMode": "one-way"
         },
+        "preScreenConfig": {
+          "minAdx": 13,
+          "maxAdx": 55,
+          "minAdxSlope": -1.1,
+          "minAtrPercent": 0.0032,
+          "maxAtrPercent": 0.05,
+          "minEstimatedVolumeRatio": 0.6,
+          "minCandleProgressForVolume": 0.1,
+          "enableAdx": true,
+          "enableAdxSlope": true,
+          "enableAtr": true,
+          "enableVolume": true
+        },
+        "minConfidence": 68,
+        "minFinalScore": 78,
+        "maxRiskLevel": "MEDIUM",
         "versionHistory": [],
         "performance": {
           "strategyId": "strategy_003",
@@ -286,27 +318,27 @@
   ],
   "performance": {
     "strategyId": "strategy_003",
-    "totalTrades": 13,
+    "totalTrades": 15,
     "totalWins": 5,
-    "totalLosses": 8,
-    "winRate": 38.46153846153847,
+    "totalLosses": 10,
+    "winRate": 33.33333333333333,
     "totalProfit": 9.124874634999998,
-    "totalLoss": 3.298979284999993,
-    "netProfit": 5.825895350000005,
-    "profitFactor": 2.7659690609424414,
-    "maxDrawdown": 25.8655000785632,
+    "totalLoss": 7.320565924999935,
+    "netProfit": 1.804308710000063,
+    "profitFactor": 1.2464712057080585,
+    "maxDrawdown": 76.03343392485807,
     "averageProfitPerTrade": 1.8249749269999995,
-    "averageLossPerTrade": 0.41237241062499913,
+    "averageLossPerTrade": 0.7320565924999934,
     "largestWin": 7.528440680000001,
-    "largestLoss": 1.0988124,
-    "averageHoldTime": 532.8640717948718,
-    "consecutiveWins": 1,
-    "consecutiveLosses": 0,
+    "largestLoss": 3.046703359999979,
+    "averageHoldTime": 486.4972588888889,
+    "consecutiveWins": 0,
+    "consecutiveLosses": 2,
     "maxConsecutiveWins": 3,
     "maxConsecutiveLosses": 4,
-    "dailyPnL": -0.1122513000000118,
-    "todayTrades": 3,
-    "updatedAt": "2026-05-25T05:08:44.060Z"
+    "dailyPnL": -4.021586639999942,
+    "todayTrades": 2,
+    "updatedAt": "2026-05-26T14:41:51.855Z"
   },
   "sessions": [],
   "currentSessionId": null
