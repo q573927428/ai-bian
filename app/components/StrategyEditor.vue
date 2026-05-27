@@ -650,6 +650,13 @@ watch(preScreenEnabledFlags, (flags) => {
   form.preScreenConfig.enableVolume = flags.includes('enableVolume')
 }, { immediate: true })
 
+// 未选择 ATR 指标时，自动关闭 enableAtr
+watch(selectedIndicators, (indicators) => {
+  if (!indicators.includes('ATR') && preScreenEnabledFlags.value.includes('enableAtr')) {
+    preScreenEnabledFlags.value = preScreenEnabledFlags.value.filter(f => f !== 'enableAtr')
+  }
+})
+
 // 同步 indicators 数据 - 使用市场数据配置的最小周期
 watch([selectedIndicators, emaPeriods, () => form.marketData.timeframes], () => {
   const newIndicators: any[] = []
