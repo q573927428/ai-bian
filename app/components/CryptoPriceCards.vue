@@ -106,6 +106,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import KLineChartSimple from '../components/kline-chart/KLineChartSimple.vue'
+import { formatPrice } from './kline-chart/utils/kline-formatters'
 import { useBotStore } from '../stores/bot'
 
 const botStore = useBotStore()
@@ -261,24 +262,6 @@ function closeChartModal() {
 }
 
 // 格式化函数
-function formatPrice(price: number): string {
-  if (price === 0) return '0'
-  
-  if (price < 0.001) {
-    return price.toFixed(4)
-  } else if (price < 1) {
-    return price.toFixed(3)
-  } else if (price < 1000) {
-    return price.toFixed(2)
-  } else {
-    // 对于大数字，添加千位分隔符
-    return price.toLocaleString('en-US', {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2
-    })
-  }
-}
-
 function formatPercent(percent: number): string {
   return `${percent >= 0 ? '+' : ''}${percent.toFixed(2)}%`
 }
