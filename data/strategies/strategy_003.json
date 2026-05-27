@@ -140,10 +140,10 @@
     "positionMode": "one-way"
   },
   "preScreenConfig": {
-    "minAdx": 13,
-    "maxAdx": 55,
-    "minAdxSlope": -1.1,
-    "minAtrPercent": 0.0032,
+    "minAdx": 15,
+    "maxAdx": 60,
+    "minAdxSlope": 0.1,
+    "minAtrPercent": 0.001,
     "maxAtrPercent": 0.05,
     "minEstimatedVolumeRatio": 0.6,
     "minCandleProgressForVolume": 0.1,
@@ -273,10 +273,10 @@
           "positionMode": "one-way"
         },
         "preScreenConfig": {
-          "minAdx": 13,
+          "minAdx": 15,
           "maxAdx": 55,
-          "minAdxSlope": -1.1,
-          "minAtrPercent": 0.0032,
+          "minAdxSlope": 0.1,
+          "minAtrPercent": 0.001,
           "maxAtrPercent": 0.05,
           "minEstimatedVolumeRatio": 0.6,
           "minCandleProgressForVolume": 0.1,

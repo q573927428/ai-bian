@@ -103,8 +103,8 @@ export class StrategyEngine {
     this.state = state
     this.config = config
     
-    // 初始化AI预筛配置
-    aiPreScreener.initFromBotConfig(config.preScreenConfig)
+    // AI预筛配置已改为按策略独立配置，不再从全局加载
+    aiPreScreener.initFromBotConfig()
 
     // 初始化AI分析器
     this.aiAnalyzer = new MultiStrategyAIAnalyzer(binance, config)
@@ -128,7 +128,7 @@ export class StrategyEngine {
    */
   updateConfig(config: BotConfig): void {
     this.config = config
-    aiPreScreener.initFromBotConfig(config.preScreenConfig)
+    aiPreScreener.initFromBotConfig()
     this.aiAnalyzer.updateConfig(config)
     this.indicatorsHub.updateConfig(config)
     this.positionMonitor.stop()
@@ -688,7 +688,13 @@ export class StrategyEngine {
         }
       }
 
-      // AI预筛
+      // 获取策略级阈值（每个策略独立配置，无全局兜底）
+      const strategyPreScreenConfig = (instance.strategy as any).preScreenConfig
+      const strategyMinConfidence = instance.strategy.minConfidence ?? 50
+      const strategyMinFinalScore = instance.strategy.minFinalScore ?? 0
+      const strategyMaxRiskLevel = instance.strategy.maxRiskLevel ?? 'MEDIUM'
+
+      // AI预筛（支持策略级覆盖）
       const preScreenResult = aiPreScreener.screen({
         symbol,
         strategyId,
@@ -702,7 +708,7 @@ export class StrategyEngine {
         prevVolume: volumeData.prev,
         volumeAverage: volumeData.average,
         candleProgress
-      })
+      }, strategyPreScreenConfig)
 
       if (!preScreenResult.passed) {
         return null
@@ -769,15 +775,15 @@ export class StrategyEngine {
       // 统一记录扫描结果日志
       const strategyInstance = this.runningStrategies.get(strategyId)
       const strategyName = strategyInstance ? strategyInstance.strategy.name : '未知策略'
-      const minConfidence = this.config.minConfidence ?? 70
 
       let enhancedLog = signal.reasoning
 
-      const minFinalScore = this.config.minFinalScore
+      const minConfidence = strategyMinConfidence
+      const minFinalScore = strategyMinFinalScore
       const finalScore = signal.scoreBreakdown?.finalScore
       const isFinalScoreOK = minFinalScore === undefined || finalScore === undefined || finalScore >= minFinalScore
 
-      const maxRiskLevel = this.config.maxRiskLevel
+      const maxRiskLevel = strategyMaxRiskLevel
       let isRiskLevelOK = true
       if (maxRiskLevel !== undefined && signal.riskLevel !== undefined) {
         const riskLevelOrder: Record<string, number> = { 'LOW': 0, 'MEDIUM': 1, 'HIGH': 2 }
@@ -856,20 +862,20 @@ export class StrategyEngine {
       return false
     }
 
-    // 检查置信度
-    const minConfidence = this.config.minConfidence ?? 70
+    // 检查置信度（策略独立配置，兜底 50）
+    const minConfidence = 50
     if (signal.confidence < minConfidence) {
       return false
     }
 
-    // 检查最终评分
-    const minFinalScore = this.config.minFinalScore
+    // 检查最终评分（策略独立配置，兜底 0）
+    const minFinalScore = 0
     if (minFinalScore !== undefined && signal.scoreBreakdown?.finalScore !== undefined && signal.scoreBreakdown.finalScore < minFinalScore) {
       return false
     }
 
-    // 检查风险等级
-    const maxRiskLevel = this.config.maxRiskLevel
+    // 检查风险等级（策略独立配置，兜底 HIGH）
+    const maxRiskLevel = 'HIGH'
     if (maxRiskLevel !== undefined && signal.riskLevel !== undefined) {
       // 风险等级优先级：LOW < MEDIUM < HIGH
       const riskLevelOrder: Record<string, number> = { 'LOW': 0, 'MEDIUM': 1, 'HIGH': 2 }

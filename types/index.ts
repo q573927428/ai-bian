@@ -186,13 +186,9 @@ export interface BotConfig {
   volumeEmaPeriod?: number
   aiCacheTtlMinutes: number
   aiAnalysisConfig: AIAnalysisSaveConfig
-  minConfidence: number
-  minFinalScore?: number
-  maxRiskLevel?: RiskLevel
   defaultTimeframe?: string
   defaultCandleProgress: number
   commissionRate: number
-  preScreenConfig?: PreScreenConfig
   concurrencyPool?: BotConcurrencyConfig
   chartMarkerConfig?: ChartMarkerConfig
 }

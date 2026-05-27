@@ -125,7 +125,17 @@ export class AIPreScreener {
   /**
    * 执行预筛
    */
-  screen(input: PreScreenInput): PreScreenResult {
+  /**
+   * 执行预筛
+   * @param input 预筛输入数据
+   * @param overrides 策略级阈值覆盖（优先级高于全局配置）
+   */
+  screen(input: PreScreenInput, overrides?: PreScreenConfig): PreScreenResult {
+    // 合并全局配置与策略级覆盖（用默认值填充缺失字段）
+    const cfg: Required<PreScreenConfig> = overrides
+      ? { ...PRESCREEN_DEFAULTS, ...this.config, ...overrides }
+      : { ...PRESCREEN_DEFAULTS, ...this.config }
+
     this.stats.totalChecks++
 
     const checks: PreScreenResult['checks'] = {}
@@ -133,42 +143,43 @@ export class AIPreScreener {
     let failReason: string | undefined
 
     // ADX检查
-    if (this.config.enableAdx && input.adx !== undefined) {
-      const adxCheck = this.checkAdx(input.adx)
+    if (cfg.enableAdx && input.adx !== undefined) {
+      const adxCheck = this.checkAdx(input.adx, cfg)
       checks.adx = adxCheck
       if (!adxCheck.passed) {
         const adxTimeframe = input.adxTimeframe ?? '15m'
         passed = false
-        failReason = `ADX不满足(${adxTimeframe}) : ${input.adx.toFixed(1)} 不在 [${this.config.minAdx}, ${this.config.maxAdx}] 范围内`
+        failReason = `ADX不满足(${adxTimeframe}) : ${input.adx.toFixed(1)} 不在 [${cfg.minAdx}, ${cfg.maxAdx}] 范围内`
       }
     }
 
     // ADX斜率检查
-    if (passed && this.config.enableAdxSlope && input.adxSlope !== undefined) {
-      const adxSlopeCheck = this.checkAdxSlope(input.adxSlope)
+    if (passed && cfg.enableAdxSlope && input.adxSlope !== undefined) {
+      const adxSlopeCheck = this.checkAdxSlope(input.adxSlope, cfg)
       checks.adxSlope = adxSlopeCheck
       if (!adxSlopeCheck.passed) {
         const adxTimeframe = input.adxTimeframe ?? '15m'
         passed = false
-        failReason = `ADX斜率不满足(${adxTimeframe}) : ${input.adxSlope.toFixed(4)} <= ${this.config.minAdxSlope}`
+        failReason = `ADX斜率不满足(${adxTimeframe}) : ${input.adxSlope.toFixed(4)} <= ${cfg.minAdxSlope}`
       }
     }
 
     // ATR检查
-    if (passed && this.config.enableAtr && input.atr !== undefined && input.currentPrice !== undefined) {
-      const atrCheck = this.checkAtr(input.atr, input.currentPrice)
+    if (passed && cfg.enableAtr && input.atr !== undefined && input.currentPrice !== undefined) {
+      const atrCheck = this.checkAtr(input.atr, input.currentPrice, cfg)
       checks.atr = atrCheck
       if (!atrCheck.passed) {
         passed = false
-        failReason = `ATR不满足: ${(input.atr / input.currentPrice * 100).toFixed(3)}% 不在 [${(this.config.minAtrPercent! * 100).toFixed(2)}%, ${(this.config.maxAtrPercent! * 100).toFixed(2)}%] 范围内`
+        failReason = `ATR不满足: ${(input.atr / input.currentPrice * 100).toFixed(3)}% 不在 [${(cfg.minAtrPercent! * 100).toFixed(2)}%, ${(cfg.maxAtrPercent! * 100).toFixed(2)}%] 范围内`
       }
     }
 
     // 成交量检查（支持预估模式，解决未收盘K线成交量偏低的问题）
-    if (passed && this.config.enableVolume && input.currentVolume !== undefined && input.prevVolume !== undefined) {
+    if (passed && cfg.enableVolume && input.currentVolume !== undefined && input.prevVolume !== undefined) {
       const volumeCheck = this.checkVolume(
         input.currentVolume,
         input.prevVolume,
+        cfg,
         input.volumeAverage,
         input.candleProgress
       )
@@ -205,9 +216,9 @@ export class AIPreScreener {
   /**
    * ADX检查
    */
-  private checkAdx(adx: number): { passed: boolean; value: number; threshold: string } {
-    const minAdx = this.config.minAdx!
-    const maxAdx = this.config.maxAdx!
+  private checkAdx(adx: number, cfg: Required<PreScreenConfig>): { passed: boolean; value: number; threshold: string } {
+    const minAdx = cfg.minAdx!
+    const maxAdx = cfg.maxAdx!
     const passed = adx >= minAdx && adx <= maxAdx
     return {
       passed,
@@ -219,8 +230,8 @@ export class AIPreScreener {
   /**
    * ADX斜率检查
    */
-  private checkAdxSlope(adxSlope: number): { passed: boolean; value: number; threshold: string } {
-    const minAdxSlope = this.config.minAdxSlope!
+  private checkAdxSlope(adxSlope: number, cfg: Required<PreScreenConfig>): { passed: boolean; value: number; threshold: string } {
+    const minAdxSlope = cfg.minAdxSlope!
     const passed = adxSlope > minAdxSlope
     return {
       passed,
@@ -232,10 +243,10 @@ export class AIPreScreener {
   /**
    * ATR检查
    */
-  private checkAtr(atr: number, currentPrice: number): { passed: boolean; value: number; threshold: string } {
+  private checkAtr(atr: number, currentPrice: number, cfg: Required<PreScreenConfig>): { passed: boolean; value: number; threshold: string } {
     const atrPercent = atr / currentPrice
-    const minAtrPercent = this.config.minAtrPercent!
-    const maxAtrPercent = this.config.maxAtrPercent!
+    const minAtrPercent = cfg.minAtrPercent!
+    const maxAtrPercent = cfg.maxAtrPercent!
     const passed = atrPercent >= minAtrPercent && atrPercent <= maxAtrPercent
     return {
       passed,
@@ -258,6 +269,7 @@ export class AIPreScreener {
   private checkVolume(
     currentVolume: number,
     _prevVolume: number,
+    cfg: Required<PreScreenConfig>,
     volumeAverage?: number,
     candleProgress?: number
   ): { passed: boolean; value: number; threshold: string; reason?: string } {
@@ -271,7 +283,7 @@ export class AIPreScreener {
       }
     }
 
-    const minProgress = this.config.minCandleProgressForVolume!
+    const minProgress = cfg.minCandleProgressForVolume!
 
     // 进度太低，跳过检查（数据太少，预估不可靠）
     if (candleProgress < minProgress) {
@@ -286,7 +298,7 @@ export class AIPreScreener {
     // 预估整根K线成交量
     const estimatedVolume = currentVolume / candleProgress
     const estimatedRatio = estimatedVolume / volumeAverage
-    const minEstimatedRatio = this.config.minEstimatedVolumeRatio!
+    const minEstimatedRatio = cfg.minEstimatedVolumeRatio!
 
     const passed = estimatedRatio >= minEstimatedRatio
     return {

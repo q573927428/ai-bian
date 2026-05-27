@@ -108,6 +108,15 @@ export interface Strategy {
   // 结构化规则（可选）
   structuredRules?: any;
   
+  // 策略级 AI 预筛配置
+  preScreenConfig?: PreScreenConfig;
+  // 策略级最小置信度阈值
+  minConfidence?: number;
+  // 策略级最小最终评分阈值 
+  minFinalScore?: number;
+  // 策略级最大风险等级
+  maxRiskLevel?: RiskLevel;
+  
   // 版本历史
   versionHistory: VersionHistory[];
 
@@ -192,6 +201,8 @@ export interface VersionHistory {
 
 // ==================== 策略操作输入 ====================
 
+import type { PreScreenConfig, RiskLevel } from './index'
+
 // 创建策略输入
 export interface CreateStrategyInput {
   name: string;
@@ -202,6 +213,14 @@ export interface CreateStrategyInput {
   riskManagement: RiskConfig;
   executionConfig: ExecutionConfig;
   structuredRules?: any;
+  /** 策略级 AI 预筛配置（覆盖全局 bot-config.preScreenConfig），表单始终提供默认值 */
+  preScreenConfig: PreScreenConfig;
+  /** 策略级最小置信度阈值（覆盖全局 bot-config.minConfidence），未配置时回退到全局 */
+  minConfidence?: number;
+  /** 策略级最小最终评分阈值（覆盖全局 bot-config.minFinalScore），未配置时回退到全局 */
+  minFinalScore?: number;
+  /** 策略级最大风险等级（覆盖全局 bot-config.maxRiskLevel），未配置时回退到全局 */
+  maxRiskLevel?: RiskLevel;
 }
 
 // 更新策略输入
@@ -214,6 +233,14 @@ export interface UpdateStrategyInput {
   riskManagement?: RiskConfig;
   executionConfig?: ExecutionConfig;
   structuredRules?: any;
+  /** 策略级 AI 预筛配置（覆盖全局 bot-config.preScreenConfig），未配置时回退到全局 */
+  preScreenConfig?: PreScreenConfig;
+  /** 策略级最小置信度阈值（覆盖全局 bot-config.minConfidence），未配置时回退到全局 */
+  minConfidence?: number;
+  /** 策略级最小最终评分阈值（覆盖全局 bot-config.minFinalScore），未配置时回退到全局 */
+  minFinalScore?: number;
+  /** 策略级最大风险等级（覆盖全局 bot-config.maxRiskLevel），未配置时回退到全局 */
+  maxRiskLevel?: RiskLevel;
 }
 
 // ==================== 策略状态 ====================

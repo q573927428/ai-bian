@@ -308,25 +308,9 @@ function getDefaultBotConfig(): BotConfig {
       minConfidence: 50,
       enableHistorySection: true, // 是否在系统提示词中包含历史分析经验
     },
-    minConfidence: 70, // 信号最小置信度阈值
-    minFinalScore: 70, // 最终评分阈值
-    maxRiskLevel: 'MEDIUM', // 最大风险等级
     defaultTimeframe: '1h', // 默认K线周期
     defaultCandleProgress: 0.1, // 默认K线进度（用于无法获取最新K线时兜底）
     commissionRate: 0.0005, // 手续费率
-    preScreenConfig: {
-      minAdx: 15, // ADX最小阈值
-      maxAdx: 60, // ADX最大阈值
-      minAdxSlope: 0, // ADX斜率最小阈值
-      minAtrPercent: 0.002, // ATR最小波动率 (0.2%)
-      maxAtrPercent: 0.05, // ATR最大波动率
-      minEstimatedVolumeRatio: 0.3, // 预估成交量/历史均值最小比率
-      minCandleProgressForVolume: 0.1, // K线完成进度阈值，低于此值跳过成交量检查
-      enableAdx: true, // 启用ADX筛选
-      enableAdxSlope: true, // 启用ADX斜率筛选
-      enableAtr: true, // 启用ATR筛选
-      enableVolume: true, // 启用成交量筛选
-    },
     concurrencyPool: {
       indicator: { maxConcurrency: 16 }, // 指标计算并发数
       ai: { maxConcurrency: 6 }, // AI分析并发数

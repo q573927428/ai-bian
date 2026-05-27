@@ -50,11 +50,11 @@
                 :min="1"
                 :max="3"
               >
-                <el-checkbox label="5m">5分钟</el-checkbox>
-                <el-checkbox label="15m">15分钟</el-checkbox>
-                <el-checkbox label="1h">1小时</el-checkbox>
-                <el-checkbox label="4h">4小时</el-checkbox>
-                <el-checkbox label="1d">1天</el-checkbox>
+              <el-checkbox value="5m" label="5分钟" />
+                <el-checkbox value="15m" label="15分钟" />
+                <el-checkbox value="1h" label="1小时" />
+                <el-checkbox value="4h" label="4小时" />
+                <el-checkbox value="1d" label="1天" />
               </el-checkbox-group>
             </el-form-item>
           </el-card>
@@ -70,24 +70,24 @@
 
             <el-form-item label="选择指标">
               <el-checkbox-group v-model="selectedIndicators">
-                <el-checkbox label="EMA" disabled>EMA</el-checkbox>
-                <el-checkbox label="RSI">RSI (14)</el-checkbox>
-                <el-checkbox label="ADX" disabled>ADX (14)</el-checkbox>
-                <el-checkbox label="MACD">MACD (12,26,9)</el-checkbox>
-                <el-checkbox label="ATR">ATR (14)</el-checkbox>
+                <el-checkbox value="EMA" label="EMA" disabled />
+                <el-checkbox value="RSI" label="RSI (14)" />
+                <el-checkbox value="ADX" label="ADX (14)" disabled />
+                <el-checkbox value="MACD" label="MACD (12,26,9)" />
+                <el-checkbox value="ATR" label="ATR (14)" />
               </el-checkbox-group>
             </el-form-item>
 
             <el-form-item label="EMA 周期" v-if="selectedIndicators.includes('EMA')">
               <el-checkbox-group v-model="emaPeriods" :min="2" :max="3">
-                <el-checkbox :label="7">7</el-checkbox>
-                <el-checkbox :label="14">14</el-checkbox>
-                <el-checkbox :label="20">20</el-checkbox>
-                <el-checkbox :label="30">30</el-checkbox>
-                <el-checkbox :label="50">50</el-checkbox>
-                <el-checkbox :label="60">60</el-checkbox>
-                <el-checkbox :label="120">120</el-checkbox>
-                <el-checkbox :label="200">200</el-checkbox>
+                <el-checkbox :value="7" label="7" />
+                <el-checkbox :value="14" label="14" />
+                <el-checkbox :value="20" label="20" />
+                <el-checkbox :value="30" label="30" />
+                <el-checkbox :value="50" label="50" />
+                <el-checkbox :value="60" label="60" />
+                <el-checkbox :value="120" label="120" />
+                <el-checkbox :value="200" label="200" />
               </el-checkbox-group>
             </el-form-item>
           </el-card>
@@ -102,9 +102,9 @@
             </template>
             <el-form-item label="选择数据">
               <el-checkbox-group v-model="selectedStatistics">
-                <el-checkbox label="OI">OI 持仓量</el-checkbox>
-                <el-checkbox label="Volume">成交量</el-checkbox>
-                <el-checkbox label="SquareHeat">币安广场热度</el-checkbox>
+                <el-checkbox value="OI" label="OI 持仓量" />
+                <el-checkbox value="Volume" label="成交量" />
+                <el-checkbox value="SquareHeat" label="币安广场热度" />
               </el-checkbox-group>
             </el-form-item>
 
@@ -137,35 +137,102 @@
             </div>
           </el-card>
 
-          <!-- 执行配置 -->
+          <!-- 信号阈值配置（可选，覆盖全局 bot-config） -->
           <el-card class="form-section">
             <template #header>
               <div class="section-header">
-                <el-icon><ElIconSetting /></el-icon>
-                <span>4. 执行配置</span>
+                <el-icon><ElIconFilter /></el-icon>
+                <span>4. 信号阈值配置</span>
               </div>
             </template>
-            <el-form-item label="扫描间隔">
-              <el-input-number v-model="form.executionConfig.scanInterval" :min="5" :max="120" :step="5" /> <small class="unitf">分钟</small>
+            <!-- 最小置信度 -->
+            <el-form-item label="最小置信度">
+              <el-input-number v-model="form.minConfidence" :min="0" :max="100" :step="1" placeholder="全局默认" />
             </el-form-item>
-            <el-form-item label="杠杆">
-              <el-select v-model="form.executionConfig.leverage" style="width: 100%">
-                <el-option label="动态" value="dynamic" />
-                <el-option label="2" :value="2" />
-                <el-option label="3" :value="3" />
-                <el-option label="5" :value="5" />
-                <el-option label="10" :value="10" />
-                <el-option label="20" :value="20" />
-                <el-option label="50" :value="50" />
+
+            <!-- 最小最终评分 -->
+            <el-form-item label="最小评分">
+              <el-input-number v-model="form.minFinalScore" :min="0" :max="100" :step="1" placeholder="全局默认" />
+            </el-form-item>
+
+            <!-- 最大风险等级 -->
+            <el-form-item label="最大风险">
+              <el-select v-model="form.maxRiskLevel" placeholder="全局默认" clearable style="width: 100%">
+                <el-option label="LOW" value="LOW" />
+                <el-option label="MEDIUM" value="MEDIUM" />
+                <el-option label="HIGH" value="HIGH" />
               </el-select>
             </el-form-item>
-            <el-form-item label="保证金模式">
-              <el-select v-model="form.executionConfig.marginMode" style="width: 100%">
-                <el-option label="全仓" value="cross" />
-                <el-option label="逐仓" value="isolated" />
-              </el-select>
+
+            <!-- AI 预筛配置 -->
+            <el-divider content-position="left">AI 预筛阈值</el-divider>
+
+            <el-form-item label="启用筛选项">
+              <el-checkbox-group v-model="preScreenEnabledFlags">
+                <el-checkbox value="enableAdx" label="ADX" />
+                <el-checkbox value="enableAdxSlope" label="ADX斜率" />
+                <el-checkbox value="enableAtr" label="ATR" />
+                <el-checkbox value="enableVolume" label="成交量" />
+              </el-checkbox-group>
             </el-form-item>
+
+            <!-- ADX 阈值（仅当启用 ADX 或 ADX斜率时显示） -->
+            <template v-if="preScreenEnabledFlags.includes('enableAdx') || preScreenEnabledFlags.includes('enableAdxSlope')">
+              <el-row :gutter="12">
+                <el-col :xs="24" :span="12">
+                  <el-form-item label="最小ADX" v-if="preScreenEnabledFlags.includes('enableAdx')">
+                    <el-input-number v-model="form.preScreenConfig.minAdx" :min="0" :max="100" :step="1" placeholder="15" />
+                  </el-form-item>
+                </el-col>
+                <el-col :xs="24" :span="12">
+                  <el-form-item label="最大ADX" v-if="preScreenEnabledFlags.includes('enableAdx')">
+                    <el-input-number v-model="form.preScreenConfig.maxAdx" :min="0" :max="100" :step="1" placeholder="60" />
+                  </el-form-item>
+                </el-col>
+              </el-row>
+              <el-row :gutter="12" v-if="preScreenEnabledFlags.includes('enableAdxSlope')">
+                <el-col :xs="24" :span="12">
+                  <el-form-item label="最小ADX斜率">
+                    <el-input-number v-model="form.preScreenConfig.minAdxSlope" :min="-10" :max="10" :step="0.1" :precision="1" placeholder="0" />
+                  </el-form-item>
+                </el-col>
+              </el-row>
+            </template>
+
+            <!-- ATR 阈值（仅当启用 ATR 时显示） -->
+            <el-row :gutter="12" v-if="preScreenEnabledFlags.includes('enableAtr')">
+              <el-col :xs="24" :span="12">
+                <el-form-item label="最小ATR波动率">
+                  <el-input-number v-model="form.preScreenConfig.minAtrPercent" :min="0" :max="0.1" :step="0.0001" :precision="4" placeholder="0.002" />
+                  <small class="unitf">(小数)</small>
+                </el-form-item>
+              </el-col>
+              <el-col :xs="24" :span="12">
+                <el-form-item label="最大ATR波动率">
+                  <el-input-number v-model="form.preScreenConfig.maxAtrPercent" :min="0" :max="0.5" :step="0.001" :precision="3" placeholder="0.05" />
+                  <small class="unitf">(小数)</small>
+                </el-form-item>
+              </el-col>
+            </el-row>
+
+            <!-- 成交量阈值（仅当启用 Volume 时显示） -->
+            <template v-if="preScreenEnabledFlags.includes('enableVolume')">
+              <el-row :gutter="12">
+                <el-col :xs="24" :span="12">
+                  <el-form-item label="最小预估量比">
+                    <el-input-number v-model="form.preScreenConfig.minEstimatedVolumeRatio" :min="0" :max="10" :step="0.1" :precision="1" placeholder="0.3" />
+                  </el-form-item>
+                </el-col>
+                <el-col :xs="24" :span="12">
+                  <el-form-item label="成交量进度阈值">
+                    <el-input-number v-model="form.preScreenConfig.minCandleProgressForVolume" :min="0" :max="1" :step="0.05" :precision="2" placeholder="0.1" />
+                    <small class="unitf">K线进度低于此值跳过检查</small>
+                  </el-form-item>
+                </el-col>
+              </el-row>
+            </template>
           </el-card>
+
         </div>
 
         <!-- 右列 -->
@@ -258,6 +325,8 @@
             </el-form-item>
           </el-card> -->
 
+          
+
           <!-- 风险管理配置 -->
           <el-card class="form-section">
             <template #header>
@@ -329,6 +398,36 @@
               </div>
             </el-form-item>
             
+          </el-card>
+
+          <!-- 执行配置 -->
+          <el-card class="form-section">
+            <template #header>
+              <div class="section-header">
+                <el-icon><ElIconSetting /></el-icon>
+                <span>7. 执行配置</span>
+              </div>
+            </template>
+            <el-form-item label="扫描间隔">
+              <el-input-number v-model="form.executionConfig.scanInterval" :min="5" :max="120" :step="5" /> <small class="unitf">分钟</small>
+            </el-form-item>
+            <el-form-item label="杠杆">
+              <el-select v-model="form.executionConfig.leverage" style="width: 100%">
+                <el-option label="动态" value="dynamic" />
+                <el-option label="2" :value="2" />
+                <el-option label="3" :value="3" />
+                <el-option label="5" :value="5" />
+                <el-option label="10" :value="10" />
+                <el-option label="20" :value="20" />
+                <el-option label="50" :value="50" />
+              </el-select>
+            </el-form-item>
+            <el-form-item label="保证金模式">
+              <el-select v-model="form.executionConfig.marginMode" style="width: 100%">
+                <el-option label="全仓" value="cross" />
+                <el-option label="逐仓" value="isolated" />
+              </el-select>
+            </el-form-item>
           </el-card>
         </div>
       </div>
@@ -521,8 +620,35 @@ const form = reactive<CreateStrategyInput>({
     leverage: 'dynamic',
     marginMode: 'cross',
     positionMode: 'one-way'
-  }
+  },
+  preScreenConfig: {
+    minAdx: 10,
+    maxAdx: 60,
+    minAdxSlope: 0,
+    minAtrPercent: 0.001,
+    maxAtrPercent: 0.05,
+    minEstimatedVolumeRatio: 0.1,
+    minCandleProgressForVolume: 0.1,
+    enableAdx: false,
+    enableAdxSlope: false,
+    enableAtr: false,
+    enableVolume: false
+  },
+  minConfidence: 70,
+  minFinalScore: 80,
+  maxRiskLevel: 'MEDIUM'
 })
+
+// 预筛启用标记
+const preScreenEnabledFlags = ref<string[]>(['enableAdx', 'enableAdxSlope', 'enableAtr', 'enableVolume'])
+
+// 同步 preScreenEnabledFlags 到 form.preScreenConfig
+watch(preScreenEnabledFlags, (flags) => {
+  form.preScreenConfig.enableAdx = flags.includes('enableAdx')
+  form.preScreenConfig.enableAdxSlope = flags.includes('enableAdxSlope')
+  form.preScreenConfig.enableAtr = flags.includes('enableAtr')
+  form.preScreenConfig.enableVolume = flags.includes('enableVolume')
+}, { immediate: true })
 
 // 同步 indicators 数据 - 使用市场数据配置的最小周期
 watch([selectedIndicators, emaPeriods, () => form.marketData.timeframes], () => {
@@ -640,8 +766,26 @@ watch(() => props.strategy, (newVal) => {
       executionConfig: newVal.executionConfig,
       indicators: newVal.indicators,
       statistics: newVal.statistics,
-      structuredRules: (newVal as any).structuredRules
+      structuredRules: (newVal as any).structuredRules,
+      minConfidence: newVal.minConfidence,
+      minFinalScore: newVal.minFinalScore,
+      maxRiskLevel: newVal.maxRiskLevel,
+      preScreenConfig: newVal.preScreenConfig || {
+        enableAdx: true,
+        enableAdxSlope: true,
+        enableAtr: true,
+        enableVolume: true
+      }
     })
+
+    // 同步预筛启用标记
+    const psc = newVal.preScreenConfig
+    const flags: string[] = []
+    if (psc?.enableAdx !== false) flags.push('enableAdx')
+    if (psc?.enableAdxSlope !== false) flags.push('enableAdxSlope')
+    if (psc?.enableAtr !== false) flags.push('enableAtr')
+    if (psc?.enableVolume !== false) flags.push('enableVolume')
+    preScreenEnabledFlags.value = flags
 
     // 同步选中的指标
     selectedIndicators.value = newVal.indicators.filter(i => i.enabled).map(i => i.type)
