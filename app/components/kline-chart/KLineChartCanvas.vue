@@ -894,6 +894,13 @@ const updateChart = () => {
   
   if (props.klineData.length === 0) return
   
+  // 更新价格精度（切换交易对时数据到达后需更新 Y 轴精度，避免沿用旧交易对的 precision）
+  const currentPriceFormat = priceFormat.value
+  candlestickSeries.applyOptions({ priceFormat: currentPriceFormat })
+  for (const ema of emaSeries) {
+    ema.applyOptions({ priceFormat: currentPriceFormat })
+  }
+  
   // 准备数据
   const candlestickData = prepareCandlestickData(props.klineData)
   const volumeData = prepareVolumeData(props.klineData)
