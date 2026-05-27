@@ -3,7 +3,7 @@
   "name": "策略03",
   "version": 1,
   "createdAt": "2026-04-19T16:14:17.182Z",
-  "updatedAt": "2026-05-27T10:01:20.591Z",
+  "updatedAt": "2026-05-27T13:58:54.617Z",
   "isActive": true,
   "marketData": {
     "symbols": [
@@ -143,9 +143,9 @@
     "minAdx": 15,
     "maxAdx": 60,
     "minAdxSlope": 0.1,
-    "minAtrPercent": 0.0012,
+    "minAtrPercent": 0.0016,
     "maxAtrPercent": 0.05,
-    "minEstimatedVolumeRatio": 0.6,
+    "minEstimatedVolumeRatio": 0.5,
     "minCandleProgressForVolume": 0.1,
     "enableAdx": true,
     "enableAdxSlope": true,

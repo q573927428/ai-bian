@@ -16,7 +16,7 @@
     "emaSlopePeriod": 3
   },
   "emaPeriods": [
-    30,
+    20,
     120
   ],
   "volumeEmaPeriod": 12,
@@ -44,7 +44,7 @@
   },
   "chartMarkerConfig": {
     "showEMAMarkers": false,
-    "showOrderMarkers": false,
+    "showOrderMarkers": true,
     "showEMALines": true
   }
 }
