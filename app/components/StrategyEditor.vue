@@ -1,7 +1,7 @@
 <!-- 策略编辑器组件 -->
 <template>
   <div class="strategy-editor">
-    <el-form :model="form" label-width="90px" class="strategy-form">
+    <el-form :model="form" label-width="100px" class="strategy-form">
       <!-- 两列布局容器 -->
       <div class="form-grid">
         <!-- 左列 -->
@@ -193,7 +193,7 @@
               <el-row :gutter="12" v-if="preScreenEnabledFlags.includes('enableAdxSlope')">
                 <el-col :xs="24" :span="12">
                   <el-form-item label="最小ADX斜率">
-                    <el-input-number v-model="form.preScreenConfig.minAdxSlope" :min="-10" :max="10" :step="0.1" :precision="1" placeholder="0" />
+                    <el-input-number v-model="form.preScreenConfig.minAdxSlope" :min="-50" :max="50" :step="0.1" :precision="1" placeholder="0" />
                   </el-form-item>
                 </el-col>
               </el-row>
@@ -202,13 +202,13 @@
             <!-- ATR 阈值（仅当启用 ATR 时显示） -->
             <el-row :gutter="12" v-if="preScreenEnabledFlags.includes('enableAtr')">
               <el-col :xs="24" :span="12">
-                <el-form-item label="最小ATR波动率">
+                <el-form-item label="最小ATR波率">
                   <el-input-number v-model="form.preScreenConfig.minAtrPercent" :min="0" :max="0.1" :step="0.0001" :precision="4" placeholder="0.002" />
                   <small class="unitf">(小数)</small>
                 </el-form-item>
               </el-col>
               <el-col :xs="24" :span="12">
-                <el-form-item label="最大ATR波动率">
+                <el-form-item label="最大ATR波率">
                   <el-input-number v-model="form.preScreenConfig.maxAtrPercent" :min="0" :max="0.5" :step="0.001" :precision="3" placeholder="0.05" />
                   <small class="unitf">(小数)</small>
                 </el-form-item>
@@ -224,7 +224,7 @@
                   </el-form-item>
                 </el-col>
                 <el-col :xs="24" :span="12">
-                  <el-form-item label="成交量进度阈值">
+                  <el-form-item label="成交量进度">
                     <el-input-number v-model="form.preScreenConfig.minCandleProgressForVolume" :min="0" :max="1" :step="0.05" :precision="2" placeholder="0.1" />
                     <small class="unitf">K线进度低于此值跳过检查</small>
                   </el-form-item>
