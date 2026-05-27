@@ -230,6 +230,7 @@ const emit = defineEmits<{
     rsi?: number | null
     adx?: number | null
   }, time: string]
+  'order-click': [orders: TradeHistory[], klineTime: number]
   'retry': []
 }>()
 
@@ -283,36 +284,85 @@ const generateMarkers = () => {
     return []
   }
   
-  const markers = props.tradeHistory.flatMap(order => {
-    // 转换时间格式：毫秒 -> 秒
+  // 按 K线时间 聚合每种类型的数量（同一类型同一时间合并）
+  // key: `${klineTime}|${type}`, value: 数量
+  type OrderType = '开多' | '开空' | '平多' | '平空'
+  const countMap = new Map<string, number>()
+  
+  for (const order of props.tradeHistory) {
     const openTime = alignToKlineTime(order.openTime, currentTimeframe)
     const closeTime = alignToKlineTime(order.closeTime, currentTimeframe)
     
-    // 开仓标记
-    const openMarker = {
-      time: openTime,
-      position: 'aboveBar' as const,
-      color: order.direction === 'LONG' ? '#26a69a' : '#ef5350',
-      shape: (order.direction === 'LONG' ? 'arrowUp' : 'arrowDown') as SeriesMarkerShape,
-      text: `${order.direction} @ ${order.entryPrice.toFixed(2)}`
+    // 开仓
+    const openType: OrderType = order.direction === 'LONG' ? '开多' : '开空'
+    const openKey = `${openTime}|${openType}`
+    countMap.set(openKey, (countMap.get(openKey) || 0) + 1)
+    
+    // 平仓（不与开仓在同一K线时单独记录）
+    if (closeTime !== openTime) {
+      const closeType: OrderType = order.direction === 'LONG' ? '平多' : '平空'
+      const closeKey = `${closeTime}|${closeType}`
+      countMap.set(closeKey, (countMap.get(closeKey) || 0) + 1)
     }
+  }
+  
+  const markers: Array<{
+    time: number
+    position: 'aboveBar' | 'belowBar'
+    color: string
+    shape: SeriesMarkerShape
+    text: string
+  }> = []
+  
+  for (const [key, count] of countMap) {
+    const parts = key.split('|')
+    const timeStr = parts[0]
+    const type = parts[1]
+    if (!timeStr || !type) continue
     
-    // 平仓标记（根据方向显示平多/平空）
-    const closeAction = order.direction === 'LONG' ? '平多' : '平空'
-    const pnlSign = order.pnl >= 0 ? '+' : ''
+    const klineTime = parseInt(timeStr, 10)
+    if (isNaN(klineTime)) continue
     
-    // 第一行：平多/平空和价格
-    const closeMarker1 = {
-      time: closeTime,
-      position: 'belowBar' as const,
-      color: order.pnl >= 0 ? '#26a69a' : '#ef5350',
-      shape: 'circle' as SeriesMarkerShape,
-      text: `${closeAction} @ ${order.exitPrice.toFixed(2)}  ${pnlSign}${order.pnl.toFixed(2)} (${pnlSign}${order.pnlPercentage.toFixed(2)}%)`
+    const orderType = type as OrderType
+    
+    if (orderType === '开多') {
+      // 开多：向上箭头，下面
+      markers.push({
+        time: klineTime,
+        position: 'belowBar' as const,
+        color: '#8dd4a8',
+        shape: 'arrowUp' as SeriesMarkerShape,
+        text: count > 1 ? `${orderType}×${count}` : orderType
+      })
+    } else if (orderType === '开空') {
+      // 开空：向下箭头，上面
+      markers.push({
+        time: klineTime,
+        position: 'aboveBar' as const,
+        color: '#e89898',
+        shape: 'arrowDown' as SeriesMarkerShape,
+        text: count > 1 ? `${orderType}×${count}` : orderType
+      })
+    } else if (orderType === '平多') {
+      // 平多：下面，蓝色圆形
+      markers.push({
+        time: klineTime,
+        position: 'belowBar' as const,
+        color: '#88bce0',
+        shape: 'circle' as SeriesMarkerShape,
+        text: count > 1 ? `${orderType}×${count}` : orderType
+      })
+    } else {
+      // 平空：上面，蓝色圆形
+      markers.push({
+        time: klineTime,
+        position: 'aboveBar' as const,
+        color: '#88bce0',
+        shape: 'circle' as SeriesMarkerShape,
+        text: count > 1 ? `${orderType}×${count}` : orderType
+      })
     }
-    
-    
-    return [openMarker, closeMarker1]
-  })
+  }
   
   // 按时间升序排序（lightweight-charts 5.x 要求）
   return markers.sort((a, b) => a.time - b.time)
@@ -493,6 +543,17 @@ const alignToKlineTime = (timestamp: number, timeframe: string): number => {
   return Math.floor(timestamp / 1000 / timeframeSeconds) * timeframeSeconds
 }
 
+// 根据K线时间查找该K线上所有的订单记录
+const findOrdersByKlineTime = (clickedKlineTime: number, timeframe: string): TradeHistory[] => {
+  if (!props.tradeHistory || props.tradeHistory.length === 0) return []
+  
+  return props.tradeHistory.filter(order => {
+    const openTime = alignToKlineTime(order.openTime, timeframe)
+    const closeTime = alignToKlineTime(order.closeTime, timeframe)
+    return openTime === clickedKlineTime || closeTime === clickedKlineTime
+  })
+}
+
 // 获取时间段的秒数
 const getTimeframeSeconds = (timeframe: string): number => {
   switch (timeframe) {
@@ -593,6 +654,20 @@ const initChart = () => {
         emitTooltipUpdate(kline)
       }
     }
+  })
+  
+  // 监听点击事件 —— 点击K线时处理订单详情
+  chart.subscribeClick((param: any) => {
+    if (!param.point || !param.time) return
+    
+    const currentTimeframe = props.timeframe || computedTimeframe.value
+    const clickedKlineTime = param.time as number
+    
+    // 查找该K线时间对应的所有订单（无订单时返回空数组）
+    const matchedOrders = props.tradeHistory && props.tradeHistory.length > 0
+      ? findOrdersByKlineTime(clickedKlineTime, currentTimeframe)
+      : []
+    emit('order-click', matchedOrders, clickedKlineTime)
   })
   
   // 更新图表数据

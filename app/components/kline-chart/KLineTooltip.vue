@@ -1,5 +1,7 @@
 <template>
+  <!-- K线模式：横排数据面板 -->
   <div 
+    v-if="mode === 'kline'"
     ref="tooltipRef" 
     class="kline-tooltip"
     :class="{ 'tooltip-visible': visible }"
@@ -72,14 +74,120 @@
       </span>
     </div>
   </div>
+
+  <!-- 订单模式：竖排订单详情面板 -->
+  <div 
+    v-else-if="mode === 'order'"
+    ref="tooltipRef" 
+    class="order-tooltip"
+    :class="{ 'tooltip-visible': visible }"
+    :style="style"
+  >
+    <div class="order-tooltip-content">
+      <div class="order-tooltip-header">
+        <span class="order-title">📋 订单</span>
+        <span class="order-count">{{ orders.length }}笔</span>
+        <span class="order-time">{{ time }}</span>
+        <span class="order-close" @click="$emit('close')">✕</span>
+      </div>
+      <div class="order-list">
+        <div 
+          v-for="order in orders" 
+          :key="order.id" 
+          class="order-item"
+        >
+          <div class="order-row">
+            <span class="order-direction" :class="getOrderDirClass(order)">
+              {{ getOrderActionLabel(order) }}
+            </span>
+            <span class="order-strategy">{{ getStrategyLabel(order) }}</span>
+            <span class="order-pnl" :class="order.pnl >= 0 ? 'pnl-positive' : 'pnl-negative'">
+              {{ order.pnl >= 0 ? '+' : '' }}{{ order.pnl.toFixed(2) }} ({{ order.pnlPercentage >= 0 ? '+' : '' }}{{ order.pnlPercentage.toFixed(2) }}%)
+            </span>
+          </div>
+          <div class="order-row order-pnl-row">
+            <span class="order-leverage">×{{ order.leverage || 1 }}</span>
+            <span class="order-prices">
+              开{{ formatPrice(order.entryPrice) }} → 平{{ formatPrice(order.exitPrice) }}
+            </span>
+          </div>
+          <div class="order-row order-meta">
+            <span class="order-reason">{{ order.reason || '-' }}</span>
+            <span class="order-holding" v-if="order.holdingMinutes">
+              {{ order.holdingMinutes }}分钟
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
+import type { TradeHistory } from '../../../types'
 import { formatPrice, formatVolume, formatPercent } from './utils/kline-formatters'
+import { useBotStore } from '../../stores/bot'
+
+// 获取策略名称映射
+const botStore = useBotStore()
+const strategyNameMap = computed(() => {
+  const map: Record<string, string> = {}
+  const strategies = botStore.statusConfig?.strategies || []
+  for (const s of strategies) {
+    if (s.id && s.name) {
+      map[s.id as string] = s.name as string
+    }
+  }
+  return map
+})
+const getStrategyLabel = (order: TradeHistory): string => {
+  const sid = order.strategyId || ''
+  if (!sid) return '-'
+  return strategyNameMap.value[sid] ?? sid
+}
+
+// K线时间对齐
+const alignToKlineTime = (ts: number): number => {
+  const sec = getTimeframeSeconds(props.timeframe || '1h')
+  return Math.floor(ts / 1000 / sec) * sec
+}
+const getTimeframeSeconds = (tf: string): number => {
+  switch (tf) {
+    case '5m': return 5 * 60
+    case '15m': return 15 * 60
+    case '1h': return 60 * 60
+    case '4h': return 4 * 60 * 60
+    case '1d': return 24 * 60 * 60
+    case '1w': return 7 * 24 * 60 * 60
+    default: return 60 * 60
+  }
+}
+
+// 根据 klineTime 判断订单在当前K线是开仓还是平仓
+const getOrderActionLabel = (order: TradeHistory): string => {
+  const kt = props.klineTime
+  if (!kt) return order.direction === 'LONG' ? '做多' : '做空'
+  const openAligned = alignToKlineTime(order.openTime)
+  const closeAligned = alignToKlineTime(order.closeTime)
+  const isOpen = openAligned === kt
+  const isClose = closeAligned === kt
+  
+  if (isOpen && isClose) return order.direction === 'LONG' ? '开多/平多' : '开空/平空'
+  if (isOpen) return order.direction === 'LONG' ? '做多' : '做空'
+  if (isClose) return order.direction === 'LONG' ? '平多' : '平空'
+  return order.direction === 'LONG' ? '做多' : '做空'
+}
+
+const getOrderDirClass = (order: TradeHistory): string => {
+  const label = getOrderActionLabel(order)
+  if (label.includes('开空') || label.includes('平空') || label === '做空') return 'dir-short'
+  return 'dir-long'
+}
 
 // 定义props
 interface Props {
+  mode?: 'kline' | 'order'
   visible?: boolean
   symbol?: string
   timeframe?: string
@@ -96,6 +204,8 @@ interface Props {
     rsi?: number | null
     adx?: number | null
   }
+  klineTime?: number
+  orders?: TradeHistory[]
   position?: {
     left: string
     top: string
@@ -103,6 +213,7 @@ interface Props {
 }
 
 const props = withDefaults(defineProps<Props>(), {
+  mode: 'kline',
   visible: false,
   symbol: 'BTCUSDT',
   timeframe: '1h',
@@ -116,11 +227,15 @@ const props = withDefaults(defineProps<Props>(), {
     changePercent: 0,
     emaDiffPercent: 0
   }),
+  orders: () => [],
   position: () => ({
     left: '20px',
     top: '20px'
   })
 })
+
+// 定义 emits
+const emitClose = defineEmits<{ 'close': [] }>()
 
 // 工具引用
 const tooltipRef = ref<HTMLElement | null>(null)
@@ -208,6 +323,211 @@ const style = computed(() => ({
 
 .tooltip-content .data-item .value.price-down {
   color: #f56c6c;
+}
+
+/* ========== 订单浮动面板样式 ========== */
+.order-tooltip {
+  position: absolute;
+  left: 20px;
+  top: 80px;
+  z-index: 21;
+  opacity: 0;
+  transform: translateY(-10px);
+  transition: opacity 0.3s ease, transform 0.3s ease;
+  pointer-events: auto;
+}
+
+.order-tooltip.tooltip-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.order-tooltip-content {
+  background: #ffffff;
+  border: 1px solid #e4e7ed;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  padding: 12px;
+  min-width: 250px;
+  max-width: 380px;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.order-tooltip-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #ebeef5;
+  margin-bottom: 8px;
+}
+
+.order-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #303133;
+}
+
+.order-count {
+  font-size: 12px;
+  color: #409eff;
+  background: #ecf5ff;
+  padding: 1px 6px;
+  border-radius: 10px;
+}
+
+.order-time {
+  font-size: 11px;
+  color: #909399;
+  margin-left: auto;
+}
+
+.order-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.order-item {
+  padding: 8px;
+  background: #f8f9fa;
+  border-radius: 6px;
+  border: 1px solid #ebeef5;
+}
+
+.order-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.order-row + .order-row {
+  margin-top: 4px;
+}
+
+.order-strategy {
+  font-size: 12px;
+  color: #e6a23c;
+  background: #eeeeee;
+  padding: 1px 6px;
+  border-radius: 4px;
+  max-width: 100px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.order-direction {
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 11px;
+}
+
+.dir-long {
+  color: #26a69a;
+  background: #e8f5e9;
+}
+
+.dir-short {
+  color: #ef5350;
+  background: #ffebee;
+}
+
+.order-prices {
+  color: #606266;
+  font-family: 'Courier New', monospace;
+}
+
+.order-pnl-row {
+  gap: 12px;
+}
+
+.order-leverage {
+  color: #909399;
+  font-size: 11px;
+}
+
+.order-quantity {
+  color: #606266;
+}
+
+.order-pnl {
+  font-weight: 600;
+  font-family: 'Courier New', monospace;
+}
+
+.pnl-positive {
+  color: #26a69a;
+}
+
+.pnl-negative {
+  color: #ef5350;
+}
+
+.order-meta {
+  font-size: 11px;
+  color: #909399;
+}
+
+.order-reason {
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.order-close {
+  cursor: pointer;
+  font-size: 14px;
+  color: #909399;
+  margin-left: auto;
+  padding: 0 4px;
+  line-height: 1;
+  transition: color 0.2s;
+}
+
+.order-close:hover {
+  color: #f56c6c;
+}
+
+.order-holding {
+  margin-left: auto;
+}
+
+/* 深色主题下的订单浮动面板 */
+:global(.dark) .order-tooltip-content {
+  background: #2c2c2c;
+  border-color: #444;
+}
+
+:global(.dark) .order-title {
+  color: #e4e7ed;
+}
+
+:global(.dark) .order-count {
+  background: #1a3a5c;
+  color: #66b3ff;
+}
+
+:global(.dark) .order-time {
+  color: #a0a4ad;
+}
+
+:global(.dark) .order-item {
+  background: #3a3a3a;
+  border-color: #444;
+}
+
+:global(.dark) .order-prices,
+:global(.dark) .order-quantity {
+  color: #c0c4cc;
+}
+
+:global(.dark) .order-meta {
+  color: #a0a4ad;
 }
 
 /* 深色主题下的浮动面板 */

@@ -35,6 +35,7 @@
         :show-ema-lines="showEMALines"
         :ema-periods="selectedEmaPeriods"
         @tooltip-update="handleTooltipUpdate"
+        @order-click="handleOrderClick"
         @retry="loadKLineData"
       />
 
@@ -46,6 +47,19 @@
         :time="tooltipTime"
         :data="tooltipData"
         :position="tooltipPosition"
+      />
+
+      <!-- 订单详情浮动面板 -->
+      <KLineTooltip
+        mode="order"
+        :visible="orderTooltipVisible"
+        :symbol="displaySymbol"
+        :timeframe="selectedTimeframe"
+        :time="orderTooltipTime"
+        :kline-time="orderTooltipKlineTime"
+        :orders="orderTooltipOrders"
+        :position="orderTooltipPosition"
+        @close="orderTooltipVisible = false"
       />
     </div>
 
@@ -486,6 +500,35 @@ const showLatestKline = () => {
 // 隐藏浮动面板
 const hideTooltip = () => {
   tooltipVisible.value = false
+}
+
+// ========== 订单详情浮动面板 ==========
+
+// 订单详情状态
+const orderTooltipVisible = ref(false)
+const orderTooltipOrders = ref<TradeHistory[]>([])
+const orderTooltipTime = ref('')
+const orderTooltipKlineTime = ref(0)
+const orderTooltipPosition = ref({ left: '20px', top: '80px' })
+
+// 处理订单点击事件
+const handleOrderClick = (orders: TradeHistory[], klineTime: number) => {
+  if (orders.length === 0) {
+    // 点击无订单的K线，关闭面板
+    orderTooltipVisible.value = false
+    return
+  }
+  
+  orderTooltipOrders.value = orders
+  orderTooltipKlineTime.value = klineTime
+  orderTooltipVisible.value = true
+  orderTooltipTime.value = new Date(klineTime * 1000).toLocaleString('zh-CN', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit'
+  })
 }
 
 // ========== 价格订阅（使用 botStore 共享价格）==========
