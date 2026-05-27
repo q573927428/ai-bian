@@ -140,9 +140,9 @@
   },
   "preScreenConfig": {
     "minAdx": 13,
-    "maxAdx": 55,
-    "minAdxSlope": -1.1,
-    "minAtrPercent": 0.0032,
+    "maxAdx": 60,
+    "minAdxSlope": 0,
+    "minAtrPercent": 0.0012,
     "maxAtrPercent": 0.05,
     "minEstimatedVolumeRatio": 0.6,
     "minCandleProgressForVolume": 0.1,

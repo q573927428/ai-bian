@@ -55,6 +55,10 @@ export class StrategyStore {
       riskManagement: input.riskManagement,
       executionConfig: input.executionConfig,
       structuredRules: input.structuredRules,
+      preScreenConfig: input.preScreenConfig,
+      minConfidence: input.minConfidence,
+      minFinalScore: input.minFinalScore,
+      maxRiskLevel: input.maxRiskLevel,
       versionHistory: [],
       // 初始化运行数据
       performance: {
@@ -232,6 +236,10 @@ export class StrategyStore {
       if (updates.riskManagement !== undefined) strategy.riskManagement = updates.riskManagement
       if (updates.executionConfig !== undefined) strategy.executionConfig = updates.executionConfig
       if (updates.structuredRules !== undefined) strategy.structuredRules = updates.structuredRules
+      if (updates.preScreenConfig !== undefined) strategy.preScreenConfig = updates.preScreenConfig
+      if (updates.minConfidence !== undefined) strategy.minConfidence = updates.minConfidence
+      if (updates.minFinalScore !== undefined) strategy.minFinalScore = updates.minFinalScore
+      if (updates.maxRiskLevel !== undefined) strategy.maxRiskLevel = updates.maxRiskLevel
 
       // 只更新 updatedAt，不修改 version
       strategy.updatedAt = now
@@ -278,6 +286,10 @@ export class StrategyStore {
       if (updates.riskManagement !== undefined) strategy.riskManagement = updates.riskManagement
       if (updates.executionConfig !== undefined) strategy.executionConfig = updates.executionConfig
       if (updates.structuredRules !== undefined) strategy.structuredRules = updates.structuredRules
+      if (updates.preScreenConfig !== undefined) strategy.preScreenConfig = updates.preScreenConfig
+      if (updates.minConfidence !== undefined) strategy.minConfidence = updates.minConfidence
+      if (updates.minFinalScore !== undefined) strategy.minFinalScore = updates.minFinalScore
+      if (updates.maxRiskLevel !== undefined) strategy.maxRiskLevel = updates.maxRiskLevel
 
       // 更新元数据
       strategy.version = newVersion
