@@ -28,25 +28,9 @@
     "minConfidence": 10,
     "enableHistorySection": false
   },
-  "minConfidence": 68,
-  "minFinalScore": 78,
-  "maxRiskLevel": "MEDIUM",
   "defaultTimeframe": "1h",
   "defaultCandleProgress": 0.1,
   "commissionRate": 0.0005,
-  "preScreenConfig": {
-    "minAdx": 13,
-    "maxAdx": 55,
-    "minAdxSlope": -1.1,
-    "minAtrPercent": 0.0032,
-    "maxAtrPercent": 0.05,
-    "minEstimatedVolumeRatio": 0.6,
-    "minCandleProgressForVolume": 0.1,
-    "enableAdx": true,
-    "enableAdxSlope": true,
-    "enableAtr": true,
-    "enableVolume": true
-  },
   "concurrencyPool": {
     "indicator": {
       "maxConcurrency": 20
