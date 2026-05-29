@@ -933,30 +933,30 @@ export class StrategyEngine {
         finalLeverage = strategy.executionConfig.leverage
         leverageCalculationDetails = { mode: 'fixed', leverage: finalLeverage }
       } else {
-        // 动态杠杆：仅基于 finalScore 超出 minFinalScore 的超额部分，线性映射到整数杠杆
+        // 动态杠杆：基于 confidence 超出 minConfidence 的超额部分，线性映射到整数杠杆
         const minLev = Math.max(1, strategy.executionConfig.dynamicLeverageMin ?? 5)
         const maxLev = Math.min(125, strategy.executionConfig.dynamicLeverageMax ?? 10)
         const clampedMinLev = Math.min(minLev, maxLev)
         const clampedMaxLev = maxLev
 
-        const minScore = instance.strategy.minFinalScore ?? 0
-        const finalScore = signal.scoreBreakdown?.finalScore ?? minScore
+        const minConf = instance.strategy.minConfidence ?? 50
+        const confidence = signal.confidence ?? minConf
 
         // 在阈值之上归一化：0=刚过线，1=满分
-        const scoreExcess = minScore < 100
-          ? Math.max(0, (finalScore - minScore) / (100 - minScore))
+        const confExcess = minConf < 100
+          ? Math.max(0, (confidence - minConf) / (100 - minConf))
           : 0
 
         // 线性映射到 [minLev, maxLev]，取整数
-        finalLeverage = Math.round(clampedMinLev + (clampedMaxLev - clampedMinLev) * scoreExcess)
+        finalLeverage = Math.round(clampedMinLev + (clampedMaxLev - clampedMinLev) * confExcess)
 
         leverageCalculationDetails = {
           mode: 'dynamic',
           minLeverage: clampedMinLev,
           maxLeverage: clampedMaxLev,
-          minFinalScore: minScore,
-          finalScore,
-          scoreExcess: (scoreExcess * 100).toFixed(0) + '%',
+          minConfidence: minConf,
+          confidence,
+          confExcess: (confExcess * 100).toFixed(0) + '%',
           finalLeverage
         }
       }
