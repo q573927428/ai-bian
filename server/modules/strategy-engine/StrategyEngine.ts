@@ -925,11 +925,43 @@ export class StrategyEngine {
       )
 
       // 3. 计算杠杆
-      let finalLeverage = typeof strategy.executionConfig.leverage === 'number' ? strategy.executionConfig.leverage : 3
-      let leverageCalculationDetails = {}
+      let finalLeverage: number
+      let leverageCalculationDetails: Record<string, any> = {}
 
-      // 暂时固定杠杆，动态杠杆功能后续实现
-      logger.info('杠杆', `使用杠杆: ${finalLeverage} X`)
+      if (typeof strategy.executionConfig.leverage === 'number') {
+        // 固定杠杆
+        finalLeverage = strategy.executionConfig.leverage
+        leverageCalculationDetails = { mode: 'fixed', leverage: finalLeverage }
+      } else {
+        // 动态杠杆：仅基于 finalScore 超出 minFinalScore 的超额部分，线性映射到整数杠杆
+        const minLev = Math.max(1, strategy.executionConfig.dynamicLeverageMin ?? 5)
+        const maxLev = Math.min(125, strategy.executionConfig.dynamicLeverageMax ?? 10)
+        const clampedMinLev = Math.min(minLev, maxLev)
+        const clampedMaxLev = maxLev
+
+        const minScore = instance.strategy.minFinalScore ?? 0
+        const finalScore = signal.scoreBreakdown?.finalScore ?? minScore
+
+        // 在阈值之上归一化：0=刚过线，1=满分
+        const scoreExcess = minScore < 100
+          ? Math.max(0, (finalScore - minScore) / (100 - minScore))
+          : 0
+
+        // 线性映射到 [minLev, maxLev]，取整数
+        finalLeverage = Math.round(clampedMinLev + (clampedMaxLev - clampedMinLev) * scoreExcess)
+
+        leverageCalculationDetails = {
+          mode: 'dynamic',
+          minLeverage: clampedMinLev,
+          maxLeverage: clampedMaxLev,
+          minFinalScore: minScore,
+          finalScore,
+          scoreExcess: (scoreExcess * 100).toFixed(0) + '%',
+          finalLeverage
+        }
+      }
+
+      logger.info('杠杆', `使用杠杆: ${finalLeverage} X`, leverageCalculationDetails)
 
       // 4. 设置杠杆和持仓模式
       await this.binance.setLeverage(signal.symbol, finalLeverage)

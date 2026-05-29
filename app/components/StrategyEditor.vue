@@ -422,6 +422,18 @@
                 <el-option label="50" :value="50" />
               </el-select>
             </el-form-item>
+            <el-row :gutter="12" v-if="form.executionConfig.leverage === 'dynamic'">
+              <el-col :xs="24" :span="12">
+                <el-form-item label="最小杠杆">
+                  <el-input-number v-model="form.executionConfig.dynamicLeverageMin" :min="1" :max="50" :step="1" />
+                </el-form-item>
+              </el-col>
+              <el-col :xs="24" :span="12">
+                <el-form-item label="最大杠杆">
+                  <el-input-number v-model="form.executionConfig.dynamicLeverageMax" :min="1" :max="50" :step="1" />
+                </el-form-item>
+              </el-col>
+            </el-row>
             <el-form-item label="保证金模式">
               <el-select v-model="form.executionConfig.marginMode" style="width: 100%">
                 <el-option label="全仓" value="cross" />
@@ -619,7 +631,9 @@ const form = reactive<CreateStrategyInput>({
     scanInterval: 5,
     leverage: 'dynamic',
     marginMode: 'cross',
-    positionMode: 'one-way'
+    positionMode: 'one-way',
+    dynamicLeverageMin: 5,
+    dynamicLeverageMax: 10
   },
   preScreenConfig: {
     minAdx: 10,

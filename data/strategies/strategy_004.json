@@ -3,8 +3,8 @@
   "name": "策略04",
   "version": 1,
   "createdAt": "2026-04-22T09:40:30.913Z",
-  "updatedAt": "2026-05-27T13:59:57.806Z",
-  "isActive": true,
+  "updatedAt": "2026-05-29T10:11:48.221Z",
+  "isActive": false,
   "marketData": {
     "symbols": [
       "BTC/USDT",
@@ -104,7 +104,7 @@
     }
   ],
   "aiPrompt": {
-    "userPrompt": "4h机械稳健共振策略\n一、做多 LONG 完整规则\n趋势:\n- 当前价格 > EMA120\n入场硬性条件（全部必须满足）:\n1. OI 变化率 > 0.6%\n2. 价格偏离 EMA120 ≤ +2.2%\n3. 当前预计成交量 ≥ 成交量EMA均值的1.3 倍\n辅助条件（至少满足 2 项）:\n1. 30 < RSI < 70\n2. 价格偏离 EMA30 ≤ +1.5%\n3. EMA30 斜率 > 0\n开仓决策:\n- 硬条件全部满足\n- 辅助条件 >= 2项\n=> 做多开仓\n\n二、做空 SHORT 完整规则\n趋势：\n- 当前价格 < EMA120\n入场硬性条件（全部必须满足）:\n1. OI 变化率 < -0.6%\n2. 价格偏离 EMA120 ≥ -2.2%\n3. 当前预计成交量 ≥ 成交量EMA均值的1.3 倍\n辅助条件（至少满足 2 项）:\n1. 30 < RSI < 70\n2. 价格偏离 EMA30 ≥ -1.5%\n3. EMA30 斜率 < 0\n开仓决策:\n- 硬条件全部满足\n- 辅助条件 >= 2项\n=> 做空开仓",
+    "userPrompt": "4h机械稳健共振策略\n一、做多 LONG 完整规则\n趋势:\n- 当前价格 > EMA120\n入场硬性条件（全部必须满足）:\n1. OI 变化率 > 0.6%\n2. 价格偏离 EMA120 ≤ +2.2%\n3. 当前预计成交量 ≥ 成交量EMA均值的1.3 倍\n辅助条件（至少满足 2 项）:\n1. 30 < RSI < 70\n2. 价格偏离 EMA30 ≤ +1.5%\n3. EMA30 斜率 > 0\n开仓决策:\n- 硬条件全部满足\n- 辅助条件 >= 2项\n=> 做多开仓\n\n二、做空 SHORT 完整规则\n趋势：\n- 当前价格 < EMA120\n入场硬性条件（全部必须满足）:\n1. OI 变化率 > 0.6%\n2. 价格偏离 EMA120 ≥ -2.2%\n3. 当前预计成交量 ≥ 成交量EMA均值的1.3 倍\n辅助条件（至少满足 2 项）:\n1. 30 < RSI < 70\n2. 价格偏离 EMA30 ≥ -1.5%\n3. EMA30 斜率 < 0\n开仓决策:\n- 硬条件全部满足\n- 辅助条件 >= 2项\n=> 做空开仓",
     "temperature": 0.3,
     "maxTokens": 2000,
     "model": "Doubao-Seed-2.0-Code",
@@ -114,14 +114,14 @@
   },
   "riskManagement": {
     "maxRiskPercentage": 20,
-    "stopLossATRMultiplier": 1.5,
+    "stopLossATRMultiplier": 2.5,
     "takeProfitRatios": [
-      2.2,
-      3.2
+      2.5,
+      3.8
     ],
     "maxDailyTrades": 2,
     "maxDailyLoss": 10,
-    "maxHoldTimeMinutes": 960,
+    "maxHoldTimeMinutes": 4320,
     "trailingStop": {
       "enabled": true,
       "activationRatio": 0.8,
@@ -129,30 +129,32 @@
       "minMoveDistance": 0.16
     },
     "rsiExtreme": {
-      "long": 75,
-      "short": 25
+      "long": 80,
+      "short": 20
     }
   },
   "executionConfig": {
-    "scanInterval": 10,
-    "leverage": 10,
+    "scanInterval": 5,
+    "leverage": "dynamic",
     "marginMode": "cross",
-    "positionMode": "one-way"
+    "positionMode": "one-way",
+    "dynamicLeverageMin": 1,
+    "dynamicLeverageMax": 10
   },
   "preScreenConfig": {
-    "minAdx": 15,
+    "minAdx": 18,
     "maxAdx": 60,
     "minAdxSlope": 0.1,
     "minAtrPercent": 0.0018,
     "maxAtrPercent": 0.05,
-    "minEstimatedVolumeRatio": 0.6,
+    "minEstimatedVolumeRatio": 0.8,
     "minCandleProgressForVolume": 0.1,
     "enableAdx": true,
-    "enableAdxSlope": true,
+    "enableAdxSlope": false,
     "enableAtr": true,
     "enableVolume": true
   },
-  "minConfidence": 99,
+  "minConfidence": 68,
   "minFinalScore": 78,
   "maxRiskLevel": "MEDIUM",
   "versionHistory": [
@@ -234,10 +236,12 @@
           }
         },
         "executionConfig": {
-          "scanInterval": 10,
-          "leverage": 3,
+          "scanInterval": 5,
+          "leverage": "dynamic",
           "marginMode": "cross",
-          "positionMode": "one-way"
+          "positionMode": "one-way",
+          "dynamicLeverageMin": 1,
+          "dynamicLeverageMax": 10
         },
         "preScreenConfig": {
           "minAdx": 13,
@@ -288,23 +292,23 @@
     "totalWins": 2,
     "totalLosses": 5,
     "winRate": 28.57142857142857,
-    "totalProfit": 8.917936919999987,
-    "totalLoss": 8.273987154999984,
-    "netProfit": 0.6439497650000021,
-    "profitFactor": 1.0778282287531546,
-    "maxDrawdown": 102.20087600764785,
-    "averageProfitPerTrade": 4.458968459999993,
-    "averageLossPerTrade": 1.6547974309999969,
+    "totalProfit": 8.889562740000013,
+    "totalLoss": 8.148874629999973,
+    "netProfit": 0.7406881100000398,
+    "profitFactor": 1.0908945276042419,
+    "maxDrawdown": 98.68201635527053,
+    "averageProfitPerTrade": 4.4447813700000065,
+    "averageLossPerTrade": 1.6297749259999947,
     "largestWin": 8.195735339999992,
-    "largestLoss": 3.6337367549999824,
-    "averageHoldTime": 993.814369047619,
+    "largestLoss": 3.5086242299999713,
+    "averageHoldTime": 994.3799142857142,
     "consecutiveWins": 1,
     "consecutiveLosses": 0,
     "maxConsecutiveWins": 1,
     "maxConsecutiveLosses": 4,
-    "dailyPnL": -2.911535174999987,
+    "dailyPnL": -2.8147968299999504,
     "todayTrades": 2,
-    "updatedAt": "2026-05-29T08:38:30.413Z"
+    "updatedAt": "2026-05-29T08:41:28.905Z"
   },
   "sessions": [],
   "currentSessionId": null

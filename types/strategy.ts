@@ -189,6 +189,8 @@ export interface ExecutionConfig {
   leverage: LeverageType;              // 杠杆 (固定值或动态)
   marginMode: MarginMode;              // 保证金模式
   positionMode: PositionMode;          // 持仓模式
+  dynamicLeverageMin?: number;         // 动态杠杆最小杠杆（仅当 leverage === 'dynamic' 时生效），默认 1
+  dynamicLeverageMax?: number;         // 动态杠杆最大杠杆（仅当 leverage === 'dynamic' 时生效），默认 50
 }
 
 // 版本历史

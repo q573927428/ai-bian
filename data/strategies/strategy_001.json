@@ -3,7 +3,7 @@
   "name": "策略01",
   "version": 1,
   "createdAt": "2026-04-19T16:03:49.383Z",
-  "updatedAt": "2026-05-27T13:57:11.611Z",
+  "updatedAt": "2026-05-29T10:10:55.167Z",
   "isActive": true,
   "marketData": {
     "symbols": [
@@ -74,7 +74,7 @@
       "type": "OI",
       "params": {
         "changePeriod": 8,
-        "trendThresholdPercent": 0.001
+        "trendThresholdPercent": 0.003
       },
       "timeframes": [
         "5m"
@@ -91,10 +91,19 @@
         "5m"
       ],
       "enabled": true
+    },
+    {
+      "id": "7",
+      "type": "SquareHeat",
+      "params": {},
+      "timeframes": [
+        "1h"
+      ],
+      "enabled": true
     }
   ],
   "aiPrompt": {
-    "userPrompt": "5m短期机械稳健共振策略\n一、做多 LONG 完整规则\n趋势:\n- 当前价格 > EMA60\n入场硬性条件（全部必须满足）:\n1. OI 变化率 > 0.1%\n2. 价格偏离 EMA60 ≤ +0.8%\n3. 当前预计成交量 ≥ 成交量EMA均值的1.5 倍\n辅助条件（至少满足 2 项）:\n1. 30 < RSI < 70\n2. 价格偏离 EMA20 ≤ +0.5%\n3. EMA20 斜率 > 0\n开仓决策:\n- 硬条件全部满足\n- 辅助条件 >= 2项\n=> 做多开仓\n\n二、做空 SHORT 完整规则\n趋势：\n- 当前价格 < EMA60\n入场硬性条件（全部必须满足）:\n1. OI 变化率 < -0.1%\n2. 价格偏离 EMA60 ≥ -0.8%\n3. 当前预计成交量 ≥ 成交量EMA均值的1.5 倍\n辅助条件（至少满足 2 项）:\n1. 30 < RSI < 70\n2. 价格偏离 EMA20 ≥ -0.5%\n3. EMA20 斜率 < 0\n开仓决策:\n- 硬条件全部满足\n- 辅助条件 >= 2项\n=> 做空开仓",
+    "userPrompt": "5m短期机械稳健共振策略\n一、做多 LONG 完整规则\n趋势:\n- 当前价格 > EMA60\n入场硬性条件（全部必须满足）:\n1. OI 变化率 > 0.3%\n2. 价格偏离 EMA60 ≤ +0.8%\n3. 当前预计成交量 ≥ 成交量EMA均值的1.2 倍\n辅助条件（至少满足 2 项）:\n1. 30 < RSI < 70\n2. 价格偏离 EMA20 ≤ +0.5%\n3. EMA20 斜率 > 0\n开仓决策:\n- 硬条件全部满足\n- 辅助条件 >= 2项\n=> 做多开仓\n\n二、做空 SHORT 完整规则\n趋势：\n- 当前价格 < EMA60\n入场硬性条件（全部必须满足）:\n1. OI 变化率 > 0.3%\n2. 价格偏离 EMA60 ≥ -0.8%\n3. 当前预计成交量 ≥ 成交量EMA均值的1.2 倍\n辅助条件（至少满足 2 项）:\n1. 30 < RSI < 70\n2. 价格偏离 EMA20 ≥ -0.5%\n3. EMA20 斜率 < 0\n开仓决策:\n- 硬条件全部满足\n- 辅助条件 >= 2项\n=> 做空开仓",
     "temperature": 0.3,
     "maxTokens": 2000,
     "model": "Doubao-Seed-2.0-Code",
@@ -103,10 +112,10 @@
     "apiKey": "ark-626c2a11-1c1e-4f02-90d0-b08ae91472e2-aebfb"
   },
   "riskManagement": {
-    "maxRiskPercentage": 15,
-    "stopLossATRMultiplier": 1,
+    "maxRiskPercentage": 10,
+    "stopLossATRMultiplier": 1.5,
     "takeProfitRatios": [
-      1,
+      1.5,
       2
     ],
     "maxDailyTrades": 3,
@@ -125,25 +134,27 @@
   },
   "executionConfig": {
     "scanInterval": 5,
-    "leverage": 5,
+    "leverage": "dynamic",
     "marginMode": "cross",
-    "positionMode": "one-way"
+    "positionMode": "one-way",
+    "dynamicLeverageMin": 1,
+    "dynamicLeverageMax": 10
   },
   "preScreenConfig": {
-    "minAdx": 13,
+    "minAdx": 15,
     "maxAdx": 60,
     "minAdxSlope": 0,
     "minAtrPercent": 0.0012,
     "maxAtrPercent": 0.05,
-    "minEstimatedVolumeRatio": 0.6,
+    "minEstimatedVolumeRatio": 0.8,
     "minCandleProgressForVolume": 0.1,
     "enableAdx": true,
-    "enableAdxSlope": true,
+    "enableAdxSlope": false,
     "enableAtr": true,
     "enableVolume": true
   },
-  "minConfidence": 99,
-  "minFinalScore": 80,
+  "minConfidence": 68,
+  "minFinalScore": 78,
   "maxRiskLevel": "MEDIUM",
   "versionHistory": [
     {
@@ -265,10 +276,12 @@
           }
         },
         "executionConfig": {
-          "scanInterval": 10,
-          "leverage": 3,
+          "scanInterval": 5,
+          "leverage": "dynamic",
           "marginMode": "cross",
-          "positionMode": "one-way"
+          "positionMode": "one-way",
+          "dynamicLeverageMin": 1,
+          "dynamicLeverageMax": 10
         },
         "preScreenConfig": {
           "minAdx": 15,
@@ -316,27 +329,27 @@
   ],
   "performance": {
     "strategyId": "strategy_001",
-    "totalTrades": 25,
+    "totalTrades": 28,
     "totalWins": 11,
-    "totalLosses": 14,
-    "winRate": 44,
+    "totalLosses": 17,
+    "winRate": 39.285714285714285,
     "totalProfit": 6.532011025000027,
-    "totalLoss": 5.7298414949999605,
-    "netProfit": 0.8021695300000662,
-    "profitFactor": 1.139998555056028,
-    "maxDrawdown": 83.95513404248427,
+    "totalLoss": 6.809162784999946,
+    "netProfit": -0.2771517599999189,
+    "profitFactor": 0.9592972339256652,
+    "maxDrawdown": 105.54354494004272,
     "averageProfitPerTrade": 0.5938191840909115,
-    "averageLossPerTrade": 0.4092743924999972,
+    "averageLossPerTrade": 0.40053898735293797,
     "largestWin": 1.4900006400000017,
     "largestLoss": 1.0209537999999942,
-    "averageHoldTime": 160.2160146666667,
+    "averageHoldTime": 144.7025910714286,
     "consecutiveWins": 0,
-    "consecutiveLosses": 7,
+    "consecutiveLosses": 10,
     "maxConsecutiveWins": 3,
-    "maxConsecutiveLosses": 7,
-    "dailyPnL": -1.9382725399999905,
-    "todayTrades": 3,
-    "updatedAt": "2026-05-25T02:02:57.644Z"
+    "maxConsecutiveLosses": 10,
+    "dailyPnL": -0.20723365,
+    "todayTrades": 1,
+    "updatedAt": "2026-05-28T22:18:31.303Z"
   },
   "sessions": [],
   "currentSessionId": null
