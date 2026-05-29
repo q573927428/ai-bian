@@ -91,7 +91,7 @@
             </el-card>
 
             <!-- 当前持仓组件 -->
-            <ClientOnly>
+            <ClientOnly v-if="passwordVerified">
               <ActivePositions />
             </ClientOnly>
 
