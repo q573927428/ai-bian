@@ -1,10 +1,6 @@
 {
   "SOL": [
     {
-      "postCount": 92,
-      "timestamp": 1779961614736
-    },
-    {
       "postCount": 99,
       "timestamp": 1779965494078
     },
@@ -95,13 +91,13 @@
     {
       "postCount": 93,
       "timestamp": 1780056055453
+    },
+    {
+      "postCount": 88,
+      "timestamp": 1780057504682
     }
   ],
   "DOGE": [
-    {
-      "postCount": 78,
-      "timestamp": 1779961616537
-    },
     {
       "postCount": 79,
       "timestamp": 1779965525341
@@ -193,13 +189,13 @@
     {
       "postCount": 72,
       "timestamp": 1780056081912
+    },
+    {
+      "postCount": 74,
+      "timestamp": 1780057553337
     }
   ],
   "ETH": [
-    {
-      "postCount": 200,
-      "timestamp": 1779961299875
-    },
     {
       "postCount": 200,
       "timestamp": 1779964951944
@@ -291,13 +287,13 @@
     {
       "postCount": 200,
       "timestamp": 1780056160245
+    },
+    {
+      "postCount": 200,
+      "timestamp": 1780057702117
     }
   ],
   "HYPE": [
-    {
-      "postCount": 86,
-      "timestamp": 1779961003708
-    },
     {
       "postCount": 85,
       "timestamp": 1779964905988
@@ -389,13 +385,13 @@
     {
       "postCount": 73,
       "timestamp": 1780056098235
+    },
+    {
+      "postCount": 74,
+      "timestamp": 1780057572483
     }
   ],
   "XAU": [
-    {
-      "postCount": 90,
-      "timestamp": 1779903813196
-    },
     {
       "postCount": 89,
       "timestamp": 1779907667610
@@ -487,13 +483,13 @@
     {
       "postCount": 63,
       "timestamp": 1780056190322
+    },
+    {
+      "postCount": 61,
+      "timestamp": 1780057799546
     }
   ],
   "XAG": [
-    {
-      "postCount": 19,
-      "timestamp": 1779887700083
-    },
     {
       "postCount": 18,
       "timestamp": 1779890165603
@@ -585,13 +581,13 @@
     {
       "postCount": 33,
       "timestamp": 1780056110410
+    },
+    {
+      "postCount": 33,
+      "timestamp": 1780057619778
     }
   ],
   "BNB": [
-    {
-      "postCount": 67,
-      "timestamp": 1779964355765
-    },
     {
       "postCount": 72,
       "timestamp": 1779968371424
@@ -683,13 +679,13 @@
     {
       "postCount": 91,
       "timestamp": 1780056172973
+    },
+    {
+      "postCount": 89,
+      "timestamp": 1780057770408
     }
   ],
   "BTC": [
-    {
-      "postCount": 40,
-      "timestamp": 1779961297818
-    },
     {
       "postCount": 39,
       "timestamp": 1779964916756
@@ -781,6 +777,10 @@
     {
       "postCount": 52,
       "timestamp": 1780056126815
+    },
+    {
+      "postCount": 54,
+      "timestamp": 1780057688854
     }
   ]
 }

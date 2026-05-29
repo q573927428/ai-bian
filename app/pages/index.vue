@@ -24,15 +24,25 @@
       <el-main class="main">
         <el-row :gutter="20">
           <!-- 左侧 - 控制面板 -->
-          <el-col :xs="24" :sm="24" :md="8" :lg="8">
+          <el-col :xs="24" :sm="24" :md="6" :lg="6">
             <el-card class="card" shadow="hover">
               <template #header>
                 <div class="card-header">
                   <span>🎛️ 状态面板</span>
-                  <el-button type="primary" size="small" text @click="showConfigDialog = true">
-                    <el-icon><ElIconSetting /></el-icon>
-                    配置
-                  </el-button>
+                  <div class="card-header-actions">
+                    <el-button v-if="!passwordVerified" type="primary" size="small" text @click="handleUnlock">
+                      <el-icon><ElIconUnlock /></el-icon>
+                      解锁
+                    </el-button>
+                    <el-button v-if="passwordVerified && hasPassword" type="primary" size="small" text @click="clearPassword">
+                      <el-icon><ElIconLock /></el-icon>
+                      锁定
+                    </el-button>
+                    <el-button type="primary" size="small" text @click="showConfigDialog = true">
+                      <el-icon><ElIconSetting /></el-icon>
+                      配置
+                    </el-button>
+                  </div>
                 </div>
               </template>
               
@@ -93,44 +103,31 @@
           </el-col>
 
           <!-- 右侧 - 持仓和交易历史 -->
-          <el-col :xs="24" :sm="24" :md="16" :lg="16">
+          <el-col :xs="24" :sm="24" :md="18" :lg="18">
             
             <!-- 加密货币价格卡片组件 -->
             <ClientOnly>
               <CryptoPriceCards />
             </ClientOnly>
 
-            <!-- 密码保护区域 -->
+            <!-- 密码验证对话框 -->
             <ClientOnly>
-              <!-- 未验证：显示密码卡片 -->
-              <div v-if="!passwordVerified" class="password-card">
-                <div class="password-card-inner">
-                  <el-icon :size="20" color="#409EFF"><ElIconLock /></el-icon>
-                  <span class="password-title">请输入密码查看交易数据</span>
-                  <div class="password-input-row">
-                    <el-input
-                      v-model="passwordInput"
-                      type="password"
-                      show-password
-                      placeholder="请输入操作密码"
-                      @keyup.enter="verifyPassword"
-                      :disabled="verifying"
-                      class="password-input"
-                    />
-                    <el-button type="primary" @click="verifyPassword" :loading="verifying" size="small">
-                      验证
-                    </el-button>
-                  </div>
-                  <p v-if="errorMsg" class="password-error">{{ errorMsg }}</p>
-                </div>
-              </div>
-              
-              <!-- 已验证：显示三个组件 -->
-              <template v-else>
-                <Strategies />
-                <TradeHistory />
-                <SystemLogs />
-              </template>
+              <PasswordDialog v-model="showPasswordDialog" @success="handlePasswordSuccess" />
+            </ClientOnly>
+
+            <!-- 策略组件 -->
+            <ClientOnly v-if="passwordVerified">
+              <Strategies />
+            </ClientOnly>
+
+            <!-- 历史订单组件 -->
+            <ClientOnly v-if="passwordVerified">
+              <TradeHistory />
+            </ClientOnly>
+
+             <!-- 系统日志组件 -->
+             <ClientOnly v-if="passwordVerified">
+              <SystemLogs />
             </ClientOnly>
 
 
@@ -156,39 +153,30 @@ import { useTheme } from '../composables/useTheme'
 // 密码验证相关
 const PASSWORD_STORAGE_KEY = 'page_password_verified'
 const passwordVerified = ref(false)
-const passwordInput = ref('')
-const verifying = ref(false)
-const errorMsg = ref('')
+const showPasswordDialog = ref(false)
+const hasPassword = ref(false)
 
-const verifyPassword = async () => {
-  if (!passwordInput.value.trim()) {
-    errorMsg.value = '请输入密码'
-    return
-  }
-  verifying.value = true
-  errorMsg.value = ''
-  try {
-    const res = await $fetch<any>('/api/bot/check-password', {
-      method: 'POST',
-      body: { password: passwordInput.value }
-    })
-    if (res.success) {
-      passwordVerified.value = true
-      localStorage.setItem(PASSWORD_STORAGE_KEY, JSON.stringify({
-        verified: true,
-        timestamp: Date.now()
-      }))
-    } else {
-      errorMsg.value = res.message || '密码错误'
-    }
-  } catch (err: any) {
-    errorMsg.value = '验证失败: ' + (err.message || '未知错误')
-  } finally {
-    verifying.value = false
-  }
+const handlePasswordSuccess = () => {
+  passwordVerified.value = true
+  hasPassword.value = true
+  localStorage.setItem(PASSWORD_STORAGE_KEY, JSON.stringify({
+    verified: true,
+    timestamp: Date.now()
+  }))
+}
+
+const clearPassword = () => {
+  passwordVerified.value = false
+  localStorage.removeItem(PASSWORD_STORAGE_KEY)
+  hasPassword.value = false
+}
+
+const handleUnlock = () => {
+  showPasswordDialog.value = true
 }
 
 // 导入组件
+import PasswordDialog from '../components/PasswordDialog.vue'
 import SystemLogs from '../components/SystemLogs.vue'
 import CryptoPriceCards from '../components/CryptoPriceCards.vue'
 import ActivePositions from '../components/ActivePositions.vue'
@@ -297,6 +285,7 @@ onMounted(async () => {
       const data = JSON.parse(stored)
       if (Date.now() - data.timestamp < 24 * 60 * 60 * 1000) {
         passwordVerified.value = true
+        hasPassword.value = true
       } else {
         localStorage.removeItem(PASSWORD_STORAGE_KEY)
       }
@@ -362,6 +351,12 @@ onMounted(async () => {
   justify-content: space-between;
   align-items: center;
   font-weight: 600;
+}
+
+.card-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .control-panel {
@@ -496,53 +491,6 @@ onMounted(async () => {
     font-weight: 600;
     color: var(--balance-locked-color);
   }
-
-/* 密码验证卡片 */
-.password-card {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  min-height: 50px;
-  background: var(--bg-card);
-  border: 1px solid var(--border-color);
-  border-radius: 12px;
-  margin-bottom: 20px;
-  padding: 8px 16px;
-}
-
-.password-card-inner {
-  text-align: center;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-  justify-content: center;
-}
-
-.password-title {
-  margin: 0;
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text-primary);
-  white-space: nowrap;
-}
-
-.password-input-row {
-  display: flex;
-  gap: 6px;
-  align-items: center;
-}
-
-.password-input {
-  width: 200px;
-}
-
-.password-error {
-  color: var(--color-danger);
-  font-size: 12px;
-  width: 100%;
-  margin: 0;
-}
 
 @media (max-width: 768px) {
   .header h1 {
