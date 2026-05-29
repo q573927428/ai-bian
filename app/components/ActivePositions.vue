@@ -467,7 +467,7 @@ onUnmounted(() => {
 
 .info-value {
   color: var(--text-primary);
-  font-size: 14px;
+  font-size: 12px;
   font-weight: 600;
 }
 
