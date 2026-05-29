@@ -77,7 +77,7 @@
     <div class="controls-right">
       <!-- 图表标记控制开关 -->
       <div class="marker-controls">
-        <el-tooltip content="显示/隐藏EMA金叉死叉标记" placement="top">
+        <!-- <el-tooltip content="显示/隐藏EMA金叉死叉标记" placement="top">
           <el-switch
             v-model="showEMAMarkers"
             size="small"
@@ -85,7 +85,7 @@
             @change="handleEMAMarkersChange"
             class="marker-switch"
           />
-        </el-tooltip>
+        </el-tooltip> -->
         
         <el-tooltip content="显示/隐藏历史订单开仓平仓标记" placement="top">
           <el-switch
@@ -113,14 +113,14 @@
           type="primary"
           size="small"
           @click="$emit('refresh')"
-          :loading="loading"
+
           title="刷新图表"
           class="action-btn"
         >
           <el-icon><ElIconRefresh /></el-icon>
         </el-button>
         
-        <el-button
+        <!-- <el-button
           type="info"
           size="small"
           @click="$emit('toggle-theme')"
@@ -130,6 +130,18 @@
           <el-icon>
             <ElIconSunny v-if="theme === 'light'" />
             <ElIconMoon v-else />
+          </el-icon>
+        </el-button> -->
+
+        <el-button
+          type="warning"
+          size="small"
+          @click="$emit('toggle-fullscreen')"
+          title="全屏"
+          class="action-btn"
+        >
+          <el-icon>
+            <ElIconFullScreen />
           </el-icon>
         </el-button>
       </el-button-group>
@@ -168,6 +180,7 @@ const emit = defineEmits<{
   'timeframe-change': [timeframe: string]
   'refresh': []
   'toggle-theme': []
+  'toggle-fullscreen': []
   'ema-markers-change': [show: boolean]
   'order-markers-change': [show: boolean]
   'ema-lines-change': [show: boolean]
@@ -274,8 +287,8 @@ watch(() => props.showEMALines, (newValue) => {
   justify-content: space-between;
   align-items: center;
   padding: 12px 20px;
-  background: #f8f9fa;
-  border-bottom: 1px solid #e4e7ed;
+  background: var(--bg-hover);
+  border-bottom: 1px solid var(--border-color);
   transition: all 0.3s ease;
 }
 
@@ -297,15 +310,15 @@ watch(() => props.showEMALines, (newValue) => {
   align-items: center;
   gap: 12px;
   padding: 4px 12px;
-  background: white;
+  background: var(--bg-card);
   border-radius: 8px;
-  border: 1px solid #e4e7ed;
+  border: 1px solid var(--border-color);
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
 }
 
 .marker-switch {
-  --el-switch-on-color: #409eff;
-  --el-switch-off-color: #dcdfe6;
+  --el-switch-on-color: var(--color-primary);
+  --el-switch-off-color: var(--border-lighter);
 }
 
 .marker-switch :deep(.el-switch__label) {
@@ -314,11 +327,11 @@ watch(() => props.showEMALines, (newValue) => {
 }
 
 .marker-switch :deep(.el-switch__label.is-active) {
-  color: #409eff;
+  color: var(--color-primary);
 }
 
 .symbol-badge {
-  background: #409eff;
+  background: var(--color-primary);
   color: white;
   padding: 6px 16px;
   border-radius: 20px;
@@ -333,8 +346,8 @@ watch(() => props.showEMALines, (newValue) => {
   display: flex;
   align-items: center;
   gap: 8px;
-  background: #eee;
-  border: 1px solid #ccc;
+  background: var(--bg-hover);
+  border: 1px solid var(--border-color);
   border-radius: 15px;
 }
 
@@ -342,7 +355,6 @@ watch(() => props.showEMALines, (newValue) => {
   display: flex;
   gap: 2px;
   padding: 3px 10px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
 }
 
 .timeframe-btn {
@@ -356,7 +368,7 @@ watch(() => props.showEMALines, (newValue) => {
   border: none;
   background: transparent;
   box-shadow: none;
-  color: #606266;
+  color: var(--text-regular);
 }
 
 .timeframe-btn:deep(.el-button--primary) {
@@ -374,17 +386,17 @@ watch(() => props.showEMALines, (newValue) => {
   display: flex;
   align-items: center;
   gap: 6px;
-  background: #e6f7ff;
-  border: 1px solid #91d5ff;
+  background: var(--bg-hover);
+  border: 1px solid var(--color-primary);
   border-radius: 12px;
 }
 
 .ema-label {
   font-size: 13px;
   font-weight: 600;
-  color: #909399;
+  color: var(--text-secondary);
   padding: 2px 8px;
-  background: white;
+  background: var(--bg-card);
   border-radius: 4px;
 }
 
@@ -405,7 +417,7 @@ watch(() => props.showEMALines, (newValue) => {
   border: none;
   background: transparent;
   box-shadow: none;
-  color: #409eff;
+  color: var(--color-primary);
 }
 
 .ema-period-btn:deep(.el-button--primary) {
@@ -414,17 +426,16 @@ watch(() => props.showEMALines, (newValue) => {
 }
 
 .ema-period-btn:deep(.el-button.is-disabled) {
-  color: #c0c4cc;
+  color: var(--text-disabled);
   cursor: not-allowed;
 }
 
 /* 操作按钮 */
 .action-buttons {
   display: flex;
-  gap: 8px;
+  gap: 1px;
 }
 
-/* 手机端响应式 (576px以下) */
 @media (max-width: 576px) {
   .chart-controls {
     flex-direction: column;
@@ -450,8 +461,8 @@ watch(() => props.showEMALines, (newValue) => {
   .timeframe-selector {
     width: 100%;
     justify-content: center;
-    background: #eee;
-    border: 1px solid #ccc;
+    background: var(--bg-hover);
+    border: 1px solid var(--border-color);
     border-radius: 15px;
 }
   
@@ -463,8 +474,8 @@ watch(() => props.showEMALines, (newValue) => {
   .ema-period-selector {
     width: 100%;
     justify-content: center;
-    background: #e6f7ff;
-    border: 1px solid #91d5ff;
+    background: var(--bg-hover);
+    border: 1px solid var(--color-primary);
     border-radius: 15px
   }
   

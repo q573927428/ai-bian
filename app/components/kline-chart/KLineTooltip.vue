@@ -271,31 +271,31 @@ const style = computed(() => ({
   align-items: center;
   gap: 8px;
   font-size: 13px;
-  color: #333;
+  color: var(--text-primary);
   white-space: nowrap;
 }
 
 .tooltip-content .symbol {
   font-weight: 600;
-  color: #409eff;
+  color: var(--color-primary);
 }
 
 .tooltip-content .symbol-info {
   font-size: 11px;
-  color: #6c757d;
+  color: var(--text-secondary);
 }
 
 .tooltip-content .timeframe {
   font-size: 11px;
-  color: #6c757d;
-  background: #f0f2f5;
+  color: var(--text-secondary);
+  background: var(--bg-hover);
   padding: 1px 4px;
   border-radius: 3px;
 }
 
 .tooltip-content .time {
   font-size: 11px;
-  color: #6c757d;
+  color: var(--text-secondary);
 }
 
 .tooltip-content .data-item {
@@ -305,7 +305,7 @@ const style = computed(() => ({
 }
 
 .tooltip-content .data-item .label {
-  color: #6c757d;
+  color: var(--text-secondary);
   font-size: 11px;
 }
 
@@ -318,11 +318,11 @@ const style = computed(() => ({
 }
 
 .tooltip-content .data-item .value.price-up {
-  color: #67c23a;
+  color: var(--color-success);
 }
 
 .tooltip-content .data-item .value.price-down {
-  color: #f56c6c;
+  color: var(--color-danger);
 }
 
 /* ========== 订单浮动面板样式 ========== */
@@ -343,10 +343,10 @@ const style = computed(() => ({
 }
 
 .order-tooltip-content {
-  background: #ffffff;
-  border: 1px solid #e4e7ed;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
   border-radius: 8px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  box-shadow: var(--shadow-card-hover);
   padding: 12px;
   min-width: 250px;
   max-width: 380px;
@@ -359,27 +359,27 @@ const style = computed(() => ({
   align-items: center;
   gap: 8px;
   padding-bottom: 8px;
-  border-bottom: 1px solid #ebeef5;
+  border-bottom: 1px solid var(--border-color);
   margin-bottom: 8px;
 }
 
 .order-title {
   font-size: 14px;
   font-weight: 600;
-  color: #303133;
+  color: var(--text-primary);
 }
 
 .order-count {
   font-size: 12px;
-  color: #409eff;
-  background: #ecf5ff;
+  color: var(--color-primary);
+  background: rgba(64, 158, 255, 0.1);
   padding: 1px 6px;
   border-radius: 10px;
 }
 
 .order-time {
   font-size: 11px;
-  color: #909399;
+  color: var(--text-secondary);
   margin-left: auto;
 }
 
@@ -391,9 +391,9 @@ const style = computed(() => ({
 
 .order-item {
   padding: 8px;
-  background: #f8f9fa;
+  background: var(--bg-hover);
   border-radius: 6px;
-  border: 1px solid #ebeef5;
+  border: 1px solid var(--border-color);
 }
 
 .order-row {
@@ -409,8 +409,8 @@ const style = computed(() => ({
 
 .order-strategy {
   font-size: 12px;
-  color: #e6a23c;
-  background: #eeeeee;
+  color: var(--color-warning);
+  background: var(--bg-hover);
   padding: 1px 6px;
   border-radius: 4px;
   max-width: 100px;
@@ -428,16 +428,16 @@ const style = computed(() => ({
 
 .dir-long {
   color: #26a69a;
-  background: #e8f5e9;
+  background: rgba(38, 166, 154, 0.1);
 }
 
 .dir-short {
   color: #ef5350;
-  background: #ffebee;
+  background: rgba(239, 83, 80, 0.1);
 }
 
 .order-prices {
-  color: #606266;
+  color: var(--text-regular);
   font-family: 'Courier New', monospace;
 }
 
@@ -446,12 +446,12 @@ const style = computed(() => ({
 }
 
 .order-leverage {
-  color: #909399;
+  color: var(--text-secondary);
   font-size: 11px;
 }
 
 .order-quantity {
-  color: #606266;
+  color: var(--text-regular);
 }
 
 .order-pnl {
@@ -469,7 +469,7 @@ const style = computed(() => ({
 
 .order-meta {
   font-size: 11px;
-  color: #909399;
+  color: var(--text-secondary);
 }
 
 .order-reason {
@@ -482,7 +482,7 @@ const style = computed(() => ({
 .order-close {
   cursor: pointer;
   font-size: 14px;
-  color: #909399;
+  color: var(--text-secondary);
   margin-left: auto;
   padding: 0 4px;
   line-height: 1;
@@ -490,82 +490,11 @@ const style = computed(() => ({
 }
 
 .order-close:hover {
-  color: #f56c6c;
+  color: var(--color-danger);
 }
 
 .order-holding {
   margin-left: auto;
-}
-
-/* 深色主题下的订单浮动面板 */
-:global(.dark) .order-tooltip-content {
-  background: #2c2c2c;
-  border-color: #444;
-}
-
-:global(.dark) .order-title {
-  color: #e4e7ed;
-}
-
-:global(.dark) .order-count {
-  background: #1a3a5c;
-  color: #66b3ff;
-}
-
-:global(.dark) .order-time {
-  color: #a0a4ad;
-}
-
-:global(.dark) .order-item {
-  background: #3a3a3a;
-  border-color: #444;
-}
-
-:global(.dark) .order-prices,
-:global(.dark) .order-quantity {
-  color: #c0c4cc;
-}
-
-:global(.dark) .order-meta {
-  color: #a0a4ad;
-}
-
-/* 深色主题下的浮动面板 */
-:global(.dark) .kline-tooltip {
-  background: transparent;
-}
-
-:global(.dark) .tooltip-content {
-  color: #e4e7ed;
-}
-
-:global(.dark) .tooltip-content .symbol {
-  color: #66b3ff;
-}
-
-:global(.dark) .tooltip-content .symbol-info {
-  color: #a0a4ad;
-}
-
-:global(.dark) .tooltip-content .timeframe {
-  background: #2c2e33;
-  color: #a0a4ad;
-}
-
-:global(.dark) .tooltip-content .time {
-  color: #a0a4ad;
-}
-
-:global(.dark) .tooltip-content .data-item .label {
-  color: #a0a4ad;
-}
-
-:global(.dark) .tooltip-content .data-item .value.price-up {
-  color: #85ce61;
-}
-
-:global(.dark) .tooltip-content .data-item .value.price-down {
-  color: #f78989;
 }
 
 /* 响应式设计 - 手机端 (480px以下) */

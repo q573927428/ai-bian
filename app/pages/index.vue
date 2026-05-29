@@ -8,6 +8,15 @@
             <el-icon style="vertical-align: middle; margin-right: 8px"><ElIconTrendCharts /></el-icon>
             币安永续合约AI自动交易系统
           </h1>
+          <div class="header-right">
+            <el-button text size="small" @click="toggleTheme" class="theme-toggle-btn">
+              <el-icon :size="18">
+                <ElIconMoon v-if="currentTheme === 'light'" />
+                <ElIconSunny v-else />
+              </el-icon>
+              {{ currentTheme === 'light' ? '暗色' : '亮色' }}
+            </el-button>
+          </div>
         </div>
       </el-header>
 
@@ -124,6 +133,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useBotStore } from '../stores/bot'
 import { useStrategiesStore } from '../stores/strategies'
+import { useTheme } from '../composables/useTheme'
 
 // 导入组件
 import SystemLogs from '../components/SystemLogs.vue'
@@ -136,6 +146,7 @@ import ProfitWinRateChart from '../components/ProfitWinRateChart.vue'
 
 const botStore = useBotStore()
 const strategiesStore = useStrategiesStore()
+const { theme: currentTheme, toggleTheme } = useTheme()
 
 // 配置对话框
 const showConfigDialog = ref(false)
@@ -239,8 +250,8 @@ onMounted(async () => {
 }
 
 .header {
-  background: #fff;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  background: var(--bg-card);
+  box-shadow: var(--shadow-card);
   padding: 0 20px;
 }
 
@@ -251,13 +262,23 @@ onMounted(async () => {
   height: 100%;
 }
 
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .header h1 {
   font-size: 20px;
   font-weight: 600;
-  color: #303133;
+  color: var(--text-primary);
   margin: 0;
   display: flex;
   align-items: center;
+}
+
+.theme-toggle-btn {
+  color: var(--text-regular) !important;
 }
 
 .main {
@@ -280,11 +301,11 @@ onMounted(async () => {
 }
 
 .text-success {
-  color: #67c23a;
+  color: var(--color-success);
 }
 
 .text-danger {
-  color: #f56c6c;
+  color: var(--color-danger);
 }
 
 /* 紧凑统计卡片网格 */
@@ -295,8 +316,8 @@ onMounted(async () => {
 }
 
 .stat-card {
-  background: linear-gradient(135deg, #f8f9fa 0%, #fff 100%);
-  border: 1px solid #ebeef5;
+  background: var(--stat-card-bg);
+  border: 1px solid var(--stat-card-border);
   border-radius: 10px;
   padding: 12px 4px;
   text-align: center;
@@ -304,13 +325,13 @@ onMounted(async () => {
 }
 
 .stat-card:hover {
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  box-shadow: var(--shadow-card);
   transform: translateY(-1px);
 }
 
 .stat-card-label {
   font-size: 12px;
-  color: #909399;
+  color: var(--text-secondary);
   margin-bottom: 3px;
   white-space: nowrap;
 }
@@ -318,13 +339,13 @@ onMounted(async () => {
 .stat-card-value {
   font-size: 15px;
   font-weight: 700;
-  color: #303133;
+  color: var(--text-primary);
   line-height: 1.2;
 }
 
 .stat-card-sub {
   font-size: 12px;
-  color: #c0c4cc;
+  color: var(--text-placeholder);
   margin-top: 3px;
 }
 
@@ -332,7 +353,7 @@ onMounted(async () => {
 .balance-bar {
   display: flex;
   justify-content: space-between;
-  background: #f5f7fa;
+  background: var(--bg-main);
   border-radius: 4px;
   padding: 5px 6px;
   margin-top: 6px;
@@ -340,20 +361,20 @@ onMounted(async () => {
 }
 
 .balance-item {
-  color: #606266;
+  color: var(--text-regular);
 }
 
 .balance-label {
-  color: #909399;
+  color: var(--text-secondary);
 }
 
 /* 大余额卡片 */
 .balance-card-large {
-  background: linear-gradient(135deg, #f0f9ff 0%, #e6f7ff 100%);
-  border: 1px solid #91d5ff;
+  background: var(--balance-card-bg);
+  border: 1px solid var(--balance-card-border);
   border-radius: 8px;
   padding: 12px;
-  box-shadow: 0 2px 8px rgba(145, 213, 255, 0.15);
+  box-shadow: var(--shadow-card);
 }
 
 .balance-main-large {
@@ -364,20 +385,20 @@ onMounted(async () => {
 .balance-total-large {
   font-size: 16px;
   font-weight: 700;
-  color: #1890ff;
+  color: var(--balance-total-color);
   line-height: 1.2;
   padding-left: 5px;
 }
 .balance-usdt-large{
   font-size: 16px;
-  color: #5c5e63;
+  color: var(--text-secondary);
   padding-left: 5px;
 }
 
 .balance-details-large {
   display: flex;
   justify-content: space-between;
-  background: rgba(255, 255, 255, 0.8);
+  background: var(--balance-details-bg);
   border-radius: 6px;
   padding: 8px;
   margin-top: 10px;
@@ -392,20 +413,20 @@ onMounted(async () => {
 
 .balance-label-large {
   font-size: 13px;
-  color: #8c8c8c;
+  color: var(--text-secondary);
   margin-bottom: 4px;
 }
 
 .balance-free-large {
   font-size: 16px;
   font-weight: 600;
-  color: #52c41a;
+  color: var(--balance-free-color);
 }
 
 .balance-locked-large {
   font-size: 16px;
   font-weight: 600;
-  color: #fa8c16;
+  color: var(--balance-locked-color);
 }
 
 @media (max-width: 768px) {

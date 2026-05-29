@@ -60,6 +60,7 @@ interface Props {
   showOrderMarkers?: boolean
   showEmaLines?: boolean
   emaPeriods?: number[]
+  height?: number
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -73,7 +74,8 @@ const props = withDefaults(defineProps<Props>(), {
   showEmaMarkers: false,
   showOrderMarkers: false,
   showEmaLines: true,
-  emaPeriods: () => [20, 200]
+  emaPeriods: () => [20, 200],
+  height: 500
 })
 
 // 使用Pinia store获取配置
@@ -262,6 +264,9 @@ const priceFormat = computed(() => {
     minMove
   }
 })
+
+const chartHeight = computed(() => Math.max(250, props.height || 500))
+const chartWrapperHeight = computed(() => `${chartHeight.value}px`)
 
 // 生成订单标记数据
 const generateMarkers = () => {
@@ -586,7 +591,7 @@ const initChart = () => {
   const chartOptions = {
     ...getChartOptions(props.theme),
     width: chartContainer.value.clientWidth,
-    height: 500
+    height: chartHeight.value
   }
   
   chart = createChart(chartContainer.value, chartOptions)
@@ -638,7 +643,10 @@ const initChart = () => {
   // 响应窗口大小变化
   resizeObserver = new ResizeObserver(() => {
     if (chart && chartContainer.value) {
-      chart.applyOptions({ width: chartContainer.value.clientWidth })
+      chart.applyOptions({
+        width: chartContainer.value.clientWidth,
+        height: chartHeight.value
+      })
     }
   })
   
@@ -1006,6 +1014,15 @@ watch(() => props.theme, () => {
   }
 })
 
+watch(() => chartHeight.value, (height) => {
+  if (chart && chartContainer.value) {
+    chart.applyOptions({
+      width: chartContainer.value.clientWidth,
+      height
+    })
+  }
+})
+
 // 监听标记相关数据变化（合并监听器，减少触发次数）
 watch(() => ({
   tradeHistory: props.tradeHistory,
@@ -1181,16 +1198,15 @@ defineExpose({
 <style scoped>
 .chart-wrapper {
   position: relative;
-  min-height: 450px;
-  border: 1px solid #e4e7ed;
-  border-radius: 8px;
+  height: v-bind(chartWrapperHeight);
+  min-height: 250px;
   overflow: hidden;
-  background: #f8f9fa;
 }
 
 .kline-chart {
   width: 100%;
-  min-height: 450px;
+  height: 100%;
+  min-height: 250px;
 }
 
 /* 加载状态 */
@@ -1202,13 +1218,13 @@ defineExpose({
   bottom: 0;
   padding: 60px 20px;
   text-align: center;
-  background: white;
+  background: var(--bg-card);
   z-index: 10;
 }
 
 .loading-text {
   margin-top: 20px;
-  color: #6c757d;
+  color: var(--text-secondary);
   font-size: 16px;
   font-weight: 500;
 }
@@ -1222,7 +1238,7 @@ defineExpose({
   bottom: 0;
   padding: 60px 20px;
   text-align: center;
-  background: white;
+  background: var(--bg-card);
   z-index: 10;
 }
 

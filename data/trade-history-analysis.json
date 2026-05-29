@@ -286,5 +286,53 @@
       "为所有交易设置止盈和止损，避免单纯依赖超时平仓",
       "聚焦表现好的交易对如DOGE和HYPE，减少ETH和BNB交易"
     ]
+  },
+  {
+    "timestamp": 1779904900961,
+    "summary": "整体胜率34%，总亏损12.27 USDT。做多亏损严重，做空盈利。take_profit和trailing_stop平仓盈利，stop_loss和timeout亏损。策略中仅strategy_001微盈。DOGE和HYPE交易对盈利。失败主要源于做多和timeout。",
+    "keyPatterns": [
+      "做空且以take_profit平仓的交易普遍盈利",
+      "做多且以stop_loss或timeout平仓的交易普遍亏损",
+      "高ADX（>30）且RSI极端值（>70或<30）的做空交易成功率较高"
+    ],
+    "successFactors": [
+      "方向偏好做空（胜率41.2% vs 28.9%）",
+      "平仓原因为take_profit或trailing_stop",
+      "入场时ADX较高（趋势强），RSI处于超买区域（做空）"
+    ],
+    "failureFactors": [
+      "方向为做多（亏损16.52 USDT）",
+      "平仓原因为stop_loss（亏损16.45 USDT）或timeout",
+      "入场时RSI处于超买区域（做多）或ADX较低（趋势弱）"
+    ],
+    "optimizationSuggestions": [
+      "大幅减少做多交易，专注做空机会，尤其在高ADX和RSI超买时",
+      "优化止损设置，将stop_loss触发条件与ATR结合，避免频繁止损",
+      "对timeout交易引入动态止盈或缩短持仓时间，如持仓超过30分钟未盈利则手动平仓"
+    ]
+  },
+  {
+    "timestamp": 1779991302067,
+    "summary": "整体胜率低（33.73%），总亏损5.27 USDT。空单盈利，多单亏损；take_profit和trailing_stop平仓胜率高，stop_loss和timeout亏损严重。成功交易多为空头趋势中ADX高且RSI超卖时入场，失败多为多头振荡中ADX低且timeout平仓。",
+    "keyPatterns": [
+      "空头方向、高ADX（>30）、RSI超卖（<35）入场，take_profit平仓盈利",
+      "多头方向、低ADX（<25）、RSI中性偏多（>60）入场，timeout平仓亏损",
+      "trailing_stop在空头趋势中保护利润，胜率高"
+    ],
+    "successFactors": [
+      "做空方向：空单盈亏+3.90 USDT，多单-9.18 USDT",
+      "趋势强度：ADX>30时胜率提升，取利平仓胜率100%",
+      "入场时机：RSI超卖（<35）做空或超买（>65）做多，但仅空单有效"
+    ],
+    "failureFactors": [
+      "多头交易过多，且胜率低（29.2%）",
+      "timeout平仓占绝大多数（57笔），胜率仅29.8%，亏损严重",
+      "ADX低于25时，市场振荡，趋势策略失效"
+    ],
+    "optimizationSuggestions": [
+      "增加空头交易比例，限制多头交易，尤其避免低ADX下的多头",
+      "优化timeout逻辑，增加提前手动止损或移动止损，缩短持仓时间",
+      "提高入场过滤条件：仅当ADX>30且RSI处于极端区域（<30或>70）时开仓，并优先取利"
+    ]
   }
 ]

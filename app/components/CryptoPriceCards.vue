@@ -381,8 +381,8 @@ interface WebSocketStatusResponse {
 }
 
 .price-card {
-  background: linear-gradient(135deg, #f8f9fa 0%, #fff 100%);
-  border: 1px solid #ebeef5;
+  background: var(--price-card-bg);
+  border: 1px solid var(--price-card-border);
   border-radius: 6px;
   padding: 8px;
   cursor: pointer;
@@ -392,23 +392,23 @@ interface WebSocketStatusResponse {
   min-height: 70px;
   min-width: 130px;
   flex-shrink: 0;
-  flex: 1 0 calc(12.5% - 8px); /* 默认一行显示8个 (100% / 8 = 12.5%) */
+  flex: 1 0 calc(12.5% - 8px);
 }
 
 .price-card:hover {
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  border-color: #409eff;
+  box-shadow: var(--shadow-card-hover);
+  border-color: var(--color-primary);
 }
 
 .price-card.price-up:hover {
-  border-color: #67c23a;
-  box-shadow: 0 4px 12px rgba(103, 194, 58, 0.15);
+  border-color: var(--price-up-hover-border);
+  box-shadow: 0 4px 12px var(--price-up-hover-shadow);
 }
 
 .price-card.price-down:hover {
-  border-color: #f56c6c;
-  box-shadow: 0 4px 12px rgba(245, 108, 108, 0.15);
+  border-color: var(--price-down-hover-border);
+  box-shadow: 0 4px 12px var(--price-down-hover-shadow);
 }
 
 .price-card-header {
@@ -429,7 +429,7 @@ interface WebSocketStatusResponse {
   gap: 4px;
   font-size: 14px;
   font-weight: 600;
-  color: #303133;
+  color: var(--text-primary);
   line-height: 1.2;
 }
 
@@ -449,22 +449,18 @@ interface WebSocketStatusResponse {
 
 .price-change.positive {
   background: rgba(103, 194, 58, 0.1);
-  color: #67c23a;
+  color: var(--color-success);
 }
 
 .price-change.negative {
   background: rgba(245, 108, 108, 0.1);
-  color: #f56c6c;
+  color: var(--color-danger);
 }
-
-/* .price-card-body {
-  margin-bottom: 12px;
-} */
 
 .current-price {
   font-size: 16px;
   font-weight: 600;
-  color: #303133;
+  color: var(--text-primary);
   line-height: 1.2;
   margin-bottom: 4px;
   transition: all 0.3s ease;
@@ -476,56 +472,54 @@ interface WebSocketStatusResponse {
 /* 简洁的价格上涨动画 */
 .price-up-animation {
   animation: priceUpEffect 0.3s ease;
-  color: #67c23a !important;
+  color: var(--color-success) !important;
 }
 
 /* 简洁的价格下跌动画 */
 .price-down-animation {
   animation: priceDownEffect 0.3s ease;
-  color: #f56c6c !important;
+  color: var(--color-danger) !important;
 }
 
-/* 简洁的价格上涨动画关键帧 */
 @keyframes priceUpEffect {
   0% {
     transform: scale(1);
-    color: #67c23a;
+    color: var(--color-success);
   }
   50% {
     transform: scale(1.05);
-    color: #67c23a;
+    color: var(--color-success);
   }
   100% {
     transform: scale(1);
-    color: #67c23a;
+    color: var(--color-success);
   }
 }
 
-/* 简洁的价格下跌动画关键帧 */
 @keyframes priceDownEffect {
   0% {
     transform: scale(1);
-    color: #f56c6c;
+    color: var(--color-danger);
   }
   50% {
     transform: scale(1.05);
-    color: #f56c6c;
+    color: var(--color-danger);
   }
   100% {
     transform: scale(1);
-    color: #f56c6c;
+    color: var(--color-danger);
   }
 }
 
 .volume-24h {
   font-size: 11px;
-  color: #909399;
+  color: var(--text-secondary);
   font-weight: 500;
   margin-left: 6px;
 }
 
 .price-card-footer {
-  border-top: 1px solid #ebeef5;
+  border-top: 1px solid var(--border-color);
   padding-top: 12px;
   margin-bottom: 8px;
 }
@@ -543,14 +537,14 @@ interface WebSocketStatusResponse {
 
 .range-label {
   font-size: 11px;
-  color: #909399;
+  color: var(--text-secondary);
   margin-bottom: 2px;
 }
 
 .range-value {
   font-size: 13px;
   font-weight: 500;
-  color: #606266;
+  color: var(--text-regular);
 }
 
 .volume-info {
@@ -561,18 +555,18 @@ interface WebSocketStatusResponse {
 
 .volume-label {
   font-size: 11px;
-  color: #909399;
+  color: var(--text-secondary);
 }
 
 .volume-value {
   font-size: 13px;
   font-weight: 500;
-  color: #606266;
+  color: var(--text-regular);
 }
 
 .last-update {
   font-size: 10px;
-  color: #c0c4cc;
+  color: var(--text-placeholder);
   text-align: right;
   margin-top: 4px;
 }
@@ -583,7 +577,6 @@ interface WebSocketStatusResponse {
   text-align: center;
 }
 
-/* 手机端尺寸 (小于等于480px) */
 @media (max-width: 480px) {
   .cards-grid {
     gap: 6px;
@@ -592,8 +585,8 @@ interface WebSocketStatusResponse {
   .price-card {
     padding: 6px;
     min-height: 55px;
-    flex: 1 0 calc(50% - 6px); /* 手机端一行显示2个 */
-    min-width: 0; /* 移除最小宽度限制 */
+    flex: 1 0 calc(50% - 6px);
+    min-width: 0;
   }
   
   .crypto-symbol {

@@ -1,23 +1,26 @@
 <template>
-  <div class="kline-chart-simple-container">
+  <div ref="simpleContainerRef" class="kline-chart-simple-container">
     <!-- 图表控制栏 -->
-    <KLineChartControls
-      :symbol="displaySymbol"
-      :timeframe="selectedTimeframe"
-      :theme="theme"
-      :loading="loading"
-      :show-ema-markers="showEMAMarkers"
-      :show-order-markers="showOrderMarkers"
-      :show-ema-lines="showEMALines"
-      :ema-periods="selectedEmaPeriods"
-      @timeframe-change="selectTimeframe"
-      @refresh="loadKLineData"
-      @toggle-theme="toggleTheme"
-      @ema-markers-change="handleEMAMarkersChange"
-      @order-markers-change="handleOrderMarkersChange"
-      @ema-lines-change="handleEMALinesChange"
-      @ema-periods-change="handleEmaPeriodsChange"
-    />
+    <div ref="controlsWrapperRef" class="chart-controls-wrapper">
+      <KLineChartControls
+        :symbol="displaySymbol"
+        :timeframe="selectedTimeframe"
+        :theme="theme"
+        :loading="loading"
+        :show-ema-markers="showEMAMarkers"
+        :show-order-markers="showOrderMarkers"
+        :show-ema-lines="showEMALines"
+        :ema-periods="selectedEmaPeriods"
+        @timeframe-change="selectTimeframe"
+        @refresh="loadKLineData"
+        @toggle-theme="toggleTheme"
+        @toggle-fullscreen="toggleFullscreen"
+        @ema-markers-change="handleEMAMarkersChange"
+        @order-markers-change="handleOrderMarkersChange"
+        @ema-lines-change="handleEMALinesChange"
+        @ema-periods-change="handleEmaPeriodsChange"
+      />
+    </div>
 
     <!-- 图表容器 -->
     <div class="chart-container">
@@ -34,6 +37,7 @@
         :show-order-markers="showOrderMarkers"
         :show-ema-lines="showEMALines"
         :ema-periods="selectedEmaPeriods"
+        :height="chartHeight"
         @tooltip-update="handleTooltipUpdate"
         @order-click="handleOrderClick"
         @retry="loadKLineData"
@@ -64,10 +68,12 @@
     </div>
 
     <!-- 图表信息 -->
-    <KLineChartInfo
-      :kline-data="klineData"
-      :updated="meta.updated"
-    />
+    <div ref="infoWrapperRef" class="chart-info-wrapper">
+      <KLineChartInfo
+        :kline-data="klineData"
+        :updated="meta.updated"
+      />
+    </div>
   </div>
 </template>
 
@@ -85,9 +91,13 @@ import KLineChartInfo from './KLineChartInfo.vue'
 // 导入bot store
 import { useBotStore } from '../../stores/bot'
 import { useTradeHistoryStore } from '../../stores/tradeHistory'
+import { useTheme } from '../../composables/useTheme'
 
 // 图表组件引用
 const chartCanvasRef = ref<InstanceType<typeof KLineChartCanvas> | null>(null)
+const simpleContainerRef = ref<HTMLElement | null>(null)
+const controlsWrapperRef = ref<HTMLElement | null>(null)
+const infoWrapperRef = ref<HTMLElement | null>(null)
 
 // 导入工具函数
 import { formatTime } from './utils/kline-formatters'
@@ -98,6 +108,7 @@ import { calculateADXSeries } from '../../utils/adx-calculator'
 // 初始化bot store
 const botStore = useBotStore()
 const tradeHistoryStore = useTradeHistoryStore()
+const { theme: globalTheme, toggleTheme: globalToggleTheme } = useTheme()
 
 // 是否已经初始化过（防止初始加载时不必要的切换）
 let hasInitialized = false
@@ -200,7 +211,15 @@ const meta = ref({
 })
 const loading = ref(false)
 const error = ref('')
-const theme = ref<'light' | 'dark'>('light')
+const theme = ref<'light' | 'dark'>(globalTheme.value)
+const normalChartHeight = 500
+const chartHeight = ref(normalChartHeight)
+const isFullscreen = ref(false)
+
+// 监听全局主题变化，同步本地 ref
+watch(globalTheme, (newTheme) => {
+  theme.value = newTheme
+})
 
 // 历史订单数据
 const tradeHistory = ref<TradeHistory[]>([])
@@ -326,9 +345,46 @@ const loadKLineData = async () => {
   }
 }
 
-// 切换主题
+// 切换主题（同步全局主题 + 本地 ref）
 const toggleTheme = () => {
-  theme.value = theme.value === 'light' ? 'dark' : 'light'
+  globalToggleTheme()
+}
+
+// 全屏切换
+const toggleFullscreen = () => {
+  const container = simpleContainerRef.value
+  if (!container) return
+
+  if (!document.fullscreenElement) {
+    container.requestFullscreen().catch((err) => {
+      console.error('全屏请求失败:', err)
+    })
+  } else {
+    document.exitFullscreen().catch((err) => {
+      console.error('退出全屏失败:', err)
+    })
+  }
+}
+
+const updateChartHeight = () => {
+  if (!isFullscreen.value) {
+    chartHeight.value = normalChartHeight
+    return
+  }
+
+  const controlsHeight = controlsWrapperRef.value?.offsetHeight || 0
+  const infoHeight = infoWrapperRef.value?.offsetHeight || 0
+  const reservedGap = 16
+  chartHeight.value = Math.max(300, window.innerHeight - controlsHeight - infoHeight - reservedGap)
+}
+
+const handleFullscreenChange = () => {
+  isFullscreen.value = document.fullscreenElement === simpleContainerRef.value
+  updateChartHeight()
+}
+
+const handleWindowResize = () => {
+  updateChartHeight()
 }
 
 // 处理EMA标记开关变化
@@ -699,11 +755,15 @@ onMounted(() => {
   botStore.subscribeToPrices(priceSubscriberId.value)
   // 启动新K线检测
   startNewKlineCheck()
+  document.addEventListener('fullscreenchange', handleFullscreenChange)
+  window.addEventListener('resize', handleWindowResize)
 })
 
 // 组件卸载前同步清理
 onBeforeUnmount(() => {
   stopNewKlineCheck()
+  document.removeEventListener('fullscreenchange', handleFullscreenChange)
+  window.removeEventListener('resize', handleWindowResize)
 })
 
 // 组件卸载时异步清理
@@ -714,20 +774,29 @@ onUnmounted(() => {
 
 <style scoped>
 .kline-chart-simple-container {
-  background: white;
   margin: -20px;
   overflow: hidden;
+  background: var(--bg-card);
+  border-color: var(--border-color);
   transition: all 0.3s ease;
+}
+
+.kline-chart-simple-container:fullscreen {
+  display: flex;
+  flex-direction: column;
+  width: 100vw;
+  height: 100vh;
+  margin: 0;
+  padding: 0;
 }
 
 .chart-container {
   position: relative;
 }
 
-/* 深色主题 */
-:global(.dark) .kline-chart-simple-container {
-  background: #1a1a1a;
-  border-color: #333;
+.kline-chart-simple-container:fullscreen .chart-container {
+  flex: 1;
+  min-height: 0;
 }
 
 </style>

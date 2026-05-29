@@ -34,8 +34,8 @@ const props = withDefaults(defineProps<Props>(), {
 <style scoped>
 .chart-info {
   padding: 12px 20px;
-  background: #f8f9fa;
-  border-top: 1px solid #e4e7ed;
+  background: var(--bg-hover);
+  border-top: 1px solid var(--border-color);
   display: flex;
   gap: 24px;
 }
@@ -47,7 +47,7 @@ const props = withDefaults(defineProps<Props>(), {
 }
 
 .info-label {
-  color: #6c757d;
+  color: var(--text-secondary);
   font-size: 14px;
   font-weight: 500;
 }
@@ -55,9 +55,9 @@ const props = withDefaults(defineProps<Props>(), {
 .info-value {
   font-size: 14px;
   font-weight: 600;
+  color: var(--text-primary);
 }
 
-/* 响应式设计 - 手机端 (480px以下) */
 @media (max-width: 480px) {
   .chart-info {
     padding: 10px 12px;

@@ -143,7 +143,7 @@ onMounted(() => {
 }
 
 .changes {
-  color: #606266;
+  color: var(--text-regular);
   font-size: 14px;
 }
 
@@ -153,12 +153,13 @@ onMounted(() => {
 }
 
 .snapshot-content {
-  background: #f5f7fa;
+  background: var(--bg-hover);
   padding: 20px;
   border-radius: 4px;
   max-height: 600px;
   overflow: auto;
   font-size: 12px;
   line-height: 1.5;
+  color: var(--text-primary);
 }
 </style>

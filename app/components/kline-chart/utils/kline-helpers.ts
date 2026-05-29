@@ -167,11 +167,11 @@ export function getChartOptions(theme: 'light' | 'dark') {
     },
     rightPriceScale: {
       borderColor: '#CCCCCC',
-      textColor: '#333333'
+      textColor: theme === 'dark' ? '#C8C8C8' : '#333333'
     },
     leftPriceScale: {
       borderColor: '#CCCCCC',
-      textColor: '#333333'
+      textColor: theme === 'dark' ? '#C8C8C8' : '#333333'
     }
   }
 }

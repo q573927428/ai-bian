@@ -115,7 +115,7 @@
       border
       size="small"
       style="width: 100%"
-      :header-cell-style="{ background: '#f5f7fa', color: '#303133', fontWeight: 600 }"
+      :header-cell-style="{ background: 'var(--table-header-bg)', color: 'var(--table-header-color)', fontWeight: 600 }"
       @sort-change="handleSortChange"
       :row-key="(row: any) => row.id"
     >
@@ -587,7 +587,7 @@ onUnmounted(() => {
 
 .filter-bar {
   padding-bottom: 12px;
-  border-bottom: 1px solid #ebeef5;
+  border-bottom: 1px solid var(--border-color);
   margin-bottom: 8px;
 }
 
@@ -610,7 +610,7 @@ onUnmounted(() => {
 
 .filter-label {
   font-size: 13px;
-  color: #606266;
+  color: var(--text-regular);
   white-space: nowrap;
 }
 
@@ -621,7 +621,7 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   padding: 40px 0;
-  color: #909399;
+  color: var(--text-secondary);
   gap: 12px;
 }
 
@@ -637,27 +637,27 @@ onUnmounted(() => {
 
 .empty-icon {
   font-size: 48px;
-  color: #c0c4cc;
+  color: var(--text-placeholder);
 }
 
 .symbol {
   font-weight: 700;
-  color: #1f2937;
+  color: var(--text-primary);
   font-size: 13px;
 }
 
 .text-success {
-  color: #10b981;
+  color: var(--color-success);
   font-weight: 600;
 }
 
 .text-danger {
-  color: #ef4444;
+  color: var(--color-danger);
   font-weight: 600;
 }
 
 .text-muted {
-  color: #c0c4cc;
+  color: var(--text-placeholder);
 }
 
 .pagination-wrapper {
@@ -665,12 +665,12 @@ onUnmounted(() => {
   justify-content: center;
   margin-top: 16px;
   padding-top: 12px;
-  border-top: 1px solid #ebeef5;
+  border-top: 1px solid var(--border-color);
 }
 
 .expand-detail {
-  background: #fafafa;
-  border: 1px solid #ebeef5;
+  background: var(--bg-expand);
+  border: 1px solid var(--border-color);
   border-radius: 6px;
   padding: 16px;
   margin: 10px;
@@ -691,19 +691,19 @@ onUnmounted(() => {
 
 .detail-label {
   font-size: 12px;
-  color: #909399;
+  color: var(--text-secondary);
 }
 
 .detail-value {
   font-size: 14px;
-  color: #303133;
+  color: var(--text-primary);
   font-weight: 500;
 }
 
 .detail-section {
   margin-top: 12px;
   padding-top: 12px;
-  border-top: 1px dashed #e4e7ed;
+  border-top: 1px dashed var(--border-light);
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -718,7 +718,7 @@ onUnmounted(() => {
 .reason-text {
   font-size: 13px;
   line-height: 1.6;
-  color: #606266;
+  color: var(--text-regular);
   word-break: break-all;
 }
 

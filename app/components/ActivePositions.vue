@@ -10,7 +10,7 @@
         v-for="position in positions"
         :key="position.symbol"
         class="position-item"
-        :style="getPositionItemStyle(position)"
+        :class="getPositionItemClass(position)"
       >
         <!-- 顶部信息栏 -->
         <div class="position-header">
@@ -217,27 +217,15 @@ function formatOpenTime(openTime: string | number | Date): string {
   })
 }
 
-// 根据盈亏获取持仓项的背景样式
-function getPositionItemStyle(position: any): Record<string, string> {
+// 根据盈亏获取持仓项的类名
+function getPositionItemClass(position: any): string {
   const pnl = calculateUnrealizedPnl(position)
   if (pnl > 0) {
-    return {
-      background: 'linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%)',
-      border: '1px solid #10b981',
-      boxShadow: 'inset 5px 0 0 #10b981',
-    }
+    return 'position-profit'
   } else if (pnl < 0) {
-    return {
-      background: 'linear-gradient(135deg, #fef2f2 0%, #fecaca 100%)',
-      border: '1px solid #f56c6c',
-      boxShadow: 'inset 5px 0 0 #f56c6c',
-    }
+    return 'position-loss'
   }
-  return {
-    background: 'linear-gradient(135deg, #ebeef5 0%, #ebeef5 100%)',
-    border: '1px solid #c4c6cb',
-    boxShadow: 'inset 5px 0 0 #c4c6cb',
-  }
+  return 'position-neutral'
 }
 
 // 判断是否为移动止损（移动止损与初始止损不同）
@@ -330,15 +318,45 @@ onUnmounted(() => {
 }
 
 .position-item {
-  border: 1px solid #ebeef5;
+  border: 1px solid var(--border-color);
   border-radius: 12px;
   padding: 12px;
   transition: all 0.3s ease;
 }
 
+.position-profit {
+  background: var(--position-profit-bg);
+  border: 1px solid var(--position-profit-border);
+  box-shadow: inset 5px 0 0 var(--position-profit-border);
+}
+
+.position-loss {
+  background: var(--position-loss-bg);
+  border: 1px solid var(--position-loss-border);
+  box-shadow: inset 5px 0 0 var(--position-loss-border);
+}
+
+.position-neutral {
+  background: var(--position-neutral-bg);
+  border: 1px solid var(--position-neutral-border);
+  box-shadow: inset 5px 0 0 var(--position-neutral-border);
+}
+
 .position-item:hover {
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  box-shadow: var(--shadow-card-hover), inset 5px 0 0 var(--position-profit-border);
   transform: translateY(-2px);
+}
+
+.position-profit:hover {
+  box-shadow: var(--shadow-card-hover), inset 5px 0 0 var(--position-profit-border);
+}
+
+.position-loss:hover {
+  box-shadow: var(--shadow-card-hover), inset 5px 0 0 var(--position-loss-border);
+}
+
+.position-neutral:hover {
+  box-shadow: var(--shadow-card-hover), inset 5px 0 0 var(--position-neutral-border);
 }
 
 .left-section {
@@ -371,18 +389,18 @@ onUnmounted(() => {
 
 .symbol {
   font-weight: 700;
-  color: #1f2937;
+  color: var(--text-primary);
   font-size: 18px;
 }
 .leverage{
   font-size: 18px;
-  color: #64748b;
+  color: var(--text-secondary);
   font-weight: 600;
 }
 
 .open-time {
   font-size: 13px;
-  color: #64748b;
+  color: var(--text-secondary);
   font-weight: 500;
 }
 
@@ -420,7 +438,7 @@ onUnmounted(() => {
 .info-section {
   border-radius: 16px;
   padding: 12px;
-  background: #ffffff;
+  background: var(--position-scores-bg);
 }
 
 .info-row {
@@ -440,7 +458,7 @@ onUnmounted(() => {
 }
 
 .info-label {
-  color: #909399;
+  color: var(--text-secondary);
   font-size: 12px;
   font-weight: 500;
   text-transform: uppercase;
@@ -448,7 +466,7 @@ onUnmounted(() => {
 }
 
 .info-value {
-  color: #1f2937;
+  color: var(--text-primary);
   font-size: 14px;
   font-weight: 600;
 }
@@ -469,7 +487,7 @@ onUnmounted(() => {
   justify-content: center;
   align-items: center;
   padding: 4px 8px;
-  background: #f8fafc;
+  background: var(--ai-toggle-bg);
   border-radius: 6px;
   cursor: pointer;
   transition: all 0.3s ease;
@@ -477,11 +495,11 @@ onUnmounted(() => {
 }
 
 .ai-toggle-btn-inline:hover {
-  background: #e2e8f0;
+  background: var(--ai-toggle-hover);
 }
 
 .toggle-icon {
-  color: #4f46e5;
+  color: var(--ai-toggle-color);
   transition: transform 0.3s ease;
   font-size: 16px;
 }
@@ -491,23 +509,23 @@ onUnmounted(() => {
 }
 
 .reasoning-box {
-  background: #ffffff;
+  background: var(--position-scores-bg);
   border-radius: 12px 12px 0 0;
   padding: 16px;
-  border: 1px solid #c7d2fe;
+  border: 1px solid var(--position-reasoning-border);
   border-bottom: none;
   margin-top: 10px;
 }
 
 .reasoning-label {
-  color: #4338ca;
+  color: var(--ai-toggle-color);
   font-size: 13px;
   font-weight: 600;
   margin-bottom: 8px;
 }
 
 .reasoning-text {
-  color: #374151;
+  color: var(--text-primary);
   font-size: 13px;
   line-height: 1.7;
   white-space: pre-wrap;
@@ -515,15 +533,15 @@ onUnmounted(() => {
 }
 
 .scores-section {
-  background: #ffffff;
+  background: var(--position-scores-bg);
   border-radius: 0 0 12px 12px;
   padding: 16px;
-  border: 1px solid #c7d2fe;
-  border-top: 1px dashed #a5b4fc;
+  border: 1px solid var(--position-reasoning-border);
+  border-top: 1px dashed var(--position-scores-border);
 }
 
 .scores-label {
-  color: #1d4ed8;
+  color: var(--color-primary);
   font-size: 13px;
   font-weight: 600;
   margin-bottom: 12px;
@@ -540,47 +558,46 @@ onUnmounted(() => {
   justify-content: space-between;
   align-items: center;
   padding: 8px 12px;
-  background: rgba(238, 238, 238, 0.7);
+  background: var(--position-scores-bg);
   border-radius: 6px;
   border-left: 3px solid #60a5fa;
 }
 
 .score-item.final {
   border-left-color: #8b5cf6;
-  background: rgba(139, 92, 246, 0.1);
+  background: var(--position-scores-bg-final);
 }
 
 .score-label {
-  color: #64748b;
+  color: var(--text-secondary);
   font-size: 13px;
   font-weight: 500;
 }
 
 .score-value {
-  color: #1e40af;
+  color: var(--position-score-color);
   font-size: 16px;
   font-weight: 700;
 }
 
 .score-item.final .score-value {
-  color: #7c3aed;
+  color: var(--position-score-color-final);
   font-size: 18px;
 }
 
 
 .text-success {
-  color: #10b981;
+  color: var(--color-success);
 }
 
 .text-danger {
-  color: #ef4444;
+  color: var(--color-danger);
 }
 
 .text-warning {
-  color: #f59e0b;
+  color: var(--color-warning);
 }
 
-/* 手机端适配 */
 @media (max-width: 768px) {
   .position-item {
     padding: 12px;

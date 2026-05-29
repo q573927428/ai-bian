@@ -268,7 +268,7 @@ onUnmounted(() => {
   max-height: 576px;
   overflow-y: auto;
   padding: 10px;
-  background: #fafafa;
+  background: var(--bg-log);
   border-radius: 4px;
 }
 
@@ -277,17 +277,17 @@ onUnmounted(() => {
 }
 
 .logs-container::-webkit-scrollbar-track {
-  background: #f1f1f1;
+  background: var(--bg-main);
   border-radius: 3px;
 }
 
 .logs-container::-webkit-scrollbar-thumb {
-  background: #c0c4cc;
+  background: var(--text-placeholder);
   border-radius: 3px;
 }
 
 .logs-container::-webkit-scrollbar-thumb:hover {
-  background: #909399;
+  background: var(--text-secondary);
 }
 
 .log-item {
@@ -302,26 +302,26 @@ onUnmounted(() => {
 }
 
 .log-info {
-  background: #f4f4f5;
+  background: var(--log-info-bg);
 }
 
 .log-success {
-  background: #f0f9ff;
-  color: #67c23a;
+  background: var(--log-success-bg);
+  color: var(--color-success);
 }
 
 .log-warn {
-  background: #fdf6ec;
-  color: #e6a23c;
+  background: var(--log-warn-bg);
+  color: var(--color-warning);
 }
 
 .log-error {
-  background: #fef0f0;
-  color: #f56c6c;
+  background: var(--log-error-bg);
+  color: var(--color-danger);
 }
 
 .log-time {
-  color: #909399;
+  color: var(--text-secondary);
   flex-shrink: 0;
 }
 
@@ -339,7 +339,6 @@ onUnmounted(() => {
   min-width: 0;
 }
 
-/* 响应式优化 - 手机端 */
 @media (max-width: 768px) {
   .header-top {
     flex-wrap: wrap;
@@ -373,7 +372,6 @@ onUnmounted(() => {
 }
 
 
-/* 平板和桌面端 */
 @media (min-width: 769px) {
   .log-message {
     flex-basis: 0;
@@ -405,15 +403,15 @@ onUnmounted(() => {
 .detailed-log {
   margin-top: 8px;
   padding: 10px;
-  background: rgba(0, 0, 0, 0.03);
+  background: var(--bg-code-block);
   border-radius: 4px;
-  border-left: 3px solid #409eff;
+  border-left: 3px solid var(--color-primary);
   width: 100%;
 }
 
 .detailed-log-header {
   font-weight: 600;
-  color: #409eff;
+  color: var(--color-primary);
   margin-bottom: 6px;
   font-size: 12px;
 }
@@ -423,6 +421,6 @@ onUnmounted(() => {
   word-break: break-word;
   font-size: 12px;
   line-height: 1.5;
-  color: #606266;
+  color: var(--text-regular);
 }
 </style>

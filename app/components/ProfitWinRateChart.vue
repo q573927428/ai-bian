@@ -73,11 +73,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch, nextTick } from 'vue'
+import { ref, onMounted, onUnmounted, watch, nextTick, computed } from 'vue'
 import * as echarts from 'echarts'
 import type { TradeHistory } from '../../types'
 import { useStrategiesStore } from '../stores/strategies'
 import { useTradeHistoryStore } from '../stores/tradeHistory'
+import { useTheme } from '../composables/useTheme'
 
 const strategiesStore = useStrategiesStore()
 const tradeHistoryStore = useTradeHistoryStore()
@@ -96,6 +97,7 @@ const stats = ref({
   winRate: 0,
   totalFee: 0
 })
+const { theme } = useTheme()
 let chartInstance: echarts.ECharts | null = null
 
 // 加载历史数据
@@ -227,7 +229,7 @@ const renderChart = () => {
       top: 0,
       textStyle: {
         fontSize: 13,
-        color: '#606266'
+        color: theme.value === 'dark' ? '#C8C8C8' : '#606266'
       }
     },
     grid: {
@@ -243,7 +245,8 @@ const renderChart = () => {
       data: chartData.value.map(d => d.time),
       axisLabel: {
         rotate: 45,
-        fontSize: 10
+        fontSize: 10,
+        color: theme.value === 'dark' ? '#B8B8B8' : '#333333'
       }
     },
     yAxis: {
@@ -252,7 +255,8 @@ const renderChart = () => {
       min: isPnl ? undefined : 0,
       max: isPnl ? undefined : 100,
       axisLabel: {
-        formatter: isPnl ? '{value}' : '{value}%'
+        formatter: isPnl ? '{value}' : '{value}%',
+        color: theme.value === 'dark' ? '#B8B8B8' : '#333333'
       }
     },
     series: [
@@ -280,6 +284,13 @@ const renderChart = () => {
 // 监听筛选变化
 watch([selectedStrategy, selectedSymbol], () => {
   processChartData()
+})
+
+// 监听主题变化，重新渲染图表以更新坐标轴颜色
+watch(theme, () => {
+  if (chartData.value.length > 0) {
+    renderChart()
+  }
 })
 
 // 窗口大小变化时重新调整图表
@@ -333,13 +344,13 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   padding: 40px 0;
-  color: #909399;
+  color: var(--text-secondary);
   gap: 12px;
 }
 
 .empty-icon {
   font-size: 48px;
-  color: #c0c4cc;
+  color: var(--text-placeholder);
 }
 
 :deep(.filter-item .el-select) {
@@ -354,7 +365,7 @@ onUnmounted(() => {
   display: flex;
   justify-content: space-around;
   padding: 15px;
-  background: #f5f7fa;
+  background: var(--stats-container-bg);
   border-radius: 8px;
   margin-top: 15px;
 }
@@ -365,21 +376,21 @@ onUnmounted(() => {
 
 .stat-label {
   font-size: 12px;
-  color: #909399;
+  color: var(--text-secondary);
   margin-bottom: 5px;
 }
 
 .stat-value {
   font-size: 16px;
   font-weight: 700;
-  color: #303133;
+  color: var(--text-primary);
 }
 
 .text-success {
-  color: #10b981;
+  color: var(--color-success);
 }
 
 .text-danger {
-  color: #ef4444;
+  color: var(--color-danger);
 }
 </style>

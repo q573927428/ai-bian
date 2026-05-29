@@ -81,59 +81,7 @@
             <span style="margin-left: 8px; font-size: 12px; color: #909399;">在系统提示词中包含历史分析经验</span>
           </el-form-item>
 
-          <!-- AI预筛配置 -->
-          <el-divider content-position="left">AI预筛配置</el-divider>
-          <template v-if="form.preScreenConfig">
-            <el-form-item label="启用ADX筛选">
-              <el-switch v-model="form.preScreenConfig.enableAdx" />
-            </el-form-item>
-            <el-form-item label="ADX最小阈值" v-if="form.preScreenConfig.enableAdx">
-              <el-input-number v-model="form.preScreenConfig.minAdx" :min="0" :max="100" :step="1" />
-            </el-form-item>
-            <el-form-item label="ADX最大阈值" v-if="form.preScreenConfig.enableAdx">
-              <el-input-number v-model="form.preScreenConfig.maxAdx" :min="0" :max="100" :step="1" />
-            </el-form-item>
-            <el-form-item label="启用ADX斜率筛选">
-              <el-switch v-model="form.preScreenConfig.enableAdxSlope" />
-            </el-form-item>
-            <el-form-item label="ADX斜率最小阈值" v-if="form.preScreenConfig.enableAdxSlope">
-              <el-input-number v-model="form.preScreenConfig.minAdxSlope" :min="-10" :max="10" :step="0.01" />
-            </el-form-item>
-            <el-form-item label="启用ATR筛选">
-              <el-switch v-model="form.preScreenConfig.enableAtr" />
-            </el-form-item>
-            <el-form-item label="ATR最小波动率" v-if="form.preScreenConfig.enableAtr">
-              <el-input-number v-model="form.preScreenConfig.minAtrPercent" :min="0" :max="0.1" :step="0.0001" />
-            </el-form-item>
-            <el-form-item label="ATR最大波动率" v-if="form.preScreenConfig.enableAtr">
-              <el-input-number v-model="form.preScreenConfig.maxAtrPercent" :min="0" :max="0.5" :step="0.001" />
-            </el-form-item>
-            <el-form-item label="启用成交量筛选">
-              <el-switch v-model="form.preScreenConfig.enableVolume" />
-            </el-form-item>
-            <el-form-item label="预估成交量比率" v-if="form.preScreenConfig.enableVolume">
-              <el-input-number v-model="form.preScreenConfig.minEstimatedVolumeRatio" :min="0" :max="2" :step="0.05" />
-            </el-form-item>
-            <el-form-item label="K线进度阈值检查" v-if="form.preScreenConfig.enableVolume">
-              <el-input-number v-model="form.preScreenConfig.minCandleProgressForVolume" :min="0" :max="1" :step="0.05" />
-            </el-form-item>
-          </template>
-
-          <!-- 交易规则配置 -->
           <el-divider content-position="left">交易规则配置</el-divider>
-          <el-form-item label="最低置信度">
-            <el-input-number v-model="form.minConfidence" :min="0" :max="100" />
-          </el-form-item>
-          <el-form-item label="最低最终评分">
-            <el-input-number v-model="form.minFinalScore" :min="0" :max="100" />
-          </el-form-item>
-          <el-form-item label="最大风险等级">
-            <el-select v-model="form.maxRiskLevel" style="width: 180px">
-              <el-option label="低" value="LOW" />
-              <el-option label="中" value="MEDIUM" />
-              <el-option label="高" value="HIGH" />
-            </el-select>
-          </el-form-item>
           <el-form-item label="默认K线周期">
             <el-select v-model="form.defaultTimeframe" style="width: 180px">
               <el-option label="5分钟" value="5m" />
@@ -365,12 +313,12 @@ onUnmounted(() => {
 }
 
 .config-container::-webkit-scrollbar-thumb {
-  background: #d0d0d0;
+  background: var(--text-placeholder);
   border-radius: 3px;
 }
 
 .config-container::-webkit-scrollbar-track {
-  background: #f5f5f5;
+  background: var(--bg-main);
 }
 
 @media (max-width: 768px) {

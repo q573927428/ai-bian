@@ -813,7 +813,7 @@ onMounted(() => {
 
 .stat-label {
   font-size: 14px;
-  color: #909399;
+  color: var(--text-secondary);
   margin-bottom: 8px;
 }
 
@@ -823,19 +823,19 @@ onMounted(() => {
 }
 
 .text-success {
-  color: #67C23A !important;
+  color: var(--color-success) !important;
 }
 
 .text-danger {
-  color: #F56C6C !important;
+  color: var(--color-danger) !important;
 }
 
 .text-warning {
-  color: #E6A23C !important;
+  color: var(--color-warning) !important;
 }
 
 .text-secondary {
-  color: #909399 !important;
+  color: var(--text-secondary) !important;
 }
 
 </style>

@@ -926,13 +926,13 @@ const cancelGeneratedRules = () => {
 .indicator-item {
   margin-bottom: 10px;
   padding: 10px;
-  background: #f5f7fa;
+  background: var(--bg-hover);
   border-radius: 4px;
 }
 
 .stat-label {
   margin: 0 6px;
-  color: #606266;
+  color: var(--text-regular);
   white-space: nowrap;
   font-size: 13px;
 }
@@ -944,7 +944,7 @@ const cancelGeneratedRules = () => {
   gap: 10px;
   margin-top: 20px;
   padding: 20px 0;
-  border-top: 1px solid #ebeef5;
+  border-top: 1px solid var(--border-color);
 }
 
 .button-group {
@@ -955,12 +955,12 @@ const cancelGeneratedRules = () => {
 .form-tip {
   display: block;
   font-size: 12px;
-  color: #909399;
+  color: var(--text-secondary);
 }
 
 .json-error {
   display: block;
-  color: #f56c6c;
+  color: var(--color-danger);
   font-size: 12px;
 }
 
