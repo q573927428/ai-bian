@@ -3,7 +3,7 @@
   "name": "策略01",
   "version": 1,
   "createdAt": "2026-04-19T16:03:49.383Z",
-  "updatedAt": "2026-05-29T10:10:55.167Z",
+  "updatedAt": "2026-05-29T10:53:29.970Z",
   "isActive": true,
   "marketData": {
     "symbols": [
@@ -137,7 +137,7 @@
     "leverage": "dynamic",
     "marginMode": "cross",
     "positionMode": "one-way",
-    "dynamicLeverageMin": 1,
+    "dynamicLeverageMin": 5,
     "dynamicLeverageMax": 10
   },
   "preScreenConfig": {

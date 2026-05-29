@@ -3,7 +3,7 @@
   "name": "策略04",
   "version": 1,
   "createdAt": "2026-04-22T09:40:30.913Z",
-  "updatedAt": "2026-05-29T10:11:48.221Z",
+  "updatedAt": "2026-05-29T10:53:55.069Z",
   "isActive": false,
   "marketData": {
     "symbols": [
@@ -138,8 +138,8 @@
     "leverage": "dynamic",
     "marginMode": "cross",
     "positionMode": "one-way",
-    "dynamicLeverageMin": 1,
-    "dynamicLeverageMax": 10
+    "dynamicLeverageMin": 5,
+    "dynamicLeverageMax": 15
   },
   "preScreenConfig": {
     "minAdx": 18,
