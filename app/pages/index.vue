@@ -100,19 +100,37 @@
               <CryptoPriceCards />
             </ClientOnly>
 
-            <!-- 策略组件 -->
+            <!-- 密码保护区域 -->
             <ClientOnly>
-              <Strategies />
-            </ClientOnly>
-
-            <!-- 历史订单组件 -->
-            <ClientOnly>
-              <TradeHistory />
-            </ClientOnly>
-
-             <!-- 系统日志组件 -->
-             <ClientOnly>
-              <SystemLogs />
+              <!-- 未验证：显示密码卡片 -->
+              <div v-if="!passwordVerified" class="password-card">
+                <div class="password-card-inner">
+                  <el-icon :size="20" color="#409EFF"><ElIconLock /></el-icon>
+                  <span class="password-title">请输入密码查看交易数据</span>
+                  <div class="password-input-row">
+                    <el-input
+                      v-model="passwordInput"
+                      type="password"
+                      show-password
+                      placeholder="请输入操作密码"
+                      @keyup.enter="verifyPassword"
+                      :disabled="verifying"
+                      class="password-input"
+                    />
+                    <el-button type="primary" @click="verifyPassword" :loading="verifying" size="small">
+                      验证
+                    </el-button>
+                  </div>
+                  <p v-if="errorMsg" class="password-error">{{ errorMsg }}</p>
+                </div>
+              </div>
+              
+              <!-- 已验证：显示三个组件 -->
+              <template v-else>
+                <Strategies />
+                <TradeHistory />
+                <SystemLogs />
+              </template>
             </ClientOnly>
 
 
@@ -134,6 +152,41 @@ import { ref, computed, onMounted } from 'vue'
 import { useBotStore } from '../stores/bot'
 import { useStrategiesStore } from '../stores/strategies'
 import { useTheme } from '../composables/useTheme'
+
+// 密码验证相关
+const PASSWORD_STORAGE_KEY = 'page_password_verified'
+const passwordVerified = ref(false)
+const passwordInput = ref('')
+const verifying = ref(false)
+const errorMsg = ref('')
+
+const verifyPassword = async () => {
+  if (!passwordInput.value.trim()) {
+    errorMsg.value = '请输入密码'
+    return
+  }
+  verifying.value = true
+  errorMsg.value = ''
+  try {
+    const res = await $fetch<any>('/api/bot/check-password', {
+      method: 'POST',
+      body: { password: passwordInput.value }
+    })
+    if (res.success) {
+      passwordVerified.value = true
+      localStorage.setItem(PASSWORD_STORAGE_KEY, JSON.stringify({
+        verified: true,
+        timestamp: Date.now()
+      }))
+    } else {
+      errorMsg.value = res.message || '密码错误'
+    }
+  } catch (err: any) {
+    errorMsg.value = '验证失败: ' + (err.message || '未知错误')
+  } finally {
+    verifying.value = false
+  }
+}
 
 // 导入组件
 import SystemLogs from '../components/SystemLogs.vue'
@@ -237,6 +290,21 @@ function goToStrategies() {
 
 // 页面加载时获取状态
 onMounted(async () => {
+  // 检查本地验证状态（24小时有效）
+  const stored = localStorage.getItem(PASSWORD_STORAGE_KEY)
+  if (stored) {
+    try {
+      const data = JSON.parse(stored)
+      if (Date.now() - data.timestamp < 24 * 60 * 60 * 1000) {
+        passwordVerified.value = true
+      } else {
+        localStorage.removeItem(PASSWORD_STORAGE_KEY)
+      }
+    } catch {
+      localStorage.removeItem(PASSWORD_STORAGE_KEY)
+    }
+  }
+
   await Promise.all([
     botStore.fetchStatus(),
     strategiesStore.loadStrategies()
@@ -423,10 +491,57 @@ onMounted(async () => {
   color: var(--balance-free-color);
 }
 
-.balance-locked-large {
-  font-size: 16px;
+  .balance-locked-large {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--balance-locked-color);
+  }
+
+/* 密码验证卡片 */
+.password-card {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 50px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  margin-bottom: 20px;
+  padding: 8px 16px;
+}
+
+.password-card-inner {
+  text-align: center;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.password-title {
+  margin: 0;
+  font-size: 14px;
   font-weight: 600;
-  color: var(--balance-locked-color);
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+
+.password-input-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.password-input {
+  width: 200px;
+}
+
+.password-error {
+  color: var(--color-danger);
+  font-size: 12px;
+  width: 100%;
+  margin: 0;
 }
 
 @media (max-width: 768px) {
