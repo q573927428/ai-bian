@@ -1,7 +1,8 @@
 # 币安永续合约 AI 自动交易系统 (Binance Futures AI Trading Bot)
 
 > **基于 AI 技术指标分析的币安 USDT 永续合约自动化交易系统**，支持多策略并行执行、动态杠杆、智能止损止盈。
-<img width="1903" height="2456" alt="h wuhaxi com" src="https://github.com/user-attachments/assets/6161e3ac-2b3e-4370-bcac-b6fd9e230d58" />
+<img width="1920" height="859" alt="20260603143014" src="https://github.com/user-attachments/assets/bd326677-f863-471c-a063-e2cc24007a37" />
+<img width="1903" height="2456" alt="h wuhaxi com" src="https://github.com/user-attachments/assets/582ce166-6dad-41d6-bf39-1578fa827e10" />
 
 
 ## 📋 项目概览
