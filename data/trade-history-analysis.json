@@ -334,5 +334,149 @@
       "优化timeout逻辑，增加提前手动止损或移动止损，缩短持仓时间",
       "提高入场过滤条件：仅当ADX>30且RSI处于极端区域（<30或>70）时开仓，并优先取利"
     ]
+  },
+  {
+    "timestamp": 1780077647926,
+    "summary": "整体胜率偏低（32.99%），总亏损13.70 USDT，主要由大量timeout和stop_loss造成。成功交易集中在take_profit和trailing_stop平仓，方向SHORT略优，XAG和SOL表现较好。失败交易普遍由timeout或stop_loss触发，LONG方向亏损更大。",
+    "keyPatterns": [
+      "高ADX（>30）且RSI极端时（>70或<30）入场，配合take_profit或trailing_stop离场胜率高",
+      "SHORT方向在RSI高于70时入场盈利概率较高",
+      "XAG和SOL交易对在中等RSI区间（30-50）且ADX>25时做空效果较好"
+    ],
+    "successFactors": [
+      "使用take_profit或trailing_stop作为平仓机制，确保盈利及时锁定",
+      "入场时ADX大于30且RSI处于极端值（>70做空，<30做多）",
+      "交易对选择XAG、SOL、HYPE等波动性适中且趋势性强的品种"
+    ],
+    "failureFactors": [
+      "timeout离场占比最高（57笔），缺乏有效止盈止损导致亏损累积",
+      "stop_loss设置过于宽松或频繁触发，亏损幅度大（-22.35 USDT）",
+      "LONG方向在RSI高于60时入场，容易反转导致亏损"
+    ],
+    "optimizationSuggestions": [
+      "对所有交易强制设置trailing_stop或take_profit，减少timeout导致的持仓过久",
+      "优化stop_loss参数，建议基于ATR动态调整，避免过小止损被轻易扫掉",
+      "过滤掉LONG方向中RSI>65且ADX<25的弱趋势信号，减少无效交易"
+    ]
+  },
+  {
+    "timestamp": 1780164219963,
+    "summary": "整体胜率低（33%），总亏损9.31 USDT。成功交易多来自趋势强（ADX>30）、RSI极端（超买/超卖）且及时止盈（take_profit/ trailing_stop）的机会；失败主因是震荡行情（ADX低）、RSI中性导致超时亏损，或止损过大。策略上strategy_004表现最佳，交易对XAG、HYPE盈利，ETH、XAU亏损严重。",
+    "keyPatterns": [
+      "高ADX趋势行情中的RSI极端入场（如超买做空、超卖做多）且获得take_profit",
+      "低ADX震荡行情中的RSI中性入场导致timeout亏损",
+      "SHORT方向在趋势下跌中盈利较多"
+    ],
+    "successFactors": [
+      "入场时ADX>30，趋势明确",
+      "RSI处于极端区域（<30或>70）",
+      "平仓方式为take_profit或trailing_stop"
+    ],
+    "failureFactors": [
+      "入场时ADX<25，趋势不明朗",
+      "RSI处于30-70中性区间",
+      "平仓方式为timeout或stop_loss"
+    ],
+    "optimizationSuggestions": [
+      "提高入场门槛：ADX>30且RSI<30做多或RSI>70做空",
+      "设置动态止损，减少timeout持仓，可改用固定时间或移动止损",
+      "优先进行strategy_004，并聚焦XAG、HYPE等盈利交易对，减少ETH、XAU交易"
+    ]
+  },
+  {
+    "timestamp": 1780250416270,
+    "summary": "整体胜率低（33%），总亏损-11.37USDT。成功交易多集中于趋势强劲（高ADX）且RSI超买/超卖时，止盈离场；失败交易主要因震荡行情导致timeout亏损，止损单也造成较大损失。策略002和003表现差，需调整。",
+    "keyPatterns": [
+      "高ADX（>35）与超买RSI（>68）或超卖RSI（<30）组合，做反向交易止盈",
+      "低ADX（<25）震荡行情中，持仓易timeout且亏损",
+      "take_profit和trailing_stop平仓盈利，stop_loss和timeout平仓亏损"
+    ],
+    "successFactors": [
+      "入场时趋势强劲（ADX>35），方向与RSI极端值相反",
+      "设置合理止盈并成功触发（take_profit）",
+      "高信心度（score>90）且持仓时间适中"
+    ],
+    "failureFactors": [
+      "低ADX（<25）或弱趋势中入场，价格长时间波动导致timeout亏损",
+      "止损设置过紧或过松，频繁触发止损或未及时止损",
+      "LONG方向胜率更低（29.7%），且多亏损"
+    ],
+    "optimizationSuggestions": [
+      "仅在高ADX（>30）且RSI处于极端区间（<30或>70）时入场，过滤弱趋势交易",
+      "优化timeout机制，改为移动止损或动态持仓时间，减少无方向持仓",
+      "暂停或重构strategy_002和strategy_003，参考strategy_004的参数调整"
+    ]
+  },
+  {
+    "timestamp": 1780337020799,
+    "summary": "整体亏损主要源于低胜率和止损/超时导致的累积亏损。成功交易多通过止盈或追踪止损平仓，且倾向于高ADX趋势行情；失败交易多因超时和止损，尤其在弱趋势或震荡行情中。策略002和003表现差，需调整。",
+    "keyPatterns": [
+      "SHORT方向在ADX>30且RSI处于极端区域（<30或>70）时胜率较高",
+      "take_profit平仓的交易全部盈利，且平均持仓时间较短（<100分钟）",
+      "XAG/USDT和BTC/USDT在SHORT方向盈利明显，而XAU/USDT和ETH/USDT亏损严重"
+    ],
+    "successFactors": [
+      "高ADX值（>30）配合趋势方向（如SHORT在超买区RSI>70或LONG在超卖区RSI<30）",
+      "使用take_profit或trailing_stop止盈，及时锁定利润",
+      "选择波动性适中且趋势性强的品种（如XAG、BTC）"
+    ],
+    "failureFactors": [
+      "timeout平仓占比高且胜率低，表明持仓时间过长导致趋势反转或震荡消耗",
+      "stop_loss平仓几乎全部亏损，且平均亏损较大，说明止损设置过紧或入场点不佳",
+      "LONG方向胜率较低且亏损更大，尤其在BNB和XAU上多次亏损"
+    ],
+    "optimizationSuggestions": [
+      "优化策略入场条件：限制ADX低于25时不开新仓，避免震荡行情",
+      "设置动态止盈止损：对timeout交易加入移动止盈或时间止损（如持仓超过120分钟强制平仓）",
+      "聚焦高胜率配对：减少XAU/USDT和ETH/USDT的交易频率，增加XAG/USDT和BTC/USDT的SHORT机会"
+    ]
+  },
+  {
+    "timestamp": 1780423423449,
+    "summary": "整体胜率低（35.34%）且亏损，主要源于大量LONG交易和stop_loss/ timeout平仓。策略004盈利但笔数少，HYPE、XAG等交易对表现较好。成功交易共同特征为SHORT方向、take_profit或trailing_stop平仓、RSI极端值且ADX较高。失败交易多出现在LONG方向、stop_loss平仓、RSI中间区域或ADX较低。建议减少LONG交易，优化止损设置，缩短timeout持仓时间，并聚焦高胜率策略和交易对。",
+    "keyPatterns": [
+      "SHORT方向且RSI>65或<35时入场，ADX>30，配合take_profit或trailing_stop平仓的交易胜率较高",
+      "LONG方向且RSI中间区域（40-60），ADX<25，容易导致stop_loss或timeout亏损",
+      "策略004在ETH、BTC、XAG等交易对上表现出稳定盈利，其他策略普遍亏损"
+    ],
+    "successFactors": [
+      "顺势交易：SHORT方向在RSI超买时（>65）或超卖时（<35）入场，结合ADX确认趋势强度",
+      "及时获利：取take_profit或trailing_stop平仓，避免利润回吐，且持有时间较短（通常<2小时）",
+      "高置信度信号：入场Score>90且Confidence>75的交易成功率较高"
+    ],
+    "failureFactors": [
+      "逆势交易：LONG方向在趋势不明或下跌中入场，胜率低且亏损大",
+      "止损设置不当：stop_loss平仓的交易胜率仅2.6%，亏损额占比最大，需优化止损逻辑",
+      "持仓过长：timeout平仓的胜率31.7%且亏损额大，建议设置动态持仓时间或提前止盈"
+    ],
+    "optimizationSuggestions": [
+      "减少LONG方向交易，仅在高置信度（Score>90且ADX>30）且RSI超卖（<30）时考虑",
+      "优化止损机制：改固定止损为基于ATR或波动率的动态止损，避免过早止损或扛单",
+      "增加条件单：对timeout交易设置提前止盈线（例如盈利0.5%时移动止损），并限制最大持仓时间（如120分钟）"
+    ]
+  },
+  {
+    "timestamp": 1780509613161,
+    "summary": "整体胜率38.3%，总亏损-3.13 USDT，主要亏损来自stop_loss和timeout。策略004和SHORT方向表现较好，take_profit和trailing_stop平仓盈利。高RSI买入或低RSI卖出且高ADX的趋势交易成功率较高。",
+    "keyPatterns": [
+      "SHORT方向在RSI偏低且ADX较高时盈利概率大",
+      "take_profit平仓完全盈利，trailing_stop胜率68.4%",
+      "策略004在多个品种上胜率46.7%且总盈利最高"
+    ],
+    "successFactors": [
+      "交易方向为SHORT且入场RSI低于40",
+      "平仓原因为take_profit或trailing_stop",
+      "入场confidence较高（>70）且ADX大于30"
+    ],
+    "failureFactors": [
+      "LONG方向交易占比高但胜率仅27.9%",
+      "stop_loss平仓几乎全部亏损，胜率2.6%",
+      "timeout平仓多且亏损，持有时间过长"
+    ],
+    "optimizationSuggestions": [
+      "减少LONG方向交易，增加SHORT方向策略权重",
+      "设置更严格的止损，避免stop_loss触发前的微损变为大亏",
+      "优化timeout退出条件，例如动态止盈或设置时间止损"
+    ]
   }
 ]

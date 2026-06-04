@@ -16,8 +16,8 @@
     "emaSlopePeriod": 3
   },
   "emaPeriods": [
-    20,
-    120
+    14,
+    50
   ],
   "volumeEmaPeriod": 12,
   "aiCacheTtlMinutes": 10,
