@@ -3,7 +3,7 @@
   "name": "策略03",
   "version": 1,
   "createdAt": "2026-04-19T16:14:17.182Z",
-  "updatedAt": "2026-05-29T11:35:46.908Z",
+  "updatedAt": "2026-05-30T02:45:57.366Z",
   "isActive": true,
   "marketData": {
     "symbols": [
@@ -75,7 +75,7 @@
       "type": "OI",
       "params": {
         "changePeriod": 8,
-        "trendThresholdPercent": 0.003
+        "trendThresholdPercent": 0.008
       },
       "timeframes": [
         "1h"
@@ -104,7 +104,7 @@
     }
   ],
   "aiPrompt": {
-    "userPrompt": "1h机械稳健共振策略\n一、做多 LONG 完整规则\n趋势:\n- 当前价格 > EMA50\n入场硬性条件（全部必须满足）:\n1. OI 变化率 > 0.6%\n2. 价格偏离 EMA50 ≤ +1.2%\n3. 当前预计成交量 ≥ 成交量EMA均值的1.3 倍\n辅助条件（至少满足 2 项）:\n1. 30 < RSI < 70\n2. 价格偏离 EMA14 ≤ +0.8%\n3. EMA14 斜率 > 0\n开仓决策:\n- 硬条件全部满足\n- 辅助条件 >= 2项\n=> 做多开仓\n\n二、做空 SHORT 完整规则\n趋势：\n- 当前价格 < EMA50\n入场硬性条件（全部必须满足）:\n1. OI 变化率 > 0.6%\n2. 价格偏离 EMA50 ≥ -1.2%\n3. 当前预计成交量 ≥ 成交量EMA均值的1.3 倍\n辅助条件（至少满足 2 项）:\n1. 30 < RSI < 70\n2. 价格偏离 EMA14 ≥ -0.8%\n3. EMA14 斜率 < 0\n开仓决策:\n- 硬条件全部满足\n- 辅助条件 >= 2项\n=> 做空开仓",
+    "userPrompt": "1h机械稳健共振策略\n一、做多 LONG 完整规则\n趋势:\n- 当前价格 > EMA50\n入场硬性条件（全部必须满足）:\n1. OI 变化率 > 0.8%\n2. 价格偏离 EMA50 ≤ +1.2%\n3. 当前预计成交量 ≥ 成交量EMA均值的1.3 倍\n辅助条件（至少满足 2 项）:\n1. 30 < RSI < 70\n2. 价格偏离 EMA14 ≤ +0.8%\n3. EMA14 斜率 > 0\n开仓决策:\n- 硬条件全部满足\n- 辅助条件 >= 2项\n=> 做多开仓\n\n二、做空 SHORT 完整规则\n趋势：\n- 当前价格 < EMA50\n入场硬性条件（全部必须满足）:\n1. OI 变化率 > 0.8%\n2. 价格偏离 EMA50 ≥ -1.2%\n3. 当前预计成交量 ≥ 成交量EMA均值的1.3 倍\n辅助条件（至少满足 2 项）:\n1. 30 < RSI < 70\n2. 价格偏离 EMA14 ≥ -0.8%\n3. EMA14 斜率 < 0\n开仓决策:\n- 硬条件全部满足\n- 辅助条件 >= 2项\n=> 做空开仓",
     "temperature": 0.3,
     "maxTokens": 2000,
     "model": "Doubao-Seed-2.0-Code",
@@ -121,10 +121,10 @@
     ],
     "maxDailyTrades": 3,
     "maxDailyLoss": 10,
-    "maxHoldTimeMinutes": 360,
+    "maxHoldTimeMinutes": 1500,
     "trailingStop": {
       "enabled": true,
-      "activationRatio": 0.8,
+      "activationRatio": 0.6,
       "trailDistance": 1.2,
       "minMoveDistance": 0.16
     },
@@ -138,8 +138,8 @@
     "leverage": "dynamic",
     "marginMode": "cross",
     "positionMode": "one-way",
-    "dynamicLeverageMin": 3,
-    "dynamicLeverageMax": 12
+    "dynamicLeverageMin": 5,
+    "dynamicLeverageMax": 15
   },
   "preScreenConfig": {
     "minAdx": 17,
@@ -154,8 +154,8 @@
     "enableAtr": true,
     "enableVolume": true
   },
-  "minConfidence": 65,
-  "minFinalScore": 75,
+  "minConfidence": 68,
+  "minFinalScore": 78,
   "maxRiskLevel": "MEDIUM",
   "versionHistory": [
     {
@@ -322,27 +322,27 @@
   ],
   "performance": {
     "strategyId": "strategy_003",
-    "totalTrades": 16,
-    "totalWins": 5,
-    "totalLosses": 11,
-    "winRate": 31.25,
-    "totalProfit": 9.124874634999998,
-    "totalLoss": 11.048730474999957,
-    "netProfit": -1.923855839999959,
-    "profitFactor": 0.8258753940687501,
-    "maxDrawdown": 125.55450619556392,
-    "averageProfitPerTrade": 1.8249749269999995,
-    "averageLossPerTrade": 1.0044300431818143,
+    "totalTrades": 31,
+    "totalWins": 10,
+    "totalLosses": 21,
+    "winRate": 32.25806451612903,
+    "totalProfit": 12.442503650000008,
+    "totalLoss": 19.862924349999936,
+    "netProfit": -7.420420699999928,
+    "profitFactor": 0.6264185187817044,
+    "maxDrawdown": 216.25072922803352,
+    "averageProfitPerTrade": 1.2442503650000007,
+    "averageLossPerTrade": 0.9458535404761874,
     "largestWin": 7.528440680000001,
     "largestLoss": 3.7281645500000202,
-    "averageHoldTime": 459.84570625000003,
-    "consecutiveWins": 0,
-    "consecutiveLosses": 3,
+    "averageHoldTime": 353.3261811827957,
+    "consecutiveWins": 1,
+    "consecutiveLosses": 0,
     "maxConsecutiveWins": 3,
-    "maxConsecutiveLosses": 4,
-    "dailyPnL": -3.7281645500000202,
+    "maxConsecutiveLosses": 5,
+    "dailyPnL": 1.3314464900000007,
     "todayTrades": 1,
-    "updatedAt": "2026-05-27T16:36:19.757Z"
+    "updatedAt": "2026-06-03T23:46:36.184Z"
   },
   "sessions": [],
   "currentSessionId": null
