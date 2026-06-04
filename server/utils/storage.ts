@@ -282,16 +282,7 @@ export async function saveBotConfig(config: BotConfig): Promise<void> {
  */
 function getDefaultBotConfig(): BotConfig {
   return {
-    symbols: [
-      'BTC/USDT',
-      'ETH/USDT',
-      'SOL/USDT',
-      'DOGE/USDT',
-      'HYPE/USDT',
-      'XAU/USDT',
-      'XAG/USDT',
-      'BNB/USDT'
-    ], // 默认监控交易对列表
+    symbols: [], // 默认监控交易对列表（从 bot-config.json 读取）
     monitorInterval: 60, // 持仓监控间隔（秒）
     indicatorsConfig: {
       requiredCandles: 500, // 指标计算所需最少K线数量

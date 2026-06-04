@@ -82,7 +82,7 @@ export interface KLineSyncConfig {
 
 // 默认配置
 export const DEFAULT_CONFIG: KLineSyncConfig = {
-  symbols: ['BTC/USDT', 'ETH/USDT'],
+  symbols: [],
   timeframes: ['5m', '15m', '1h', '4h', '1d', '1w'],
   maxBars: 3333,
   syncInterval: 600, // 按周期调度，此值不再使用，但保留用于API兼容性

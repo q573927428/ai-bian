@@ -175,20 +175,9 @@ const isMobile = computed(() => windowWidth.value < 768)
 const form = ref<BotConfig | null>(null)
 
 const availableSymbols = computed(() => {
-  const defaultSymbols = [
-    'BTC/USDT',
-    'ETH/USDT',
-    'SOL/USDT',
-    'DOGE/USDT',
-    'HYPE/USDT',
-    'XAU/USDT',
-    'XAG/USDT',
-    'BNB/USDT'
-  ]
-  if (!form.value) return defaultSymbols
-  // 合并默认交易对和配置文件里的交易对，去重
-  const allSymbols = new Set([...defaultSymbols, ...form.value.symbols])
-  return Array.from(allSymbols)
+  if (!form.value) return []
+  // 直接从配置文件中读取交易对列表
+  return Array.from(new Set(form.value.symbols))
 })
 
 // 加载配置

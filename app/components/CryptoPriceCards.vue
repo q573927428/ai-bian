@@ -62,10 +62,10 @@
           <div class="crypto-info">
             <div class="crypto-symbol">
               <img 
-                v-if="getCryptoIcon(crypto.symbol)" 
                 :src="getCryptoIcon(crypto.symbol)" 
                 :alt="getSymbolDisplay(crypto.symbol)"
                 class="crypto-icon"
+                @error="handleIconError"
               />
               {{ getSymbolDisplay(crypto.symbol) }}
             </div>
@@ -116,17 +116,8 @@ const DEFAULT_CRYPTOS = computed<string[]>(() => {
   if (botStore.config?.symbols && Array.isArray(botStore.config.symbols)) {
     return botStore.config.symbols.map((symbol: string) => symbol.replace('/', ''))
   }
-  // 配置加载失败时使用默认值
-  return [
-    'BTCUSDT',
-    'ETHUSDT', 
-    'BNBUSDT',
-    'SOLUSDT',
-    'DOGEUSDT',
-    'XAUUSDT',
-    'XAGUSDT',
-    'HYPEUSDT',
-  ]
+  // 配置加载失败时返回空数组
+  return []
 })
 
 // 响应式数据
@@ -282,23 +273,41 @@ function getSymbolDisplay(symbol: string): string {
   return symbol.replace('USDT', '')
 }
 
-// 获取加密货币图标
+// 获取加密货币图标（使用 coincap.io CDN）
 function getCryptoIcon(symbol: string): string {
-  const baseSymbol = symbol.replace('USDT', '').toLowerCase()
-  
-  // 加密货币图标映射 - 使用本地路径
-  const iconMap: Record<string, string> = {
-    'btc': '/assets/crypto-icons/btc.png',
-    'eth': '/assets/crypto-icons/eth.png',
-    'bnb': '/assets/crypto-icons/bnb.png',
-    'sol': '/assets/crypto-icons/sol.png',
-    'doge': '/assets/crypto-icons/doge.png',
-    'xau': '/assets/crypto-icons/xau.png', // 黄金图标
-    'xag': '/assets/crypto-icons/xag.png', // 白银图标
-    'hype': '/assets/crypto-icons/hype.png', // 默认代币图标
+  const base = symbol.replace('USDT', '').toLowerCase()
+  return `https://assets.coincap.io/assets/icons/${base}@2x.png`
+}
+
+// 处理图标加载错误 - 显示美观的占位符
+function handleIconError(event: Event) {
+  const img = event.target as HTMLImageElement
+  const placeholder = document.createElement('div')
+  placeholder.className = 'symbol-icon-placeholder'
+  placeholder.textContent = img.alt?.substring(0, 2).toUpperCase() || ''
+  placeholder.style.width = '16px'
+  placeholder.style.height = '16px'
+  placeholder.style.borderRadius = '50%'
+  placeholder.style.backgroundColor = getRandomColor(img.alt || '')
+  placeholder.style.display = 'flex'
+  placeholder.style.alignItems = 'center'
+  placeholder.style.justifyContent = 'center'
+  placeholder.style.color = '#fff'
+  placeholder.style.fontSize = '10px'
+  placeholder.style.fontWeight = 'bold'
+
+  img.parentNode?.replaceChild(placeholder, img)
+}
+
+// 为币种生成稳定的随机颜色
+function getRandomColor(symbol: string) {
+  let hash = 0
+  for (let i = 0; i < symbol.length; i++) {
+    hash = ((hash << 5) - hash) + symbol.charCodeAt(i)
+    hash |= 0
   }
-  
-  return iconMap[baseSymbol] || ''
+  const color = Math.abs(hash).toString(16).substring(0, 6).padStart(6, '0')
+  return `#${color}`
 }
 
 
