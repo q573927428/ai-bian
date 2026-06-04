@@ -249,7 +249,7 @@ export async function getBotConfig(): Promise<BotConfig> {
     
     // 确保 emaPeriods 存在
     if (!config.emaPeriods || !Array.isArray(config.emaPeriods)) {
-      config.emaPeriods = [20, 200]
+      config.emaPeriods = [14, 50]
     }
 
     // 成交量EMA周期默认值
@@ -292,33 +292,33 @@ function getDefaultBotConfig(): BotConfig {
       'XAG/USDT',
       'BNB/USDT'
     ], // 默认监控交易对列表
-    monitorInterval: 30, // 持仓监控间隔（秒）
+    monitorInterval: 60, // 持仓监控间隔（秒）
     indicatorsConfig: {
       requiredCandles: 500, // 指标计算所需最少K线数量
       adxSlopePeriod: 3, // ADX斜率计算回看周期
       emaSlopePeriod: 3 // EMA斜率计算回看周期
     },
-    emaPeriods: [20, 200], // EMA周期数组
+    emaPeriods: [14, 50], // EMA周期数组
     volumeEmaPeriod: 12, // 成交量EMA均值周期
     aiCacheTtlMinutes: 10, // AI缓存时间（分钟）
     aiAnalysisConfig: {
       enabled: true, // 是否启用AI分析日志
       maxRecords: 3500, // 单文件最大保存条数
       saveIdle: true, // 是否保存IDLE分析记录
-      minConfidence: 50,
-      enableHistorySection: true, // 是否在系统提示词中包含历史分析经验
+      minConfidence: 10,
+      enableHistorySection: false, // 是否在系统提示词中包含历史分析经验
     },
     defaultTimeframe: '1h', // 默认K线周期
     defaultCandleProgress: 0.1, // 默认K线进度（用于无法获取最新K线时兜底）
     commissionRate: 0.0005, // 手续费率
     concurrencyPool: {
-      indicator: { maxConcurrency: 16 }, // 指标计算并发数
-      ai: { maxConcurrency: 6 }, // AI分析并发数
+      indicator: { maxConcurrency: 20 }, // 指标计算并发数
+      ai: { maxConcurrency: 20 }, // AI分析并发数
       tradeApi: { maxConcurrency: 4 }, // 交易API并发数
     },
     chartMarkerConfig: {
       showEMAMarkers: false, // 显示EMA金叉死叉标记
-      showOrderMarkers: false, // 显示历史订单开仓平仓标记
+      showOrderMarkers: true, // 显示历史订单开仓平仓标记
       showEMALines: true, // 显示EMA快慢线
     },
   }
