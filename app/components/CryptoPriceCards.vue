@@ -273,15 +273,24 @@ function getSymbolDisplay(symbol: string): string {
   return symbol.replace('USDT', '')
 }
 
-// 获取加密货币图标（使用 coincap.io CDN）
+// 获取加密货币图标（优先本地，本地加载失败则 @error 中 fallback 到 CDN）
 function getCryptoIcon(symbol: string): string {
   const base = symbol.replace('USDT', '').toLowerCase()
-  return `https://assets.coincap.io/assets/icons/${base}@2x.png`
+  return `/assets/crypto-icons/${base}.png`
 }
 
-// 处理图标加载错误 - 显示美观的占位符
+// 处理图标加载错误：本地不存在 → 尝试 CDN → CDN 也失败则显示占位符
 function handleIconError(event: Event) {
   const img = event.target as HTMLImageElement
+  const base = (img.alt || '').toLowerCase()
+
+  // 如果当前是本地路径（尚未尝试 CDN），则替换为 CDN 地址再试一次
+  if (img.src.includes('/assets/crypto-icons/')) {
+    img.src = `https://assets.coincap.io/assets/icons/${base}@2x.png`
+    return
+  }
+
+  // CDN 也失败，显示占位符
   const placeholder = document.createElement('div')
   placeholder.className = 'symbol-icon-placeholder'
   placeholder.textContent = img.alt?.substring(0, 2).toUpperCase() || ''

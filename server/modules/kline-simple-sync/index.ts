@@ -1,4 +1,4 @@
-import { appendSimpleKLineData, getSimpleLastKLineTimestamp, updateLastKLine } from '../../utils/kline-simple-storage'
+import { appendSimpleKLineData, getSimpleLastKLineTimestamp, updateLastKLine, deleteKLineFile } from '../../utils/kline-simple-storage'
 import type { KLineData, KLineTimeframe, KLineSyncConfig, TimeframeSyncConfig } from '../../../types/kline-simple'
 import { DEFAULT_CONFIG } from '../../../types/kline-simple'
 import {
@@ -1021,5 +1021,117 @@ export class KLineSimpleSyncService {
       this.stopAutoSync()
       this.startAutoSync()
     }
+  }
+
+  /**
+   * 动态添加新交易对（热重载，无需重启服务）
+   */
+  addSymbols(newSymbols: string[]): void {
+    if (!newSymbols || newSymbols.length === 0) return
+
+    const existingSet = new Set(this.config.symbols)
+    const actuallyNew = newSymbols.filter(s => !existingSet.has(s))
+
+    if (actuallyNew.length === 0) {
+      console.log('[KLineSync] 所有交易对已存在，跳过添加')
+      return
+    }
+
+    // 更新 config.symbols
+    this.config.symbols = [...this.config.symbols, ...actuallyNew]
+
+    // 为新 symbols 注册状态
+    for (const symbol of actuallyNew) {
+      for (const timeframe of this.config.timeframes) {
+        const key = this.getStatusKey(symbol, timeframe)
+        if (!this.syncStatus.has(key)) {
+          this.syncStatus.set(key, {
+            symbol,
+            timeframe,
+            lastSyncTime: 0,
+            lastSyncCount: 0,
+            totalBars: 0,
+            status: 'idle'
+          })
+        }
+      }
+    }
+
+    console.log(`[KLineSync] 已动态注册 ${actuallyNew.length} 个新交易对: ${actuallyNew.join(', ')}`)
+  }
+
+  /**
+   * 动态移除交易对（从同步服务和数据库中删除对应K线数据）
+   */
+  removeSymbols(removedSymbols: string[]): void {
+    if (!removedSymbols || removedSymbols.length === 0) return
+
+    const existingSet = new Set(this.config.symbols)
+    const actuallyRemoved = removedSymbols.filter(s => existingSet.has(s))
+
+    if (actuallyRemoved.length === 0) {
+      console.log('[KLineSync] 没有需要移除的交易对')
+      return
+    }
+
+    // 从 config.symbols 中移除
+    this.config.symbols = this.config.symbols.filter(s => !actuallyRemoved.includes(s))
+
+    // 清除同步状态
+    for (const symbol of actuallyRemoved) {
+      for (const timeframe of this.config.timeframes) {
+        const key = this.getStatusKey(symbol, timeframe)
+        this.syncStatus.delete(key)
+      }
+    }
+
+    // 从数据库中删除对应K线数据
+    for (const symbol of actuallyRemoved) {
+      for (const timeframe of this.config.timeframes) {
+        try {
+          const deleted = deleteKLineFile(symbol, timeframe)
+          if (deleted) {
+            console.log(`[KLineSync] 已从数据库删除K线数据: ${symbol}/${timeframe}`)
+          }
+        } catch (err: any) {
+          console.error(`[KLineSync] 删除K线数据失败: ${symbol}/${timeframe}`, err.message)
+        }
+      }
+    }
+
+    console.log(`[KLineSync] 已动态移除 ${actuallyRemoved.length} 个交易对: ${actuallyRemoved.join(', ')}`)
+  }
+
+  /**
+   * 仅同步指定交易对列表（用于热重载后增量同步）
+   */
+  async syncSymbols(symbols: string[]): Promise<Array<{
+    success: boolean
+    message: string
+    symbol: string
+    timeframe: KLineTimeframe
+    count: number
+  }>> {
+    const results = []
+
+    for (const symbol of symbols) {
+      for (const timeframe of this.config.timeframes) {
+        try {
+          const result = await this.syncSymbolKLine(symbol, timeframe, { force: true })
+          results.push(result)
+          await new Promise(resolve => nodeSetTimeout(resolve, 100))
+        } catch (error: any) {
+          results.push({
+            success: false,
+            message: `同步失败: ${error.message}`,
+            symbol,
+            timeframe,
+            count: 0
+          })
+        }
+      }
+    }
+
+    return results
   }
 }

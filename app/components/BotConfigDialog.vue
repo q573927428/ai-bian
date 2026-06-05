@@ -173,6 +173,7 @@ const windowWidth = ref(typeof window !== 'undefined' ? window.innerWidth : 1200
 const isMobile = computed(() => windowWidth.value < 768)
 
 const form = ref<BotConfig | null>(null)
+const originalSymbols = ref<string[]>([]) // 记录打开配置前的 symbols，用于检测新增
 
 const availableSymbols = computed(() => {
   if (!form.value) return []
@@ -194,6 +195,7 @@ const loadConfig = async () => {
       }
       
       form.value = config
+      originalSymbols.value = [...(config.symbols || [])]
     }
   } catch (error: any) {
     console.error('加载配置失败:', error)
@@ -227,6 +229,42 @@ const handleSave = async () => {
     
     if (res.success) {
       emit('success')
+
+      // 检测交易对变化，自动触发热重载（新增+删除）
+      const currentSymbols: string[] = form.value.symbols || []
+      const addedSymbols = currentSymbols.filter(
+        (s: string) => !originalSymbols.value.includes(s)
+      )
+      const removedSymbols = originalSymbols.value.filter(
+        (s: string) => !currentSymbols.includes(s)
+      )
+
+      if (addedSymbols.length > 0 || removedSymbols.length > 0) {
+        try {
+          // 传递完整 symbols 列表，由服务端自动计算增量/删量
+          const reloadRes = await $fetch<any>('/api/bot/reload-symbols', {
+            method: 'POST',
+            body: { symbols: currentSymbols }
+          })
+          if (reloadRes.success) {
+            const parts: string[] = []
+            if (reloadRes.added?.length > 0) parts.push(`新增 ${reloadRes.added.length} 个`)
+            if (reloadRes.removed?.length > 0) parts.push(`移除 ${reloadRes.removed.length} 个`)
+            if (reloadRes.blockedByPosition?.length > 0) {
+              parts.push(`因持仓阻止删除 ${reloadRes.blockedByPosition.length} 个: ${reloadRes.blockedByPosition.join(', ')}`)
+            }
+            
+            if (reloadRes.blockedByPosition?.length > 0) {
+              ElMessage.warning(`${parts.join('，')}，无需重启服务`)
+            } else {
+              ElMessage.success(`${parts.join('，')}，无需重启服务`)
+            }
+          }
+        } catch (e: any) {
+          console.error('热重载交易对失败:', e)
+        }
+      }
+
       showConfigDialog.value = false
       visible.value = false
       // 刷新botStore中的配置，使图表等组件同步更新
