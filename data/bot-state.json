@@ -3,11 +3,11 @@
   "circuitBreaker": {
     "isTriggered": false,
     "reason": "",
-    "timestamp": 1780545636468,
-    "dailyLoss": 4.770510262363172,
+    "timestamp": 1780834764876,
+    "dailyLoss": 5.111113905001467,
     "consecutiveLosses": 0
   },
-  "dailyPnL": 6.708600660000093,
+  "dailyPnL": 7.633636195000005,
   "isRunning": false,
-  "lastTradeTime": 1780545636468
+  "lastTradeTime": 1780834764876
 }

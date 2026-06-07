@@ -3,7 +3,7 @@
   "name": "策略01",
   "version": 1,
   "createdAt": "2026-04-19T16:03:49.383Z",
-  "updatedAt": "2026-05-30T02:45:19.092Z",
+  "updatedAt": "2026-06-04T09:31:28.043Z",
   "isActive": true,
   "marketData": {
     "symbols": [
@@ -113,14 +113,14 @@
   },
   "riskManagement": {
     "maxRiskPercentage": 10,
-    "stopLossATRMultiplier": 1.8,
+    "stopLossATRMultiplier": 2,
     "takeProfitRatios": [
       1.8,
-      2
+      2.6
     ],
     "maxDailyTrades": 3,
     "maxDailyLoss": 10,
-    "maxHoldTimeMinutes": 720,
+    "maxHoldTimeMinutes": 1000,
     "trailingStop": {
       "enabled": true,
       "activationRatio": 0.6,
@@ -138,7 +138,7 @@
     "marginMode": "cross",
     "positionMode": "one-way",
     "dynamicLeverageMin": 5,
-    "dynamicLeverageMax": 15
+    "dynamicLeverageMax": 18
   },
   "preScreenConfig": {
     "minAdx": 18,
@@ -329,27 +329,27 @@
   ],
   "performance": {
     "strategyId": "strategy_001",
-    "totalTrades": 52,
-    "totalWins": 23,
-    "totalLosses": 29,
-    "winRate": 44.230769230769226,
-    "totalProfit": 13.279731390000023,
-    "totalLoss": 12.029822509999944,
-    "netProfit": 1.2499088800000795,
-    "profitFactor": 1.1039008579686922,
-    "maxDrawdown": 150.4609182823556,
-    "averageProfitPerTrade": 0.5773796256521749,
-    "averageLossPerTrade": 0.41482146586206703,
-    "largestWin": 1.4900006400000017,
-    "largestLoss": 1.0209537999999942,
-    "averageHoldTime": 113.26247243589742,
-    "consecutiveWins": 0,
-    "consecutiveLosses": 1,
+    "totalTrades": 29,
+    "totalWins": 16,
+    "totalLosses": 13,
+    "winRate": 55.172413793103445,
+    "totalProfit": 9.902831465000009,
+    "totalLoss": 5.3994738149999915,
+    "netProfit": 4.503357650000018,
+    "profitFactor": 1.834036390266303,
+    "maxDrawdown": 34.55734584201009,
+    "averageProfitPerTrade": 0.6189269665625006,
+    "averageLossPerTrade": 0.41534413961538397,
+    "largestWin": 1.5779772000000087,
+    "largestLoss": 0.7221915000000035,
+    "averageHoldTime": 82.19250057471265,
+    "consecutiveWins": 1,
+    "consecutiveLosses": 0,
     "maxConsecutiveWins": 7,
-    "maxConsecutiveLosses": 10,
-    "dailyPnL": -0.7221915000000035,
-    "todayTrades": 1,
-    "updatedAt": "2026-06-03T22:37:36.526Z"
+    "maxConsecutiveLosses": 4,
+    "dailyPnL": 0.690820149999999,
+    "todayTrades": 3,
+    "updatedAt": "2026-06-07T12:19:24.624Z"
   },
   "sessions": [],
   "currentSessionId": null

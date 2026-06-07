@@ -478,5 +478,125 @@
       "设置更严格的止损，避免stop_loss触发前的微损变为大亏",
       "优化timeout退出条件，例如动态止盈或设置时间止损"
     ]
+  },
+  {
+    "timestamp": 1780596055434,
+    "summary": "整体盈利微薄，胜率不足50%，但部分策略和品种表现突出。成功交易依赖移动止损或止盈退出，方向以做空为主；失败交易多由固定止损触发，做多胜率低。需优化策略权重和品种选择。",
+    "keyPatterns": [
+      "高置信度（>=70）结合做空方向往往成功",
+      "使用移动止损或止盈平仓的交易普遍盈利",
+      "ETH和HYPE等品种经常盈利"
+    ],
+    "successFactors": [
+      "采用移动止损或止盈方式退出",
+      "倾向做空方向",
+      "选择高胜率品种如ETH、HYPE"
+    ],
+    "failureFactors": [
+      "固定止损导致多数亏损",
+      "做多方向胜率低",
+      "XAG品种交易亏损严重"
+    ],
+    "optimizationSuggestions": [
+      "增加策略004权重，减少策略002和003",
+      "避免XAG交易，聚焦ETH、HYPE、XAU",
+      "对做多交易设置更严格入场条件或放宽止损"
+    ]
+  },
+  {
+    "timestamp": 1780596060481,
+    "summary": "整体盈利微弱，主要来源于少数高胜率策略（strategy_004）和shorts交易。失败交易多因stop_loss出场，且集中在LONG方向及BNB、XAG等币种。trailing_stop和take_profit出场方式表现优异。需优化止损策略，减少低胜率币种和LONG方向交易。",
+    "keyPatterns": [
+      "shorts方向胜率显著高于longs，且盈利贡献大",
+      "strategy_004在ETH和HYPE上表现突出，有稳定的盈利模式",
+      "stop_loss出场全部亏损，而trailing_stop和take_profit全部盈利"
+    ],
+    "successFactors": [
+      "采用trailing_stop或take_profit出场机制",
+      "交易方向为SHORT，特别是在ETH、HYPE币种上",
+      "持有时间较长（超过100分钟），且入场时ADX适中（20-35）、RSI处于非极端值"
+    ],
+    "failureFactors": [
+      "以stop_loss平仓，且持有时间过短（平均30分钟以内）",
+      "做多LONG方向，尤其是在BNB、XAG、DOGE币种上",
+      "入场时confidence较低（<70）或riskLevel为MEDIUM时表现更差"
+    ],
+    "optimizationSuggestions": [
+      "增加SHORT方向交易比例，减少LONG，尤其是BNB、XAG等币种",
+      "优化止损设置，避免过早止损，可结合ATR或波动率动态调整",
+      "优先选择strategy_004信号，并辅以trailing_stop出场策略"
+    ]
+  },
+  {
+    "timestamp": 1780682673350,
+    "summary": "整体胜率约51%但盈亏正，主要盈利来自SHORT方向（63.9%胜率）和take_profit/trailing_stop平仓。策略004表现最优（70%胜率，盈亏13.87）。LONG方向胜率低（26.3%），尤其低ADX时易止损。成功交易多伴随较高ADX或高置信度，而失败交易在LONG方向且ADX偏低时风险大。",
+    "keyPatterns": [
+      "SHORT方向在高ADX（>25）时盈利概率高，如ETH/USDT SHORT",
+      "策略004的take_profit交易多盈利，如XAU/USDT和HYPE/USDT",
+      "LONG方向在RSI 55-62且ADX<20时频繁止损"
+    ],
+    "successFactors": [
+      "交易方向为SHORT，胜率63.9%且盈亏11.91",
+      "平仓原因为take_profit或trailing_stop，胜率100%和73.3%",
+      "高置信度（>75）或高ADX（>30）配合低风险等级"
+    ],
+    "failureFactors": [
+      "LONG方向胜率仅26.3%，尤其RSI在50-60时",
+      "低ADX（<20）且中等置信度（68-72）时止损概率大",
+      "使用stop_loss平仓必然亏损，需优化止损设置"
+    ],
+    "optimizationSuggestions": [
+      "优先执行SHORT信号，减少LONG交易比例至20%以下",
+      "结合ADX>25且RSI偏移条件过滤入场，提升胜率",
+      "将固定止损改为动态止盈止损，参考take_profit和trailing_stop"
+    ]
+  },
+  {
+    "timestamp": 1780682679766,
+    "summary": "总体胜率约50%，但盈利主要来自少数大单（如BNB LONG 7.03）和SHORT方向。策略004表现优异（70%胜率），而策略003、002亏损。止盈/移动止损平仓均盈利，止损平仓全部亏损。LONG方向胜率低但有一笔大盈利，SHORT方向胜率高且稳定。失败交易多为LONG方向，止损平仓，且入场RSI中等偏高，ADX较弱。",
+    "keyPatterns": [
+      "SHORT方向高胜率（63.9%），贡献主要利润",
+      "策略004（70%胜率）和移动止损/止盈平仓是成功关键",
+      "LONG方向在ADX较弱且RSI中等时容易止损"
+    ],
+    "successFactors": [
+      "使用take_profit或trailing_stop平仓，确保利润锁定",
+      "SHORT方向入场，且入场RSI相对较低或超买区",
+      "高置信度（>70）和ADX>25的强趋势信号"
+    ],
+    "failureFactors": [
+      "LONG方向入场，且RSI在50-60中性区，ADX低于25",
+      "依赖stop_loss平仓，未设置止盈或移动止损",
+      "低胜率策略（strategy_003、002）过度使用"
+    ],
+    "optimizationSuggestions": [
+      "减少LONG交易频率，仅当ADX>25且RSI<30时做LONG",
+      "所有交易必须设置止盈或移动止损，避免纯止损出场",
+      "增加策略004权重，减少或优化策略003和002"
+    ]
+  },
+  {
+    "timestamp": 1780769072722,
+    "summary": "整体胜率50.88%，但盈亏主要依赖成功的SHORT交易和take_profit/ trailing_stop平仓。strategy_004表现最佳（胜率70%，盈亏13.87），而LONG方向胜率低且多止损。成功关键：高ADX趋势、高confidence、SHORT方向；失败关键：弱趋势、LONG方向、stop_loss。建议增加SHORT比例，优化LONG入场条件，减少低ADX交易。",
+    "keyPatterns": [
+      "SHORT方向在RSI<50、ADX>25时胜率较高",
+      "trailing_stop和take_profit平仓的交易显著盈利",
+      "strategy_004在高confidence和score时表现优异"
+    ],
+    "successFactors": [
+      "高ADX（>25）趋势强度大，交易容易持续获利",
+      "高entryConfidence（>75）和entryScore（>95）预示高胜率",
+      "SHORT方向在震荡或下跌市场中表现优于LONG"
+    ],
+    "failureFactors": [
+      "LONG方向胜率仅25%，尤其在RSI>60时容易止损",
+      "stop_loss平仓全部亏损，且多发生在低ADX（<25）弱趋势中",
+      "低confidence（<70）或低score（<85）的交易风险较高"
+    ],
+    "optimizationSuggestions": [
+      "减少LONG交易比例，重点参与SHORT方向，尤其是RSI<50且ADX>25",
+      "对LONG交易增加ADX>30或confidence>80的条件过滤",
+      "优化止损设置，例如采用动态追踪止损或基于ATR的止损"
+    ]
   }
 ]
