@@ -108,9 +108,7 @@
     "temperature": 0.3,
     "maxTokens": 2000,
     "model": "deepseek-v4-flash",
-    "provider": "deepseek",
-    "apiUrl": "https://ark.cn-beijing.volces.com/api/coding/v3",
-    "apiKey": "ark-626c2a11-1c1e-4f02-90d0-b08ae91472e2-aebfb"
+    "provider": "deepseek"
   },
   "riskManagement": {
     "maxRiskPercentage": 20,

@@ -1,6 +1,7 @@
 // POST /api/strategies/[id]/rollback - 回滚策略版本
 
 import { getStrategyManager } from '../../../modules/strategy-manager'
+import { maskStrategyData } from '../../../utils/mask-strategy'
 
 export default defineEventHandler(async (event) => {
   try {
@@ -34,7 +35,7 @@ export default defineEventHandler(async (event) => {
     return {
       success: true,
       message: `策略已回滚到 v${strategy.version}`,
-      data: strategy
+      data: maskStrategyData(strategy)
     }
   } catch (error: any) {
     throw createError({

@@ -67,9 +67,12 @@ export function getProviderConfig(provider: AIProvider, runtimeConfig: any, over
 
   // 如果有自定义覆盖配置，则合并（优先使用自定义值）
   if (overrides) {
+    // 对于内置已知提供商（deepseek/doubao/qwen），忽略策略级别的 apiUrl/apiKey 覆盖
+    // 仅当 provider 为 'openai'（开放兼容适配）时，允许自定义 apiUrl/apiKey
+    const isKnownProvider = ['deepseek', 'doubao', 'qwen'].includes(provider)
     return {
-      apiKey: overrides.apiKey || baseConfig.apiKey,
-      apiUrl: overrides.apiUrl || baseConfig.apiUrl,
+      apiKey: !isKnownProvider && overrides.apiKey ? overrides.apiKey : baseConfig.apiKey,
+      apiUrl: !isKnownProvider && overrides.apiUrl ? overrides.apiUrl : baseConfig.apiUrl,
       model: overrides.model || baseConfig.model
     }
   }

@@ -2,6 +2,7 @@
 
 import { getStrategyManager } from '../../modules/strategy-manager'
 import type { UpdateStrategyInput } from '../../../types/strategy'
+import { maskStrategyData } from '../../utils/mask-strategy'
 
 export default defineEventHandler(async (event) => {
   try {
@@ -21,9 +22,17 @@ export default defineEventHandler(async (event) => {
       changes?: string
     }>(event)
 
+    // 处理脱敏后的 apiKey：如果前端传回的是脱敏格式（包含 ****），则不更新 apiKey
+    if (body.updates?.aiPrompt?.apiKey?.includes('****')) {
+      // 获取当前策略的原始 apiKey，保留不变
+      const currentStrategy = await strategyManager.getStrategy(id)
+      if (currentStrategy) {
+        body.updates.aiPrompt.apiKey = currentStrategy.aiPrompt.apiKey
+      }
+    }
+
     let strategy
     if (body.saveAsNewVersion) {
-      // 保存为新版本
       if (!body.changes) {
         throw createError({
           statusCode: 400,
@@ -32,7 +41,6 @@ export default defineEventHandler(async (event) => {
       }
       strategy = await strategyManager.updateStrategy(id, body.updates, body.changes)
     } else {
-      // 普通更新，不创建版本
       strategy = await strategyManager.updateStrategyWithoutVersion(id, body.updates)
     }
 
@@ -48,7 +56,7 @@ export default defineEventHandler(async (event) => {
       message: body.saveAsNewVersion
         ? `策略已更新到 v${strategy.version}`
         : '策略已更新',
-      data: strategy
+      data: maskStrategyData(strategy)
     }
   } catch (error: any) {
     throw createError({

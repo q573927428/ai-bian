@@ -1,6 +1,7 @@
 // POST /api/strategies/[id]/toggle - 激活/停用策略
 
 import { getStrategyManager } from '../../../modules/strategy-manager'
+import { maskStrategyData } from '../../../utils/mask-strategy'
 
 export default defineEventHandler(async (event) => {
   try {
@@ -27,7 +28,7 @@ export default defineEventHandler(async (event) => {
     return {
       success: true,
       message: body.active ? '策略已激活' : '策略已停用',
-      data: strategy
+      data: maskStrategyData(strategy)
     }
   } catch (error: any) {
     throw createError({

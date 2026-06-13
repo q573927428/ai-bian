@@ -5,6 +5,7 @@ import { join } from 'path'
 import { existsSync } from 'fs'
 import type { Strategy, StrategyId, CreateStrategyInput, UpdateStrategyInput, AIPromptConfig } from '../../../types/strategy'
 import { logger } from '../../utils/logger'
+import { encrypt, decrypt } from '../../utils/crypto'
 
 
 // 项目根目录
@@ -157,12 +158,17 @@ export class StrategyStore {
          strategy.currentSessionId = null
        }
        
-       // 防御性代码：确保 aiPrompt.provider 字段存在
-       if (!strategy.aiPrompt.provider) {
-         strategy.aiPrompt.provider = 'deepseek'
-       }
-       
-       return strategy
+    // 防御性代码：确保 aiPrompt.provider 字段存在
+    if (!strategy.aiPrompt.provider) {
+      strategy.aiPrompt.provider = 'deepseek'
+    }
+    
+    // 读取时解密 apiKey（供 AI 调用使用）
+    if (strategy.aiPrompt.apiKey) {
+      strategy.aiPrompt.apiKey = decrypt(strategy.aiPrompt.apiKey)
+    }
+    
+    return strategy
     } catch (error: any) {
       logger.error('StrategyStore', `获取策略失败 ${strategyId}: ${error.message}`)
       return null
@@ -551,6 +557,12 @@ export class StrategyStore {
   private async saveStrategyWithoutTradeRecords(strategy: Strategy): Promise<void> {
     // 创建不包含 tradeRecords 的副本
     const { tradeRecords, ...strategyWithoutRecords } = strategy as any
+    
+    // 保存时加密 apiKey
+    if (strategyWithoutRecords.aiPrompt?.apiKey) {
+      strategyWithoutRecords.aiPrompt.apiKey = encrypt(strategyWithoutRecords.aiPrompt.apiKey)
+    }
+    
     const filePath = getStrategyFilePath(strategy.id)
     await writeFile(filePath, JSON.stringify(strategyWithoutRecords, null, 2), 'utf-8')
   }

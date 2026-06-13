@@ -1,6 +1,7 @@
 // GET /api/strategies - 获取所有策略
 
 import { getStrategyManager, initStrategyManager } from '../../modules/strategy-manager'
+import { maskStrategyData } from '../../utils/mask-strategy'
 
 export default defineEventHandler(async (event) => {
   try {
@@ -34,7 +35,7 @@ export default defineEventHandler(async (event) => {
 
     return {
       success: true,
-      data: strategies,
+      data: strategies.map(s => maskStrategyData(s)),
       statuses
     }
   } catch (error: any) {
