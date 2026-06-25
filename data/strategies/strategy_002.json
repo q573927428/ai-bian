@@ -3,7 +3,7 @@
   "name": "策略02",
   "version": 1,
   "createdAt": "2026-04-19T16:06:46.003Z",
-  "updatedAt": "2026-06-13T02:30:49.435Z",
+  "updatedAt": "2026-06-14T14:35:24.375Z",
   "isActive": true,
   "marketData": {
     "symbols": [
@@ -103,15 +103,17 @@
     }
   ],
   "aiPrompt": {
-    "userPrompt": "15m短期机械稳健共振策略\n一、做多 LONG 完整规则\n趋势:\n- 当前价格 > EMA50\n入场硬性条件（全部必须满足）:\n1. OI 变化率 > 0.5%\n2. 价格偏离 EMA50 ≤ +1.2%\n3. 当前预计成交量 ≥ 成交量EMA均值的1.5 倍\n辅助条件（至少满足 2 项）:\n1. 30 < RSI < 70\n2. 价格偏离 EMA14 ≤ +0.7%\n3. EMA14 斜率 > 0\n开仓决策:\n- 硬条件全部满足\n- 辅助条件 >= 2项\n=> 做多开仓\n\n二、做空 SHORT 完整规则\n趋势：\n- 当前价格 < EMA50\n入场硬性条件（全部必须满足）:\n1. OI 变化率 > 0.5%\n2. 价格偏离 EMA50 ≥ -1.2%\n3. 当前预计成交量 ≥ 成交量EMA均值的1.5 倍\n辅助条件（至少满足 2 项）:\n1. 30 < RSI < 70\n2. 价格偏离 EMA14 ≥ -0.7%\n3. EMA14 斜率 < 0\n开仓决策:\n- 硬条件全部满足\n- 辅助条件 >= 2项\n=> 做空开仓",
+    "userPrompt": "15m短期机械稳健共振策略\n一、做多 LONG 完整规则\n趋势:\n- 当前价格 > EMA50\n入场硬性条件（全部必须满足）:\n1. OI 变化率 > 0.6%\n2. 价格偏离 EMA50 ≤ +1.1%\n3. 当前预计成交量 ≥ 成交量EMA均值的1.5 倍\n辅助条件（至少满足 2 项）:\n1. 30 < RSI < 70\n2. 价格偏离 EMA14 ≤ +0.7%\n3. EMA14 斜率 > 0\n开仓决策:\n- 硬条件全部满足\n- 辅助条件 >= 2项\n=> 做多开仓\n\n二、做空 SHORT 完整规则\n趋势：\n- 当前价格 < EMA50\n入场硬性条件（全部必须满足）:\n1. OI 变化率 > 0.6%\n2. 价格偏离 EMA50 ≥ -1.1%\n3. 当前预计成交量 ≥ 成交量EMA均值的1.5 倍\n辅助条件（至少满足 2 项）:\n1. 30 < RSI < 70\n2. 价格偏离 EMA14 ≥ -0.7%\n3. EMA14 斜率 < 0\n开仓决策:\n- 硬条件全部满足\n- 辅助条件 >= 2项\n=> 做空开仓",
     "temperature": 0.2,
     "maxTokens": 2000,
     "model": "deepseek-v4-flash",
-    "provider": "deepseek"
+    "provider": "deepseek",
+    "apiUrl": "https://ark.cn-beijing.volces.com/api/coding/v3",
+    "apiKey": "ark-626c2a11-1c1e-4f02-90d0-b08ae91472e2-aebfb"
   },
   "riskManagement": {
     "maxRiskPercentage": 10,
-    "stopLossATRMultiplier": 2,
+    "stopLossATRMultiplier": 2.5,
     "takeProfitRatios": [
       1.8,
       2.8
@@ -121,7 +123,7 @@
     "maxHoldTimeMinutes": 1500,
     "trailingStop": {
       "enabled": true,
-      "activationRatio": 0.8,
+      "activationRatio": 0.6,
       "trailDistance": 1.2,
       "minMoveDistance": 0.16
     },
@@ -351,27 +353,27 @@
   ],
   "performance": {
     "strategyId": "strategy_002",
-    "totalTrades": 23,
-    "totalWins": 8,
-    "totalLosses": 15,
-    "winRate": 34.78260869565217,
-    "totalProfit": 6.947939990000024,
-    "totalLoss": 8.989876289999996,
-    "netProfit": -2.041936299999972,
-    "profitFactor": 0.7728626919737098,
-    "maxDrawdown": 905.3055095962316,
-    "averageProfitPerTrade": 0.868492498750003,
-    "averageLossPerTrade": 0.5993250859999998,
+    "totalTrades": 41,
+    "totalWins": 15,
+    "totalLosses": 26,
+    "winRate": 36.58536585365854,
+    "totalProfit": 14.128744450000037,
+    "totalLoss": 16.424138834999948,
+    "netProfit": -2.295394384999911,
+    "profitFactor": 0.8602426338415741,
+    "maxDrawdown": 1105.939944779568,
+    "averageProfitPerTrade": 0.9419162966666691,
+    "averageLossPerTrade": 0.631697647499998,
     "largestWin": 3.489197750000027,
     "largestLoss": 1.1641205249999944,
-    "averageHoldTime": 224.21723985507245,
+    "averageHoldTime": 290.93966504065037,
     "consecutiveWins": 0,
     "consecutiveLosses": 2,
-    "maxConsecutiveWins": 2,
+    "maxConsecutiveWins": 3,
     "maxConsecutiveLosses": 6,
-    "dailyPnL": 1.3618424400000162,
-    "todayTrades": 5,
-    "updatedAt": "2026-06-11T12:30:48.680Z"
+    "dailyPnL": 0.45207963999999656,
+    "todayTrades": 3,
+    "updatedAt": "2026-06-24T11:49:00.070Z"
   },
   "sessions": [],
   "currentSessionId": null
