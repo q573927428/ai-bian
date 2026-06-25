@@ -354,12 +354,12 @@
                   </span>
                 </template>
               </el-table-column>
-              <el-table-column label="评分" width="100">
+              <el-table-column label="评分" width="80">
                 <template #default="{ row }">
                   {{ row.entryScore ?? '-' }}
                 </template>
               </el-table-column>
-              <el-table-column label="置信度" width="100">
+              <el-table-column label="置信度" width="80">
                 <template #default="{ row }">
                   {{ row.entryConfidence ?? '-' }}
                 </template>
