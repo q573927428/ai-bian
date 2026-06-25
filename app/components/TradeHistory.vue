@@ -304,6 +304,32 @@
         </template>
       </el-table-column>
 
+      <el-table-column label="评分" width="65" align="center" prop="entryScore" sortable="custom">
+        <template #default="{ row }">
+          {{ row.entryScore != null ? row.entryScore : '--' }}
+        </template>
+      </el-table-column>
+
+      <el-table-column label="置信度" width="80" align="center" prop="entryConfidence" sortable="custom">
+        <template #default="{ row }">
+          {{ row.entryConfidence != null ? row.entryConfidence : '--' }}
+        </template>
+      </el-table-column>
+
+      <!-- <el-table-column label="风险" width="90" align="center">
+        <template #default="{ row }">
+          <el-tag
+            v-if="row.entryRiskLevel"
+            :type="row.entryRiskLevel === 'LOW' ? 'success' : row.entryRiskLevel === 'HIGH' ? 'danger' : 'warning'"
+            size="small"
+            effect="dark"
+          >
+            {{ row.entryRiskLevel }}
+          </el-tag>
+          <span v-else class="text-muted">--</span>
+        </template>
+      </el-table-column> -->
+
       <el-table-column
         label="开仓时间"
         width="100"
@@ -651,8 +677,18 @@ onUnmounted(() => {
   font-weight: 600;
 }
 
+.text-warning {
+  color: var(--color-warning);
+  font-weight: 600;
+}
+
 .text-danger {
   color: var(--color-danger);
+  font-weight: 600;
+}
+
+.text-info {
+  color: var(--color-info);
   font-weight: 600;
 }
 
