@@ -595,6 +595,9 @@ export class StrategyStore {
           leverage: record.leverage,
           marginMode: 'cross' as const, // 默认逐仓
           positionMode: 'one-way' as const, // 默认单向持仓
+          entryScore: record.entryScore,
+          entryConfidence: record.entryConfidence,
+          entryRiskLevel: record.entryRiskLevel,
           profitLoss: record.pnl, // 现在存储的是净利
           profitLossPercentage: record.pnlPercentage, // 现在存储的是净利百分比
           netProfitLoss: record.pnl, // 净利
