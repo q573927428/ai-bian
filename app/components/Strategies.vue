@@ -329,13 +329,6 @@
                   </el-tag>
                 </template>
               </el-table-column>
-              <el-table-column prop="action" label="动作" width="80">
-                <template #default="{ row }">
-                  <el-tag :type="row.action === 'open' ? 'primary' : 'warning'">
-                    {{ row.action === 'open' ? '开仓' : row.action === 'close' ? '平仓' : '持有' }}
-                  </el-tag>
-                </template>
-              </el-table-column>
               <el-table-column prop="entryPrice" label="入场价" width="120" />
               <el-table-column prop="exitPrice" label="出场价" width="120" />
               <el-table-column prop="quantity" label="数量" width="100" />
@@ -359,6 +352,16 @@
                   <span :class="(row.profitLossPercentage || 0) >= 0 ? 'text-success' : 'text-danger'">
                     {{ (row.profitLossPercentage || 0).toFixed(2) }}%
                   </span>
+                </template>
+              </el-table-column>
+              <el-table-column label="评分" width="100">
+                <template #default="{ row }">
+                  {{ row.entryScore ?? '-' }}
+                </template>
+              </el-table-column>
+              <el-table-column label="置信度" width="100">
+                <template #default="{ row }">
+                  {{ row.entryConfidence ?? '-' }}
                 </template>
               </el-table-column>
               <el-table-column prop="openTime" label="开仓时间" width="180">
