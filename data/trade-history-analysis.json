@@ -1592,5 +1592,149 @@
       "设置动态止损，根据ADX调整止损幅度：ADX<20时放宽止损，ADX>25时收紧",
       "提高入场门槛，要求entryScore≥90且ADX>20，避免低ADX及RSI中值附近的交易"
     ]
+  },
+  {
+    "timestamp": 1782410451033,
+    "summary": "整体盈利主要来自strategy_004和SHORT方向，但LONG和DOGE导致较大亏损。止损平仓是最大亏损源，而take_profit和trailing_stop贡献主要盈利。策略优化应聚焦高胜率策略、方向偏好和风险管理。",
+    "keyPatterns": [
+      "strategy_004在SHORT方向上胜率极高，盈利贡献最大",
+      "take_profit平仓全部盈利，而stop_loss平仓全部亏损",
+      "SOL、XAU、HYPE等交易对表现优于DOGE、BTC"
+    ],
+    "successFactors": [
+      "采用高胜率策略（如strategy_004）",
+      "做空（SHORT）比做多（LONG）更盈利",
+      "使用take_profit和trailing_stop止盈方式"
+    ],
+    "failureFactors": [
+      "做多（LONG）胜率低且亏损多",
+      "交易DOGE/USDT亏损严重",
+      "依赖stop_loss止损导致较大亏损"
+    ],
+    "optimizationSuggestions": [
+      "增加strategy_004的使用比例，减少strategy_002",
+      "优先做空（SHORT），严格控制做多条件",
+      "提高止损设置的合理性，避免过早止损或过宽止损"
+    ]
+  },
+  {
+    "timestamp": 1782496863548,
+    "summary": "整体盈利但胜率低于50%，主要由少数高盈利交易贡献。做空表现优于做多，使用trailing_stop和take_profit退出方式盈利可观。策略004胜率高达72.7%，是主要利润来源。止损交易全部亏损，需优化入场和止损逻辑。部分交易对如SOL、XAU、HYPE表现较好，DOGE和BTC表现较差。",
+    "keyPatterns": [
+      "做空交易胜率高于做多，且平均盈利更大",
+      "使用trailing_stop或take_profit退出的交易盈利显著",
+      "策略004在交易中表现出高胜率和高盈亏"
+    ],
+    "successFactors": [
+      "交易方向为SHORT",
+      "采用trailing_stop或take_profit作为平仓原因",
+      "集中于SOL、XAU、HYPE等高胜率交易对"
+    ],
+    "failureFactors": [
+      "交易方向为LONG且胜率低",
+      "平仓原因为stop_loss导致全部亏损",
+      "在DOGE、BTC等交易对上频繁止损"
+    ],
+    "optimizationSuggestions": [
+      "优先采用策略004，并增加做空交易比例",
+      "优化止损设置，例如使用基于ATR的动态止损或放宽止损宽度",
+      "过滤掉DOGE和BTC等表现差的交易对，减少LONG方向交易"
+    ]
+  },
+  {
+    "timestamp": 1782583257047,
+    "summary": "整体盈利但胜率不足50%，主要依靠strategy_004的高胜率(72.7%)和SHORT方向贡献。成功交易多由trailing_stop或take_profit退出，且集中在趋势明确的品种(SOL、XAU、HYPE)。失败交易几乎全部由stop_loss导致，尤其是LONG方向，且entryRSI偏中高时易反转。需优化止损和方向筛选。",
+    "keyPatterns": [
+      "strategy_004在SOL/USDT和XAU/USDT上胜率超65%，且多采用trailing_stop或take_profit退出",
+      "SHORT方向整体胜率高于LONG，且盈亏贡献更大（+59 vs +9.87），尤其在DOGE和XAG上",
+      "以take_profit和trailing_stop退出的交易几乎全部盈利，而stop_loss退出的交易全部亏损，占亏损单的100%"
+    ],
+    "successFactors": [
+      "使用trailing_stop或take_profit作为退出机制，能有效锁定利润并避免回吐",
+      "当entryRSI处于中立偏强（50-65）且ADX>25时，趋势延续性强，适合做多；RSI偏低（35-45）且ADX>20时做空胜率高",
+      "高confidence（>70）且entryScore>85的交易成功率较高，尤其结合趋势品种（SOL、HYPE）"
+    ],
+    "failureFactors": [
+      "LONG方向在entryRSI>55时容易遭遇回调止损，尤其是ADX<25的震荡行情",
+      "stop_loss设置过紧或未结合波动率调整，导致频繁被扫损（如最近20笔中BNB连续三次LONG止损）",
+      "在ADX>40时追高或追空，容易出现趋势末端假突破（如DOGE/USDT ADX=52时做多立即止损）"
+    ],
+    "optimizationSuggestions": [
+      "减少LONG方向交易频率，仅在ADX>25且RSI<50时做多，或结合大周期趋势过滤",
+      "将stop_loss改为动态跟踪止损（如ATR倍数），避免固定止损被噪音扫掉，并提高胜率",
+      "重点聚焦策略004，并增加对SOL、XAU、HYPE的交易权重，减少DOGE和BNB的LONG仓位"
+    ]
+  },
+  {
+    "timestamp": 1782669654353,
+    "summary": "整体盈利62.2 USDT，胜率47.37%，但主要盈利来自strategy_004和空头方向。止损单导致100%亏损，而止盈和移动止损贡献大部分利润。成功交易多发生在ADX>25且持有时间较长（>100分钟）的空头交易中，而失败交易常伴随低ADX（<20）和短持有时间。建议优化策略004，减少低胜率策略，并针对高ADX趋势加强空头信号。",
+    "keyPatterns": [
+      "策略004胜率70.6%且平均盈利高，为主要盈利来源",
+      "空头交易胜率52.4%且总盈利远大于多头",
+      "止盈和移动止损离场贡献全部正收益，止损则全部亏损"
+    ],
+    "successFactors": [
+      "使用策略004开仓，平均胜率超70%",
+      "设置较高ADX值（>25）以确认趋势强度",
+      "持有时间较长（>100分钟）让利润奔跑"
+    ],
+    "failureFactors": [
+      "低胜率策略如strategy_002和strategy_001导致亏损",
+      "止损离场且持有时间过短（<30分钟）",
+      "在ADX<20的震荡行情中开仓"
+    ],
+    "optimizationSuggestions": [
+      "优先使用strategy_004，并加强其信号过滤条件",
+      "对多头交易增加额外确认，如ADX>30且RSI<40",
+      "设置更宽松的止损或改用移动止损以延长持有时间"
+    ]
+  },
+  {
+    "timestamp": 1782756056191,
+    "summary": "整体盈利55.44 USDT，胜率47.72%，主要来源于strategy_004（盈利51.86）和SHORT方向（盈利56.39）。stop_loss导致全部亏损，trailing_stop和take_profit盈利。失败交易多发生于LONG方向、DOGE/ETH交易对及低ADX市场。建议聚焦strategy_004和SHORT，优化止损设置，避免LONG及弱势品种。",
+    "keyPatterns": [
+      "strategy_004配合trailing_stop或take_profit平仓实现高胜率",
+      "SHORT方向明显优于LONG方向，总体盈利且胜率较高",
+      "止损平仓集中发生于LONG方向及低ADX（<25）品种，如DOGE"
+    ],
+    "successFactors": [
+      "使用trailing_stop或take_profit平仓，保留浮动盈利",
+      "倾向于SHORT方向交易，顺应短期趋势",
+      "优先执行strategy_004，该策略胜率高达70.3%"
+    ],
+    "failureFactors": [
+      "盲目做多（LONG）方向，尤其在弱趋势（ADX<25）中容易止损",
+      "交易DOGE等波动大且趋势不明确的品种，亏损概率高",
+      "止损设置过紧或未考虑波动率，导致被随机波动扫损"
+    ],
+    "optimizationSuggestions": [
+      "减少LONG方向交易比例，将SHORT交易占比提升至70%以上",
+      "对DOGE、ETH等亏损品种暂停交易或扩大止损倍率（如ATR倍数）",
+      "加强strategy_004的信号过滤，仅当entryConfidence>=72且entryADX>25时执行"
+    ]
+  },
+  {
+    "timestamp": 1782842456555,
+    "summary": "整体盈利主要来自strategy_004的做空操作，胜率68.2%且盈利贡献最大；做多交易亏损严重，尤其是DOGE和ETH。成功交易多由trailing_stop或take_profit平仓，而大部分亏损由stop_loss导致。HYPE和SOL表现突出，BNB和XAU也有盈利；应重点优化做多策略，减少低胜率品种交易。",
+    "keyPatterns": [
+      "做空交易胜率高于做多（53.9% vs 41.3%）且盈利显著",
+      "strategy_004策略胜率68.2%且盈亏占比最高",
+      "HYPE/USDT和SOL/USDT交易对表现优异胜率超过50%"
+    ],
+    "successFactors": [
+      "平仓原因：trailing_stop和take_profit的盈利概率高",
+      "方向：做空盈利占比大，做多需谨慎",
+      "交易对：HYPE、XAU、SOL等波动性适中且趋势性强的品种"
+    ],
+    "failureFactors": [
+      "平仓原因：stop_loss导致全部亏损且单笔亏损较大",
+      "方向：做多交易胜率低且整体亏损",
+      "交易对：DOGE和ETH经常出现大幅亏损"
+    ],
+    "optimizationSuggestions": [
+      "针对做多交易，提高止损距离或结合ADX>25过滤，避免弱势震荡行情",
+      "减少DOGE和ETH的做多交易，或仅在高ADX趋势行情中入场",
+      "增加strategy_004的权重，优先做空HYPE和SOL，同时严格执行止盈止损"
+    ]
   }
 ]

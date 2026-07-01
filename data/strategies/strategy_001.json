@@ -3,7 +3,7 @@
   "name": "策略01",
   "version": 1,
   "createdAt": "2026-04-19T16:03:49.383Z",
-  "updatedAt": "2026-06-13T04:25:47.383Z",
+  "updatedAt": "2026-06-25T12:18:12.479Z",
   "isActive": true,
   "marketData": {
     "symbols": [
@@ -112,8 +112,8 @@
     "apiKey": "ark-626c2a11-1c1e-4f02-90d0-b08ae91472e2-aebfb"
   },
   "riskManagement": {
-    "maxRiskPercentage": 10,
-    "stopLossATRMultiplier": 2,
+    "maxRiskPercentage": 8,
+    "stopLossATRMultiplier": 2.2,
     "takeProfitRatios": [
       1.8,
       2.6
@@ -153,7 +153,7 @@
     "enableAtr": true,
     "enableVolume": true
   },
-  "minConfidence": 68,
+  "minConfidence": 72,
   "minFinalScore": 78,
   "maxRiskLevel": "MEDIUM",
   "versionHistory": [
@@ -329,27 +329,27 @@
   ],
   "performance": {
     "strategyId": "strategy_001",
-    "totalTrades": 70,
-    "totalWins": 29,
+    "totalTrades": 72,
+    "totalWins": 31,
     "totalLosses": 41,
-    "winRate": 41.42857142857143,
-    "totalProfit": 18.11838720999998,
+    "winRate": 43.05555555555556,
+    "totalProfit": 19.706569709999975,
     "totalLoss": 17.639204351983956,
-    "netProfit": 0.4791828580160242,
-    "profitFactor": 1.0271657864183725,
+    "netProfit": 2.067365358016019,
+    "profitFactor": 1.1172028690615796,
     "maxDrawdown": 91.32682930650694,
-    "averageProfitPerTrade": 0.6247719727586201,
+    "averageProfitPerTrade": 0.6356957970967734,
     "averageLossPerTrade": 0.4302244963898526,
     "largestWin": 1.5779772000000087,
     "largestLoss": 0.9374787419840058,
-    "averageHoldTime": 97.9201226190476,
-    "consecutiveWins": 0,
-    "consecutiveLosses": 7,
+    "averageHoldTime": 95.31642662037035,
+    "consecutiveWins": 2,
+    "consecutiveLosses": 0,
     "maxConsecutiveWins": 7,
     "maxConsecutiveLosses": 7,
-    "dailyPnL": -1.0297193049999982,
-    "todayTrades": 2,
-    "updatedAt": "2026-06-25T10:36:00.249Z"
+    "dailyPnL": 0.5584631949999974,
+    "todayTrades": 4,
+    "updatedAt": "2026-06-25T13:41:42.111Z"
   },
   "sessions": [],
   "currentSessionId": null
