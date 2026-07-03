@@ -57,19 +57,19 @@
                       <div class="stat-card-sub">今日 {{ todayTrades }}</div>
                     </div>
                     <div class="stat-card">
-                      <div class="stat-card-label">📈 今日盈亏</div>
-                      <div :class="['stat-card-value', pnlClass]">{{ formatPnLShort(dailyPnL) }}</div>
-                      <div class="stat-card-sub">USDT</div>
-                    </div>
-                    <div class="stat-card">
                       <div class="stat-card-label">💰 总盈亏</div>
                       <div :class="['stat-card-value', totalPnLClass]">{{ formatPnLShort(totalPnL) }}</div>
-                      <div class="stat-card-sub">USDT</div>
+                      <div class="stat-card-sub">今日 <span :class="[pnlClass]">{{ formatPnLShort(dailyPnL) }}</span></div>
                     </div>
                     <div class="stat-card">
                       <div class="stat-card-label">🎯 总胜率</div>
                       <div class="stat-card-value">{{ formatWinRate(winRate) }}</div>
                       <div class="stat-card-sub">总体</div>
+                    </div>
+                    <div class="stat-card">
+                      <div class="stat-card-label">📈 年化</div>
+                      <div :class="['stat-card-value', annualizedReturnClass]">{{ formatAnnualizedReturn(annualizedReturn) }}</div>
+                      <div class="stat-card-sub">收益率</div>
                     </div>
                   </div>
                   <div class="balance-details-large">
@@ -78,7 +78,7 @@
                       <span class="balance-total-large">$ {{ formatBalance(usdtBalance?.total || 0) }}</span>
                     </div>
                     <div class="balance-row-large">
-                      <span class="balance-label-large">💚 可用</span>
+                      <span class="balance-label-large"> 可用</span>
                       <span class="balance-free-large">$ {{ formatBalance(usdtBalance?.free || 0) }}</span>
                     </div>
                     <div class="balance-row-large">
@@ -271,6 +271,46 @@ function formatBalance(value: number): string {
   }
 }
 
+// 计算年化收益率
+const annualizedReturn = computed(() => {
+  const netProfit = totalPnL.value
+
+  // 获取最早策略创建时间作为起始运行时间
+  const creationTimes = strategiesStore.strategies
+    .map(s => s.createdAt ? new Date(s.createdAt).getTime() : 0)
+    .filter(t => t > 0)
+
+  if (creationTimes.length === 0) return 0
+
+  const earliestTime = Math.min(...creationTimes)
+  const now = Date.now()
+  const daysElapsed = (now - earliestTime) / (1000 * 60 * 60 * 24)
+
+  if (daysElapsed <= 0) return 0
+
+  const totalBalance = usdtBalance.value?.total || 0
+  const initialCapital = totalBalance - netProfit
+
+  // 处理极端情况：本金不足（如净收益覆盖全部余额）
+  if (initialCapital <= 0 || !isFinite(initialCapital)) {
+    return netProfit > 0 ? Infinity : 0
+  }
+
+  // 年化收益率 = (总净收益 / 初始本金) * (365 / 运行天数) * 100%
+  return (netProfit / initialCapital) * (365 / daysElapsed) * 100
+})
+
+const annualizedReturnClass = computed(() => {
+  return annualizedReturn.value >= 0 ? 'text-success' : 'text-danger'
+})
+
+function formatAnnualizedReturn(value: number): string {
+  if (!isFinite(value)) {
+    return value > 0 ? '> +999%' : '0.00%'
+  }
+  return `${value >= 0 ? '+' : ''}${value.toFixed(1)}%`
+}
+
 // 跳转到策略管理页面
 function goToStrategies() {
   window.location.href = '/strategies'
@@ -368,6 +408,14 @@ onMounted(async () => {
 }
 
 .text-danger {
+  color: var(--color-danger);
+}
+
+.stat-card-value.text-success {
+  color: var(--color-success);
+}
+
+.stat-card-value.text-danger {
   color: var(--color-danger);
 }
 
