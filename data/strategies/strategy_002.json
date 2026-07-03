@@ -3,8 +3,8 @@
   "name": "策略02",
   "version": 1,
   "createdAt": "2026-04-19T16:06:46.003Z",
-  "updatedAt": "2026-06-25T12:18:53.239Z",
-  "isActive": false,
+  "updatedAt": "2026-07-03T13:52:18.398Z",
+  "isActive": true,
   "marketData": {
     "symbols": [
       "BTC/USDT",
@@ -109,11 +109,11 @@
     "model": "deepseek-v4-flash",
     "provider": "deepseek",
     "apiUrl": "https://ark.cn-beijing.volces.com/api/coding/v3",
-    "apiKey": "ark-626c2a11-1c1e-4f02-90d0-b08ae91472e2-aebfb"
+    "apiKey": "tsgK8wM+Yi/DglqNfRrMsA==:3xJNlHo1AE2S4v13y3r3lg==:46b6030a43bf29a0b3ed7ea69b63fba93611fb1f413331f05845b19b512e7e2f3ee5741efd05da6460961348cb47"
   },
   "riskManagement": {
-    "maxRiskPercentage": 10,
-    "stopLossATRMultiplier": 2.5,
+    "maxRiskPercentage": 8,
+    "stopLossATRMultiplier": 2.3,
     "takeProfitRatios": [
       1.8,
       2.8
@@ -153,7 +153,7 @@
     "enableAtr": true,
     "enableVolume": true
   },
-  "minConfidence": 72,
+  "minConfidence": 70,
   "minFinalScore": 80,
   "maxRiskLevel": "MEDIUM",
   "versionHistory": [

@@ -3,8 +3,8 @@
   "name": "策略01",
   "version": 1,
   "createdAt": "2026-04-19T16:03:49.383Z",
-  "updatedAt": "2026-06-25T12:18:12.479Z",
-  "isActive": false,
+  "updatedAt": "2026-07-03T13:51:55.478Z",
+  "isActive": true,
   "marketData": {
     "symbols": [
       "SOL/USDT",
@@ -109,11 +109,11 @@
     "model": "deepseek-v4-flash",
     "provider": "deepseek",
     "apiUrl": "https://ark.cn-beijing.volces.com/api/coding/v3",
-    "apiKey": "ark-626c2a11-1c1e-4f02-90d0-b08ae91472e2-aebfb"
+    "apiKey": "9hJ+UBCEBl442CWpKz2Seg==:l4f/uXy+pfaeKZtowmbm1Q==:e6ab17e5b59c19b8a6cc757a3c1ddc5a5f83596288f2628eac10a5e46d64311f91ea05251aa254675818b32b7ee1"
   },
   "riskManagement": {
     "maxRiskPercentage": 8,
-    "stopLossATRMultiplier": 2.2,
+    "stopLossATRMultiplier": 2.3,
     "takeProfitRatios": [
       1.8,
       2.6
@@ -153,7 +153,7 @@
     "enableAtr": true,
     "enableVolume": true
   },
-  "minConfidence": 72,
+  "minConfidence": 70,
   "minFinalScore": 78,
   "maxRiskLevel": "MEDIUM",
   "versionHistory": [

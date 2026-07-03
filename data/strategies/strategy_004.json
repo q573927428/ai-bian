@@ -3,8 +3,8 @@
   "name": "策略04",
   "version": 1,
   "createdAt": "2026-04-22T09:40:30.913Z",
-  "updatedAt": "2026-06-14T14:42:10.291Z",
-  "isActive": false,
+  "updatedAt": "2026-07-03T13:52:42.304Z",
+  "isActive": true,
   "marketData": {
     "symbols": [
       "BTC/USDT",
@@ -110,10 +110,10 @@
     "model": "deepseek-v4-flash",
     "provider": "deepseek",
     "apiUrl": "https://ark.cn-beijing.volces.com/api/coding/v3",
-    "apiKey": "ark-626c2a11-1c1e-4f02-90d0-b08ae91472e2-aebfb"
+    "apiKey": "1uVV2A4t5V9vuhb1cwYvrQ==:/tmwYM2XT4m8nNQw4AQR6g==:e90947ba204fea2ddddc6f1470b12746602a0f03e3f9ef68d1d2b16ecb6f130e8529e2be51ea55e0f463c67d446a"
   },
   "riskManagement": {
-    "maxRiskPercentage": 20,
+    "maxRiskPercentage": 18,
     "stopLossATRMultiplier": 2.3,
     "takeProfitRatios": [
       2.2,

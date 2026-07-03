@@ -4,7 +4,7 @@
   "version": 1,
   "createdAt": "2026-04-19T16:14:17.182Z",
   "updatedAt": "2026-06-13T04:26:03.814Z",
-  "isActive": false,
+  "isActive": true,
   "marketData": {
     "symbols": [
       "BTC/USDT",
