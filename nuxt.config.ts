@@ -47,6 +47,26 @@ export default defineNuxtConfig({
       },
     },
   },
+  vite: {
+    build: {
+      rollupOptions: {
+        output: {
+          manualChunks(id) {
+            // 把大第三方库单独拆包
+            if (id.includes('node_modules/vue/')) {return 'vendor-vue'}
+            if (id.includes('echarts') || id.includes('tradingview')) return 'vendor-chart'
+            if (id.includes('element-plus')) return 'element-plus'
+            if (id.includes('lightweight-charts')) return 'lightweight-charts'
+            if (id.includes('technicalindicators')) return 'technicalindicators'
+            if (id.includes('ccxt')) return 'ccxt'
+            if (id.includes('vue-router')) return 'vue-router'
+            if (id.includes('pinia')) return 'pinia'
+          }
+        }
+      },
+      chunkSizeWarningLimit: 1500,
+    }
+  },
 
   typescript: {
     strict: true,
