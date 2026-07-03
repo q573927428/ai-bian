@@ -1,26 +1,6 @@
 {
   "SOL": [
     {
-      "postCount": 95,
-      "timestamp": 1782202920003
-    },
-    {
-      "postCount": 98,
-      "timestamp": 1782206819991
-    },
-    {
-      "postCount": 98,
-      "timestamp": 1782210720213
-    },
-    {
-      "postCount": 98,
-      "timestamp": 1782214620109
-    },
-    {
-      "postCount": 100,
-      "timestamp": 1782218520467
-    },
-    {
       "postCount": 100,
       "timestamp": 1782222420318
     },
@@ -95,29 +75,29 @@
     {
       "postCount": 99,
       "timestamp": 1782384122376
+    },
+    {
+      "postCount": 91,
+      "timestamp": 1783089248807
+    },
+    {
+      "postCount": 91,
+      "timestamp": 1783089451440
+    },
+    {
+      "postCount": 91,
+      "timestamp": 1783089527791
+    },
+    {
+      "postCount": 92,
+      "timestamp": 1783090414280
+    },
+    {
+      "postCount": 93,
+      "timestamp": 1783091027509
     }
   ],
   "DOGE": [
-    {
-      "postCount": 67,
-      "timestamp": 1782292621597
-    },
-    {
-      "postCount": 63,
-      "timestamp": 1782296821617
-    },
-    {
-      "postCount": 64,
-      "timestamp": 1782301921555
-    },
-    {
-      "postCount": 64,
-      "timestamp": 1782306121594
-    },
-    {
-      "postCount": 66,
-      "timestamp": 1782310021720
-    },
     {
       "postCount": 71,
       "timestamp": 1782313921832
@@ -193,29 +173,29 @@
     {
       "postCount": 55,
       "timestamp": 1782383535718
+    },
+    {
+      "postCount": 100,
+      "timestamp": 1783089250376
+    },
+    {
+      "postCount": 100,
+      "timestamp": 1783089452450
+    },
+    {
+      "postCount": 100,
+      "timestamp": 1783089528866
+    },
+    {
+      "postCount": 100,
+      "timestamp": 1783090415705
+    },
+    {
+      "postCount": 100,
+      "timestamp": 1783091064616
     }
   ],
   "ETH": [
-    {
-      "postCount": 100,
-      "timestamp": 1782296238266
-    },
-    {
-      "postCount": 100,
-      "timestamp": 1782299862942
-    },
-    {
-      "postCount": 100,
-      "timestamp": 1782303506276
-    },
-    {
-      "postCount": 100,
-      "timestamp": 1782307113653
-    },
-    {
-      "postCount": 100,
-      "timestamp": 1782310734635
-    },
     {
       "postCount": 100,
       "timestamp": 1782314603673
@@ -291,29 +271,29 @@
     {
       "postCount": 100,
       "timestamp": 1782383564317
+    },
+    {
+      "postCount": 100,
+      "timestamp": 1783089257466
+    },
+    {
+      "postCount": 100,
+      "timestamp": 1783089456861
+    },
+    {
+      "postCount": 100,
+      "timestamp": 1783089532927
+    },
+    {
+      "postCount": 100,
+      "timestamp": 1783090422158
+    },
+    {
+      "postCount": 100,
+      "timestamp": 1783091202168
     }
   ],
   "HYPE": [
-    {
-      "postCount": 95,
-      "timestamp": 1782250621278
-    },
-    {
-      "postCount": 96,
-      "timestamp": 1782254521193
-    },
-    {
-      "postCount": 96,
-      "timestamp": 1782258728614
-    },
-    {
-      "postCount": 97,
-      "timestamp": 1782262651453
-    },
-    {
-      "postCount": 97,
-      "timestamp": 1782266556068
-    },
     {
       "postCount": 97,
       "timestamp": 1782270755144
@@ -389,29 +369,29 @@
     {
       "postCount": 82,
       "timestamp": 1782340942981
-    }
-  ],
-  "XAU": [
-    {
-      "postCount": 62,
-      "timestamp": 1782182570739
     },
     {
-      "postCount": 64,
-      "timestamp": 1782186425306
+      "postCount": 58,
+      "timestamp": 1783089252338
+    },
+    {
+      "postCount": 58,
+      "timestamp": 1783089453613
+    },
+    {
+      "postCount": 58,
+      "timestamp": 1783089530008
+    },
+    {
+      "postCount": 57,
+      "timestamp": 1783090417100
     },
     {
       "postCount": 59,
-      "timestamp": 1782224124112
-    },
-    {
-      "postCount": 43,
-      "timestamp": 1782306355033
-    },
-    {
-      "postCount": 53,
-      "timestamp": 1782310213798
-    },
+      "timestamp": 1783091107486
+    }
+  ],
+  "XAU": [
     {
       "postCount": 50,
       "timestamp": 1782314082589
@@ -487,29 +467,29 @@
     {
       "postCount": 52,
       "timestamp": 1782383565779
+    },
+    {
+      "postCount": 67,
+      "timestamp": 1783089260842
+    },
+    {
+      "postCount": 67,
+      "timestamp": 1783089458979
+    },
+    {
+      "postCount": 67,
+      "timestamp": 1783089535020
+    },
+    {
+      "postCount": 67,
+      "timestamp": 1783090425158
+    },
+    {
+      "postCount": 66,
+      "timestamp": 1783091262973
     }
   ],
   "XAG": [
-    {
-      "postCount": 28,
-      "timestamp": 1782275284864
-    },
-    {
-      "postCount": 28,
-      "timestamp": 1782279141052
-    },
-    {
-      "postCount": 39,
-      "timestamp": 1782304059527
-    },
-    {
-      "postCount": 43,
-      "timestamp": 1782307675690
-    },
-    {
-      "postCount": 25,
-      "timestamp": 1782311563505
-    },
     {
       "postCount": 26,
       "timestamp": 1782315487085
@@ -585,29 +565,29 @@
     {
       "postCount": 28,
       "timestamp": 1782384771949
+    },
+    {
+      "postCount": 17,
+      "timestamp": 1783089253944
+    },
+    {
+      "postCount": 17,
+      "timestamp": 1783089454641
+    },
+    {
+      "postCount": 17,
+      "timestamp": 1783089530977
+    },
+    {
+      "postCount": 17,
+      "timestamp": 1783090418890
+    },
+    {
+      "postCount": 17,
+      "timestamp": 1783091144515
     }
   ],
   "BNB": [
-    {
-      "postCount": 98,
-      "timestamp": 1782278263731
-    },
-    {
-      "postCount": 98,
-      "timestamp": 1782282144085
-    },
-    {
-      "postCount": 98,
-      "timestamp": 1782286050445
-    },
-    {
-      "postCount": 99,
-      "timestamp": 1782290224685
-    },
-    {
-      "postCount": 100,
-      "timestamp": 1782294125125
-    },
     {
       "postCount": 100,
       "timestamp": 1782297748266
@@ -683,29 +663,29 @@
     {
       "postCount": 100,
       "timestamp": 1782383869958
+    },
+    {
+      "postCount": 99,
+      "timestamp": 1783089259292
+    },
+    {
+      "postCount": 99,
+      "timestamp": 1783089457918
+    },
+    {
+      "postCount": 99,
+      "timestamp": 1783089533976
+    },
+    {
+      "postCount": 99,
+      "timestamp": 1783090423702
+    },
+    {
+      "postCount": 99,
+      "timestamp": 1783091232474
     }
   ],
   "BTC": [
-    {
-      "postCount": 34,
-      "timestamp": 1782297730651
-    },
-    {
-      "postCount": 34,
-      "timestamp": 1782301635713
-    },
-    {
-      "postCount": 33,
-      "timestamp": 1782305247231
-    },
-    {
-      "postCount": 32,
-      "timestamp": 1782308917110
-    },
-    {
-      "postCount": 28,
-      "timestamp": 1782312783653
-    },
     {
       "postCount": 31,
       "timestamp": 1782316403165
@@ -781,6 +761,26 @@
     {
       "postCount": 39,
       "timestamp": 1782384773505
+    },
+    {
+      "postCount": 37,
+      "timestamp": 1783089255696
+    },
+    {
+      "postCount": 37,
+      "timestamp": 1783089455895
+    },
+    {
+      "postCount": 37,
+      "timestamp": 1783089532002
+    },
+    {
+      "postCount": 39,
+      "timestamp": 1783090420681
+    },
+    {
+      "postCount": 39,
+      "timestamp": 1783091167544
     }
   ]
 }

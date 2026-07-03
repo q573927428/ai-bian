@@ -3,7 +3,7 @@
   "name": "策略02",
   "version": 1,
   "createdAt": "2026-04-19T16:06:46.003Z",
-  "updatedAt": "2026-07-03T13:52:18.398Z",
+  "updatedAt": "2026-07-03T15:16:10.413Z",
   "isActive": true,
   "marketData": {
     "symbols": [
@@ -73,8 +73,8 @@
       "id": "5",
       "type": "OI",
       "params": {
-        "changePeriod": 6,
-        "trendThresholdPercent": 0.005
+        "changePeriod": 8,
+        "trendThresholdPercent": 0.006
       },
       "timeframes": [
         "15m"
@@ -103,17 +103,17 @@
     }
   ],
   "aiPrompt": {
-    "userPrompt": "15m短期机械稳健共振策略\n一、做多 LONG 完整规则\n趋势:\n- 当前价格 > EMA50\n入场硬性条件（全部必须满足）:\n1. OI 变化率 > 0.5%\n2. 价格偏离 EMA50 ≤ +1.1%\n3. 当前预计成交量 ≥ 成交量EMA均值的1.5 倍\n辅助条件（至少满足 2 项）:\n1. 30 < RSI < 70\n2. 价格偏离 EMA14 ≤ +0.7%\n3. EMA14 斜率 > 0\n开仓决策:\n- 硬条件全部满足\n- 辅助条件 >= 2项\n=> 做多开仓\n\n二、做空 SHORT 完整规则\n趋势：\n- 当前价格 < EMA50\n入场硬性条件（全部必须满足）:\n1. OI 变化率 > 0.5%\n2. 价格偏离 EMA50 ≥ -1.1%\n3. 当前预计成交量 ≥ 成交量EMA均值的1.5 倍\n辅助条件（至少满足 2 项）:\n1. 30 < RSI < 70\n2. 价格偏离 EMA14 ≥ -0.7%\n3. EMA14 斜率 < 0\n开仓决策:\n- 硬条件全部满足\n- 辅助条件 >= 2项\n=> 做空开仓",
+    "userPrompt": "15m短期机械稳健共振策略\n一、做多 LONG 完整规则\n趋势:\n- 当前价格 > EMA50\n入场硬性条件（全部必须满足）:\n1. OI 变化率 > 0.6%\n2. 价格偏离 EMA50 ≤ +1.1%\n3. 当前预计成交量 ≥ 成交量EMA均值的1.5 倍\n辅助条件（至少满足 2 项）:\n1. 30 < RSI < 70\n2. 价格偏离 EMA14 ≤ +0.7%\n3. EMA14 斜率 > 0\n开仓决策:\n- 硬条件全部满足\n- 辅助条件 >= 2项\n=> 做多开仓\n\n二、做空 SHORT 完整规则\n趋势：\n- 当前价格 < EMA50\n入场硬性条件（全部必须满足）:\n1. OI 变化率 > 0.6%\n2. 价格偏离 EMA50 ≥ -1.1%\n3. 当前预计成交量 ≥ 成交量EMA均值的1.5 倍\n辅助条件（至少满足 2 项）:\n1. 30 < RSI < 70\n2. 价格偏离 EMA14 ≥ -0.7%\n3. EMA14 斜率 < 0\n开仓决策:\n- 硬条件全部满足\n- 辅助条件 >= 2项\n=> 做空开仓",
     "temperature": 0.2,
     "maxTokens": 2000,
     "model": "deepseek-v4-flash",
     "provider": "deepseek",
     "apiUrl": "https://ark.cn-beijing.volces.com/api/coding/v3",
-    "apiKey": "tsgK8wM+Yi/DglqNfRrMsA==:3xJNlHo1AE2S4v13y3r3lg==:46b6030a43bf29a0b3ed7ea69b63fba93611fb1f413331f05845b19b512e7e2f3ee5741efd05da6460961348cb47"
+    "apiKey": "TpD99mNXTfUwAo/h8QBXxQ==:Q1V8MtuZsck76Ul2I55nbw==:bca7b83c17e7518c00b00f613e680061a5fa852df9156b8746d3afbeff5ae525028d9e4ecae7423209aaf9eea200"
   },
   "riskManagement": {
-    "maxRiskPercentage": 8,
-    "stopLossATRMultiplier": 2.3,
+    "maxRiskPercentage": 5,
+    "stopLossATRMultiplier": 2.5,
     "takeProfitRatios": [
       1.8,
       2.8
@@ -138,7 +138,7 @@
     "marginMode": "cross",
     "positionMode": "one-way",
     "dynamicLeverageMin": 5,
-    "dynamicLeverageMax": 18
+    "dynamicLeverageMax": 15
   },
   "preScreenConfig": {
     "minAdx": 18,
@@ -153,7 +153,7 @@
     "enableAtr": true,
     "enableVolume": true
   },
-  "minConfidence": 70,
+  "minConfidence": 68,
   "minFinalScore": 80,
   "maxRiskLevel": "MEDIUM",
   "versionHistory": [
@@ -353,27 +353,27 @@
   ],
   "performance": {
     "strategyId": "strategy_002",
-    "totalTrades": 44,
-    "totalWins": 16,
-    "totalLosses": 28,
-    "winRate": 36.36363636363637,
-    "totalProfit": 15.674795935000045,
-    "totalLoss": 20.32315728499994,
-    "netProfit": -4.648361349999895,
-    "profitFactor": 0.7712775980220974,
-    "maxDrawdown": 1105.939944779568,
-    "averageProfitPerTrade": 0.9796747459375028,
-    "averageLossPerTrade": 0.725827045892855,
-    "largestWin": 3.489197750000027,
-    "largestLoss": 2.587666500000002,
-    "averageHoldTime": 318.28602045454545,
+    "totalTrades": 0,
+    "totalWins": 0,
+    "totalLosses": 0,
+    "winRate": 0,
+    "totalProfit": 0,
+    "totalLoss": 0,
+    "netProfit": 0,
+    "profitFactor": 0,
+    "maxDrawdown": 0,
+    "averageProfitPerTrade": 0,
+    "averageLossPerTrade": 0,
+    "largestWin": 0,
+    "largestLoss": 0,
+    "averageHoldTime": 0,
     "consecutiveWins": 0,
-    "consecutiveLosses": 1,
-    "maxConsecutiveWins": 3,
-    "maxConsecutiveLosses": 6,
-    "dailyPnL": -1.3113519499999962,
-    "todayTrades": 1,
-    "updatedAt": "2026-06-27T19:25:44.088Z"
+    "consecutiveLosses": 0,
+    "maxConsecutiveWins": 0,
+    "maxConsecutiveLosses": 0,
+    "dailyPnL": 0,
+    "todayTrades": 0,
+    "updatedAt": "2026-06-25T13:41:42.111Z"
   },
   "sessions": [],
   "currentSessionId": null
