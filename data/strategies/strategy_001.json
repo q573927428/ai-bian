@@ -1,0 +1,356 @@
+{
+  "id": "strategy_001",
+  "name": "策略01",
+  "version": 1,
+  "createdAt": "2026-04-19T16:03:49.383Z",
+  "updatedAt": "2026-06-25T12:18:12.479Z",
+  "isActive": false,
+  "marketData": {
+    "symbols": [
+      "SOL/USDT",
+      "DOGE/USDT",
+      "HYPE/USDT",
+      "XAG/USDT",
+      "BTC/USDT",
+      "ETH/USDT",
+      "BNB/USDT"
+    ],
+    "timeframes": [
+      "5m"
+    ]
+  },
+  "indicators": [
+    {
+      "id": "1",
+      "type": "EMA",
+      "params": {
+        "periods": [
+          14,
+          50
+        ]
+      },
+      "timeframes": [
+        "5m"
+      ],
+      "enabled": true
+    },
+    {
+      "id": "2",
+      "type": "RSI",
+      "params": {
+        "period": 14
+      },
+      "timeframes": [
+        "5m"
+      ],
+      "enabled": true
+    },
+    {
+      "id": "3",
+      "type": "ADX",
+      "params": {
+        "period": 14
+      },
+      "timeframes": [
+        "5m"
+      ],
+      "enabled": true
+    },
+    {
+      "id": "4",
+      "type": "ATR",
+      "params": {
+        "period": 14
+      },
+      "timeframes": [
+        "5m"
+      ],
+      "enabled": true
+    }
+  ],
+  "statistics": [
+    {
+      "id": "5",
+      "type": "OI",
+      "params": {
+        "changePeriod": 8,
+        "trendThresholdPercent": 0.004
+      },
+      "timeframes": [
+        "5m"
+      ],
+      "enabled": true
+    },
+    {
+      "id": "6",
+      "type": "Volume",
+      "params": {
+        "comparePeriod": 20
+      },
+      "timeframes": [
+        "5m"
+      ],
+      "enabled": true
+    },
+    {
+      "id": "7",
+      "type": "SquareHeat",
+      "params": {},
+      "timeframes": [
+        "1h"
+      ],
+      "enabled": true
+    }
+  ],
+  "aiPrompt": {
+    "userPrompt": "5m短期机械稳健共振策略\n一、做多 LONG 完整规则\n趋势:\n- 当前价格 > EMA50\n入场硬性条件（全部必须满足）:\n1. OI 变化率 > 0.4%\n2. 价格偏离 EMA50 ≤ +0.8%\n3. 当前预计成交量 ≥ 成交量EMA均值的1.5 倍\n辅助条件（至少满足 2 项）:\n1. 30 < RSI < 70\n2. 价格偏离 EMA14 ≤ +0.5%\n3. EMA14 斜率 > 0\n开仓决策:\n- 硬条件全部满足\n- 辅助条件 >= 2项\n=> 做多开仓\n\n二、做空 SHORT 完整规则\n趋势：\n- 当前价格 < EMA50\n入场硬性条件（全部必须满足）:\n1. OI 变化率 > 0.4%\n2. 价格偏离 EMA50 ≥ -0.8%\n3. 当前预计成交量 ≥ 成交量EMA均值的1.5 倍\n辅助条件（至少满足 2 项）:\n1. 30 < RSI < 70\n2. 价格偏离 EMA14 ≥ -0.5%\n3. EMA14 斜率 < 0\n开仓决策:\n- 硬条件全部满足\n- 辅助条件 >= 2项\n=> 做空开仓",
+    "temperature": 0.3,
+    "maxTokens": 2000,
+    "model": "deepseek-v4-flash",
+    "provider": "deepseek",
+    "apiUrl": "https://ark.cn-beijing.volces.com/api/coding/v3",
+    "apiKey": "ark-626c2a11-1c1e-4f02-90d0-b08ae91472e2-aebfb"
+  },
+  "riskManagement": {
+    "maxRiskPercentage": 8,
+    "stopLossATRMultiplier": 2.2,
+    "takeProfitRatios": [
+      1.8,
+      2.6
+    ],
+    "maxDailyTrades": 2,
+    "maxDailyLoss": 10,
+    "maxHoldTimeMinutes": 1000,
+    "trailingStop": {
+      "enabled": true,
+      "activationRatio": 0.8,
+      "trailDistance": 1,
+      "minMoveDistance": 0.16
+    },
+    "rsiExtreme": {
+      "long": 78,
+      "short": 22
+    }
+  },
+  "executionConfig": {
+    "scanInterval": 5,
+    "leverage": "dynamic",
+    "marginMode": "cross",
+    "positionMode": "one-way",
+    "dynamicLeverageMin": 5,
+    "dynamicLeverageMax": 18
+  },
+  "preScreenConfig": {
+    "minAdx": 18,
+    "maxAdx": 60,
+    "minAdxSlope": 0,
+    "minAtrPercent": 0.0012,
+    "maxAtrPercent": 0.05,
+    "minEstimatedVolumeRatio": 0.8,
+    "minCandleProgressForVolume": 0.1,
+    "enableAdx": true,
+    "enableAdxSlope": false,
+    "enableAtr": true,
+    "enableVolume": true
+  },
+  "minConfidence": 72,
+  "minFinalScore": 78,
+  "maxRiskLevel": "MEDIUM",
+  "versionHistory": [
+    {
+      "version": 1,
+      "updatedAt": "2026-04-19T16:03:49.383Z",
+      "changes": "初始版本创建",
+      "snapshot": {
+        "id": "strategy_001",
+        "name": "策略01",
+        "version": 1,
+        "createdAt": "2026-04-19T16:03:49.383Z",
+        "updatedAt": "2026-04-19T16:03:49.383Z",
+        "isActive": false,
+        "marketData": {
+          "symbols": [
+            "BTC/USDT",
+            "ETH/USDT",
+            "SOL/USDT",
+            "DOGE/USDT",
+            "HYPE/USDT",
+            "XAU/USDT",
+            "XAG/USDT",
+            "BNB/USDT"
+          ],
+          "timeframes": [
+            "5m",
+            "15m"
+          ]
+        },
+        "indicators": [
+          {
+            "id": "1",
+            "type": "EMA",
+            "params": {
+              "periods": [
+                7,
+                20,
+                50
+              ]
+            },
+            "timeframes": [
+              "5m"
+            ],
+            "enabled": true
+          },
+          {
+            "id": "2",
+            "type": "RSI",
+            "params": {
+              "period": 14
+            },
+            "timeframes": [
+              "5m"
+            ],
+            "enabled": true
+          },
+          {
+            "id": "3",
+            "type": "ATR",
+            "params": {
+              "period": 14
+            },
+            "timeframes": [
+              "5m"
+            ],
+            "enabled": true
+          }
+        ],
+        "statistics": [
+          {
+            "id": "5",
+            "type": "OI",
+            "params": {
+              "changePeriod": 6,
+              "trendThresholdPercent": 0.03
+            },
+            "timeframes": [
+              "5m"
+            ],
+            "enabled": true
+          },
+          {
+            "id": "6",
+            "type": "Volume",
+            "params": {
+              "comparePeriod": 20
+            },
+            "timeframes": [
+              "5m"
+            ],
+            "enabled": true
+          }
+        ],
+        "aiPrompt": {
+          "userPrompt": "你是一个偏激进的短线交易员，目标是捕捉快速波动机会。\n\n请重点关注以下因素：\n1. EMA短期结构（7/20/50）是否形成多头或空头排列\n2. RSI是否处于超买或超卖区（>70 或 <30）\n3. 价格是否刚刚突破EMA关键线（20或50）\n4. OI是否同步增加（代表有新资金进场）\n5. 成交量是否放大（确认突破有效）\n\n做多条件偏好：\n- EMA多头排列（7 > 20 > 50）\n- RSI低位反弹（30~50区间向上）\n- OI增加 + 成交量放大\n\n做空条件偏好：\n- EMA空头排列（7 < 20 < 50）\n- RSI高位回落（50~70向下）\n- OI增加 + 成交量放大\n\n允许在信号不完全确认时提前入场，但必须说明风险。\n\n如果没有明显动量或结构混乱，返回IDLE。",
+          "temperature": 0.3,
+          "maxTokens": 2000,
+          "model": "deepseek-v4-flash"
+        },
+        "riskManagement": {
+          "maxRiskPercentage": 20,
+          "stopLossATRMultiplier": 2,
+          "takeProfitRatios": [
+            1.5,
+            2.5
+          ],
+          "maxDailyTrades": 8,
+          "maxDailyLoss": 10,
+          "maxHoldTimeMinutes": 120,
+          "trailingStop": {
+            "enabled": true,
+            "activationRatio": 0.8,
+            "trailDistance": 1,
+            "minMoveDistance": 0.16
+          },
+          "rsiExtreme": {
+            "long": 80,
+            "short": 20
+          }
+        },
+        "executionConfig": {
+          "scanInterval": 5,
+          "leverage": "dynamic",
+          "marginMode": "cross",
+          "positionMode": "one-way",
+          "dynamicLeverageMin": 1,
+          "dynamicLeverageMax": 10
+        },
+        "preScreenConfig": {
+          "minAdx": 15,
+          "maxAdx": 60,
+          "minAdxSlope": 0.1,
+          "minAtrPercent": 0.001,
+          "maxAtrPercent": 0.05,
+          "minEstimatedVolumeRatio": 0.6,
+          "minCandleProgressForVolume": 0.1,
+          "enableAdx": true,
+          "enableAdxSlope": true,
+          "enableAtr": true,
+          "enableVolume": true
+        },
+        "minConfidence": 68,
+        "minFinalScore": 78,
+        "maxRiskLevel": "MEDIUM",
+        "versionHistory": [],
+        "performance": {
+          "strategyId": "strategy_001",
+          "totalTrades": 0,
+          "totalWins": 0,
+          "totalLosses": 0,
+          "winRate": 0,
+          "totalProfit": 0,
+          "totalLoss": 0,
+          "netProfit": 0,
+          "profitFactor": 0,
+          "maxDrawdown": 0,
+          "averageProfitPerTrade": 0,
+          "averageLossPerTrade": 0,
+          "largestWin": 0,
+          "largestLoss": 0,
+          "averageHoldTime": 0,
+          "consecutiveWins": 0,
+          "consecutiveLosses": 0,
+          "maxConsecutiveWins": 0,
+          "maxConsecutiveLosses": 0,
+          "updatedAt": "2026-04-19T16:03:49.383Z"
+        },
+        "tradeRecords": [],
+        "sessions": []
+      }
+    }
+  ],
+  "performance": {
+    "strategyId": "strategy_001",
+    "totalTrades": 72,
+    "totalWins": 31,
+    "totalLosses": 41,
+    "winRate": 43.05555555555556,
+    "totalProfit": 19.706569709999975,
+    "totalLoss": 17.639204351983956,
+    "netProfit": 2.067365358016019,
+    "profitFactor": 1.1172028690615796,
+    "maxDrawdown": 91.32682930650694,
+    "averageProfitPerTrade": 0.6356957970967734,
+    "averageLossPerTrade": 0.4302244963898526,
+    "largestWin": 1.5779772000000087,
+    "largestLoss": 0.9374787419840058,
+    "averageHoldTime": 95.31642662037035,
+    "consecutiveWins": 2,
+    "consecutiveLosses": 0,
+    "maxConsecutiveWins": 7,
+    "maxConsecutiveLosses": 7,
+    "dailyPnL": 0.5584631949999974,
+    "todayTrades": 4,
+    "updatedAt": "2026-06-25T13:41:42.111Z"
+  },
+  "sessions": [],
+  "currentSessionId": null
+}

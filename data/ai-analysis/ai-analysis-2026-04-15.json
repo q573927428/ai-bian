@@ -1,0 +1,1622 @@
+[
+  {
+    "symbol": "BTC/USDT",
+    "timestamp": 1776267998675,
+    "strategyId": "strategy_mnzt0znm_bnp1qq",
+    "direction": "IDLE",
+    "confidence": 45,
+    "score": 48,
+    "riskLevel": "MEDIUM",
+    "isBullish": false,
+    "reasoning": "技术指标显示趋势不一致且动量不足。价格73864.70略低于EMA14(74067.63)，但高于EMA60(73626.29)和EMA120(72877.56)，表明短期轻微看跌但中长期仍处上升趋势中，缺乏明确方向一致性。RSI(14)为46.41，处于中性区间，无超买或超卖信号。ADX指标...",
+    "technicalData": {
+      "price": 73864.7,
+      "EMA14": 74067.63200934164,
+      "EMA60": 73626.2904973227,
+      "EMA120": 72877.56090826953,
+      "rsi": 46.41,
+      "volume": 8653.4,
+      "adxMain": 18.891348148854078,
+      "adxSecondary": 39.86467414241413,
+      "adxTertiary": 16.59442881978945,
+      "adxPeriodLabels": {
+        "main": "1h",
+        "secondary": "4h",
+        "tertiary": "1d"
+      }
+    }
+  },
+  {
+    "symbol": "BNB/USDT",
+    "timestamp": 1776267999234,
+    "strategyId": "strategy_mo082hmm_u6jq5n",
+    "direction": "IDLE",
+    "confidence": 0,
+    "score": 0,
+    "riskLevel": "MEDIUM",
+    "isBullish": false,
+    "reasoning": "无法应用策略规则：缺少EMA20、EMA50、MACD、DI+/-、ATR分位数据及K线连续性信息。当前数据中，ADX(1d)=13.19<25，EMA14/60/120虽多头排列但未满足策略的均线组合要求，RSI=57.30中性，ATR=3.3396但分位未知，OI趋势flat。趋势一致性不...",
+    "technicalData": {
+      "price": 619.46,
+      "EMA14": 617.46430385549,
+      "EMA60": 612.7761469271577,
+      "EMA120": 608.8298651867846,
+      "rsi": 57.3,
+      "volume": 15508.14,
+      "adxMain": 23.967389358498693,
+      "adxSecondary": 29.460546436505233,
+      "adxTertiary": 13.187114124461239,
+      "adxPeriodLabels": {
+        "main": "1h",
+        "secondary": "4h",
+        "tertiary": "1d"
+      }
+    }
+  },
+  {
+    "symbol": "ETH/USDT",
+    "timestamp": 1776268007186,
+    "strategyId": "strategy_mnzt0znm_bnp1qq",
+    "direction": "IDLE",
+    "confidence": 55,
+    "score": 52,
+    "riskLevel": "MEDIUM",
+    "isBullish": false,
+    "reasoning": "价格2334.26略高于EMA14(2328.57)和EMA60(2307.29)，显示短期轻微看涨，但EMA多头排列不完整（EMA120在2273.03）。RSI(53.24)处于中性区域，无超买超卖信号。ADX指标显示：4小时ADX(31.53)表明中等趋势强度，但1小时ADX(19.17...",
+    "technicalData": {
+      "price": 2334.26,
+      "EMA14": 2328.567860625535,
+      "EMA60": 2307.293769137876,
+      "EMA120": 2273.0300076239837,
+      "rsi": 53.24,
+      "volume": 276216.143,
+      "adxMain": 19.174175318186006,
+      "adxSecondary": 31.528683297627968,
+      "adxTertiary": 18.94778259890658,
+      "adxPeriodLabels": {
+        "main": "1h",
+        "secondary": "4h",
+        "tertiary": "1d"
+      }
+    }
+  },
+  {
+    "symbol": "SOL/USDT",
+    "timestamp": 1776268008367,
+    "strategyId": "strategy_mo082hmm_u6jq5n",
+    "direction": "IDLE",
+    "confidence": 0,
+    "score": 45,
+    "riskLevel": "MEDIUM",
+    "isBullish": false,
+    "reasoning": "价格83.9700接近EMA14(83.6609)、EMA60(83.9270)和EMA120(83.6703)，均线高度缠绕，无明确排列方向。RSI(14)为51.46处于中性区域，缺乏动量。ADX指标显示趋势强度不足：1小时ADX=18.49、4小时ADX=25.93、日线ADX=10.6...",
+    "technicalData": {
+      "price": 83.97,
+      "EMA14": 83.66090597301952,
+      "EMA60": 83.92697547847598,
+      "EMA120": 83.67033778875349,
+      "rsi": 51.46,
+      "volume": 1286758.18,
+      "adxMain": 18.48881989324283,
+      "adxSecondary": 25.932364952335416,
+      "adxTertiary": 10.692602247112559,
+      "adxPeriodLabels": {
+        "main": "1h",
+        "secondary": "4h",
+        "tertiary": "1d"
+      }
+    }
+  },
+  {
+    "symbol": "BTC/USDT",
+    "timestamp": 1776268172585,
+    "strategyId": "strategy_mnzt0znm_bnp1qq",
+    "direction": "IDLE",
+    "confidence": 45,
+    "score": 50,
+    "riskLevel": "MEDIUM",
+    "isBullish": false,
+    "reasoning": "价格73915.20略低于EMA14(74067.63)，但高于EMA60(73626.29)和EMA120(72877.56)，显示短期轻微偏空但中长期仍处上升趋势中，趋势一致性不足。RSI(14)为46.41，处于中性区间，无明显超买或超卖动量。ADX指标显示：1小时ADX(18.89)和...",
+    "technicalData": {
+      "price": 73915.2,
+      "EMA14": 74067.63200934164,
+      "EMA60": 73626.2904973227,
+      "EMA120": 72877.56090826953,
+      "rsi": 46.41,
+      "volume": 8653.4,
+      "adxMain": 18.891348148854078,
+      "adxSecondary": 39.86467414241413,
+      "adxTertiary": 16.59442881978945,
+      "adxPeriodLabels": {
+        "main": "1h",
+        "secondary": "4h",
+        "tertiary": "1d"
+      }
+    }
+  },
+  {
+    "symbol": "ETH/USDT",
+    "timestamp": 1776268179679,
+    "strategyId": "strategy_mnzt0znm_bnp1qq",
+    "direction": "IDLE",
+    "confidence": 55,
+    "score": 50,
+    "riskLevel": "MEDIUM",
+    "isBullish": false,
+    "reasoning": "价格2335.09略高于EMA14(2328.57)和EMA60(2307.29)，显示短期轻微看涨，但EMA多头排列不完整（EMA120在2273.03）。RSI(53.24)处于中性区域，无超买超卖信号。ADX指标显示4小时趋势强度中等（31.53），但1小时和日线ADX均低于20，表明整...",
+    "technicalData": {
+      "price": 2335.09,
+      "EMA14": 2328.567860625535,
+      "EMA60": 2307.293769137876,
+      "EMA120": 2273.0300076239837,
+      "rsi": 53.24,
+      "volume": 276216.143,
+      "adxMain": 19.174175318186006,
+      "adxSecondary": 31.528683297627968,
+      "adxTertiary": 18.94778259890658,
+      "adxPeriodLabels": {
+        "main": "1h",
+        "secondary": "4h",
+        "tertiary": "1d"
+      }
+    }
+  },
+  {
+    "symbol": "BNB/USDT",
+    "timestamp": 1776268180264,
+    "strategyId": "strategy_mo082hmm_u6jq5n",
+    "direction": "IDLE",
+    "confidence": 0,
+    "score": 0,
+    "riskLevel": "MEDIUM",
+    "isBullish": false,
+    "reasoning": "提供的EMA14/60/120均线呈多头排列（619.54>617.46>612.78>608.83），但缺乏EMA20/EMA50数据无法确认日线趋势；ADX(1d)=13.19<25，表明日线趋势强度不足；4小时ADX=29.46接近阈值但无MACD柱状体数据验证动量；RSI=57.30处...",
+    "technicalData": {
+      "price": 619.54,
+      "EMA14": 617.46430385549,
+      "EMA60": 612.7761469271577,
+      "EMA120": 608.8298651867846,
+      "rsi": 57.3,
+      "volume": 15508.14,
+      "adxMain": 23.967389358498693,
+      "adxSecondary": 29.460546436505233,
+      "adxTertiary": 13.187114124461239,
+      "adxPeriodLabels": {
+        "main": "1h",
+        "secondary": "4h",
+        "tertiary": "1d"
+      }
+    }
+  },
+  {
+    "symbol": "SOL/USDT",
+    "timestamp": 1776268187819,
+    "strategyId": "strategy_mo082hmm_u6jq5n",
+    "direction": "IDLE",
+    "confidence": 0,
+    "score": 45,
+    "riskLevel": "MEDIUM",
+    "isBullish": false,
+    "reasoning": "价格83.9500接近EMA14(83.6609)、EMA60(83.9270)和EMA120(83.6703)，均线高度缠绕，无明显趋势方向。RSI(14)为51.46，处于中性区域，无超买超卖信号。ADX(1d)=10.69远低于25阈值，表明日线级别趋势极弱；ADX(4h)=25.93略...",
+    "technicalData": {
+      "price": 83.95,
+      "EMA14": 83.66090597301952,
+      "EMA60": 83.92697547847598,
+      "EMA120": 83.67033778875349,
+      "rsi": 51.46,
+      "volume": 1286758.18,
+      "adxMain": 18.48881989324283,
+      "adxSecondary": 25.932364952335416,
+      "adxTertiary": 10.692602247112559,
+      "adxPeriodLabels": {
+        "main": "1h",
+        "secondary": "4h",
+        "tertiary": "1d"
+      }
+    }
+  },
+  {
+    "symbol": "BNB/USDT",
+    "timestamp": 1776268303954,
+    "strategyId": "strategy_mo082hmm_u6jq5n",
+    "direction": "IDLE",
+    "confidence": 45,
+    "score": 52,
+    "riskLevel": "MEDIUM",
+    "isBullish": false,
+    "reasoning": "价格619.46高于EMA14(617.46)、EMA60(612.78)和EMA120(608.83)，显示短期至长期均线呈多头排列，但RSI(14)为57.30处于中性偏强区域，无明显超买或超卖信号。ADX指标显示趋势强度不足：1小时ADX(23.97)和4小时ADX(29.46)均低于2...",
+    "technicalData": {
+      "price": 619.46,
+      "EMA14": 617.46430385549,
+      "EMA60": 612.7761469271577,
+      "EMA120": 608.8298651867846,
+      "rsi": 57.3,
+      "volume": 15508.14,
+      "adxMain": 23.967389358498693,
+      "adxSecondary": 29.460546436505233,
+      "adxTertiary": 13.187114124461239,
+      "adxPeriodLabels": {
+        "main": "1h",
+        "secondary": "4h",
+        "tertiary": "1d"
+      }
+    }
+  },
+  {
+    "symbol": "SOL/USDT",
+    "timestamp": 1776268311169,
+    "strategyId": "strategy_mo082hmm_u6jq5n",
+    "direction": "IDLE",
+    "confidence": 45,
+    "score": 40,
+    "riskLevel": "MEDIUM",
+    "isBullish": false,
+    "reasoning": "价格83.9600与EMA14(83.6609)、EMA60(83.9270)、EMA120(83.6703)基本重合，EMA排列混乱无明确趋势方向。RSI(14)为51.46处于中性区域，无明显超买超卖信号。ADX指标显示趋势强度较弱：1h(18.49)和4h(25.93)均低于25的强趋势...",
+    "technicalData": {
+      "price": 83.96,
+      "EMA14": 83.66090597301952,
+      "EMA60": 83.92697547847598,
+      "EMA120": 83.67033778875349,
+      "rsi": 51.46,
+      "volume": 1286758.18,
+      "adxMain": 18.48881989324283,
+      "adxSecondary": 25.932364952335416,
+      "adxTertiary": 10.692602247112559,
+      "adxPeriodLabels": {
+        "main": "1h",
+        "secondary": "4h",
+        "tertiary": "1d"
+      }
+    }
+  },
+  {
+    "symbol": "BTC/USDT",
+    "timestamp": 1776268351985,
+    "strategyId": "strategy_mnzt0znm_bnp1qq",
+    "direction": "IDLE",
+    "confidence": 45,
+    "score": 50,
+    "riskLevel": "MEDIUM",
+    "isBullish": false,
+    "reasoning": "价格73899.6略低于EMA14(74067.6)但高于EMA60(73626.3)和EMA120(72877.6)，显示短期轻微承压但中长期仍处上升趋势中，趋势一致性不足。RSI(46.41)处于中性区域，无明显超买超卖信号。ADX指标显示4小时图趋势强度中等(39.86)，但1小时(18...",
+    "technicalData": {
+      "price": 73899.6,
+      "EMA14": 74067.63200934164,
+      "EMA60": 73626.2904973227,
+      "EMA120": 72877.56090826953,
+      "rsi": 46.41,
+      "volume": 8653.4,
+      "adxMain": 18.891348148854078,
+      "adxSecondary": 39.86467414241413,
+      "adxTertiary": 16.59442881978945,
+      "adxPeriodLabels": {
+        "main": "1h",
+        "secondary": "4h",
+        "tertiary": "1d"
+      }
+    }
+  },
+  {
+    "symbol": "ETH/USDT",
+    "timestamp": 1776268359463,
+    "strategyId": "strategy_mnzt0znm_bnp1qq",
+    "direction": "IDLE",
+    "confidence": 45,
+    "score": 50,
+    "riskLevel": "MEDIUM",
+    "isBullish": false,
+    "reasoning": "价格2334.94略高于EMA14(2328.57)和EMA60(2307.29)，显示短期轻微看涨，但EMA多头排列不完整（EMA120为2273.03）。RSI(53.24)处于中性区域，无明显超买或超卖。ADX指标显示：4小时ADX(31.53)表明中等趋势强度，但1小时(19.17)和...",
+    "technicalData": {
+      "price": 2334.94,
+      "EMA14": 2328.567860625535,
+      "EMA60": 2307.293769137876,
+      "EMA120": 2273.0300076239837,
+      "rsi": 53.24,
+      "volume": 276216.143,
+      "adxMain": 19.174175318186006,
+      "adxSecondary": 31.528683297627968,
+      "adxTertiary": 18.94778259890658,
+      "adxPeriodLabels": {
+        "main": "1h",
+        "secondary": "4h",
+        "tertiary": "1d"
+      }
+    }
+  },
+  {
+    "symbol": "BNB/USDT",
+    "timestamp": 1776268486410,
+    "strategyId": "strategy_mo082hmm_u6jq5n",
+    "direction": "IDLE",
+    "confidence": 45,
+    "score": 50,
+    "riskLevel": "MEDIUM",
+    "isBullish": false,
+    "reasoning": "价格619.47略高于EMA14(617.46)，EMA14>EMA60(612.78)>EMA120(608.83)显示短期至长期均线多头排列，但RSI(57.30)处于中性偏强区域，无明显超买超卖信号。ADX指标显示趋势强度不足：1h(23.97)和4h(29.46)处于弱趋势区间（<25...",
+    "technicalData": {
+      "price": 619.47,
+      "EMA14": 617.46430385549,
+      "EMA60": 612.7761469271577,
+      "EMA120": 608.8298651867846,
+      "rsi": 57.3,
+      "volume": 15508.14,
+      "adxMain": 23.967389358498693,
+      "adxSecondary": 29.460546436505233,
+      "adxTertiary": 13.187114124461239,
+      "adxPeriodLabels": {
+        "main": "1h",
+        "secondary": "4h",
+        "tertiary": "1d"
+      }
+    }
+  },
+  {
+    "symbol": "SOL/USDT",
+    "timestamp": 1776268497138,
+    "strategyId": "strategy_mo082hmm_u6jq5n",
+    "direction": "IDLE",
+    "confidence": 45,
+    "score": 40,
+    "riskLevel": "MEDIUM",
+    "isBullish": false,
+    "reasoning": "价格84.0000与EMA14(83.6609)、EMA60(83.9270)、EMA120(83.6703)基本持平，显示无明显趋势方向。RSI(14)为51.46，处于中性区域，缺乏超买或超卖动量。ADX指标显示趋势强度较弱：1h ADX(18.49)和4h ADX(25.93)均低于25...",
+    "technicalData": {
+      "price": 84,
+      "EMA14": 83.66090597301952,
+      "EMA60": 83.92697547847598,
+      "EMA120": 83.67033778875349,
+      "rsi": 51.46,
+      "volume": 1286758.18,
+      "adxMain": 18.48881989324283,
+      "adxSecondary": 25.932364952335416,
+      "adxTertiary": 10.692602247112559,
+      "adxPeriodLabels": {
+        "main": "1h",
+        "secondary": "4h",
+        "tertiary": "1d"
+      }
+    }
+  },
+  {
+    "symbol": "BTC/USDT",
+    "timestamp": 1776268535269,
+    "strategyId": "strategy_mnzt0znm_bnp1qq",
+    "direction": "IDLE",
+    "confidence": 45,
+    "score": 48,
+    "riskLevel": "MEDIUM",
+    "isBullish": false,
+    "reasoning": "技术指标显示市场处于盘整状态，缺乏明确的趋势方向。价格（73768.40）略低于EMA14（74067.63），但高于EMA60（73626.29）和EMA120（72877.56），表明短期轻微偏空但中长期仍有一定支撑。RSI（46.41）处于中性区域，无明显超买或超卖信号。ADX指标显示：...",
+    "technicalData": {
+      "price": 73768.4,
+      "EMA14": 74067.63200934164,
+      "EMA60": 73626.2904973227,
+      "EMA120": 72877.56090826953,
+      "rsi": 46.41,
+      "volume": 8653.4,
+      "adxMain": 18.891348148854078,
+      "adxSecondary": 39.86467414241413,
+      "adxTertiary": 16.59442881978945,
+      "adxPeriodLabels": {
+        "main": "1h",
+        "secondary": "4h",
+        "tertiary": "1d"
+      }
+    }
+  },
+  {
+    "symbol": "BTC/USDT",
+    "timestamp": 1776268539618,
+    "strategyId": "strategy_mnzt0znm_bnp1qq",
+    "direction": "IDLE",
+    "confidence": 45,
+    "score": 50,
+    "riskLevel": "MEDIUM",
+    "isBullish": false,
+    "reasoning": "价格73768.40位于EMA14(74067.63)下方但高于EMA60(73626.29)和EMA120(72877.56)，显示短期轻微看跌但中长期仍处上升趋势中，趋势一致性不足。RSI(14)为46.41处于中性区间，无明显超买超卖信号。ADX指标显示：4小时ADX(39.86)表明中...",
+    "technicalData": {
+      "price": 73768.4,
+      "EMA14": 74067.63200934164,
+      "EMA60": 73626.2904973227,
+      "EMA120": 72877.56090826953,
+      "rsi": 46.41,
+      "volume": 8653.4,
+      "adxMain": 18.891348148854078,
+      "adxSecondary": 39.86467414241413,
+      "adxTertiary": 16.59442881978945,
+      "adxPeriodLabels": {
+        "main": "1h",
+        "secondary": "4h",
+        "tertiary": "1d"
+      }
+    }
+  },
+  {
+    "symbol": "ETH/USDT",
+    "timestamp": 1776268544535,
+    "strategyId": "strategy_mnzt0znm_bnp1qq",
+    "direction": "IDLE",
+    "confidence": 55,
+    "score": 50,
+    "riskLevel": "MEDIUM",
+    "isBullish": false,
+    "reasoning": "价格2328.21接近EMA14(2328.57)，略高于EMA60(2307.29)和EMA120(2273.03)，显示短期中性，中长期轻微看涨。RSI 53.24处于中性区间，无超买超卖信号。ADX指标显示：4小时ADX 31.53表明中等趋势强度，但1小时ADX 19.17和1日ADX...",
+    "technicalData": {
+      "price": 2328.21,
+      "EMA14": 2328.567860625535,
+      "EMA60": 2307.293769137876,
+      "EMA120": 2273.0300076239837,
+      "rsi": 53.24,
+      "volume": 276216.143,
+      "adxMain": 19.174175318186006,
+      "adxSecondary": 31.528683297627968,
+      "adxTertiary": 18.94778259890658,
+      "adxPeriodLabels": {
+        "main": "1h",
+        "secondary": "4h",
+        "tertiary": "1d"
+      }
+    }
+  },
+  {
+    "symbol": "BNB/USDT",
+    "timestamp": 1776268663417,
+    "strategyId": "strategy_mo082hmm_u6jq5n",
+    "direction": "IDLE",
+    "confidence": 45,
+    "score": 55,
+    "riskLevel": "MEDIUM",
+    "isBullish": false,
+    "reasoning": "价格619.42略高于EMA14(617.46)和EMA60(612.78)，EMA多头排列显示短期上升趋势，但RSI(57.3)处于中性区域，无明显超买超卖信号。ADX指标显示1小时(23.97)和4小时(29.46)趋势强度较弱，1天(13.19)趋势极弱，整体趋势一致性不足。ATR(3....",
+    "technicalData": {
+      "price": 619.42,
+      "EMA14": 617.46430385549,
+      "EMA60": 612.7761469271577,
+      "EMA120": 608.8298651867846,
+      "rsi": 57.3,
+      "volume": 15508.14,
+      "adxMain": 23.967389358498693,
+      "adxSecondary": 29.460546436505233,
+      "adxTertiary": 13.187114124461239,
+      "adxPeriodLabels": {
+        "main": "1h",
+        "secondary": "4h",
+        "tertiary": "1d"
+      }
+    }
+  },
+  {
+    "symbol": "SOL/USDT",
+    "timestamp": 1776268672354,
+    "strategyId": "strategy_mo082hmm_u6jq5n",
+    "direction": "IDLE",
+    "confidence": 45,
+    "score": 40,
+    "riskLevel": "MEDIUM",
+    "isBullish": false,
+    "reasoning": "价格83.92与EMA14(83.66)、EMA60(83.93)、EMA120(83.67)高度接近，均线系统呈现粘合状态，无明显趋势方向。RSI(51.46)处于中性区域，缺乏超买超卖信号。ADX指标显示1h(18.49)和4h(25.93)趋势强度较弱，1d(10.69)趋势极弱，整体市...",
+    "technicalData": {
+      "price": 83.92,
+      "EMA14": 83.66090597301952,
+      "EMA60": 83.92697547847598,
+      "EMA120": 83.67033778875349,
+      "rsi": 51.46,
+      "volume": 1286758.18,
+      "adxMain": 18.48881989324283,
+      "adxSecondary": 25.932364952335416,
+      "adxTertiary": 10.692602247112559,
+      "adxPeriodLabels": {
+        "main": "1h",
+        "secondary": "4h",
+        "tertiary": "1d"
+      }
+    }
+  },
+  {
+    "symbol": "BTC/USDT",
+    "timestamp": 1776268714063,
+    "strategyId": "strategy_mnzt0znm_bnp1qq",
+    "direction": "IDLE",
+    "confidence": 45,
+    "score": 50,
+    "riskLevel": "MEDIUM",
+    "isBullish": false,
+    "reasoning": "价格73774.2略低于EMA14(74067.63)但高于EMA60(73626.29)和EMA120(72877.56)，显示短期轻微看跌但中长期仍处上升趋势，趋势一致性不足。RSI(46.41)处于中性区域，无明显超买超卖信号。ADX指标显示4小时趋势较强(39.86)，但1小时(18....",
+    "technicalData": {
+      "price": 73774.2,
+      "EMA14": 74067.63200934164,
+      "EMA60": 73626.2904973227,
+      "EMA120": 72877.56090826953,
+      "rsi": 46.41,
+      "volume": 8653.4,
+      "adxMain": 18.891348148854078,
+      "adxSecondary": 39.86467414241413,
+      "adxTertiary": 16.59442881978945,
+      "adxPeriodLabels": {
+        "main": "1h",
+        "secondary": "4h",
+        "tertiary": "1d"
+      }
+    }
+  },
+  {
+    "symbol": "ETH/USDT",
+    "timestamp": 1776268723067,
+    "strategyId": "strategy_mnzt0znm_bnp1qq",
+    "direction": "IDLE",
+    "confidence": 45,
+    "score": 50,
+    "riskLevel": "MEDIUM",
+    "isBullish": false,
+    "reasoning": "价格2331.24略高于EMA14(2328.57)和EMA60(2307.29)，显示短期轻微看涨，但EMA多头排列不完整（EMA120在2273.03），趋势一致性不足。RSI 53.24处于中性区域，无明显超买超卖。ADX指标显示：4小时ADX 31.53表明中等趋势强度，但1小时ADX...",
+    "technicalData": {
+      "price": 2331.24,
+      "EMA14": 2328.567860625535,
+      "EMA60": 2307.293769137876,
+      "EMA120": 2273.0300076239837,
+      "rsi": 53.24,
+      "volume": 276216.143,
+      "adxMain": 19.174175318186006,
+      "adxSecondary": 31.528683297627968,
+      "adxTertiary": 18.94778259890658,
+      "adxPeriodLabels": {
+        "main": "1h",
+        "secondary": "4h",
+        "tertiary": "1d"
+      }
+    }
+  },
+  {
+    "symbol": "BNB/USDT",
+    "timestamp": 1776268846494,
+    "strategyId": "strategy_mo082hmm_u6jq5n",
+    "direction": "IDLE",
+    "confidence": 45,
+    "score": 50,
+    "riskLevel": "MEDIUM",
+    "isBullish": false,
+    "reasoning": "价格618.96高于EMA14(617.46)、EMA60(612.78)和EMA120(608.83)，显示短期至长期均线多头排列，但RSI(14)为57.30处于中性偏强区域，无明显超买或超卖信号。ADX指标显示趋势强度不足：1小时ADX(23.97)和4小时ADX(29.46)均低于25...",
+    "technicalData": {
+      "price": 618.96,
+      "EMA14": 617.46430385549,
+      "EMA60": 612.7761469271577,
+      "EMA120": 608.8298651867846,
+      "rsi": 57.3,
+      "volume": 15508.14,
+      "adxMain": 23.967389358498693,
+      "adxSecondary": 29.460546436505233,
+      "adxTertiary": 13.187114124461239,
+      "adxPeriodLabels": {
+        "main": "1h",
+        "secondary": "4h",
+        "tertiary": "1d"
+      }
+    }
+  },
+  {
+    "symbol": "SOL/USDT",
+    "timestamp": 1776268856724,
+    "strategyId": "strategy_mo082hmm_u6jq5n",
+    "direction": "IDLE",
+    "confidence": 45,
+    "score": 50,
+    "riskLevel": "MEDIUM",
+    "isBullish": false,
+    "reasoning": "价格83.9000与EMA14(83.6609)、EMA60(83.9270)、EMA120(83.6703)高度接近，EMA排列无明显方向性（EMA60略高于EMA14/120但差距极小），显示趋势不明确。RSI(14)为51.46，处于中性区域，无超买超卖信号。ADX指标显示趋势强度弱：1...",
+    "technicalData": {
+      "price": 83.9,
+      "EMA14": 83.66090597301952,
+      "EMA60": 83.92697547847598,
+      "EMA120": 83.67033778875349,
+      "rsi": 51.46,
+      "volume": 1286758.18,
+      "adxMain": 18.48881989324283,
+      "adxSecondary": 25.932364952335416,
+      "adxTertiary": 10.692602247112559,
+      "adxPeriodLabels": {
+        "main": "1h",
+        "secondary": "4h",
+        "tertiary": "1d"
+      }
+    }
+  },
+  {
+    "symbol": "BTC/USDT",
+    "timestamp": 1776268891779,
+    "strategyId": "strategy_mnzt0znm_bnp1qq",
+    "direction": "IDLE",
+    "confidence": 45,
+    "score": 50,
+    "riskLevel": "MEDIUM",
+    "isBullish": false,
+    "reasoning": "趋势信号矛盾，缺乏明确方向。价格73759.8略高于EMA60(73626.29)但低于EMA14(74067.63)，显示短期轻微看跌但中期中性。RSI 46.41处于中性区间，无超买超卖信号。ADX指标不一致：4小时ADX 39.86显示中等趋势强度，但1小时ADX 18.89和日线ADX...",
+    "technicalData": {
+      "price": 73759.8,
+      "EMA14": 74067.63200934164,
+      "EMA60": 73626.2904973227,
+      "EMA120": 72877.56090826953,
+      "rsi": 46.41,
+      "volume": 8653.4,
+      "adxMain": 18.891348148854078,
+      "adxSecondary": 39.86467414241413,
+      "adxTertiary": 16.59442881978945,
+      "adxPeriodLabels": {
+        "main": "1h",
+        "secondary": "4h",
+        "tertiary": "1d"
+      }
+    }
+  },
+  {
+    "symbol": "ETH/USDT",
+    "timestamp": 1776268901380,
+    "strategyId": "strategy_mnzt0znm_bnp1qq",
+    "direction": "IDLE",
+    "confidence": 50,
+    "score": 55,
+    "riskLevel": "MEDIUM",
+    "isBullish": false,
+    "reasoning": "价格2331.76略高于EMA14（2328.57），EMA14高于EMA60（2307.29），EMA60高于EMA120（2273.03），显示短期至长期均线呈多头排列，暗示潜在上升趋势。RSI为53.24，处于中性区域，无超买或超卖信号。ADX指标显示：1小时ADX（19.17）和1天A...",
+    "technicalData": {
+      "price": 2331.76,
+      "EMA14": 2328.567860625535,
+      "EMA60": 2307.293769137876,
+      "EMA120": 2273.0300076239837,
+      "rsi": 53.24,
+      "volume": 276216.143,
+      "adxMain": 19.174175318186006,
+      "adxSecondary": 31.528683297627968,
+      "adxTertiary": 18.94778259890658,
+      "adxPeriodLabels": {
+        "main": "1h",
+        "secondary": "4h",
+        "tertiary": "1d"
+      }
+    }
+  },
+  {
+    "symbol": "BNB/USDT",
+    "timestamp": 1776269025131,
+    "strategyId": "strategy_mo082hmm_u6jq5n",
+    "direction": "IDLE",
+    "confidence": 45,
+    "score": 50,
+    "riskLevel": "MEDIUM",
+    "isBullish": false,
+    "reasoning": "价格619.87略高于EMA14(617.46)、EMA60(612.78)和EMA120(608.83)，显示短期至长期均线呈多头排列，但价格仅微幅高于EMA14，动量有限。RSI(14)为57.30，处于中性偏强区域，无超买或超卖信号。ATR(14)为3.3396，表明波动率较低，可能缺乏...",
+    "technicalData": {
+      "price": 619.87,
+      "EMA14": 617.46430385549,
+      "EMA60": 612.7761469271577,
+      "EMA120": 608.8298651867846,
+      "rsi": 57.3,
+      "volume": 15508.14,
+      "adxMain": 23.967389358498693,
+      "adxSecondary": 29.460546436505233,
+      "adxTertiary": 13.187114124461239,
+      "adxPeriodLabels": {
+        "main": "1h",
+        "secondary": "4h",
+        "tertiary": "1d"
+      }
+    }
+  },
+  {
+    "symbol": "SOL/USDT",
+    "timestamp": 1776269032231,
+    "strategyId": "strategy_mo082hmm_u6jq5n",
+    "direction": "IDLE",
+    "confidence": 45,
+    "score": 50,
+    "riskLevel": "MEDIUM",
+    "isBullish": false,
+    "reasoning": "价格84.1400与EMA14(83.6609)、EMA60(83.9270)、EMA120(83.6703)基本持平，EMA多头排列不明显，趋势一致性弱。RSI(14)为51.46处于中性区间，动量强度不足。ADX指标显示1h(18.49)和4h(25.93)趋势强度偏弱，1d(10.69)...",
+    "technicalData": {
+      "price": 84.14,
+      "EMA14": 83.66090597301952,
+      "EMA60": 83.92697547847598,
+      "EMA120": 83.67033778875349,
+      "rsi": 51.46,
+      "volume": 1286758.18,
+      "adxMain": 18.48881989324283,
+      "adxSecondary": 25.932364952335416,
+      "adxTertiary": 10.692602247112559,
+      "adxPeriodLabels": {
+        "main": "1h",
+        "secondary": "4h",
+        "tertiary": "1d"
+      }
+    }
+  },
+  {
+    "symbol": "BTC/USDT",
+    "timestamp": 1776269073156,
+    "strategyId": "strategy_mnzt0znm_bnp1qq",
+    "direction": "IDLE",
+    "confidence": 45,
+    "score": 50,
+    "riskLevel": "MEDIUM",
+    "isBullish": false,
+    "reasoning": "技术指标显示趋势不明确，缺乏一致性信号。价格（73902.6）略低于EMA14（74067.63），但高于EMA60（73626.29）和EMA120（72877.56），表明短期轻微偏空但中长期仍处上升趋势中。RSI（46.41）接近中性区域，无超买超卖信号。ADX指标矛盾：4小时ADX（3...",
+    "technicalData": {
+      "price": 73902.6,
+      "EMA14": 74067.63200934164,
+      "EMA60": 73626.2904973227,
+      "EMA120": 72877.56090826953,
+      "rsi": 46.41,
+      "volume": 8653.4,
+      "adxMain": 18.891348148854078,
+      "adxSecondary": 39.86467414241413,
+      "adxTertiary": 16.59442881978945,
+      "adxPeriodLabels": {
+        "main": "1h",
+        "secondary": "4h",
+        "tertiary": "1d"
+      }
+    }
+  },
+  {
+    "symbol": "ETH/USDT",
+    "timestamp": 1776269080985,
+    "strategyId": "strategy_mnzt0znm_bnp1qq",
+    "direction": "IDLE",
+    "confidence": 45,
+    "score": 50,
+    "riskLevel": "MEDIUM",
+    "isBullish": false,
+    "reasoning": "价格2336.25略高于EMA14(2328.57)和EMA60(2307.29)，显示短期轻微看涨，但EMA多头排列不完整（EMA120在2273.03）。RSI(53.24)处于中性区域，无明显超买超卖。ADX指标显示：4小时ADX(31.53)表明中等趋势强度，但1小时(19.17)和日...",
+    "technicalData": {
+      "price": 2336.25,
+      "EMA14": 2328.567860625535,
+      "EMA60": 2307.293769137876,
+      "EMA120": 2273.0300076239837,
+      "rsi": 53.24,
+      "volume": 276216.143,
+      "adxMain": 19.174175318186006,
+      "adxSecondary": 31.528683297627968,
+      "adxTertiary": 18.94778259890658,
+      "adxPeriodLabels": {
+        "main": "1h",
+        "secondary": "4h",
+        "tertiary": "1d"
+      }
+    }
+  },
+  {
+    "symbol": "BNB/USDT",
+    "timestamp": 1776269205247,
+    "strategyId": "strategy_mo082hmm_u6jq5n",
+    "direction": "IDLE",
+    "confidence": 40,
+    "score": 45,
+    "riskLevel": "MEDIUM",
+    "isBullish": false,
+    "reasoning": "价格619.94略高于EMA14(617.46)、EMA60(612.78)和EMA120(608.83)，显示短期至长期均线呈多头排列，但RSI(14)为57.30处于中性偏强区域，无超买或超卖信号。ADX指标显示趋势强度不足：1小时ADX(23.97)和4小时ADX(29.46)均低于25...",
+    "technicalData": {
+      "price": 619.94,
+      "EMA14": 617.46430385549,
+      "EMA60": 612.7761469271577,
+      "EMA120": 608.8298651867846,
+      "rsi": 57.3,
+      "volume": 15508.14,
+      "adxMain": 23.967389358498693,
+      "adxSecondary": 29.460546436505233,
+      "adxTertiary": 13.187114124461239,
+      "adxPeriodLabels": {
+        "main": "1h",
+        "secondary": "4h",
+        "tertiary": "1d"
+      }
+    }
+  },
+  {
+    "symbol": "SOL/USDT",
+    "timestamp": 1776269214321,
+    "strategyId": "strategy_mo082hmm_u6jq5n",
+    "direction": "IDLE",
+    "confidence": 45,
+    "score": 40,
+    "riskLevel": "MEDIUM",
+    "isBullish": false,
+    "reasoning": "价格84.1900与EMA14(83.6609)、EMA60(83.9270)、EMA120(83.6703)基本重合，EMA排列无明显趋势方向。RSI(14)为51.46，处于中性区域，无超买超卖信号。ATR(14)为0.7056，波动率较低。ADX指标显示：1h(18.49)和4h(25....",
+    "technicalData": {
+      "price": 84.19,
+      "EMA14": 83.66090597301952,
+      "EMA60": 83.92697547847598,
+      "EMA120": 83.67033778875349,
+      "rsi": 51.46,
+      "volume": 1286758.18,
+      "adxMain": 18.48881989324283,
+      "adxSecondary": 25.932364952335416,
+      "adxTertiary": 10.692602247112559,
+      "adxPeriodLabels": {
+        "main": "1h",
+        "secondary": "4h",
+        "tertiary": "1d"
+      }
+    }
+  },
+  {
+    "symbol": "BTC/USDT",
+    "timestamp": 1776269252493,
+    "strategyId": "strategy_mnzt0znm_bnp1qq",
+    "direction": "IDLE",
+    "confidence": 45,
+    "score": 50,
+    "riskLevel": "MEDIUM",
+    "isBullish": false,
+    "reasoning": "价格73895.2略低于EMA14(74067.63)但高于EMA60(73626.29)和EMA120(72877.56)，显示短期轻微看跌但中长期仍处上升趋势中，趋势一致性不足。RSI(14)为46.41处于中性区间，无明显超买超卖信号。ADX指标显示4小时图趋势强度中等(39.86)，但...",
+    "technicalData": {
+      "price": 73895.2,
+      "EMA14": 74067.63200934164,
+      "EMA60": 73626.2904973227,
+      "EMA120": 72877.56090826953,
+      "rsi": 46.41,
+      "volume": 8653.4,
+      "adxMain": 18.891348148854078,
+      "adxSecondary": 39.86467414241413,
+      "adxTertiary": 16.59442881978945,
+      "adxPeriodLabels": {
+        "main": "1h",
+        "secondary": "4h",
+        "tertiary": "1d"
+      }
+    }
+  },
+  {
+    "symbol": "ETH/USDT",
+    "timestamp": 1776269260484,
+    "strategyId": "strategy_mnzt0znm_bnp1qq",
+    "direction": "IDLE",
+    "confidence": 55,
+    "score": 50,
+    "riskLevel": "MEDIUM",
+    "isBullish": false,
+    "reasoning": "价格2336.47略高于EMA14(2328.57)和EMA60(2307.29)，显示短期轻微看涨，但EMA多头排列不完整（EMA120在2273.03），趋势一致性不足。RSI(53.24)处于中性区域，无明显超买超卖。ADX指标显示4小时趋势强度中等（31.53），但1小时和日线ADX均...",
+    "technicalData": {
+      "price": 2336.47,
+      "EMA14": 2328.567860625535,
+      "EMA60": 2307.293769137876,
+      "EMA120": 2273.0300076239837,
+      "rsi": 53.24,
+      "volume": 276216.143,
+      "adxMain": 19.174175318186006,
+      "adxSecondary": 31.528683297627968,
+      "adxTertiary": 18.94778259890658,
+      "adxPeriodLabels": {
+        "main": "1h",
+        "secondary": "4h",
+        "tertiary": "1d"
+      }
+    }
+  },
+  {
+    "symbol": "BNB/USDT",
+    "timestamp": 1776269383237,
+    "strategyId": "strategy_mo082hmm_u6jq5n",
+    "direction": "IDLE",
+    "confidence": 45,
+    "score": 50,
+    "riskLevel": "MEDIUM",
+    "isBullish": false,
+    "reasoning": "价格620.08略高于EMA14(617.46)、EMA60(612.78)和EMA120(608.83)，显示短期多头排列但差距微弱。RSI 57.30处于中性偏多区域，无明显超买超卖。ADX指标显示趋势强度不足：1h ADX 23.97（弱趋势）、4h ADX 29.46（中等偏弱）、1d...",
+    "technicalData": {
+      "price": 620.08,
+      "EMA14": 617.46430385549,
+      "EMA60": 612.7761469271577,
+      "EMA120": 608.8298651867846,
+      "rsi": 57.3,
+      "volume": 15508.14,
+      "adxMain": 23.967389358498693,
+      "adxSecondary": 29.460546436505233,
+      "adxTertiary": 13.187114124461239,
+      "adxPeriodLabels": {
+        "main": "1h",
+        "secondary": "4h",
+        "tertiary": "1d"
+      }
+    }
+  },
+  {
+    "symbol": "SOL/USDT",
+    "timestamp": 1776269392046,
+    "strategyId": "strategy_mo082hmm_u6jq5n",
+    "direction": "IDLE",
+    "confidence": 45,
+    "score": 40,
+    "riskLevel": "MEDIUM",
+    "isBullish": false,
+    "reasoning": "价格84.1700略高于EMA14(83.6609)和EMA120(83.6703)，但低于EMA60(83.9270)，EMA排列显示短期轻微看涨但中期中性，趋势一致性不足。RSI(14)为51.46处于中性区间，无超买超卖信号。ATR(14)为0.7056显示低波动性，ADX指标中1h(1...",
+    "technicalData": {
+      "price": 84.17,
+      "EMA14": 83.66090597301952,
+      "EMA60": 83.92697547847598,
+      "EMA120": 83.67033778875349,
+      "rsi": 51.46,
+      "volume": 1286758.18,
+      "adxMain": 18.48881989324283,
+      "adxSecondary": 25.932364952335416,
+      "adxTertiary": 10.692602247112559,
+      "adxPeriodLabels": {
+        "main": "1h",
+        "secondary": "4h",
+        "tertiary": "1d"
+      }
+    }
+  },
+  {
+    "symbol": "BTC/USDT",
+    "timestamp": 1776269433327,
+    "strategyId": "strategy_mnzt0znm_bnp1qq",
+    "direction": "IDLE",
+    "confidence": 45,
+    "score": 50,
+    "riskLevel": "MEDIUM",
+    "isBullish": false,
+    "reasoning": "技术指标显示趋势不明确，缺乏一致性信号。价格（73914.4）略低于EMA14（74067.63），但高于EMA60（73626.29）和EMA120（72877.56），表明短期轻微看跌但中长期仍看涨，趋势方向矛盾。RSI（46.41）处于中性区域，无超买或超卖信号。ADX指标显示：1小时（...",
+    "technicalData": {
+      "price": 73914.4,
+      "EMA14": 74067.63200934164,
+      "EMA60": 73626.2904973227,
+      "EMA120": 72877.56090826953,
+      "rsi": 46.41,
+      "volume": 8653.4,
+      "adxMain": 18.891348148854078,
+      "adxSecondary": 39.86467414241413,
+      "adxTertiary": 16.59442881978945,
+      "adxPeriodLabels": {
+        "main": "1h",
+        "secondary": "4h",
+        "tertiary": "1d"
+      }
+    }
+  },
+  {
+    "symbol": "ETH/USDT",
+    "timestamp": 1776269441012,
+    "strategyId": "strategy_mnzt0znm_bnp1qq",
+    "direction": "IDLE",
+    "confidence": 55,
+    "score": 60,
+    "riskLevel": "MEDIUM",
+    "isBullish": false,
+    "reasoning": "价格2337.83略高于EMA14(2328.57)和EMA60(2307.29)，显示短期轻微看涨，但EMA多头排列不完整（EMA120为2273.03）。RSI(53.24)处于中性区域，无明显超买超卖。ADX指标显示4小时趋势强度中等（31.53），但1小时和日线ADX均低于20，表明整...",
+    "technicalData": {
+      "price": 2337.83,
+      "EMA14": 2328.567860625535,
+      "EMA60": 2307.293769137876,
+      "EMA120": 2273.0300076239837,
+      "rsi": 53.24,
+      "volume": 276216.143,
+      "adxMain": 19.174175318186006,
+      "adxSecondary": 31.528683297627968,
+      "adxTertiary": 18.94778259890658,
+      "adxPeriodLabels": {
+        "main": "1h",
+        "secondary": "4h",
+        "tertiary": "1d"
+      }
+    }
+  },
+  {
+    "symbol": "BNB/USDT",
+    "timestamp": 1776269564786,
+    "strategyId": "strategy_mo082hmm_u6jq5n",
+    "direction": "IDLE",
+    "confidence": 50,
+    "score": 55,
+    "riskLevel": "MEDIUM",
+    "isBullish": false,
+    "reasoning": "价格620.0800高于EMA14(617.4643)、EMA60(612.7761)和EMA120(608.8299)，显示短期至长期EMA多头排列，暗示潜在上升趋势。RSI(14)为57.30，处于中性偏强区域，无超买或超卖信号。ATR(14)为3.3396，提供波动率参考，但未用于过滤。...",
+    "technicalData": {
+      "price": 620.08,
+      "EMA14": 617.46430385549,
+      "EMA60": 612.7761469271577,
+      "EMA120": 608.8298651867846,
+      "rsi": 57.3,
+      "volume": 15508.14,
+      "adxMain": 23.967389358498693,
+      "adxSecondary": 29.460546436505233,
+      "adxTertiary": 13.187114124461239,
+      "adxPeriodLabels": {
+        "main": "1h",
+        "secondary": "4h",
+        "tertiary": "1d"
+      }
+    }
+  },
+  {
+    "symbol": "SOL/USDT",
+    "timestamp": 1776269572284,
+    "strategyId": "strategy_mo082hmm_u6jq5n",
+    "direction": "IDLE",
+    "confidence": 45,
+    "score": 40,
+    "riskLevel": "MEDIUM",
+    "isBullish": false,
+    "reasoning": "价格84.21略高于EMA14(83.66)和EMA120(83.67)，但低于EMA60(83.93)，均线排列混乱，无明显趋势方向。RSI 51.46处于中性区域，缺乏超买超卖信号。ADX指标显示：1小时(18.49)和4小时(25.93)均低于25的强趋势阈值，1日(10.69)更弱，表...",
+    "technicalData": {
+      "price": 84.21,
+      "EMA14": 83.66090597301952,
+      "EMA60": 83.92697547847598,
+      "EMA120": 83.67033778875349,
+      "rsi": 51.46,
+      "volume": 1286758.18,
+      "adxMain": 18.48881989324283,
+      "adxSecondary": 25.932364952335416,
+      "adxTertiary": 10.692602247112559,
+      "adxPeriodLabels": {
+        "main": "1h",
+        "secondary": "4h",
+        "tertiary": "1d"
+      }
+    }
+  },
+  {
+    "symbol": "BTC/USDT",
+    "timestamp": 1776269614186,
+    "strategyId": "strategy_mnzt0znm_bnp1qq",
+    "direction": "IDLE",
+    "confidence": 45,
+    "score": 50,
+    "riskLevel": "MEDIUM",
+    "isBullish": false,
+    "reasoning": "技术指标显示市场处于盘整状态，缺乏明确的趋势方向。价格（73899）略低于EMA14（74067），但高于EMA60（73626）和EMA120（72877），表明短期略有回调但中长期仍呈上升趋势，然而趋势一致性不足。RSI（46.41）处于中性区域，无超买或超卖信号。ADX指标显示：1小时（...",
+    "technicalData": {
+      "price": 73899,
+      "EMA14": 74067.63200934164,
+      "EMA60": 73626.2904973227,
+      "EMA120": 72877.56090826953,
+      "rsi": 46.41,
+      "volume": 8653.4,
+      "adxMain": 18.891348148854078,
+      "adxSecondary": 39.86467414241413,
+      "adxTertiary": 16.59442881978945,
+      "adxPeriodLabels": {
+        "main": "1h",
+        "secondary": "4h",
+        "tertiary": "1d"
+      }
+    }
+  },
+  {
+    "symbol": "ETH/USDT",
+    "timestamp": 1776269623775,
+    "strategyId": "strategy_mnzt0znm_bnp1qq",
+    "direction": "IDLE",
+    "confidence": 55,
+    "score": 60,
+    "riskLevel": "MEDIUM",
+    "isBullish": false,
+    "reasoning": "价格（2337.76）略高于EMA14（2328.57），EMA14高于EMA60（2307.29），EMA60高于EMA120（2273.03），显示短期至长期均线呈多头排列，暗示潜在上涨趋势。RSI（53.24）处于中性区域，无超买或超卖信号。ADX指标显示：1小时ADX（19.17）和1...",
+    "technicalData": {
+      "price": 2337.76,
+      "EMA14": 2328.567860625535,
+      "EMA60": 2307.293769137876,
+      "EMA120": 2273.0300076239837,
+      "rsi": 53.24,
+      "volume": 276216.143,
+      "adxMain": 19.174175318186006,
+      "adxSecondary": 31.528683297627968,
+      "adxTertiary": 18.94778259890658,
+      "adxPeriodLabels": {
+        "main": "1h",
+        "secondary": "4h",
+        "tertiary": "1d"
+      }
+    }
+  },
+  {
+    "symbol": "BNB/USDT",
+    "timestamp": 1776269745366,
+    "strategyId": "strategy_mo082hmm_u6jq5n",
+    "direction": "IDLE",
+    "confidence": 45,
+    "score": 50,
+    "riskLevel": "MEDIUM",
+    "isBullish": false,
+    "reasoning": "价格620.30高于EMA14(617.46)、EMA60(612.78)和EMA120(608.83)，显示短期至长期均线多头排列，暗示潜在上升趋势。RSI(14)为57.30，处于中性偏强区域，无超买或超卖信号。ATR(14)为3.34，表示低波动性，可能限制交易机会的盈利潜力。ADX指标...",
+    "technicalData": {
+      "price": 620.3,
+      "EMA14": 617.46430385549,
+      "EMA60": 612.7761469271577,
+      "EMA120": 608.8298651867846,
+      "rsi": 57.3,
+      "volume": 15508.14,
+      "adxMain": 23.967389358498693,
+      "adxSecondary": 29.460546436505233,
+      "adxTertiary": 13.187114124461239,
+      "adxPeriodLabels": {
+        "main": "1h",
+        "secondary": "4h",
+        "tertiary": "1d"
+      }
+    }
+  },
+  {
+    "symbol": "SOL/USDT",
+    "timestamp": 1776269753870,
+    "strategyId": "strategy_mo082hmm_u6jq5n",
+    "direction": "IDLE",
+    "confidence": 45,
+    "score": 48,
+    "riskLevel": "MEDIUM",
+    "isBullish": false,
+    "reasoning": "价格84.49略高于EMA14(83.66)和EMA120(83.67)，但低于EMA60(83.93)，EMA排列显示短期轻微看涨但中期中性偏弱，趋势一致性不足。RSI(51.46)处于中性区域，无明显超买超卖信号。ADX指标显示：1h(18.49)和4h(25.93)均低于25的强趋势阈值...",
+    "technicalData": {
+      "price": 84.49,
+      "EMA14": 83.66090597301952,
+      "EMA60": 83.92697547847598,
+      "EMA120": 83.67033778875349,
+      "rsi": 51.46,
+      "volume": 1286758.18,
+      "adxMain": 18.48881989324283,
+      "adxSecondary": 25.932364952335416,
+      "adxTertiary": 10.692602247112559,
+      "adxPeriodLabels": {
+        "main": "1h",
+        "secondary": "4h",
+        "tertiary": "1d"
+      }
+    }
+  },
+  {
+    "symbol": "BTC/USDT",
+    "timestamp": 1776269792625,
+    "strategyId": "strategy_mnzt0znm_bnp1qq",
+    "direction": "IDLE",
+    "confidence": 45,
+    "score": 50,
+    "riskLevel": "MEDIUM",
+    "isBullish": false,
+    "reasoning": "技术指标显示趋势不明确，缺乏一致性信号。价格（74018.5）略低于EMA14（74067.63），但高于EMA60（73626.29）和EMA120（72877.56），表明短期轻微偏空但中长期仍处上升趋势中。RSI（46.41）处于中性区域，无超买或超卖信号。ADX指标不一致：4小时ADX...",
+    "technicalData": {
+      "price": 74018.5,
+      "EMA14": 74067.63200934164,
+      "EMA60": 73626.2904973227,
+      "EMA120": 72877.56090826953,
+      "rsi": 46.41,
+      "volume": 8653.4,
+      "adxMain": 18.891348148854078,
+      "adxSecondary": 39.86467414241413,
+      "adxTertiary": 16.59442881978945,
+      "adxPeriodLabels": {
+        "main": "1h",
+        "secondary": "4h",
+        "tertiary": "1d"
+      }
+    }
+  },
+  {
+    "symbol": "ETH/USDT",
+    "timestamp": 1776269800099,
+    "strategyId": "strategy_mnzt0znm_bnp1qq",
+    "direction": "IDLE",
+    "confidence": 45,
+    "score": 50,
+    "riskLevel": "MEDIUM",
+    "isBullish": false,
+    "reasoning": "价格2341.77略高于EMA14(2328.57)和EMA60(2307.29)，显示短期轻微看涨，但EMA多头排列不完整（EMA120在2273.03）。RSI(53.24)处于中性区域，无明显超买或超卖。ADX指标显示4小时趋势强度中等（31.53），但1小时和日线ADX均低于20，表明...",
+    "technicalData": {
+      "price": 2341.77,
+      "EMA14": 2328.567860625535,
+      "EMA60": 2307.293769137876,
+      "EMA120": 2273.0300076239837,
+      "rsi": 53.24,
+      "volume": 276216.143,
+      "adxMain": 19.174175318186006,
+      "adxSecondary": 31.528683297627968,
+      "adxTertiary": 18.94778259890658,
+      "adxPeriodLabels": {
+        "main": "1h",
+        "secondary": "4h",
+        "tertiary": "1d"
+      }
+    }
+  },
+  {
+    "symbol": "BNB/USDT",
+    "timestamp": 1776269926573,
+    "strategyId": "strategy_mo082hmm_u6jq5n",
+    "direction": "IDLE",
+    "confidence": 50,
+    "score": 55,
+    "riskLevel": "MEDIUM",
+    "isBullish": false,
+    "reasoning": "价格620.11高于EMA14(617.46)、EMA60(612.78)和EMA120(608.83)，显示短期至长期EMA多头排列，暗示潜在上升趋势。RSI(14)为57.30，处于中性偏强区域，无超买或超卖信号。ATR(14)为3.34，表示低波动性，可能限制交易机会。ADX指标显示：1...",
+    "technicalData": {
+      "price": 620.11,
+      "EMA14": 617.46430385549,
+      "EMA60": 612.7761469271577,
+      "EMA120": 608.8298651867846,
+      "rsi": 57.3,
+      "volume": 15508.14,
+      "adxMain": 23.967389358498693,
+      "adxSecondary": 29.460546436505233,
+      "adxTertiary": 13.187114124461239,
+      "adxPeriodLabels": {
+        "main": "1h",
+        "secondary": "4h",
+        "tertiary": "1d"
+      }
+    }
+  },
+  {
+    "symbol": "BTC/USDT",
+    "timestamp": 1776269956136,
+    "strategyId": "strategy_mnzt0znm_bnp1qq",
+    "direction": "LONG",
+    "confidence": 45,
+    "score": 80,
+    "riskLevel": "MEDIUM",
+    "isBullish": false,
+    "reasoning": "技术指标显示矛盾信号，缺乏明确的趋势一致性。价格（74034.2000）略低于EMA14（74050.1949），但高于EMA60（73636.2699）和EMA120（72894.1237），表明短期轻微看跌但中长期看涨。RSI（48.98）接近中性，无超买超卖信号。ADX指标矛盾：4小时A...",
+    "technicalData": {
+      "price": 74034.2,
+      "EMA14": 74050.19485254053,
+      "EMA60": 73636.26992151531,
+      "EMA120": 72894.12365150766,
+      "rsi": 48.98,
+      "volume": 1650.547,
+      "adxMain": 18.39856675736671,
+      "adxSecondary": 39.77986054357071,
+      "adxTertiary": 16.59442881978945,
+      "adxPeriodLabels": {
+        "main": "1h",
+        "secondary": "4h",
+        "tertiary": "1d"
+      }
+    }
+  },
+  {
+    "symbol": "BNB/USDT",
+    "timestamp": 1776269959044,
+    "strategyId": "strategy_mo082hmm_u6jq5n",
+    "direction": "IDLE",
+    "confidence": 50,
+    "score": 55,
+    "riskLevel": "MEDIUM",
+    "isBullish": false,
+    "reasoning": "价格620.57高于EMA14(617.86)、EMA60(613.03)和EMA120(609.02)，显示短期至长期均线多头排列，但RSI(14)为59.20处于中性偏强区域，无明显超买或超卖信号。ADX指标显示1小时(23.88)和4小时(30.13)趋势强度较弱至中等，1天(13.19...",
+    "technicalData": {
+      "price": 620.57,
+      "EMA14": 617.859907785869,
+      "EMA60": 613.0271049524259,
+      "EMA120": 609.0179383259618,
+      "rsi": 59.2,
+      "volume": 4691.31,
+      "adxMain": 23.880881698197673,
+      "adxSecondary": 30.131608516848047,
+      "adxTertiary": 13.187114124461239,
+      "adxPeriodLabels": {
+        "main": "1h",
+        "secondary": "4h",
+        "tertiary": "1d"
+      }
+    }
+  },
+  {
+    "symbol": "ETH/USDT",
+    "timestamp": 1776269966617,
+    "strategyId": "strategy_mnzt0znm_bnp1qq",
+    "direction": "IDLE",
+    "confidence": 45,
+    "score": 50,
+    "riskLevel": "MEDIUM",
+    "isBullish": false,
+    "reasoning": "价格(2342.9)略高于EMA14(2329.99)，EMA14高于EMA60(2308.33)，EMA60高于EMA120(2274.07)，显示短期至长期均线呈多头排列，但价格与EMA14差距较小，趋势强度有限。RSI(56.23)处于中性偏强区域，无超买超卖信号。ADX指标显示4小时周...",
+    "technicalData": {
+      "price": 2342.9,
+      "EMA14": 2329.990190319908,
+      "EMA60": 2308.3300202232726,
+      "EMA120": 2274.070265009187,
+      "rsi": 56.23,
+      "volume": 53659.74,
+      "adxMain": 18.74350214680696,
+      "adxSecondary": 31.41326148682238,
+      "adxTertiary": 18.94778259890658,
+      "adxPeriodLabels": {
+        "main": "1h",
+        "secondary": "4h",
+        "tertiary": "1d"
+      }
+    }
+  },
+  {
+    "symbol": "SOL/USDT",
+    "timestamp": 1776269968453,
+    "strategyId": "strategy_mo082hmm_u6jq5n",
+    "direction": "IDLE",
+    "confidence": 45,
+    "score": 52,
+    "riskLevel": "MEDIUM",
+    "isBullish": false,
+    "reasoning": "价格84.57略高于EMA14(83.78)和EMA120(83.68)，但低于EMA60(83.95)，EMA排列显示短期轻微看涨但中期中性，趋势一致性不足。RSI(58.68)处于中性偏强区域，无超买超卖信号。ADX指标显示：1h(18.51)和4h(25.84)趋势强度较弱，1d(10....",
+    "technicalData": {
+      "price": 84.57,
+      "EMA14": 83.78416295439469,
+      "EMA60": 83.94843759882184,
+      "EMA120": 83.6843982467799,
+      "rsi": 58.68,
+      "volume": 446278.83,
+      "adxMain": 18.505352443380055,
+      "adxSecondary": 25.83694947221625,
+      "adxTertiary": 10.692602247112559,
+      "adxPeriodLabels": {
+        "main": "1h",
+        "secondary": "4h",
+        "tertiary": "1d"
+      }
+    }
+  },
+  {
+    "symbol": "ETH/USDT",
+    "timestamp": 1776270131771,
+    "strategyId": "strategy_mnzt0znm_bnp1qq",
+    "direction": "IDLE",
+    "confidence": 55,
+    "score": 60,
+    "riskLevel": "MEDIUM",
+    "isBullish": false,
+    "reasoning": "价格2342.71高于EMA14(2329.99)、EMA60(2308.33)和EMA120(2274.07)，显示短期、中期和长期均线多头排列，但RSI(14)为56.23处于中性偏强区域，无明显超买或超卖信号。ADX指标显示：1小时ADX(18.74)和1日ADX(18.95)均低于25...",
+    "technicalData": {
+      "price": 2342.71,
+      "EMA14": 2329.990190319908,
+      "EMA60": 2308.3300202232726,
+      "EMA120": 2274.070265009187,
+      "rsi": 56.23,
+      "volume": 53659.74,
+      "adxMain": 18.74350214680696,
+      "adxSecondary": 31.41326148682238,
+      "adxTertiary": 18.94778259890658,
+      "adxPeriodLabels": {
+        "main": "1h",
+        "secondary": "4h",
+        "tertiary": "1d"
+      }
+    }
+  },
+  {
+    "symbol": "BNB/USDT",
+    "timestamp": 1776270139472,
+    "strategyId": "strategy_mo082hmm_u6jq5n",
+    "direction": "IDLE",
+    "confidence": 40,
+    "score": 45,
+    "riskLevel": "MEDIUM",
+    "isBullish": false,
+    "reasoning": "价格620.85高于EMA14(617.86)、EMA60(613.03)和EMA120(609.02)，显示短期和长期EMA多头排列，暗示潜在上涨趋势。RSI(14)为59.20，处于中性偏强区域，无超买超卖信号。ATR(14)为3.2118，表示低波动性，可能限制交易机会。ADX指标显示：...",
+    "technicalData": {
+      "price": 620.85,
+      "EMA14": 617.859907785869,
+      "EMA60": 613.0271049524259,
+      "EMA120": 609.0179383259618,
+      "rsi": 59.2,
+      "volume": 4691.31,
+      "adxMain": 23.880881698197673,
+      "adxSecondary": 30.131608516848047,
+      "adxTertiary": 13.187114124461239,
+      "adxPeriodLabels": {
+        "main": "1h",
+        "secondary": "4h",
+        "tertiary": "1d"
+      }
+    }
+  },
+  {
+    "symbol": "SOL/USDT",
+    "timestamp": 1776270149183,
+    "strategyId": "strategy_mo082hmm_u6jq5n",
+    "direction": "IDLE",
+    "confidence": 45,
+    "score": 52,
+    "riskLevel": "MEDIUM",
+    "isBullish": false,
+    "reasoning": "价格84.5800略高于EMA14(83.7842)、EMA60(83.9484)和EMA120(83.6844)，显示轻微看涨排列但EMA间距过窄，趋势强度不足。RSI(14)为58.68处于中性偏强区域，无超买超卖信号。ATR(14)为0.7095显示低波动性，ADX指标中4小时ADX(2...",
+    "technicalData": {
+      "price": 84.58,
+      "EMA14": 83.78416295439469,
+      "EMA60": 83.94843759882184,
+      "EMA120": 83.6843982467799,
+      "rsi": 58.68,
+      "volume": 446278.83,
+      "adxMain": 18.505352443380055,
+      "adxSecondary": 25.83694947221625,
+      "adxTertiary": 10.692602247112559,
+      "adxPeriodLabels": {
+        "main": "1h",
+        "secondary": "4h",
+        "tertiary": "1d"
+      }
+    }
+  },
+  {
+    "symbol": "BTC/USDT",
+    "timestamp": 1776270308361,
+    "strategyId": "strategy_mnzt0znm_bnp1qq",
+    "direction": "LONG",
+    "confidence": 45,
+    "score": 80,
+    "riskLevel": "MEDIUM",
+    "isBullish": false,
+    "reasoning": "技术指标显示矛盾信号，缺乏明确的趋势一致性。EMA14（74061.3415）略高于当前价格（74060.0000），EMA60（73639.0109）和EMA120（72895.5055）呈上升排列，暗示长期看涨趋势，但短期EMA与价格接近，动量不足。RSI(14)为50.48，处于中性区域...",
+    "technicalData": {
+      "price": 74060,
+      "EMA14": 74061.3415192072,
+      "EMA60": 73639.01090512188,
+      "EMA120": 72895.50546968948,
+      "rsi": 50.48,
+      "volume": 2610.308,
+      "adxMain": 18.39856675736671,
+      "adxSecondary": 39.779860543570706,
+      "adxTertiary": 16.59442881978945,
+      "adxPeriodLabels": {
+        "main": "1h",
+        "secondary": "4h",
+        "tertiary": "1d"
+      }
+    }
+  },
+  {
+    "symbol": "BNB/USDT",
+    "timestamp": 1776270310325,
+    "strategyId": "strategy_mo082hmm_u6jq5n",
+    "direction": "IDLE",
+    "confidence": 45,
+    "score": 55,
+    "riskLevel": "MEDIUM",
+    "isBullish": false,
+    "reasoning": "价格621.44高于EMA14(617.97)、EMA60(613.05)和EMA120(609.03)，显示短期至长期均线呈多头排列，但RSI(14)为60.66处于中性偏强区域，未超买。ADX指标显示1小时(24.17)和4小时(30.20)趋势强度中等，但1日(13.19)趋势较弱，多时...",
+    "technicalData": {
+      "price": 621.44,
+      "EMA14": 617.9719077858691,
+      "EMA60": 613.0546459360324,
+      "EMA120": 609.0318226234825,
+      "rsi": 60.66,
+      "volume": 7212.52,
+      "adxMain": 24.16831244050903,
+      "adxSecondary": 30.20321172439316,
+      "adxTertiary": 13.187114124461239,
+      "adxPeriodLabels": {
+        "main": "1h",
+        "secondary": "4h",
+        "tertiary": "1d"
+      }
+    }
+  },
+  {
+    "symbol": "ETH/USDT",
+    "timestamp": 1776270319300,
+    "strategyId": "strategy_mnzt0znm_bnp1qq",
+    "direction": "IDLE",
+    "confidence": 55,
+    "score": 60,
+    "riskLevel": "MEDIUM",
+    "isBullish": false,
+    "reasoning": "价格2344.55高于EMA14(2330.42)、EMA60(2308.43)和EMA120(2274.12)，显示短期至长期均线呈多头排列，暗示潜在上涨趋势。RSI(14)为57.39，处于中性偏强区域，无超买或超卖信号。ADX指标显示4小时图ADX(31.41)高于25，表明趋势较强，但...",
+    "technicalData": {
+      "price": 2344.55,
+      "EMA14": 2330.4168569865747,
+      "EMA60": 2308.43493825606,
+      "EMA120": 2274.123157571171,
+      "rsi": 57.39,
+      "volume": 84758.505,
+      "adxMain": 18.74350214680696,
+      "adxSecondary": 31.41326148682238,
+      "adxTertiary": 18.94778259890658,
+      "adxPeriodLabels": {
+        "main": "1h",
+        "secondary": "4h",
+        "tertiary": "1d"
+      }
+    }
+  },
+  {
+    "symbol": "SOL/USDT",
+    "timestamp": 1776270320051,
+    "strategyId": "strategy_mo082hmm_u6jq5n",
+    "direction": "IDLE",
+    "confidence": 45,
+    "score": 48,
+    "riskLevel": "MEDIUM",
+    "isBullish": false,
+    "reasoning": "价格84.5600略高于EMA14(83.7762)和EMA120(83.6834)，但低于EMA60(83.9465)，EMA排列显示短期轻微看涨但中期中性，趋势一致性不足。RSI(14)为58.30处于中性偏强区域，无超买超卖信号。ATR(14)为0.7102显示低波动性，ADX指标在1h...",
+    "technicalData": {
+      "price": 84.56,
+      "EMA14": 83.77616295439469,
+      "EMA60": 83.94647038570709,
+      "EMA120": 83.68340651124272,
+      "rsi": 58.3,
+      "volume": 552558.24,
+      "adxMain": 18.52347596432897,
+      "adxSecondary": 25.83694947221625,
+      "adxTertiary": 10.692602247112559,
+      "adxPeriodLabels": {
+        "main": "1h",
+        "secondary": "4h",
+        "tertiary": "1d"
+      }
+    }
+  },
+  {
+    "symbol": "ETH/USDT",
+    "timestamp": 1776270482236,
+    "strategyId": "strategy_mnzt0znm_bnp1qq",
+    "direction": "IDLE",
+    "confidence": 55,
+    "score": 60,
+    "riskLevel": "MEDIUM",
+    "isBullish": false,
+    "reasoning": "价格2344.57高于EMA14(2330.42)、EMA60(2308.43)和EMA120(2274.12)，显示短期至长期均线呈多头排列，表明整体趋势向上。RSI(14)为57.39，处于中性偏强区域，无超买或超卖信号。ATR(14)为19.46，显示中等波动性。ADX指标显示：1小时A...",
+    "technicalData": {
+      "price": 2344.57,
+      "EMA14": 2330.4168569865747,
+      "EMA60": 2308.43493825606,
+      "EMA120": 2274.123157571171,
+      "rsi": 57.39,
+      "volume": 84758.505,
+      "adxMain": 18.74350214680696,
+      "adxSecondary": 31.41326148682238,
+      "adxTertiary": 18.94778259890658,
+      "adxPeriodLabels": {
+        "main": "1h",
+        "secondary": "4h",
+        "tertiary": "1d"
+      }
+    }
+  },
+  {
+    "symbol": "BNB/USDT",
+    "timestamp": 1776270488334,
+    "strategyId": "strategy_mo082hmm_u6jq5n",
+    "direction": "IDLE",
+    "confidence": 45,
+    "score": 50,
+    "riskLevel": "MEDIUM",
+    "isBullish": false,
+    "reasoning": "价格621.03高于EMA14(617.97)、EMA60(613.05)和EMA120(609.03)，显示短期至长期均线多头排列，但RSI(14)为60.66处于中性偏强区域，未超买。ADX指标显示：1小时ADX(24.17)和4小时ADX(30.20)表明趋势强度中等，但1天ADX(13...",
+    "technicalData": {
+      "price": 621.03,
+      "EMA14": 617.9719077858691,
+      "EMA60": 613.0546459360324,
+      "EMA120": 609.0318226234825,
+      "rsi": 60.66,
+      "volume": 7212.52,
+      "adxMain": 24.16831244050903,
+      "adxSecondary": 30.20321172439316,
+      "adxTertiary": 13.187114124461239,
+      "adxPeriodLabels": {
+        "main": "1h",
+        "secondary": "4h",
+        "tertiary": "1d"
+      }
+    }
+  },
+  {
+    "symbol": "SOL/USDT",
+    "timestamp": 1776270496372,
+    "strategyId": "strategy_mo082hmm_u6jq5n",
+    "direction": "IDLE",
+    "confidence": 45,
+    "score": 50,
+    "riskLevel": "MEDIUM",
+    "isBullish": false,
+    "reasoning": "价格84.62略高于EMA14(83.78)、EMA60(83.95)和EMA120(83.68)，显示微弱看涨排列但EMA差异极小，趋势一致性不足。RSI 58.30处于中性偏强区域，无明显超买超卖信号。ADX指标显示：1小时ADX 18.52（弱趋势）、4小时ADX 25.84（中等趋势）...",
+    "technicalData": {
+      "price": 84.62,
+      "EMA14": 83.77616295439469,
+      "EMA60": 83.94647038570709,
+      "EMA120": 83.68340651124272,
+      "rsi": 58.3,
+      "volume": 552558.24,
+      "adxMain": 18.52347596432897,
+      "adxSecondary": 25.83694947221625,
+      "adxTertiary": 10.692602247112559,
+      "adxPeriodLabels": {
+        "main": "1h",
+        "secondary": "4h",
+        "tertiary": "1d"
+      }
+    }
+  }
+]

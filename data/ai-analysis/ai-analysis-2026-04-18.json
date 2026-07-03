@@ -1,0 +1,149 @@
+[
+  {
+    "symbol": "BNB/USDT",
+    "timestamp": 1776529297094,
+    "strategyId": "strategy_002",
+    "direction": "IDLE",
+    "confidence": 15,
+    "score": 30,
+    "riskLevel": "MEDIUM",
+    "isBullish": false,
+    "reasoning": "价格634.1700接近EMA14 633.9943但低于EMA60 637.2616和EMA120 637.4542，EMA排列显示短期中性但长期偏空，RSI 45.08处于中性区域，MACD为0.0000无明确动量，ADX(15m) 46.85显示强趋势但ADX(1h) 26.02和ADX(4h) 34.86趋势强度不一，ATR 1.5899波动性低，OI 549257.13趋势flat无显著变化，整体技术指标缺乏一致性方向，风险回报比不佳。",
+    "technicalData": {
+      "price": 634.17,
+      "EMA14": 633.9942514583986,
+      "EMA60": 637.2616368438137,
+      "EMA120": 637.4542398968852,
+      "rsi": 45.08,
+      "volume": 10514.5,
+      "adxMain": 46.846527391016906,
+      "adxSecondary": 26.015297051011924,
+      "adxTertiary": 34.860929593262064,
+      "adxPeriodLabels": {
+        "main": "15m",
+        "secondary": "1h",
+        "tertiary": "4h"
+      }
+    }
+  },
+  {
+    "symbol": "BNB/USDT",
+    "timestamp": 1776529299687,
+    "strategyId": "strategy_001",
+    "direction": "IDLE",
+    "confidence": 15,
+    "score": 40,
+    "riskLevel": "MEDIUM",
+    "isBullish": false,
+    "reasoning": "价格634.1700位于EMA20(637.4125)和EMA50(635.2423)下方，但高于EMA120(626.9474)，EMA排列显示短期偏弱但长期支撑，趋势不一致。RSI(14)为40.90处于中性偏弱区域，无超卖信号。MACD(-0.9598)低于信号线(0.4221)，柱状图(-1.3819)为负，动量偏弱但未加速。ADX(1h)为26.02和ADX(4h)为34.86显示趋势强度中等偏弱，无强趋势确认。ATR(14)为3.6328，风险可控但无明确方向。OI趋势flat且变化0.00%，市场情绪中性。综合来看，技术指标缺乏一致性，无明确开仓优势，优先返回IDLE。",
+    "technicalData": {
+      "price": 634.17,
+      "EMA120": 626.9473883802281,
+      "EMA20": 637.4124668474215,
+      "EMA50": 635.2422682884259,
+      "rsi": 40.9,
+      "macd": -0.9598256763666768,
+      "macdSignal": 0.42206513164800086,
+      "macdHistogram": -1.3818908080146777,
+      "volume": 10514.5,
+      "adxMain": 26.015297051011924,
+      "adxSecondary": 34.860929593262064,
+      "adxTertiary": 0,
+      "adxPeriodLabels": {
+        "main": "1h",
+        "secondary": "4h",
+        "tertiary": "4h"
+      }
+    }
+  },
+  {
+    "symbol": "ETH/USDT",
+    "timestamp": 1776529618114,
+    "strategyId": "strategy_001",
+    "direction": "IDLE",
+    "confidence": 15,
+    "score": 35,
+    "riskLevel": "MEDIUM",
+    "isBullish": false,
+    "reasoning": "价格2367.73在EMA20(2380.25)和EMA50(2375.99)下方，但高于EMA120(2343.62)，EMA排列显示短期偏弱但长期支撑，趋势不一致。RSI(14)为43.99处于中性区域，无超买超卖信号。MACD为-8.3657，信号线为-3.0677，柱状图为-5.2980，显示负动量但未强化。ADX(1h)为26.49和ADX(4h)为22.98均低于25，表明趋势强度弱。ATR(14)为17.8504提供风险参考，但OI趋势flat且变化0.00%显示市场犹豫。综合来看，缺乏明确方向优势，风险回报比不佳，优先选择IDLE。",
+    "technicalData": {
+      "price": 2367.73,
+      "EMA120": 2343.621559237813,
+      "EMA20": 2380.250686006757,
+      "EMA50": 2375.9996041879044,
+      "rsi": 43.99,
+      "macd": -8.365714088453387,
+      "macdSignal": -3.0676710165922394,
+      "macdHistogram": -5.298043071861148,
+      "volume": 104197.185,
+      "adxMain": 26.489853676737468,
+      "adxSecondary": 22.97524805646763,
+      "adxTertiary": 0,
+      "adxPeriodLabels": {
+        "main": "1h",
+        "secondary": "4h",
+        "tertiary": "4h"
+      }
+    }
+  },
+  {
+    "symbol": "DOGE/USDT",
+    "timestamp": 1776529625661,
+    "strategyId": "strategy_001",
+    "direction": "IDLE",
+    "confidence": 15,
+    "score": 30,
+    "riskLevel": "MEDIUM",
+    "isBullish": false,
+    "reasoning": "价格0.0960低于EMA20(0.0974)、EMA50(0.0977)和EMA120(0.0964)，EMA排列呈空头趋势，但RSI(14)为34.18处于中性偏弱区域，MACD(-0.0008, -0.0006, -0.0003)显示负值但柱状图较小，ADX(1h)30.14和ADX(4h)39.76表明趋势强度中等，ATR(0.0009)显示低波动性，OI趋势flat且变化0.00%缺乏新资金流入，动量不足且风险回报比不佳，无明确优势信号。",
+    "technicalData": {
+      "price": 0.096,
+      "EMA120": 0.0963575675817928,
+      "EMA20": 0.09738019089087066,
+      "EMA50": 0.09767204181830098,
+      "rsi": 34.18,
+      "macd": -0.0008371512212674015,
+      "macdSignal": -0.0005693529343036312,
+      "macdHistogram": -0.0002677982869637703,
+      "volume": 144812102,
+      "adxMain": 30.14447296329789,
+      "adxSecondary": 39.76494351527729,
+      "adxTertiary": 0,
+      "adxPeriodLabels": {
+        "main": "1h",
+        "secondary": "4h",
+        "tertiary": "4h"
+      }
+    }
+  },
+  {
+    "symbol": "HYPE/USDT",
+    "timestamp": 1776529634179,
+    "strategyId": "strategy_001",
+    "direction": "IDLE",
+    "confidence": 15,
+    "score": 40,
+    "riskLevel": "MEDIUM",
+    "isBullish": false,
+    "reasoning": "价格44.4310接近EMA50（44.4357）和EMA20（44.5275），EMA排列为EMA20>EMA50>EMA120（44.5275>44.4357>43.8533），显示轻微看涨排列但价格未明显突破。RSI(14)为49.00，处于中性区域。MACD为-0.0215，信号线为0.0383，柱状图为-0.0597，显示看跌动量但较弱。ADX(1h)为13.04，ADX(4h)为35.23，4小时趋势强度中等但1小时趋势弱。ATR(14)为0.4438，显示低波动性。OI趋势为flat，无明确方向。整体技术指标缺乏一致性，趋势不明确，风险回报比不佳，因此选择IDLE。",
+    "technicalData": {
+      "price": 44.431,
+      "EMA120": 43.853344778299174,
+      "EMA20": 44.52752480204492,
+      "EMA50": 44.435675119732906,
+      "rsi": 49,
+      "macd": -0.021468283216890427,
+      "macdSignal": 0.03825942181235292,
+      "macdHistogram": -0.05972770502924335,
+      "volume": 123903.75,
+      "adxMain": 13.044505516219138,
+      "adxSecondary": 35.23286904939315,
+      "adxTertiary": 0,
+      "adxPeriodLabels": {
+        "main": "1h",
+        "secondary": "4h",
+        "tertiary": "4h"
+      }
+    }
+  }
+]
