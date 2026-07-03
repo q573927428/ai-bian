@@ -102,6 +102,13 @@
             <el-input-number v-model="form.monitorInterval" :min="1" :max="600" :step="1" />
           </el-form-item>
 
+          <!-- 初始本金配置 -->
+          <el-divider content-position="left">初始本金配置</el-divider>
+          <el-form-item label="初始本金 (USDT)">
+            <el-input-number v-model="form.initialCapital" :min="0" :step="100" :precision="2" />
+            <span style="margin-left: 8px; font-size: 12px; color: #909399;">用于年化收益率计算，追加资金时请同步更新此值</span>
+          </el-form-item>
+
           <!-- 图表标记控制配置 -->
           <el-divider content-position="left">图表标记控制</el-divider>
           <template v-if="form.chartMarkerConfig">

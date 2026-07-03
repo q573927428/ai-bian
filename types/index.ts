@@ -191,6 +191,8 @@ export interface BotConfig {
   commissionRate: number
   concurrencyPool?: BotConcurrencyConfig
   chartMarkerConfig?: ChartMarkerConfig
+  /** 初始本金（USDT），用于计算年化收益率。未设置时年化显示为 0 */
+  initialCapital?: number
 }
 
 // ==================== 仓位与订单 ====================

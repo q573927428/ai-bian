@@ -275,6 +275,14 @@ function formatBalance(value: number): string {
 const annualizedReturn = computed(() => {
   const netProfit = totalPnL.value
 
+  // 从配置中读取用户设置的初始本金
+  const initialCapital = botStore.botConfig?.initialCapital || 0
+
+  // 未设置初始本金时显示提示
+  if (initialCapital <= 0) {
+    return 0
+  }
+
   // 获取最早策略创建时间作为起始运行时间
   const creationTimes = strategiesStore.strategies
     .map(s => s.createdAt ? new Date(s.createdAt).getTime() : 0)
@@ -287,14 +295,6 @@ const annualizedReturn = computed(() => {
   const daysElapsed = (now - earliestTime) / (1000 * 60 * 60 * 24)
 
   if (daysElapsed <= 0) return 0
-
-  const totalBalance = usdtBalance.value?.total || 0
-  const initialCapital = totalBalance - netProfit
-
-  // 处理极端情况：本金不足（如净收益覆盖全部余额）
-  if (initialCapital <= 0 || !isFinite(initialCapital)) {
-    return netProfit > 0 ? Infinity : 0
-  }
 
   // 年化收益率 = (总净收益 / 初始本金) * (365 / 运行天数) * 100%
   return (netProfit / initialCapital) * (365 / daysElapsed) * 100

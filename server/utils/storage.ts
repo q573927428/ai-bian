@@ -312,5 +312,6 @@ function getDefaultBotConfig(): BotConfig {
       showOrderMarkers: true, // 显示历史订单开仓平仓标记
       showEMALines: true, // 显示EMA快慢线
     },
+    initialCapital: 0, // 初始本金（USDT），需用户在配置中设置
   }
 }
