@@ -33,24 +33,27 @@ export function formatTime(timestamp: number): string {
  * @param price 价格
  * @returns 格式化后的价格字符串
  */
-export function formatPrice(price: number): string {
-  if (price === null || price === undefined || isNaN(price)) return '--'
-  if (price === 0) return '0'
-  
-  if (price < 0.001) {
-    return price.toFixed(6)
-  } else if (price < 1) {
-    return price.toFixed(4)
-  } else if (price < 1000) {
-    return price.toFixed(3)
-  } else if (price < 10000) {
-    return price.toFixed(2)
-  } else {
-    return price.toLocaleString('en-US', {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2
-    })
+export function formatPrice(value: number | undefined | null): string {
+  if (value == null || isNaN(value) || !isFinite(value)) return '--'
+  if (value === 0) return '0'
+
+  const absVal = Math.abs(value)
+  let maxFractionDigits = 2
+
+  if (absVal < 0.001) {
+    maxFractionDigits = 6
+  } else if (absVal < 0.01) {
+    maxFractionDigits = 5
+  } else if (absVal < 0.1) {
+    maxFractionDigits = 4
+  } else if (absVal < 1) {
+    maxFractionDigits = 3
   }
+
+  return value.toLocaleString('en-US', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: maxFractionDigits,
+  })
 }
 
 /**

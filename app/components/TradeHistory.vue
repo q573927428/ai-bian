@@ -145,39 +145,39 @@
               </div>
               <div class="detail-item">
                 <span class="detail-label">止损价</span>
-                <span class="detail-value">${{ row.stopLossPrice?.toFixed(2) ?? '--' }}</span>
+                <span class="detail-value">${{ formatPrice(row.stopLossPrice) }}</span>
               </div>
               <div class="detail-item">
                 <span class="detail-label">止盈1价</span>
-                <span class="detail-value">${{ row.takeProfit1Price?.toFixed(2) ?? '--' }}</span>
+                <span class="detail-value">${{ formatPrice(row.takeProfit1Price) }}</span>
               </div>
               <div class="detail-item">
                 <span class="detail-label">止盈2价</span>
-                <span class="detail-value">${{ row.takeProfit2Price?.toFixed(2) ?? '--' }}</span>
+                <span class="detail-value">${{ formatPrice(row.takeProfit2Price) }}</span>
               </div>
               <div class="detail-item">
                 <span class="detail-label">最高价</span>
-                <span class="detail-value">${{ row.highestPrice?.toFixed(2) ?? '--' }}</span>
+                <span class="detail-value">${{ formatPrice(row.highestPrice) }}</span>
               </div>
               <div class="detail-item">
                 <span class="detail-label">最低价</span>
-                <span class="detail-value">${{ row.lowestPrice?.toFixed(2) ?? '--' }}</span>
+                <span class="detail-value">${{ formatPrice(row.lowestPrice) }}</span>
               </div>
               <div class="detail-item">
                 <span class="detail-label">最大浮盈</span>
-                <span class="detail-value text-success">${{ row.maxFloatingProfit?.toFixed(2) ?? '--' }}</span>
+                <span class="detail-value text-success">${{ formatPrice(row.maxFloatingProfit) }}</span>
               </div>
               <div class="detail-item">
                 <span class="detail-label">最大浮亏</span>
-                <span class="detail-value text-danger">${{ row.maxFloatingLoss?.toFixed(2) ?? '--' }}</span>
+                <span class="detail-value text-danger">${{ formatPrice(row.maxFloatingLoss) }}</span>
               </div>
               <div class="detail-item">
                 <span class="detail-label">最大浮盈%</span>
-                <span class="detail-value text-success">{{ row.maxFloatingProfitPercent?.toFixed(2) ?? '--' }}%</span>
+                <span class="detail-value text-success">{{ formatPrice(row.maxFloatingProfitPercent) }}%</span>
               </div>
               <div class="detail-item">
                 <span class="detail-label">最大浮亏%</span>
-                <span class="detail-value text-danger">{{ row.maxFloatingLossPercent?.toFixed(2) ?? '--' }}%</span>
+                <span class="detail-value text-danger">{{ formatPrice(row.maxFloatingLossPercent) }}%</span>
               </div>
             </div>
             <div v-if="row.entryIndicators" class="detail-section">
@@ -236,7 +236,7 @@
         sortable="custom"
       >
         <template #default="{ row }">
-          ${{ row.entryPrice?.toFixed(2) }}
+          ${{ formatPrice(row.entryPrice) }}
         </template>
       </el-table-column>
 
@@ -248,7 +248,7 @@
         sortable="custom"
       >
         <template #default="{ row }">
-          ${{ row.exitPrice?.toFixed(2) }}
+          ${{ formatPrice(row.exitPrice) }}
         </template>
       </el-table-column>
 
@@ -433,6 +433,30 @@ function getRiskLevelType(level?: string): 'success' | 'warning' | 'danger' | 'i
     HIGH: 'danger',
   }
   return level ? types[level] || 'info' : 'info'
+}
+
+// 格式化价格（根据价格大小动态小数位）
+function formatPrice(value: number | undefined | null): string {
+  if (value == null || isNaN(value) || !isFinite(value)) return '--'
+  if (value === 0) return '0'
+
+  const absVal = Math.abs(value)
+  let maxFractionDigits = 2
+
+  if (absVal < 0.001) {
+    maxFractionDigits = 6
+  } else if (absVal < 0.01) {
+    maxFractionDigits = 5
+  } else if (absVal < 0.1) {
+    maxFractionDigits = 4
+  } else if (absVal < 1) {
+    maxFractionDigits = 3
+  }
+
+  return value.toLocaleString('en-US', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: maxFractionDigits,
+  })
 }
 
 // 本地筛选条件（与 store 同步）
@@ -776,5 +800,3 @@ onUnmounted(() => {
   margin-left: 1px;
 }
 </style>
-
-
