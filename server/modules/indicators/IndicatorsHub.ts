@@ -74,6 +74,7 @@ export class IndicatorsHub {
 
   // 进行中的请求
   private pendingRequests: Map<string, Promise<any>> = new Map()
+  private oiHistoryCache: Map<string, { data: Array<{ timestamp: number; openInterest: number }>; timestamp: number }> = new Map()
 
   // 定时更新定时器
   private updateTimer: NodeJS.Timeout | null = null
@@ -124,6 +125,49 @@ export class IndicatorsHub {
       case '1d': return 1440
       default: return 15
     }
+  }
+
+  private getOiHistoryTtl(timeframe: Timeframe): number {
+    switch (timeframe) {
+      case '5m': return 120 * 1000
+      case '15m': return 300 * 1000
+      case '1h': return 600 * 1000
+      case '4h': return 30 * 60 * 1000
+      case '1d': return 60 * 60 * 1000
+      default: return 300 * 1000
+    }
+  }
+
+  private async getCachedOIHistory(
+    symbol: string,
+    timeframe: Timeframe,
+    limitCandles: number
+  ): Promise<Array<{ timestamp: number; openInterest: number }>> {
+    const cacheKey = `${symbol}_${timeframe}_${limitCandles}`
+    const now = Date.now()
+    const cached = this.oiHistoryCache.get(cacheKey)
+    if (cached && now - cached.timestamp < this.getOiHistoryTtl(timeframe)) {
+      return cached.data
+    }
+
+    const pendingKey = `${cacheKey}_OI_HISTORY`
+    const pending = this.pendingRequests.get(pendingKey)
+    if (pending) {
+      return await pending
+    }
+
+    const requestPromise = this.binance
+      .fetchOpenInterestHistory(symbol, timeframe, undefined, limitCandles)
+      .then((data) => {
+        this.oiHistoryCache.set(cacheKey, { data, timestamp: Date.now() })
+        return data
+      })
+      .finally(() => {
+        this.pendingRequests.delete(pendingKey)
+      })
+
+    this.pendingRequests.set(pendingKey, requestPromise)
+    return await requestPromise
   }
 
   /**
@@ -505,12 +549,7 @@ export class IndicatorsHub {
       let trend: 'increasing' | 'decreasing' | 'flat' = 'flat'
 
       // 获取历史 OI 序列（用于计算变化率）
-      const oiHistory = await this.binance.fetchOpenInterestHistory(
-        symbol,
-        timeframe,
-        undefined,
-        limitCandles
-      )
+      const oiHistory = await this.getCachedOIHistory(symbol, timeframe, limitCandles)
 
       if (oiHistory && oiHistory.length >= 2) {
         const oldestOI = oiHistory[0]?.openInterest ?? 0

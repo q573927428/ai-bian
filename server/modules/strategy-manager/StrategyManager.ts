@@ -13,6 +13,8 @@ import { StrategyEngine } from '../strategy-engine/StrategyEngine'
 import { IndicatorsHub } from '../indicators/IndicatorsHub'
 import { logger } from '../../utils/logger'
 import { saveBotConfig } from '../../utils/storage'
+import { concurrencyPoolManager } from '../../utils/concurrency-pool'
+import { binanceApiGateway } from '../../utils/binance-api-gateway'
 
 /**
  * 策略管理器
@@ -342,6 +344,12 @@ export class StrategyManager {
     
     // 保存配置到文件
     await saveBotConfig(config)
+    concurrencyPoolManager.updateConfig({
+      indicatorConcurrency: config.concurrencyPool?.indicator?.maxConcurrency,
+      aiConcurrency: config.concurrencyPool?.ai?.maxConcurrency,
+      tradeApiConcurrency: config.concurrencyPool?.tradeApi?.maxConcurrency
+    })
+    binanceApiGateway.updateConfig(config.binanceRateLimit)
     
     // 通知引擎更新配置
     this.engine.updateConfig(config)

@@ -9,6 +9,7 @@ import type { Strategy } from '../../../types/strategy'
 import type { BotConfig, Position } from '../../../types'
 import { checkTP1Condition, checkTP2Condition, isPositionTimeout, convertStrategyRiskConfig } from '../../utils/risk'
 import { IndicatorsHub } from '../indicators/IndicatorsHub'
+import { priceCacheService } from '../market-data/PriceCacheService'
 
 /**
  * 多策略持仓监控模块
@@ -123,9 +124,16 @@ export class StrategyPositionMonitor {
     // 计数只在 0~logEvery-1 之间循环，避免理论上的溢出
     this.monitorCount = (this.monitorCount + 1) % logEvery
 
+    let exchangePositions: Position[] | undefined
+    try {
+      exchangePositions = await this.binance.fetchPositions()
+    } catch (error: any) {
+      logger.warn('鎸佷粨鐩戞帶', `批量获取交易所持仓失败，将回退到单仓检查: ${error.message}`)
+    }
+
     for (const position of positions) {
       try {
-        await this.monitorSinglePosition(position)
+        await this.monitorSinglePosition(position, exchangePositions)
       } catch (error: any) {
         logger.error('持仓监控', `监控 ${position.symbol} 失败: ${error.message}`)
       }
@@ -139,7 +147,7 @@ export class StrategyPositionMonitor {
     
     for (const position of positions) {
       try {
-        const currentPrice = await this.binance.fetchPrice(position.symbol)
+        const currentPrice = await priceCacheService.getPrice(this.binance, position.symbol)
         
         // 计算盈亏
         const priceDiff = position.direction === 'long' 
@@ -169,17 +177,17 @@ export class StrategyPositionMonitor {
   /**
    * 监控单个持仓
    */
-  private async monitorSinglePosition(position: PositionInfo): Promise<void> {
+  private async monitorSinglePosition(position: PositionInfo, exchangePositions?: Position[]): Promise<void> {
     const symbol = position.symbol
     
     // 1. 首先检查持仓一致性，防止本地状态与交易所不一致
-    const isConsistent = await this.positionCloser.checkPositionConsistency(symbol)
+    const isConsistent = await this.positionCloser.checkPositionConsistency(symbol, exchangePositions)
     if (!isConsistent) {
       logger.info('持仓监控', `${symbol} 持仓已不一致，跳过本次监控`)
       return
     }
 
-    const currentPrice = await this.binance.fetchPrice(symbol)
+    const currentPrice = await priceCacheService.getPrice(this.binance, symbol)
 
     // 更新仓位最高价/最低价
     this.updatePositionExtremes(position, currentPrice)

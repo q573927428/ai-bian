@@ -3,8 +3,8 @@
   <el-dialog
     v-model="visible"
     title="请输入密码验证"
-    width="400px"
     :close-on-click-modal="false"
+    :style="{ width: '90%', maxWidth: '400px' }"
     @closed="handleClosed"
   >
     <el-form :model="form" label-width="0">
@@ -120,3 +120,6 @@ watch(visible, async (newVal) => {
   }
 })
 </script>
+
+
+

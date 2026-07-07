@@ -7,7 +7,7 @@ import { saveBotState } from '../../utils/storage'
 import { calculatePnL, checkCircuitBreaker } from '../../utils/trade-helpers'
 import { recordTrade } from './helpers/trade-recorder'
 import { PositionStatus } from '../../../types'
-import type { BotConfig, BotState, Order } from '../../../types'
+import type { BotConfig, BotState, Order, Position } from '../../../types'
 
 /**
  * 多策略平仓模块
@@ -406,14 +406,14 @@ export class StrategyPositionCloser {
    * 检查持仓一致性（新增方法）
    * 验证本地持仓状态与交易所实际状态是否一致
    */
-  async checkPositionConsistency(symbol: string): Promise<boolean> {
+  async checkPositionConsistency(symbol: string, exchangePositionsSnapshot?: Position[]): Promise<boolean> {
     const position = this.positionManager.getPosition(symbol)
     if (!position) {
       logger.warn('持仓一致性检查', `未找到本地仓位: ${symbol}`)
       return false
     }
 
-    const exchangePositions = await this.binance.fetchPositions(symbol)
+    const exchangePositions = exchangePositionsSnapshot ?? await this.binance.fetchPositions(symbol)
   
     const hasPositionOnExchange = exchangePositions.some(p => {
       const exchangeSymbol = p.symbol.replace(':USDT', '')

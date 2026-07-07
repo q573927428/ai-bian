@@ -27,6 +27,7 @@ export interface AICallOptions {
   temperature?: number
   maxTokens?: number
   responseFormat?: { type: 'json_object' | 'text' }
+  timeoutMs?: number
 }
 
 /**
@@ -91,7 +92,8 @@ export async function callAIAPI(
   const {
     temperature = 0.5,
     maxTokens = 1000,
-    responseFormat = { type: 'json_object' }
+    responseFormat = { type: 'json_object' },
+    timeoutMs = 45000
   } = options
 
   // 检查 API Key 是否配置
@@ -113,14 +115,22 @@ export async function callAIAPI(
     requestBody.response_format = responseFormat
   }
 
-  const response = await fetch(`${providerConfig.apiUrl}/chat/completions`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${providerConfig.apiKey}`,
-    },
-    body: JSON.stringify(requestBody),
-  })
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), timeoutMs)
+  let response: Response
+  try {
+    response = await fetch(`${providerConfig.apiUrl}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${providerConfig.apiKey}`,
+      },
+      body: JSON.stringify(requestBody),
+      signal: controller.signal,
+    })
+  } finally {
+    clearTimeout(timeout)
+  }
 
   if (!response.ok) {
     throw new Error(`API请求失败: ${response.statusText}`)
@@ -170,6 +180,8 @@ export function extractJSONContent(content: string): string {
 
   // 尝试修复常见的 JSON 错误
   let cleaned = content
+    // 移除所有控制字符（U+0000-U+001F），这些字符在 JSON 字符串中必须转义，否则 JSON.parse 失败
+    .replace(/[\x00-\x1F]/g, '')
     .replace(/,\s*}/g, '}') // 移除多余的逗号
     .replace(/,\s*]/g, ']') // 移除多余的逗号
     .replace(/([{,]\s*)([a-zA-Z_][a-zA-Z0-9_]*)\s*:/g, '$1"$2":') // 给未加引号的键名添加引号

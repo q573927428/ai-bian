@@ -449,11 +449,24 @@ export class PositionManager {
    */
   getPositionStats(): {
     totalPositions: number
+    longPositions: number
+    shortPositions: number
     totalLocked: number
     strategiesWithPositions: number
   } {
+    let longPositions = 0
+    let shortPositions = 0
+    for (const position of this.positions.values()) {
+      if (position.direction === 'long') {
+        longPositions++
+      } else if (position.direction === 'short') {
+        shortPositions++
+      }
+    }
     return {
       totalPositions: this.positions.size,
+      longPositions,
+      shortPositions,
       totalLocked: this.symbolLocks.size,
       strategiesWithPositions: this.strategyPositions.size
     }

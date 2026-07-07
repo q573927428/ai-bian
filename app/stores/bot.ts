@@ -24,6 +24,14 @@ export const useBotStore = defineStore('bot', {
     cryptoBalances: [] as CryptoBalance[],
     isLoading: false,
     error: null as string | null,
+
+    // 性能与限流状态
+    rateLimit: null as any | null,
+    performance: null as any | null,
+    performanceLoading: false,
+    rateLimitLoading: false,
+    performanceError: null as string | null,
+    rateLimitError: null as string | null,
     
     // 共享轮询管理
     pollingSubscribers: new Map<string, () => void>(), // 改为Map，存储订阅者ID和回调函数
@@ -261,6 +269,42 @@ export const useBotStore = defineStore('bot', {
     // 获取所有价格
     getAllPrices() {
       return this.prices
+    },
+
+    // ========== 限流与性能状态 ==========
+
+    async fetchRateLimit() {
+      try {
+        this.rateLimitLoading = true
+        this.rateLimitError = null
+        const response = await $fetch<any>('/api/bot/rate-limit')
+        if (response.success) {
+          this.rateLimit = response.data
+        } else {
+          this.rateLimitError = response.message || '获取限流状态失败'
+        }
+      } catch (error: any) {
+        this.rateLimitError = error.message || '获取限流状态失败'
+      } finally {
+        this.rateLimitLoading = false
+      }
+    },
+
+    async fetchPerformance() {
+      try {
+        this.performanceLoading = true
+        this.performanceError = null
+        const response = await $fetch<any>('/api/bot/performance')
+        if (response.success) {
+          this.performance = response.data
+        } else {
+          this.performanceError = response.message || '获取性能状态失败'
+        }
+      } catch (error: any) {
+        this.performanceError = error.message || '获取性能状态失败'
+      } finally {
+        this.performanceLoading = false
+      }
     },
 
     // ========== 状态管理 ==========

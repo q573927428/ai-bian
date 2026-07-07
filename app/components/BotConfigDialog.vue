@@ -8,134 +8,233 @@
     <el-dialog
       v-model="showConfigDialog"
       title="⚙️ 机器人配置"
-      width="80%"
+      width="70%"
       :fullscreen="isMobile"
       :close-on-click-modal="false"
       @closed="handleClosed"
     >
       <div v-loading="loading" class="config-container">
-        <el-form v-if="form" :model="form" :label-width="isMobile ? '150px' : '180px'">
-          <!-- 交易对配置 -->
-          <el-divider content-position="left">交易对配置</el-divider>
-          <el-form-item label="交易对列表">
-            <el-select
-              v-model="form.symbols"
-              multiple
-              filterable
-              allow-create
-              placeholder="选择或输入交易对"
-              style="width: 180px"
-            >
-              <el-option
-                v-for="symbol in availableSymbols"
-                :key="symbol"
-                :label="symbol"
-                :value="symbol"
-              />
-            </el-select>
-          </el-form-item>
+        <el-form v-if="form" :model="form" :label-width="isMobile ? '120px' : '130px'" label-position="left">
+          <!-- ============ 交易对配置 ============ -->
+          <div class="config-section">
+            <el-divider content-position="left">1. 交易对配置</el-divider>
+            <div class="config-grid">
+              <el-form-item label="交易对列表" class="grid-full">
+                <el-select
+                  v-model="form.symbols"
+                  multiple
+                  filterable
+                  allow-create
+                  placeholder="选择或输入交易对"
+                  style="width: 100%"
+                >
+                  <el-option
+                    v-for="symbol in availableSymbols"
+                    :key="symbol"
+                    :label="symbol"
+                    :value="symbol"
+                  />
+                </el-select>
+              </el-form-item>
+            </div>
+          </div>
 
-          <!-- 指标配置 -->
-          <el-divider content-position="left">指标配置</el-divider>
-          <el-form-item label="所需K线数量">
-            <el-input-number v-model="form.indicatorsConfig.requiredCandles" :min="100" :max="5000" />
-          </el-form-item>
-          <el-form-item label="ADX斜率周期">
-            <el-input-number v-model="form.indicatorsConfig.adxSlopePeriod" :min="1" :max="20" />
-          </el-form-item>
-          <el-form-item label="EMA斜率周期">
-            <el-input-number v-model="form.indicatorsConfig.emaSlopePeriod" :min="1" :max="20" />
-          </el-form-item>
+          <!-- ============ K线周期配置 ============ -->
+          <div class="config-section">
+            <el-divider content-position="left">2. K线周期配置</el-divider>
+            <div class="config-grid">
+              <el-form-item label="默认K线周期">
+                <el-select v-model="form.defaultTimeframe" style="width: 140px">
+                  <el-option label="5分钟" value="5m" />
+                  <el-option label="15分钟" value="15m" />
+                  <el-option label="1小时" value="1h" />
+                  <el-option label="4小时" value="4h" />
+                  <el-option label="1天" value="1d" />
+                  <el-option label="1周" value="1w" />
+                </el-select>
+              </el-form-item>
+              <el-form-item label="默认K线进度">
+                <el-input-number v-model="form.defaultCandleProgress" :min="0" :max="1" :step="0.05" />
+              </el-form-item>
+            </div>
+          </div>
 
-          <!-- EMA配置 -->
-          <el-divider content-position="left">EMA配置</el-divider>
-          <el-form-item label="快速EMA周期">
-            <el-input-number v-model="form.emaPeriods[0]" :min="1" :max="100" />
-          </el-form-item>
-          <el-form-item label="慢速EMA周期">
-            <el-input-number v-model="form.emaPeriods[1]" :min="1" :max="500" />
-          </el-form-item>
-          <el-form-item label="成交量EMA周期">
-            <el-input-number v-model="form.volumeEmaPeriod" :min="1" :max="30" />
-          </el-form-item>
+          <!-- ============ 指标配置 ============ -->
+          <div class="config-section">
+            <el-divider content-position="left">3. 指标配置</el-divider>
+            <div class="config-grid">
+              <el-form-item label="所需K线数量">
+                <el-input-number v-model="form.indicatorsConfig.requiredCandles" :min="100" :max="5000" />
+              </el-form-item>
+              <el-form-item label="ADX斜率周期">
+                <el-input-number v-model="form.indicatorsConfig.adxSlopePeriod" :min="1" :max="20" />
+              </el-form-item>
+              <el-form-item label="EMA斜率周期">
+                <el-input-number v-model="form.indicatorsConfig.emaSlopePeriod" :min="1" :max="20" />
+              </el-form-item>
+            </div>
+          </div>
 
-          <!-- AI分析配置 -->
-          <el-divider content-position="left">AI分析日志配置</el-divider>
-          <el-form-item label="启用AI分析日志">
-            <el-switch v-model="form.aiAnalysisConfig.enabled" />
-          </el-form-item>
-          <el-form-item label="AI缓存TTL(分钟)">
-            <el-input-number v-model="form.aiCacheTtlMinutes" :min="1" :max="60" />
-          </el-form-item>
-          <el-form-item label="最大缓存记录数">
-            <el-input-number v-model="form.aiAnalysisConfig.maxRecords" :min="100" :max="10000" />
-          </el-form-item>
-          <el-form-item label="保存空闲状态">
-            <el-switch v-model="form.aiAnalysisConfig.saveIdle" />
-          </el-form-item>
-          <el-form-item label="最低置信度(AI)">
-            <el-input-number v-model="form.aiAnalysisConfig.minConfidence" :min="0" :max="100" />
-          </el-form-item>
-          <el-form-item label="启用历史分析经验">
-            <el-switch v-model="form.aiAnalysisConfig.enableHistorySection" />
-            <span style="margin-left: 8px; font-size: 12px; color: #909399;">在系统提示词中包含历史分析经验</span>
-          </el-form-item>
+          <!-- ============ EMA配置 ============ -->
+          <div class="config-section">
+            <el-divider content-position="left">4. EMA配置</el-divider>
+            <div class="config-grid">
+              <el-form-item label="快速EMA周期">
+                <el-input-number v-model="form.emaPeriods[0]" :min="1" :max="100" />
+              </el-form-item>
+              <el-form-item label="慢速EMA周期">
+                <el-input-number v-model="form.emaPeriods[1]" :min="1" :max="500" />
+              </el-form-item>
+              <el-form-item label="成交量EMA周期">
+                <el-input-number v-model="form.volumeEmaPeriod" :min="1" :max="30" />
+              </el-form-item>
+            </div>
+          </div>
 
-          <el-divider content-position="left">交易规则配置</el-divider>
-          <el-form-item label="默认K线周期">
-            <el-select v-model="form.defaultTimeframe" style="width: 180px">
-              <el-option label="5分钟" value="5m" />
-              <el-option label="15分钟" value="15m" />
-              <el-option label="1小时" value="1h" />
-              <el-option label="4小时" value="4h" />
-              <el-option label="1天" value="1d" />
-              <el-option label="1周" value="1w" />
-            </el-select>
-          </el-form-item>
-          <el-form-item label="默认K线进度">
-            <el-input-number v-model="form.defaultCandleProgress" :min="0" :max="1" :step="0.05" />
-          </el-form-item>
-          <el-form-item label="手续费率">
-            <el-input-number v-model="form.commissionRate" :min="0" :max="0.1" :step="0.0001" />
-          </el-form-item>
-          <el-form-item label="持仓监控间隔(秒)">
-            <el-input-number v-model="form.monitorInterval" :min="1" :max="600" :step="1" />
-          </el-form-item>
+          <!-- ============ 交易规则配置 ============ -->
+          <div class="config-section">
+            <el-divider content-position="left">5. 交易规则配置</el-divider>
+            <div class="config-grid">
+              <el-form-item label="手续费率">
+                <el-input-number v-model="form.commissionRate" :min="0" :max="0.1" :step="0.0001" />
+              </el-form-item>
+              <el-form-item label="持仓监控间隔(秒)">
+                <el-input-number v-model="form.monitorInterval" :min="1" :max="600" :step="1" />
+              </el-form-item>
+              <el-form-item label="初始本金 (USDT)" class="hint-wrap">
+                <el-input-number v-model="form.initialCapital" :min="0" :step="100" :precision="2" />
+                <div class="hint-text">用于年化收益率计算</div>
+              </el-form-item>
+            </div>
+          </div>
 
-          <!-- 初始本金配置 -->
-          <el-divider content-position="left">初始本金配置</el-divider>
-          <el-form-item label="初始本金 (USDT)">
-            <el-input-number v-model="form.initialCapital" :min="0" :step="100" :precision="2" />
-            <span style="margin-left: 8px; font-size: 12px; color: #909399;">用于年化收益率计算，追加资金时请同步更新此值</span>
-          </el-form-item>
+          <!-- ============ 策略调度器配置 ============ -->
+          <div class="config-section">
+            <el-divider content-position="left">6. 策略调度器配置</el-divider>
+            <div class="config-grid">
+              <template v-if="form.strategyScheduler">
+                <el-form-item label="每批交易对数量">
+                  <el-input-number v-model="form.strategyScheduler.symbolBatchSize" :min="1" :max="20" />
+                </el-form-item>
+                <el-form-item label="批次间延迟(ms)">
+                  <el-input-number v-model="form.strategyScheduler.symbolBatchDelayMs" :min="1000" :max="30000" :step="500" />
+                </el-form-item>
+                <el-form-item label="循环最大耗时(ms)">
+                  <el-input-number v-model="form.strategyScheduler.maxLoopDurationMs" :min="30000" :max="600000" :step="10000" />
+                </el-form-item>
+              </template>
+            </div>
+          </div>
 
-          <!-- 图表标记控制配置 -->
-          <el-divider content-position="left">图表标记控制</el-divider>
-          <template v-if="form.chartMarkerConfig">
-            <el-form-item label="显示EMA金叉死叉标记">
-              <el-switch v-model="form.chartMarkerConfig.showEMAMarkers" />
-            </el-form-item>
-            <el-form-item label="显示历史订单标记">
-              <el-switch v-model="form.chartMarkerConfig.showOrderMarkers" />
-            </el-form-item>
-            <el-form-item label="显示EMA快慢线">
-              <el-switch v-model="form.chartMarkerConfig.showEMALines" />
-            </el-form-item>
-          </template>
+          <!-- ============ 并发池配置 ============ -->
+          <div class="config-section">
+            <el-divider content-position="left">7. 并发池配置</el-divider>
+            <div class="config-grid">
+              <template v-if="form.concurrencyPool">
+                <el-form-item label="指标计算并发数">
+                  <el-input-number v-model="form.concurrencyPool.indicator.maxConcurrency" :min="1" :max="64" :step="1" />
+                </el-form-item>
+                <el-form-item label="交易API并发数">
+                  <el-input-number v-model="form.concurrencyPool.tradeApi.maxConcurrency" :min="1" :max="16" :step="1" />
+                </el-form-item>
+              </template>
+            </div>
+          </div>
 
-          <!-- 并发池配置 -->
-          <el-divider content-position="left">并发池配置</el-divider>
-          <template v-if="form.concurrencyPool">
-            <el-form-item label="指标计算并发数">
-              <el-input-number v-model="form.concurrencyPool.indicator.maxConcurrency" :min="1" :max="64" :step="1" />
-            </el-form-item>
-            <el-form-item label="AI分析并发数">
-              <el-input-number v-model="form.concurrencyPool.ai.maxConcurrency" :min="1" :max="32" :step="1" />
-            </el-form-item>
-            <el-form-item label="交易API并发数">
-              <el-input-number v-model="form.concurrencyPool.tradeApi.maxConcurrency" :min="1" :max="16" :step="1" />
-            </el-form-item>
-          </template>
+          <!-- ============ AI限流配置 ============ -->
+          <div class="config-section">
+            <el-divider content-position="left">8. AI限流配置</el-divider>
+            <div class="config-grid">
+              <template v-if="form.aiRateLimit">
+                <el-form-item label="最大并发数">
+                  <el-input-number v-model="form.aiRateLimit.maxConcurrent" :min="1" :max="16" />
+                </el-form-item>
+                <el-form-item label="每分钟最大请求数">
+                  <el-input-number v-model="form.aiRateLimit.maxRequestsPerMinute" :min="1" :max="120" />
+                </el-form-item>
+                <el-form-item label="每次扫描最大请求数">
+                  <el-input-number v-model="form.aiRateLimit.maxRequestsPerScan" :min="1" :max="200" />
+                </el-form-item>
+                <el-form-item label="请求超时(ms)">
+                  <el-input-number v-model="form.aiRateLimit.timeoutMs" :min="5000" :max="120000" :step="5000" />
+                </el-form-item>
+                <el-form-item label="错误后冷却(ms)">
+                  <el-input-number v-model="form.aiRateLimit.cooldownAfterErrorMs" :min="5000" :max="300000" :step="5000" />
+                </el-form-item>
+              </template>
+            </div>
+          </div>
+
+          <!-- ============ 币安API限频配置 ============ -->
+          <div class="config-section">
+            <el-divider content-position="left">9. 币安API限频配置</el-divider>
+            <div class="config-grid">
+              <template v-if="form.binanceRateLimit">
+                <el-form-item label="行情数据并发数">
+                  <el-input-number v-model="form.binanceRateLimit.marketDataConcurrency" :min="1" :max="10" />
+                </el-form-item>
+                <el-form-item label="账户查询并发数">
+                  <el-input-number v-model="form.binanceRateLimit.accountConcurrency" :min="1" :max="5" />
+                </el-form-item>
+                <el-form-item label="交易API并发数">
+                  <el-input-number v-model="form.binanceRateLimit.tradeConcurrency" :min="1" :max="5" />
+                </el-form-item>
+                <el-form-item label="权重使用率上限">
+                  <el-input-number v-model="form.binanceRateLimit.maxUsedWeight1mRatio" :min="0.1" :max="1" :step="0.05" />
+                </el-form-item>
+                <el-form-item label="重试基时(ms)">
+                  <el-input-number v-model="form.binanceRateLimit.retryBaseMs" :min="100" :max="10000" :step="100" />
+                </el-form-item>
+                <el-form-item label="重试最大间隔(ms)">
+                  <el-input-number v-model="form.binanceRateLimit.retryMaxMs" :min="1000" :max="300000" :step="1000" />
+                </el-form-item>
+              </template>
+            </div>
+          </div>
+
+          <!-- ============ AI分析日志配置 ============ -->
+          <div class="config-section">
+            <el-divider content-position="left">10. AI分析日志配置</el-divider>
+            <div class="config-grid">
+              <el-form-item label="启用AI分析日志">
+                <el-switch v-model="form.aiAnalysisConfig.enabled" />
+              </el-form-item>
+              <el-form-item label="AI缓存TTL(分钟)">
+                <el-input-number v-model="form.aiCacheTtlMinutes" :min="1" :max="60" />
+              </el-form-item>
+              <el-form-item label="最大缓存记录数">
+                <el-input-number v-model="form.aiAnalysisConfig.maxRecords" :min="100" :max="10000" />
+              </el-form-item>
+              <el-form-item label="保存空闲状态">
+                <el-switch v-model="form.aiAnalysisConfig.saveIdle" />
+              </el-form-item>
+              <el-form-item label="最低置信度(AI)">
+                <el-input-number v-model="form.aiAnalysisConfig.minConfidence" :min="0" :max="100" />
+              </el-form-item>
+              <el-form-item label="启用历史分析经验" class="grid-full">
+                <el-switch v-model="form.aiAnalysisConfig.enableHistorySection" />
+                <span style="margin-left: 8px; font-size: 12px; color: #909399;">在系统提示词中包含历史分析经验</span>
+              </el-form-item>
+            </div>
+          </div>
+
+          <!-- ============ 图表标记控制 ============ -->
+          <div class="config-section">
+            <el-divider content-position="left">11. 图表标记控制</el-divider>
+            <div class="config-grid">
+              <template v-if="form.chartMarkerConfig">
+                <el-form-item label="显示EMA金叉死叉标记">
+                  <el-switch v-model="form.chartMarkerConfig.showEMAMarkers" />
+                </el-form-item>
+                <el-form-item label="显示历史订单标记">
+                  <el-switch v-model="form.chartMarkerConfig.showOrderMarkers" />
+                </el-form-item>
+                <el-form-item label="显示EMA快慢线">
+                  <el-switch v-model="form.chartMarkerConfig.showEMALines" />
+                </el-form-item>
+              </template>
+            </div>
+          </div>
         </el-form>
       </div>
 
@@ -227,6 +326,11 @@ const handleSave = async () => {
     form.value.emaPeriods = [20, 200]
   }
   
+  // AI并发同步：以 AI限流配置 的最大并发数为准，同步到并发池配置
+  if (form.value.aiRateLimit && form.value.concurrencyPool?.ai) {
+    form.value.concurrencyPool.ai.maxConcurrency = form.value.aiRateLimit.maxConcurrent
+  }
+
   saving.value = true
   try {
     const res = await $fetch<any>('/api/bot/config', {
@@ -337,7 +441,7 @@ onUnmounted(() => {
 
 <style scoped>
 .config-container {
-  max-height: 60vh;
+  max-height: 65vh;
   overflow-y: auto;
   padding-right: 10px;
 }
@@ -355,10 +459,50 @@ onUnmounted(() => {
   background: var(--bg-main);
 }
 
+/* 配置区块容器 */
+.config-section {
+  margin-bottom: 8px;
+}
+
+/* 三列网格布局 */
+.config-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 0 12px;
+}
+
+/* 占满整行的表单项（如交易对选择器、带长说明的项） */
+.config-grid .grid-full {
+  grid-column: 1 / -1;
+}
+
+/* 数字输入框自适应宽度，不拉伸 */
+.config-grid :deep(.el-input-number) {
+  width: auto;
+}
+
+/* hint文字换行显示 */
+.config-grid .hint-wrap :deep(.el-form-item__content) {
+  flex-wrap: wrap;
+  gap: 2px;
+}
+.config-grid .hint-text {
+  width: 100%;
+  font-size: 11px;
+  color: #909399;
+  line-height: 1.3;
+}
+
+/* 移动端：单列 */
 @media (max-width: 768px) {
   .config-container {
-    max-height: 70vh;
+    max-height: 80vh;
     padding-right: 5px;
+  }
+
+  .config-grid {
+    grid-template-columns: 1fr;
+    gap: 0;
   }
 }
 </style>

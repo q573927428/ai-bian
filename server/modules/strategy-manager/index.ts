@@ -12,6 +12,8 @@ import type { BotState } from '../../../types'
 import { PositionStatus } from '../../../types'
 import { getSyncService } from '../../utils/kline-sync-service'
 import { initKLineDb } from '../../utils/kline-simple-storage'
+import { concurrencyPoolManager } from '../../utils/concurrency-pool'
+import { binanceApiGateway } from '../../utils/binance-api-gateway'
 
 let strategyManager: StrategyManager | null = null
 
@@ -39,6 +41,12 @@ export async function initStrategyManager(): Promise<StrategyManager> {
       logger.warn('StrategyManager', `Binance服务初始化失败: ${error.message}，部分功能可能受限`)
     }
     const config = await loadBotConfig()
+    concurrencyPoolManager.updateConfig({
+      indicatorConcurrency: config.concurrencyPool?.indicator?.maxConcurrency,
+      aiConcurrency: config.concurrencyPool?.ai?.maxConcurrency,
+      tradeApiConcurrency: config.concurrencyPool?.tradeApi?.maxConcurrency
+    })
+    binanceApiGateway.updateConfig(config.binanceRateLimit)
 
     // 初始化指标中心
     const indicatorsHub = IndicatorsHub.getInstance(binanceService, config)

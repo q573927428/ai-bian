@@ -170,6 +170,29 @@ export interface BotConcurrencyConfig {
   tradeApi: { maxConcurrency: number }
 }
 
+export interface BotStrategySchedulerConfig {
+  symbolBatchSize: number
+  symbolBatchDelayMs: number
+  maxLoopDurationMs: number
+}
+
+export interface BotAIRateLimitConfig {
+  maxConcurrent: number
+  maxRequestsPerMinute: number
+  maxRequestsPerScan: number
+  timeoutMs: number
+  cooldownAfterErrorMs: number
+}
+
+export interface BotBinanceRateLimitConfig {
+  marketDataConcurrency: number
+  accountConcurrency: number
+  tradeConcurrency: number
+  maxUsedWeight1mRatio: number
+  retryBaseMs: number
+  retryMaxMs: number
+}
+
 // 图表标记控制配置
 export interface ChartMarkerConfig {
   showEMAMarkers?: boolean
@@ -190,6 +213,9 @@ export interface BotConfig {
   defaultCandleProgress: number
   commissionRate: number
   concurrencyPool?: BotConcurrencyConfig
+  strategyScheduler?: BotStrategySchedulerConfig
+  aiRateLimit?: BotAIRateLimitConfig
+  binanceRateLimit?: BotBinanceRateLimitConfig
   chartMarkerConfig?: ChartMarkerConfig
   /** 初始本金（USDT），用于计算年化收益率。未设置时年化显示为 0 */
   initialCapital?: number

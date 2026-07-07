@@ -6,6 +6,7 @@ import {
   clearTimeout as nodeClearTimeout
 } from 'node:timers'
 import { EventEmitter } from 'node:events'
+import { binanceApiGateway } from '../../utils/binance-api-gateway'
 
 // Binance K线数据接口
 interface BinanceKLine {
@@ -40,6 +41,7 @@ export class KLineSimpleSyncService {
   private eventEmitter: EventEmitter
   // 高频同步定时器
   private highFrequencyTimer: NodeJS.Timeout | null = null
+  private exchangeInfoCache: { data: any; timestamp: number } | null = null
   // 高频同步间隔（毫秒）
   private readonly HIGH_FREQUENCY_INTERVAL = 120 * 1000
   // 高频同步状态锁
@@ -168,13 +170,17 @@ export class KLineSimpleSyncService {
     quoteAsset: string
   } | null> {
     try {
-      const response = await fetch('https://fapi.binance.com/fapi/v1/exchangeInfo')
-      
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+      const now = Date.now()
+      if (!this.exchangeInfoCache || now - this.exchangeInfoCache.timestamp > 6 * 60 * 60 * 1000) {
+        const data = await binanceApiGateway.fetchJson<any>(
+          'marketData',
+          'exchangeInfo',
+          'https://fapi.binance.com/fapi/v1/exchangeInfo'
+        )
+        this.exchangeInfoCache = { data, timestamp: now }
       }
-      
-      const data = await response.json()
+
+      const data = this.exchangeInfoCache.data
       const symbolInfo = data.symbols.find((s: any) => s.symbol === symbol.replace('/', ''))
       
       if (!symbolInfo) {
@@ -229,13 +235,11 @@ export class KLineSimpleSyncService {
       }
       
       // 发送请求
-      const response = await fetch(url)
-      
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
-      }
-      
-      const data = await response.json()
+      const data = await binanceApiGateway.fetchJson<any[]>(
+        'marketData',
+        `klines:${binanceSymbol}:${interval}:${limit}`,
+        url
+      )
       
       // 解析数据
       return data.map((item: any[]): KLineData => ({

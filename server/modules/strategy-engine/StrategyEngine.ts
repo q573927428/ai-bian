@@ -86,6 +86,7 @@ export class StrategyEngine {
   private globalTimer: NodeJS.Timeout | null = null
   private globalScanInterval: number = 300000 // 默认5分钟
   private immediateRunScheduled: boolean = false // 防抖：确保多个策略同时启动只触发一次立即运行
+  private currentLoopAIRequests: number = 0
 
 
   constructor(
@@ -406,7 +407,13 @@ export class StrategyEngine {
       }
 
       // 按交易对聚合调度
-      for (const [symbol, dueInstances] of symbolStrategies) {
+      const symbolEntries = Array.from(symbolStrategies.entries())
+      const symbolBatchSize = Math.max(1, Number(this.config.strategyScheduler?.symbolBatchSize ?? 3))
+      const symbolBatchDelayMs = Math.max(0, Number(this.config.strategyScheduler?.symbolBatchDelayMs ?? 5000))
+      const maxLoopDurationMs = Math.max(30000, Number(this.config.strategyScheduler?.maxLoopDurationMs ?? 240000))
+      this.currentLoopAIRequests = 0
+
+      const processSymbolEntry = async (symbol: string, dueInstances: StrategyInstance[]): Promise<void> => {
         try {
           // 过滤掉已有仓位的策略
           const activeInstances: StrategyInstance[] = []
@@ -416,7 +423,7 @@ export class StrategyEngine {
             }
           }
 
-          if (activeInstances.length === 0) continue
+          if (activeInstances.length === 0) return
 
           // 构建市场快照（同一交易对只构建一次，复用给所有到期的策略）
           const snapshot = await this.concurrencyPoolManager.getIndicatorPool().submit(async () => {
@@ -435,6 +442,28 @@ export class StrategyEngine {
         } catch (error: any) {
           logger.error('StrategyEngine', `处理交易对失败 ${symbol}: ${error.message}`)
         }
+      }
+
+      for (let symbolIndex = 0; symbolIndex < symbolEntries.length; symbolIndex += symbolBatchSize) {
+        if (Date.now() - loopStartTime > maxLoopDurationMs) {
+          logger.warn('StrategyEngine', `本轮扫描超过最大耗时，剩余 ${symbolEntries.length - symbolIndex} 个交易对顺延`)
+          break
+        }
+        if (symbolIndex > 0 && symbolIndex % symbolBatchSize === 0 && symbolBatchDelayMs > 0) {
+          await new Promise(resolve => setTimeout(resolve, symbolBatchDelayMs))
+        }
+
+        const batch = symbolEntries.slice(symbolIndex, symbolIndex + symbolBatchSize)
+        const results = await Promise.allSettled(
+          batch.map(([symbol, dueInstances]) => processSymbolEntry(symbol, dueInstances))
+        )
+
+        results.forEach((result, batchIndex) => {
+          if (result.status === 'rejected') {
+            const [symbol] = batch[batchIndex]!
+            logger.error('StrategyEngine', `交易对批处理异常 ${symbol}: ${result.reason?.message || result.reason}`)
+          }
+        })
       }
     } catch (error: any) {
       logger.error('StrategyEngine', `全局策略循环异常: ${error.message}`)
@@ -758,6 +787,13 @@ export class StrategyEngine {
       }
 
       // 调用 AI 分析器（内部已有并发池控制，此处不再重复包装）
+      const maxRequestsPerScan = Math.max(1, Number(this.config.aiRateLimit?.maxRequestsPerScan ?? 40))
+      if (this.currentLoopAIRequests >= maxRequestsPerScan) {
+        logger.warn('StrategyEngine', `AI request budget exhausted for this scan, skip ${symbol} [strategy ${strategyId}]`)
+        return null
+      }
+      this.currentLoopAIRequests++
+
       const signal = await this.aiAnalyzer.analyze(
         strategyId,
         symbol,
@@ -1340,6 +1376,10 @@ export class StrategyEngine {
   /**
    * 销毁引擎
    */
+  getAIAnalyzerStatus(): any {
+    return this.aiAnalyzer.getStatus()
+  }
+
   async destroy(): Promise<void> {
     await this.stopAll()
     this.runningStrategies.clear()

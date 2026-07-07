@@ -6,9 +6,14 @@
         <div class="header-content">
           <h1>
             <el-icon style="vertical-align: middle; margin-right: 8px"><ElIconTrendCharts /></el-icon>
-            币安永续合约AI自动交易系统
+            AI自动交易系统
           </h1>
           <div class="header-right">
+            <!-- 运行状态 -->
+            <div class="header-status" @click="showPerformanceDialog = true">
+              <div :class="['status-dot-sm', botStore.state?.isRunning ? 'status-running' : 'status-stopped']" />
+              <span class="header-status-text">{{ botStore.state?.isRunning ? '运行中' : '已停止' }}</span>
+            </div>
             <el-button text size="small" @click="toggleTheme" class="theme-toggle-btn">
               <el-icon :size="18">
                 <ElIconMoon v-if="currentTheme === 'light'" />
@@ -140,6 +145,13 @@
       <ClientOnly>
         <BotConfigDialog v-model="showConfigDialog" @success="handleConfigSuccess" />
       </ClientOnly>
+
+      <!-- 性能面板对话框 -->
+      <ClientOnly>
+        <el-dialog v-model="showPerformanceDialog" title="系统性能面板" :style="{ width: '90%', maxWidth: '600px' }" destroy-on-close>
+          <PerformancePanel />
+        </el-dialog>
+      </ClientOnly>
     </el-container>
   </div>
 </template>
@@ -184,6 +196,7 @@ import Strategies from '../components/Strategies.vue'
 import TradeHistory from '../components/TradeHistory.vue'
 import BotConfigDialog from '../components/BotConfigDialog.vue'
 import ProfitWinRateChart from '../components/ProfitWinRateChart.vue'
+import PerformancePanel from '../components/PerformancePanel.vue'
 
 const botStore = useBotStore()
 const strategiesStore = useStrategiesStore()
@@ -191,6 +204,7 @@ const { theme: currentTheme, toggleTheme } = useTheme()
 
 // 配置对话框
 const showConfigDialog = ref(false)
+const showPerformanceDialog = ref(false)
 
 const handleConfigSuccess = () => {
   // 配置保存成功后的处理
@@ -401,6 +415,51 @@ onMounted(async () => {
 
 .control-panel {
   padding: 4px 0;
+}
+
+/* 头部运行状态指示器 */
+.header-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: background 0.2s ease;
+}
+
+.header-status:hover {
+  background: var(--stat-card-bg);
+}
+
+.status-dot-sm {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.status-running {
+  background: var(--color-success);
+  box-shadow: 0 0 6px var(--color-success);
+  animation: pulse 2s infinite;
+}
+
+.status-stopped {
+  background: var(--color-danger);
+  box-shadow: 0 0 6px var(--color-danger);
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+.header-status-text {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-regular);
+  white-space: nowrap;
 }
 
 .text-success {

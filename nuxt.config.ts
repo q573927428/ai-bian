@@ -1,6 +1,6 @@
 // https://nuxt.com/docs/api/configuration/nuxt-config
 export default defineNuxtConfig({
-  compatibilityDate: '2024-04-03',
+  compatibilityDate: '2026-01-01',
   devtools: { enabled: true },
   
   modules: [
@@ -48,6 +48,14 @@ export default defineNuxtConfig({
     },
   },
   vite: {
+    optimizeDeps: {
+      include: [
+        'dayjs', // CJS
+        'dayjs/plugin/*.js',
+        'lodash-unified',
+        'pinia',
+      ]
+    },
     build: {
       rollupOptions: {
         output: {

@@ -257,7 +257,7 @@ export async function getBotConfig(): Promise<BotConfig> {
       config.volumeEmaPeriod = 12
     }
     
-    return config
+    return normalizeBotConfig(config)
   } catch (error: any) {
     console.error('加载机器人配置失败:', error.message)
     return getDefaultBotConfig()
@@ -270,11 +270,96 @@ export async function getBotConfig(): Promise<BotConfig> {
 export async function saveBotConfig(config: BotConfig): Promise<void> {
   try {
     await ensureDataDir()
-    await safeWriteFile(BOT_CONFIG_FILE, JSON.stringify(config, null, 2))
+    await safeWriteFile(BOT_CONFIG_FILE, JSON.stringify(normalizeBotConfig(config), null, 2))
   } catch (error: any) {
     console.error('保存机器人配置失败:', error.message)
     throw error
   }
+}
+
+function normalizeBotConfig(input: Partial<BotConfig> = {}): BotConfig {
+  const defaults = getDefaultBotConfig()
+  const config: BotConfig = {
+    ...defaults,
+    ...input,
+    symbols: Array.isArray(input.symbols) ? input.symbols : defaults.symbols,
+    indicatorsConfig: {
+      ...defaults.indicatorsConfig,
+      ...(input.indicatorsConfig || {})
+    },
+    aiAnalysisConfig: {
+      ...defaults.aiAnalysisConfig,
+      ...(input.aiAnalysisConfig || {})
+    },
+    concurrencyPool: {
+      indicator: {
+        ...defaults.concurrencyPool!.indicator,
+        ...(input.concurrencyPool?.indicator || {})
+      },
+      ai: {
+        ...defaults.concurrencyPool!.ai,
+        ...(input.concurrencyPool?.ai || {})
+      },
+      tradeApi: {
+        ...defaults.concurrencyPool!.tradeApi,
+        ...(input.concurrencyPool?.tradeApi || {})
+      }
+    },
+    strategyScheduler: {
+      ...defaults.strategyScheduler!,
+      ...(input.strategyScheduler || {})
+    },
+    aiRateLimit: {
+      ...defaults.aiRateLimit!,
+      ...(input.aiRateLimit || {})
+    },
+    binanceRateLimit: {
+      ...defaults.binanceRateLimit!,
+      ...(input.binanceRateLimit || {})
+    },
+    chartMarkerConfig: {
+      ...defaults.chartMarkerConfig,
+      ...(input.chartMarkerConfig || {})
+    }
+  }
+
+  if (!config.emaPeriods || !Array.isArray(config.emaPeriods)) {
+    config.emaPeriods = [14, 50]
+  }
+
+  if (!Number.isFinite(config.volumeEmaPeriod) || Number(config.volumeEmaPeriod) < 2) {
+    config.volumeEmaPeriod = 12
+  }
+
+  config.concurrencyPool!.indicator.maxConcurrency = clampInteger(config.concurrencyPool!.indicator.maxConcurrency, 1, 64, 6)
+  config.concurrencyPool!.ai.maxConcurrency = clampInteger(config.concurrencyPool!.ai.maxConcurrency, 1, 32, 3)
+  config.concurrencyPool!.tradeApi.maxConcurrency = clampInteger(config.concurrencyPool!.tradeApi.maxConcurrency, 1, 16, 1)
+  config.strategyScheduler!.symbolBatchSize = clampInteger(config.strategyScheduler!.symbolBatchSize, 1, 20, 3)
+  config.strategyScheduler!.symbolBatchDelayMs = clampInteger(config.strategyScheduler!.symbolBatchDelayMs, 0, 60000, 5000)
+  config.strategyScheduler!.maxLoopDurationMs = clampInteger(config.strategyScheduler!.maxLoopDurationMs, 30000, 600000, 240000)
+  config.aiRateLimit!.maxConcurrent = clampInteger(config.aiRateLimit!.maxConcurrent, 1, 32, 3)
+  config.aiRateLimit!.maxRequestsPerMinute = clampInteger(config.aiRateLimit!.maxRequestsPerMinute, 1, 120, 20)
+  config.aiRateLimit!.maxRequestsPerScan = clampInteger(config.aiRateLimit!.maxRequestsPerScan, 1, 200, 40)
+  config.aiRateLimit!.timeoutMs = clampInteger(config.aiRateLimit!.timeoutMs, 5000, 180000, 45000)
+  config.aiRateLimit!.cooldownAfterErrorMs = clampInteger(config.aiRateLimit!.cooldownAfterErrorMs, 10000, 600000, 60000)
+  config.binanceRateLimit!.marketDataConcurrency = clampInteger(config.binanceRateLimit!.marketDataConcurrency, 1, 10, 2)
+  config.binanceRateLimit!.accountConcurrency = clampInteger(config.binanceRateLimit!.accountConcurrency, 1, 5, 1)
+  config.binanceRateLimit!.tradeConcurrency = clampInteger(config.binanceRateLimit!.tradeConcurrency, 1, 5, 1)
+  config.binanceRateLimit!.retryBaseMs = clampInteger(config.binanceRateLimit!.retryBaseMs, 250, 30000, 1000)
+  config.binanceRateLimit!.retryMaxMs = clampInteger(config.binanceRateLimit!.retryMaxMs, 1000, 300000, 60000)
+
+  const ratio = Number(config.binanceRateLimit!.maxUsedWeight1mRatio)
+  config.binanceRateLimit!.maxUsedWeight1mRatio = Number.isFinite(ratio)
+    ? Math.min(0.95, Math.max(0.1, ratio))
+    : 0.75
+
+  return config
+}
+
+function clampInteger(value: unknown, min: number, max: number, fallback: number): number {
+  const numberValue = Number(value)
+  if (!Number.isFinite(numberValue)) return fallback
+  return Math.min(max, Math.max(min, Math.floor(numberValue)))
 }
 
 /**
@@ -295,17 +380,37 @@ function getDefaultBotConfig(): BotConfig {
     aiAnalysisConfig: {
       enabled: true, // 是否启用AI分析日志
       maxRecords: 3500, // 单文件最大保存条数
-      saveIdle: true, // 是否保存IDLE分析记录
-      minConfidence: 10,
+      saveIdle: false, // 是否保存IDLE分析记录
+      minConfidence: 30,
       enableHistorySection: false, // 是否在系统提示词中包含历史分析经验
     },
     defaultTimeframe: '1h', // 默认K线周期
     defaultCandleProgress: 0.1, // 默认K线进度（用于无法获取最新K线时兜底）
     commissionRate: 0.0005, // 手续费率
     concurrencyPool: {
-      indicator: { maxConcurrency: 20 }, // 指标计算并发数
-      ai: { maxConcurrency: 20 }, // AI分析并发数
-      tradeApi: { maxConcurrency: 4 }, // 交易API并发数
+      indicator: { maxConcurrency: 8 }, // 指标计算并发数
+      ai: { maxConcurrency: 5 }, // AI分析并发数
+      tradeApi: { maxConcurrency: 1 }, // 交易API并发数
+    },
+    strategyScheduler: {
+      symbolBatchSize: 3,
+      symbolBatchDelayMs: 5000,
+      maxLoopDurationMs: 240000,
+    },
+    aiRateLimit: {
+      maxConcurrent: 3,
+      maxRequestsPerMinute: 20,
+      maxRequestsPerScan: 40,
+      timeoutMs: 45000,
+      cooldownAfterErrorMs: 60000,
+    },
+    binanceRateLimit: {
+      marketDataConcurrency: 2,
+      accountConcurrency: 1,
+      tradeConcurrency: 1,
+      maxUsedWeight1mRatio: 0.75,
+      retryBaseMs: 1000,
+      retryMaxMs: 60000,
     },
     chartMarkerConfig: {
       showEMAMarkers: false, // 显示EMA金叉死叉标记

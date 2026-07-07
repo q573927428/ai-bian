@@ -38,6 +38,15 @@ const aiCache = new Map<string, MultiStrategyAICache>()
 export class MultiStrategyAIAnalyzer {
   private binance: BinanceService
   private config: BotConfig
+  private requestTimestamps: number[] = []
+  private providerCooldownUntil: Map<string, number> = new Map()
+  private stats = {
+    totalRequests: 0,
+    skippedByRateLimit: 0,
+    timeoutCount: 0,
+    errorCount: 0,
+    cooldownCount: 0
+  }
 
   constructor(binance: BinanceService, config: BotConfig) {
     this.binance = binance
@@ -50,6 +59,53 @@ export class MultiStrategyAIAnalyzer {
    */
   updateConfig(config: BotConfig): void {
     this.config = config
+  }
+
+  getStatus() {
+    return {
+      ...this.stats,
+      recentRequestsInMinute: this.getRecentRequestCount(),
+      providerCooldownUntil: Object.fromEntries(this.providerCooldownUntil.entries()),
+      cache: this.getCacheStatus()
+    }
+  }
+
+  private getRecentRequestCount(): number {
+    const now = Date.now()
+    this.requestTimestamps = this.requestTimestamps.filter(timestamp => now - timestamp < 60000)
+    return this.requestTimestamps.length
+  }
+
+  private canRequestAI(provider: string): boolean {
+    const now = Date.now()
+    const cooldownUntil = this.providerCooldownUntil.get(provider) || 0
+    if (cooldownUntil > now) {
+      this.stats.cooldownCount++
+      return false
+    }
+
+    const maxRequestsPerMinute = Math.max(1, Number(this.config.aiRateLimit?.maxRequestsPerMinute ?? 20))
+    if (this.getRecentRequestCount() >= maxRequestsPerMinute) {
+      this.stats.skippedByRateLimit++
+      return false
+    }
+
+    return true
+  }
+
+  private recordAIRequest(): void {
+    this.requestTimestamps.push(Date.now())
+    this.stats.totalRequests++
+  }
+
+  private recordAIError(provider: string, error: any): void {
+    this.stats.errorCount++
+    const message = String(error?.message || '')
+    if (message.includes('abort') || message.includes('AbortError')) {
+      this.stats.timeoutCount++
+    }
+    const cooldownMs = Math.max(10000, Number(this.config.aiRateLimit?.cooldownAfterErrorMs ?? 60000))
+    this.providerCooldownUntil.set(provider, Date.now() + cooldownMs)
   }
 
   /**
@@ -646,6 +702,10 @@ ${historySection}
 
         // 获取 AI 提供商配置（优先使用策略配置，否则使用默认配置）
         const provider = promptConfig?.provider || (runtimeConfig.aiProvider as AIProvider) || 'deepseek'
+        if (!this.canRequestAI(provider)) {
+          return null
+        }
+        this.recordAIRequest()
         // 传递策略自定义的 apiUrl/apiKey/model 覆盖默认值（用于 OpenAI 兼容自定义配置）
         const providerConfig = getProviderConfig(provider, runtimeConfig, {
           apiKey: promptConfig?.apiKey,
@@ -663,7 +723,8 @@ ${historySection}
 
         const content = await callAIAPI(providerConfig, messages, {
           temperature: promptConfig?.temperature ?? 0.5,
-          maxTokens: promptConfig?.maxTokens ?? 1000
+          maxTokens: promptConfig?.maxTokens ?? 1000,
+          timeoutMs: this.config.aiRateLimit?.timeoutMs ?? 45000
         })
 
         // 提取JSON内容
@@ -719,6 +780,9 @@ ${historySection}
 
         return analysis
       } catch (error: any) {
+        const runtimeConfig = useRuntimeConfig()
+        const provider = promptConfig?.provider || (runtimeConfig.aiProvider as AIProvider) || 'deepseek'
+        this.recordAIError(provider, error)
         logger.error('MultiStrategyAIAnalyzer', `AI API 调用失败: ${error.message}`)
         
         // 返回默认分析结果（降级处理）

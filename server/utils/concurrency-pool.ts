@@ -178,9 +178,9 @@ export class ConcurrencyPoolManager {
 
   // 默认并发配置（可通过bot-config.json覆盖）
   private defaultConfig = {
-    indicator: { maxConcurrency: 16 },
-    ai: { maxConcurrency: 6 },
-    tradeApi: { maxConcurrency: 4 }
+    indicator: { maxConcurrency: 8 },
+    ai: { maxConcurrency: 5 },
+    tradeApi: { maxConcurrency: 1 }
   }
 
   constructor() {

@@ -1,5 +1,6 @@
 import * as ccxt from 'ccxt'
 import type { OHLCV, Order, AccountInfo, Position, CryptoBalance } from '../../types'
+import { binanceApiGateway } from './binance-api-gateway'
 
 export class BinanceService {
   public publicExchange: ccxt.binance  // 公共实例，用于查询公开数据
@@ -33,7 +34,9 @@ export class BinanceService {
   async initialize(): Promise<void> {
     if (!this.marketsLoaded) {
       // 使用公共实例加载市场信息（不需要API密钥）
-      await this.publicExchange.loadMarkets()
+      await binanceApiGateway.marketData('loadMarkets', () =>
+        this.publicExchange.loadMarkets()
+      )
       this.marketsLoaded = true
     }
   }
@@ -48,7 +51,9 @@ export class BinanceService {
   async fetchOHLCV(symbol: string, timeframe: string, since?: number, limit = 100): Promise<OHLCV[]> {
     try {
       // 使用公共实例查询K线数据
-      const ohlcv = await this.publicExchange.fetchOHLCV(symbol, timeframe, since, limit)
+      const ohlcv = await binanceApiGateway.marketData(`fetchOHLCV:${symbol}:${timeframe}`, () =>
+        this.publicExchange.fetchOHLCV(symbol, timeframe, since, limit)
+      )
       return ohlcv.map(candle => ({
         timestamp: Number(Number(candle[0] || 0).toFixed(5)),
         open: Number(Number(candle[1] || 0).toFixed(5)),
@@ -68,7 +73,9 @@ export class BinanceService {
   async fetchPrice(symbol: string): Promise<number> {
     try {
       // 使用公共实例查询价格
-      const ticker = await this.publicExchange.fetchTicker(symbol)
+      const ticker = await binanceApiGateway.marketData(`fetchPrice:${symbol}`, () =>
+        this.publicExchange.fetchTicker(symbol)
+      )
       return Number(Number(ticker.last || 0).toFixed(5))
     } catch (error: any) {
       throw new Error(`获取价格失败: ${error.message}`)
@@ -81,7 +88,9 @@ export class BinanceService {
   async fetchBalance(): Promise<AccountInfo> {
     try {
       // 使用私有实例查询余额
-      const balance = await this.privateExchange.fetchBalance()
+      const balance = await binanceApiGateway.account('fetchBalance', () =>
+        this.privateExchange.fetchBalance()
+      )
       const usdt = balance['USDT'] || { free: 0, total: 0 }
       
       return {
@@ -102,7 +111,9 @@ export class BinanceService {
   async fetchCryptoBalances(): Promise<any> {
     try {
       // 使用私有实例获取合约账户余额
-      const balance = await this.privateExchange.fetchBalance()
+      const balance = await binanceApiGateway.account('fetchCryptoBalances', () =>
+        this.privateExchange.fetchBalance()
+      )
       return balance
     } catch (error: any) {
       // 如果获取余额失败，返回空对象
@@ -116,7 +127,9 @@ export class BinanceService {
    */
   async setLeverage(symbol: string, leverage: number): Promise<void> {
     try {
-      await this.privateExchange.setLeverage(leverage, symbol)
+      await binanceApiGateway.trade(`setLeverage:${symbol}`, () =>
+        this.privateExchange.setLeverage(leverage, symbol)
+      )
     } catch (error: any) {
       throw new Error(`设置杠杆失败: ${error.message}`)
     }
@@ -127,7 +140,9 @@ export class BinanceService {
    */
   async setMarginMode(symbol: string, marginMode: 'isolated' | 'cross' = 'isolated'): Promise<void> {
     try {
-      await this.privateExchange.setMarginMode(marginMode, symbol)
+      await binanceApiGateway.trade(`setMarginMode:${symbol}`, () =>
+        this.privateExchange.setMarginMode(marginMode, symbol)
+      )
     } catch (error: any) {
       // 如果已经是该模式，忽略错误
       if (!error.message.includes('No need to change')) {
@@ -143,7 +158,9 @@ export class BinanceService {
     try {
       // Binance API: 设置持仓模式
       // hedgeMode: true = 双向持仓模式, false = 单向持仓模式
-      await this.privateExchange.setPositionMode(hedgeMode)
+      await binanceApiGateway.trade('setPositionMode', () =>
+        this.privateExchange.setPositionMode(hedgeMode)
+      )
     } catch (error: any) {
       // 如果已经是该模式，忽略错误
       if (!error.message.includes('No need to change')) {
@@ -161,12 +178,14 @@ export class BinanceService {
     amount: number,
   ): Promise<Order> {
     try {
-      const order = await this.privateExchange.createOrder(
-        symbol, 
-        'market', 
-        side, 
-        amount,
-        undefined, // price
+      const order = await binanceApiGateway.trade(`marketOrder:${symbol}:${side}`, () =>
+        this.privateExchange.createOrder(
+          symbol, 
+          'market', 
+          side, 
+          amount,
+          undefined, // price
+        )
       )
       
       return {
@@ -194,17 +213,19 @@ export class BinanceService {
     stopPrice: number,
   ): Promise<Order> {
     try {
-      const order = await this.privateExchange.createOrder(
-        symbol,
-        'STOP_MARKET',
-        side,
-        amount,
-        undefined,
-        { 
-          stopPrice,
-          reduceOnly: true,
-          workingType: 'MARK_PRICE',
-        }
+      const order = await binanceApiGateway.trade(`stopLossOrder:${symbol}:${side}`, () =>
+        this.privateExchange.createOrder(
+          symbol,
+          'STOP_MARKET',
+          side,
+          amount,
+          undefined,
+          { 
+            stopPrice,
+            reduceOnly: true,
+            workingType: 'MARK_PRICE',
+          }
+        )
       )
       
       return {
@@ -233,16 +254,18 @@ export class BinanceService {
     isEntry: boolean = false
   ): Promise<Order> {
     try {
-      const order = await this.privateExchange.createOrder(
-        symbol,
-        'take_profit_market',
-        side,
-        amount,
-        undefined,
-        { 
-          stopPrice,
-          reduceOnly: true
-        }
+      const order = await binanceApiGateway.trade(`takeProfitOrder:${symbol}:${side}`, () =>
+        this.privateExchange.createOrder(
+          symbol,
+          'take_profit_market',
+          side,
+          amount,
+          undefined,
+          { 
+            stopPrice,
+            reduceOnly: true
+          }
+        )
       )
       
       return {
@@ -265,7 +288,9 @@ export class BinanceService {
    */
   async cancelOrder(orderId: string, symbol: string, params?: { trigger?: boolean }): Promise<void> {
     try {
-      await this.privateExchange.cancelOrder(orderId, symbol, params)
+      await binanceApiGateway.trade(`cancelOrder:${symbol}:${orderId}`, () =>
+        this.privateExchange.cancelOrder(orderId, symbol, params)
+      )
     } catch (error: any) {
       throw new Error(`取消订单失败: ${error.message}`)
     }
@@ -276,7 +301,9 @@ export class BinanceService {
    */
   async cancelAllOrders(symbol: string): Promise<void> {
     try {
-      await this.privateExchange.cancelAllOrders(symbol)
+      await binanceApiGateway.trade(`cancelAllOrders:${symbol}`, () =>
+        this.privateExchange.cancelAllOrders(symbol)
+      )
     } catch (error: any) {
       throw new Error(`取消所有订单失败: ${error.message}`)
     }
@@ -287,7 +314,9 @@ export class BinanceService {
    */
   async fetchPositions(symbol?: string): Promise<Position[]> {
     try {
-      const positions = await this.privateExchange.fetchPositions(symbol ? [symbol] : undefined)
+      const positions = await binanceApiGateway.account(`fetchPositions:${symbol || 'all'}`, () =>
+        this.privateExchange.fetchPositions(symbol ? [symbol] : undefined)
+      )
       
       return positions
         .filter((p: any) => Number(Number(p.contracts || p.info?.positionAmt || 0).toFixed(5)) !== 0)
@@ -313,7 +342,9 @@ export class BinanceService {
    */
   async fetchOrder(orderId: string, symbol: string,  params?: { trigger?: boolean }): Promise<Order> {
     try {
-      const order = await this.privateExchange.fetchOrder(orderId, symbol, params )
+      const order = await binanceApiGateway.account(`fetchOrder:${symbol}:${orderId}`, () =>
+        this.privateExchange.fetchOrder(orderId, symbol, params )
+      )
       
       // 映射订单类型
       const mapOrderType = (ccxtType: string | undefined): Order['type'] => {
@@ -419,7 +450,9 @@ export class BinanceService {
    */
   async fetchRecentOrders(symbol: string, since?: number, limit: number = 20): Promise<Order[]> {
     try {
-      const orders = await this.privateExchange.fetchOrders(symbol, since, limit)
+      const orders = await binanceApiGateway.account(`fetchRecentOrders:${symbol}`, () =>
+        this.privateExchange.fetchOrders(symbol, since, limit)
+      )
       
       return orders.map((order: any) => {
         // 映射订单类型
@@ -464,7 +497,9 @@ export class BinanceService {
    */
   async fetchOrderHistory(orderId: string, symbol: string): Promise<Order | null> {
     try {
-      const order = await this.privateExchange.fetchOrder(orderId, symbol)
+      const order = await binanceApiGateway.account(`fetchOrderHistory:${symbol}:${orderId}`, () =>
+        this.privateExchange.fetchOrder(orderId, symbol)
+      )
       
       // 映射订单类型
       const mapOrderType = (ccxtType: string | undefined): Order['type'] => {
@@ -510,7 +545,9 @@ export class BinanceService {
     timestamp: number
   }> {
     try {
-      const oi = await this.publicExchange.fetchOpenInterest(symbol) as any
+      const oi = await binanceApiGateway.marketData<any>(`fetchOpenInterest:${symbol}`, () =>
+        this.publicExchange.fetchOpenInterest(symbol) as any
+      )
       const openInterestValue = Number(oi.openInterest || oi.contracts || oi.openInterestAmount || oi.info?.sumOpenInterest || 0)
       return {
         symbol: oi.symbol,
@@ -539,12 +576,14 @@ export class BinanceService {
     openInterest: number
   }>> {
     try {
-      const oiHistory = await this.publicExchange.fetchOpenInterestHistory(
-        symbol,
-        timeframe,
-        since,
-        limit
-      ) as any[]
+      const oiHistory = await binanceApiGateway.marketData<any[]>(`fetchOpenInterestHistory:${symbol}:${timeframe}:${limit}`, () =>
+        this.publicExchange.fetchOpenInterestHistory(
+          symbol,
+          timeframe,
+          since,
+          limit
+        )
+      )
       
       const processedHistory = oiHistory.map(item => {
         const openInterestValue = Number(item.openInterest || item.contracts || item.openInterestAmount || item.info?.sumOpenInterest || 0)
