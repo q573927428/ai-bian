@@ -395,6 +395,10 @@
                   <span class="stat-label">距离: </span>
                   <el-input-number v-model="form.riskManagement.trailingStop.trailDistance" :min="0.5" :max="3" :step="0.1" />
                 </span>
+                <span class="trailing-stop-group">
+                  <span class="stat-label">最小移动: </span>
+                  <el-input-number v-model="form.riskManagement.trailingStop.minMoveDistance" :min="0.01" :max="3" :step="0.01" :precision="2" />
+                </span>
               </div>
             </el-form-item>
             
