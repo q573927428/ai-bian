@@ -189,7 +189,7 @@
                   size="small"
                   effect="plain"
                 >
-                  {{ key }}: {{ typeof val === 'number' ? val.toFixed(2) : val }}
+                  {{ key }}: {{ typeof val === 'number' ? formatPrice(val) : val }}
                 </el-tag>
               </div>
             </div>
