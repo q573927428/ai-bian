@@ -59,14 +59,14 @@
         @click="openChartModal(crypto)"
       >
         <div class="price-card-header">
-          <div class="crypto-info">
+        <div class="crypto-info">
           <div class="crypto-symbol">
-            <template v-if="iconExists[crypto.symbol]">
+            <template v-if="!iconFailed[crypto.symbol]">
               <img 
                 :src="getCryptoIcon(crypto.symbol)" 
                 :alt="getSymbolDisplay(crypto.symbol)"
                 class="crypto-icon"
-                @error="handleIconError"
+                @error="onIconError(crypto.symbol)"
               />
             </template>
             <span v-else
@@ -285,42 +285,12 @@ function getCryptoIcon(symbol: string): string {
   return `/assets/crypto-icons/${base}.png`
 }
 
-// 图标是否存在（true=显示img, false=显示占位符）
-const iconExists = ref<Record<string, boolean>>({})
+// 记录加载失败的图标（true=加载失败，显示占位符）
+const iconFailed = ref<Record<string, boolean>>({})
 
-// 用 HEAD 请求预检图标是否存在（避免 img 请求不存在的文件触发路由警告）
-async function precheckIcons() {
-  const symbols = DEFAULT_CRYPTOS.value
-  await Promise.all(symbols.map(async (symbol) => {
-    try {
-      const res = await fetch(getCryptoIcon(symbol), { method: 'HEAD' })
-      iconExists.value[symbol] = res.ok
-    } catch {
-      iconExists.value[symbol] = false
-    }
-  }))
-}
-
-// 处理图标加载错误：显示带颜色的字母占位符（兜底）
-function handleIconError(event: Event) {
-  const img = event.target as HTMLImageElement
-  const fallback = document.createElement('span')
-  fallback.textContent = (img.alt || '?').substring(0, 1).toUpperCase()
-  fallback.style.cssText = `
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 16px;
-    height: 16px;
-    border-radius: 50%;
-    background-color: ${getRandomColor(img.alt || '')};
-    color: #fff;
-    font-size: 10px;
-    font-weight: bold;
-    flex-shrink: 0;
-    line-height: 1;
-  `
-  img.parentNode?.replaceChild(fallback, img)
+// 图标加载失败时标记，自动切换到占位符
+function onIconError(symbol: string) {
+  iconFailed.value[symbol] = true
 }
 
 // 为币种生成稳定的随机颜色
@@ -342,8 +312,6 @@ onMounted(() => {
   botStore.subscribeToPrices('crypto-price-cards')
   // 首次加载
   syncPricesFromStore()
-  // 预检图标是否存在，避免请求不存在的文件触发路由警告
-  precheckIcons()
 })
 
 onUnmounted(() => {

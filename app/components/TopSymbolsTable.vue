@@ -36,12 +36,12 @@
         >
           <template #default="{ row }">
             <div class="symbol-cell">
-              <template v-if="iconExists[row.symbol]">
+              <template v-if="!iconFailed[row.symbol]">
                 <img
                   :src="getCryptoIcon(row.symbol)"
                   :alt="getSymbolDisplay(row.symbol)"
                   class="crypto-icon"
-                  @error="handleIconError"
+                  @error="onIconError(row.symbol)"
                 />
               </template>
               <span v-else
@@ -187,23 +187,12 @@ const handleSortChange = ({ prop, order }: { prop: string, order: string }) => {
   }
 }
 
-// 图标是否存在（true=显示img, false=显示占位符）
-const iconExists = ref<Record<string, boolean>>({})
+// 记录加载失败的图标（true=加载失败，显示占位符）
+const iconFailed = ref<Record<string, boolean>>({})
 
-// 预检图标是否存在（通过 API 检查，避免 img 请求不存在的文件触发路由警告）
-async function precheckIcons(symbols: string[]) {
-  // 先全部标记为 false，确保异步检查完成前不渲染 img
-  symbols.forEach(s => { iconExists.value[s] = false })
-  await Promise.all(symbols.map(async (symbol) => {
-    try {
-      const res = await $fetch<{ success: boolean; exists: boolean }>('/api/assets/icon-exists', {
-        params: { symbol }
-      })
-      iconExists.value[symbol] = res.exists
-    } catch {
-      iconExists.value[symbol] = false
-    }
-  }))
+// 图标加载失败时标记，自动切换到占位符
+function onIconError(symbol: string) {
+  iconFailed.value[symbol] = true
 }
 
 // 获取数据
@@ -213,10 +202,6 @@ const fetchData = async () => {
     const res = await $fetch<{ success: boolean; data: TopSymbol[] }>('/api/binance/top-symbols')
     if (res.success) {
       data.value = res.data
-      // 数据加载后预检图标
-      if (res.data.length > 0) {
-        precheckIcons(res.data.map((d: TopSymbol) => d.symbol))
-      }
     }
   } catch (err: any) {
     console.error('获取热门交易对失败:', err)
@@ -241,28 +226,6 @@ function getSymbolDisplay(symbol: string): string {
   return symbol.replace('USDT', '')
 }
 
-// 处理图标加载错误：显示带颜色的字母占位符（兜底）
-function handleIconError(event: Event) {
-  const img = event.target as HTMLImageElement
-  const fallback = document.createElement('span')
-  fallback.textContent = (img.alt || '?').substring(0, 1).toUpperCase()
-  // 动态创建的元素需内联样式（scoped CSS 无法作用）
-  fallback.style.cssText = `
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 18px;
-    height: 18px;
-    border-radius: 50%;
-    background-color: ${getRandomColor(img.alt || '')};
-    color: #fff;
-    font-size: 10px;
-    font-weight: bold;
-    flex-shrink: 0;
-    line-height: 1;
-  `
-  img.parentNode?.replaceChild(fallback, img)
-}
 
 // 为币种生成稳定的随机颜色
 function getRandomColor(symbol: string) {
