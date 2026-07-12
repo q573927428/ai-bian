@@ -4,6 +4,9 @@
     <!-- 密码验证对话框 -->
     <PasswordDialog v-model="showPasswordDialog" @success="handlePasswordSuccess" />
     
+    <!-- 热门交易对对话框 -->
+    <TopSymbolsTable v-model="showTopSymbolsDialog" @select="handleTopSymbolSelect" />
+    
     <!-- 配置编辑对话框 -->
     <el-dialog
       v-model="showConfigDialog"
@@ -20,21 +23,26 @@
             <el-divider content-position="left">1. 交易对配置</el-divider>
             <div class="config-grid">
               <el-form-item label="交易对列表" class="grid-full">
-                <el-select
-                  v-model="form.symbols"
-                  multiple
-                  filterable
-                  allow-create
-                  placeholder="选择或输入交易对"
-                  style="width: 100%"
-                >
-                  <el-option
-                    v-for="symbol in availableSymbols"
-                    :key="symbol"
-                    :label="symbol"
-                    :value="symbol"
-                  />
-                </el-select>
+                <div class="symbol-select-wrap">
+                  <el-select
+                    v-model="form.symbols"
+                    multiple
+                    filterable
+                    allow-create
+                    placeholder="选择或输入交易对"
+                    style="width: 100%"
+                  >
+                    <el-option
+                      v-for="symbol in availableSymbols"
+                      :key="symbol"
+                      :label="symbol"
+                      :value="symbol"
+                    />
+                  </el-select>
+                  <el-button type="warning" size="small" @click="showTopSymbolsDialog = true" class="hot-btn">
+                    🔥 添加
+                  </el-button>
+                </div>
               </el-form-item>
             </div>
           </div>
@@ -251,6 +259,7 @@ import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import type { BotConfig } from '../../types'
 import { useBotStore } from '../stores/bot'
 import PasswordDialog from './PasswordDialog.vue'
+import TopSymbolsTable from './TopSymbolsTable.vue'
 
 interface Props {
   modelValue: boolean
@@ -271,6 +280,7 @@ const visible = computed({
 
 const showPasswordDialog = ref(false)
 const showConfigDialog = ref(false)
+const showTopSymbolsDialog = ref(false)
 const loading = ref(false)
 const saving = ref(false)
 const authenticated = ref(false)
@@ -391,6 +401,18 @@ const handleSave = async () => {
   }
 }
 
+// 从热门交易对列表中选择交易对
+const handleTopSymbolSelect = (symbol: string) => {
+  // 统一格式：API 返回 ETHUSDT，转换为 EL 选择器兼容的格式
+  const normalized = symbol.replace('USDT', '/USDT')
+  if (form.value && !form.value.symbols.includes(normalized)) {
+    form.value.symbols.push(normalized)
+    ElMessage.success(`已添加 ${normalized}`)
+  } else {
+    ElMessage.info('该交易对已存在')
+  }
+}
+
 const handleCancel = () => {
   showConfigDialog.value = false
 }
@@ -474,6 +496,23 @@ onUnmounted(() => {
 /* 占满整行的表单项（如交易对选择器、带长说明的项） */
 .config-grid .grid-full {
   grid-column: 1 / -1;
+}
+
+/* 交易对选择器 + 热门按钮横向排列 */
+.symbol-select-wrap {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  width: 100%;
+}
+
+.symbol-select-wrap .el-select {
+  flex: 1;
+}
+
+.hot-btn {
+  flex-shrink: 0;
+  margin-top: 2px;
 }
 
 /* 数字输入框自适应宽度，不拉伸 */
