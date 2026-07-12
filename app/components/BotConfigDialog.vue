@@ -39,10 +39,10 @@
                       :value="symbol"
                     />
                   </el-select>
-                  <el-button type="warning" size="small" @click="showTopSymbolsDialog = true" class="hot-btn">
-                    🔥 添加
-                  </el-button>
                 </div>
+                <el-button type="warning" size="small" @click="showTopSymbolsDialog = true" class="hot-btn">
+                    🔥 添加热门交易对
+                  </el-button>
               </el-form-item>
             </div>
           </div>
@@ -377,6 +377,8 @@ const handleSave = async () => {
             if (reloadRes.blockedByPosition?.length > 0) {
               parts.push(`因持仓阻止删除 ${reloadRes.blockedByPosition.length} 个: ${reloadRes.blockedByPosition.join(', ')}`)
             }
+            if (reloadRes.strategiesUpdated > 0) parts.push(`同步策略 ${reloadRes.strategiesUpdated} 个`)
+            if (reloadRes.activeStrategiesReloaded > 0) parts.push(`重载运行中策略 ${reloadRes.activeStrategiesReloaded} 个`)
             
             const message = parts.length > 0
               ? `${parts.join('，')}，无需重启服务`
@@ -387,9 +389,12 @@ const handleSave = async () => {
             } else {
               ElMessage.success(message)
             }
+          } else {
+            ElMessage.error(reloadRes.message || '交易对热重载失败，请检查服务日志')
           }
         } catch (e: any) {
           console.error('热重载交易对失败:', e)
+          ElMessage.error(e?.data?.message || e?.message || '交易对热重载失败，请检查服务日志')
         }
       }
 
@@ -519,7 +524,7 @@ onUnmounted(() => {
 
 .hot-btn {
   flex-shrink: 0;
-  margin-top: 2px;
+  margin-top: 10px;
 }
 
 /* 数字输入框自适应宽度，不拉伸 */

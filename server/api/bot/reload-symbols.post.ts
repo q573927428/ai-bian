@@ -14,12 +14,13 @@
  * 
  * 安全规则:
  *   - 若删除的交易对当前有持仓，则该交易对不会被删除并在响应中返回 blockedByPosition 列表
- *   - 删除交易对时，同步从所有策略的 marketData.symbols 中移除该交易对
+ *   - 新增/删除交易对时，同步更新所有策略的 marketData.symbols
+ *   - 运行中的策略更新后会自动重启，以应用新的扫描交易对列表
  */
 import { getSyncService } from '../../utils/kline-sync-service'
 import { getBotConfig, saveBotConfig } from '../../utils/storage'
 import { positionManager } from '../../modules/position-manager/PositionManager'
-import { StrategyStore } from '../../modules/strategy-store/StrategyStore'
+import { getStrategyManager } from '../../modules/strategy-manager'
 
 export default defineEventHandler(async (event) => {
   try {
@@ -36,6 +37,8 @@ export default defineEventHandler(async (event) => {
     let added: string[] = []
     let removed: string[] = []
     let blockedByPosition: string[] = [] // 因持仓阻止删除的交易对
+    let strategiesUpdated = 0
+    let activeStrategiesReloaded = 0
     let finalSymbols: string[] = [...existingSymbols]
 
     if (fullSymbols && Array.isArray(fullSymbols)) {
@@ -137,43 +140,63 @@ export default defineEventHandler(async (event) => {
         syncService.removeSymbols(removed)
       }
 
-      // 2. 从所有策略的 marketData.symbols 中移除该交易对
+      console.log(`🔄 热重载: 已从 K线同步服务和所有策略中移除交易对: ${removed.join(', ')}`)
+    }
+
+    // ========== 同步所有策略的交易对 ==========
+    if (added.length > 0 || removed.length > 0) {
       try {
-        const strategyStore = new StrategyStore()
-        const allStrategies = await strategyStore.getAllStrategies()
-        
+        const strategyManager = getStrategyManager()
+        const allStrategies = await strategyManager.getAllStrategies()
+
         for (const strategy of allStrategies) {
           if (!strategy.marketData?.symbols) continue
-          
-          const strategySymbols = strategy.marketData.symbols
-          const updatedSymbols = strategySymbols.filter(
-            (s: string) => !removed.includes(s)
-          )
-          
-          // 如果有变化，更新策略
-          if (updatedSymbols.length !== strategySymbols.length) {
-            await strategyStore.updateStrategyWithoutVersion(strategy.id, {
-              marketData: {
-                ...strategy.marketData,
-                symbols: updatedSymbols
-              }
-            })
-            console.log(`🔄 热重载: 已从策略 ${strategy.name} (${strategy.id}) 中移除交易对: ${
-              strategySymbols.filter((s: string) => !updatedSymbols.includes(s)).join(', ')
+
+          const originalStrategySymbols = strategy.marketData.symbols
+          const updatedSymbols = uniqueSymbols([
+            ...originalStrategySymbols.filter((s: string) => !removed.includes(s)),
+            ...added
+          ])
+
+          const changed =
+            updatedSymbols.length !== originalStrategySymbols.length ||
+            updatedSymbols.some((s, index) => s !== originalStrategySymbols[index])
+
+          if (!changed) continue
+
+          const updatedStrategy = await strategyManager.updateStrategyWithoutVersion(strategy.id, {
+            marketData: {
+              ...strategy.marketData,
+              symbols: updatedSymbols
+            }
+          })
+
+          if (updatedStrategy) {
+            strategiesUpdated++
+            if (strategy.isActive) activeStrategiesReloaded++
+
+            const addedForStrategy = added.filter(s => !originalStrategySymbols.includes(s))
+            const removedForStrategy = originalStrategySymbols.filter((s: string) => removed.includes(s))
+            console.log(`🔄 热重载: 已同步策略 ${strategy.name} (${strategy.id}) 交易对: ${
+              [
+                addedForStrategy.length > 0 ? `新增 ${addedForStrategy.join(', ')}` : '',
+                removedForStrategy.length > 0 ? `删除 ${removedForStrategy.join(', ')}` : ''
+              ].filter(Boolean).join('；')
             }`)
           }
         }
       } catch (err: any) {
-        console.error('从策略中同步移除交易对失败:', err.message)
+        console.error('同步策略交易对失败:', err.message)
+        throw new Error(`同步策略交易对失败: ${err.message}`)
       }
-
-      console.log(`🔄 热重载: 已从 K线同步服务和所有策略中移除交易对: ${removed.join(', ')}`)
     }
 
     const parts: string[] = []
     if (added.length > 0) parts.push(`新增 ${added.length} 个: ${added.join(', ')}`)
     if (removed.length > 0) parts.push(`删除 ${removed.length} 个: ${removed.join(', ')}`)
     if (blockedByPosition.length > 0) parts.push(`因持仓阻止删除 ${blockedByPosition.length} 个: ${blockedByPosition.join(', ')}`)
+    if (strategiesUpdated > 0) parts.push(`同步策略 ${strategiesUpdated} 个`)
+    if (activeStrategiesReloaded > 0) parts.push(`重载运行中策略 ${activeStrategiesReloaded} 个`)
 
     console.log(`✅ 热重载完成: ${parts.join('，')}`)
 
@@ -183,6 +206,8 @@ export default defineEventHandler(async (event) => {
       added,
       removed,
       blockedByPosition,
+      strategiesUpdated,
+      activeStrategiesReloaded,
       total: finalSymbols.length
     }
   } catch (error: any) {
