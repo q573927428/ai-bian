@@ -97,7 +97,7 @@ async function startInitialSync(): Promise<void> {
     
     // 检查是否需要初始同步 - 通过检查SQLite数据库中是否有数据
     const config = syncService.getConfig()
-    let needsInitialSync = false
+    const missingPairs: string[] = []
     
     for (const symbol of config.symbols) {
       for (const timeframe of config.timeframes) {
@@ -107,36 +107,41 @@ async function startInitialSync(): Promise<void> {
         if (!hasData) {
           // 数据库中无数据，需要初始同步
           console.log(`⚠️  数据库中无数据: ${symbol}/${timeframe}，需要初始同步`)
-          needsInitialSync = true
+          missingPairs.push(symbol)
+        } else {
+          // 已有数据的交易对，后续进行增量同步
         }
       }
     }
     
-    if (needsInitialSync) {
-      console.log('🔄 检测到缺少数据文件，开始初始同步...')
-      const results = await syncService.syncAllKLine({ force: true })
+    // 去重得到真正缺少数据的交易对
+    const uniqueMissingSymbols = [...new Set(missingPairs)]
+    
+    if (uniqueMissingSymbols.length > 0) {
+      console.log(`🔄 检测到 ${uniqueMissingSymbols.length} 个交易对缺少数据，开始初始同步: ${uniqueMissingSymbols.join(', ')}`)
+      // 只同步缺少数据的交易对，避免重复同步已有数据的交易对
+      const results = await syncService.syncSymbols(uniqueMissingSymbols)
       
       const successCount = results.filter(r => r.success).length
       const totalBars = results.reduce((sum, r) => sum + r.count, 0)
       
       console.log(`✅ 初始同步完成: ${successCount}/${results.length} 成功，共获取 ${totalBars} 条数据`)
-    } else {
-      // console.log('✅ 所有数据文件已存在，进行增量同步...')
-      
-      // 进行增量同步
-      const results = await syncService.syncAllKLine({ force: false })
-      
-      const successCount = results.filter(r => r.success).length
-      const totalBars = results.reduce((sum, r) => sum + r.count, 0)
-      
-      console.log(`✅ 增量同步完成: ${successCount}/${results.length} 成功，共获取 ${totalBars} 条数据`)
-      
-      // 显示当前状态
-      const status = syncService.getSyncStatus()
-      status.forEach(s => {
-        // console.log(`  ${s.symbol}/${s.timeframe}: 最后同步: ${new Date(s.lastSyncTime * 1000).toLocaleString()}, 总数据: ${s.totalBars}`)
-      })
     }
+    
+    // 总有数据的交易对（已有的 + 刚同步完的），进行增量同步
+    console.log('📊 进行增量同步（更新已有交易对的最新K线）...')
+    const results = await syncService.syncAllKLine({ force: false })
+    
+    const successCount = results.filter(r => r.success).length
+    const totalBars = results.reduce((sum, r) => sum + r.count, 0)
+    
+    console.log(`✅ 增量同步完成: ${successCount}/${results.length} 成功，共获取 ${totalBars} 条数据`)
+    
+    // 显示当前状态
+    const status = syncService.getSyncStatus()
+    status.forEach(s => {
+      // console.log(`  ${s.symbol}/${s.timeframe}: 最后同步: ${new Date(s.lastSyncTime * 1000).toLocaleString()}, 总数据: ${s.totalBars}`)
+    })
     
     // 启动定时同步
     console.log('⏰ 启动定时同步...')

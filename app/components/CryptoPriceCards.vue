@@ -1,6 +1,6 @@
 <template>
   <el-card class="price-cards-container" shadow="hover">
-    <template #header>
+    <!-- <template #header>
       <div class="card-header">
         <span>📊 价格看板</span>
         <div class="header-actions">
@@ -25,7 +25,7 @@
           </el-button>
         </div>
       </div>
-    </template>
+    </template> -->
 
     <!-- K线图表弹窗（懒加载，点击卡片时才渲染） -->
     <ClientOnly>
@@ -60,13 +60,19 @@
       >
         <div class="price-card-header">
           <div class="crypto-info">
-            <div class="crypto-symbol">
+          <div class="crypto-symbol">
+            <template v-if="iconExists[crypto.symbol]">
               <img 
                 :src="getCryptoIcon(crypto.symbol)" 
                 :alt="getSymbolDisplay(crypto.symbol)"
                 class="crypto-icon"
                 @error="handleIconError"
               />
+            </template>
+            <span v-else
+              class="crypto-icon-placeholder"
+              :style="{ backgroundColor: getRandomColor(crypto.symbol) }"
+            >{{ getSymbolDisplay(crypto.symbol).substring(0, 1).toUpperCase() }}</span>
               {{ getSymbolDisplay(crypto.symbol) }}
             </div>
           </div>
@@ -273,39 +279,48 @@ function getSymbolDisplay(symbol: string): string {
   return symbol.replace('USDT', '')
 }
 
-// 获取加密货币图标（优先本地，本地加载失败则 @error 中 fallback 到 CDN）
+// 获取加密货币图标（使用本地图标）
 function getCryptoIcon(symbol: string): string {
   const base = symbol.replace('USDT', '').toLowerCase()
   return `/assets/crypto-icons/${base}.png`
 }
 
-// 处理图标加载错误：本地不存在 → 尝试 CDN → CDN 也失败则显示占位符
+// 图标是否存在（true=显示img, false=显示占位符）
+const iconExists = ref<Record<string, boolean>>({})
+
+// 用 HEAD 请求预检图标是否存在（避免 img 请求不存在的文件触发路由警告）
+async function precheckIcons() {
+  const symbols = DEFAULT_CRYPTOS.value
+  await Promise.all(symbols.map(async (symbol) => {
+    try {
+      const res = await fetch(getCryptoIcon(symbol), { method: 'HEAD' })
+      iconExists.value[symbol] = res.ok
+    } catch {
+      iconExists.value[symbol] = false
+    }
+  }))
+}
+
+// 处理图标加载错误：显示带颜色的字母占位符（兜底）
 function handleIconError(event: Event) {
   const img = event.target as HTMLImageElement
-  const base = (img.alt || '').toLowerCase()
-
-  // 如果当前是本地路径（尚未尝试 CDN），则替换为 CDN 地址再试一次
-  if (img.src.includes('/assets/crypto-icons/')) {
-    img.src = `https://assets.coincap.io/assets/icons/${base}@2x.png`
-    return
-  }
-
-  // CDN 也失败，显示占位符
-  const placeholder = document.createElement('div')
-  placeholder.className = 'symbol-icon-placeholder'
-  placeholder.textContent = img.alt?.substring(0, 2).toUpperCase() || ''
-  placeholder.style.width = '16px'
-  placeholder.style.height = '16px'
-  placeholder.style.borderRadius = '50%'
-  placeholder.style.backgroundColor = getRandomColor(img.alt || '')
-  placeholder.style.display = 'flex'
-  placeholder.style.alignItems = 'center'
-  placeholder.style.justifyContent = 'center'
-  placeholder.style.color = '#fff'
-  placeholder.style.fontSize = '10px'
-  placeholder.style.fontWeight = 'bold'
-
-  img.parentNode?.replaceChild(placeholder, img)
+  const fallback = document.createElement('span')
+  fallback.textContent = (img.alt || '?').substring(0, 1).toUpperCase()
+  fallback.style.cssText = `
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background-color: ${getRandomColor(img.alt || '')};
+    color: #fff;
+    font-size: 10px;
+    font-weight: bold;
+    flex-shrink: 0;
+    line-height: 1;
+  `
+  img.parentNode?.replaceChild(fallback, img)
 }
 
 // 为币种生成稳定的随机颜色
@@ -327,6 +342,8 @@ onMounted(() => {
   botStore.subscribeToPrices('crypto-price-cards')
   // 首次加载
   syncPricesFromStore()
+  // 预检图标是否存在，避免请求不存在的文件触发路由警告
+  precheckIcons()
 })
 
 onUnmounted(() => {
@@ -408,9 +425,9 @@ interface WebSocketStatusResponse {
   position: relative;
   overflow: hidden;
   min-height: 70px;
-  min-width: 130px;
+  min-width: 150px;
   flex-shrink: 0;
-  flex: 1 0 calc(12.5% - 8px);
+  flex: 1 0 calc(16.6% - 8px);
 }
 
 .price-card:hover {
@@ -456,6 +473,20 @@ interface WebSocketStatusResponse {
   height: 16px;
   border-radius: 50%;
   object-fit: cover;
+}
+
+.crypto-icon-placeholder {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  color: #fff;
+  font-size: 10px;
+  font-weight: bold;
+  flex-shrink: 0;
+  line-height: 1;
 }
 
 .price-change {

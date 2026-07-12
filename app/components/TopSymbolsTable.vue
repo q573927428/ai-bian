@@ -36,12 +36,18 @@
         >
           <template #default="{ row }">
             <div class="symbol-cell">
-              <img
-                :src="getCryptoIcon(row.symbol)"
-                :alt="getSymbolDisplay(row.symbol)"
-                class="crypto-icon"
-                @error="handleIconError"
-              />
+              <template v-if="iconExists[row.symbol]">
+                <img
+                  :src="getCryptoIcon(row.symbol)"
+                  :alt="getSymbolDisplay(row.symbol)"
+                  class="crypto-icon"
+                  @error="handleIconError"
+                />
+              </template>
+              <span v-else
+                class="crypto-icon-placeholder"
+                :style="{ backgroundColor: getRandomColor(getSymbolDisplay(row.symbol)) }"
+              >{{ getSymbolDisplay(row.symbol).substring(0, 1).toUpperCase() }}</span>
               <el-link type="primary" :underline="false" style="cursor: pointer;" @click="handleSelect(row.symbol)">
                 {{ row.symbol.replace('USDT', '/USDT') }}
               </el-link>
@@ -124,6 +130,8 @@ interface TopSymbol {
   openInterest: number
   openInterestValue: number
   fundingRate: number
+  klineCount4h: number
+  onboardDate: number
 }
 
 interface Props {
@@ -179,6 +187,25 @@ const handleSortChange = ({ prop, order }: { prop: string, order: string }) => {
   }
 }
 
+// 图标是否存在（true=显示img, false=显示占位符）
+const iconExists = ref<Record<string, boolean>>({})
+
+// 预检图标是否存在（通过 API 检查，避免 img 请求不存在的文件触发路由警告）
+async function precheckIcons(symbols: string[]) {
+  // 先全部标记为 false，确保异步检查完成前不渲染 img
+  symbols.forEach(s => { iconExists.value[s] = false })
+  await Promise.all(symbols.map(async (symbol) => {
+    try {
+      const res = await $fetch<{ success: boolean; exists: boolean }>('/api/assets/icon-exists', {
+        params: { symbol }
+      })
+      iconExists.value[symbol] = res.exists
+    } catch {
+      iconExists.value[symbol] = false
+    }
+  }))
+}
+
 // 获取数据
 const fetchData = async () => {
   loading.value = true
@@ -186,6 +213,10 @@ const fetchData = async () => {
     const res = await $fetch<{ success: boolean; data: TopSymbol[] }>('/api/binance/top-symbols')
     if (res.success) {
       data.value = res.data
+      // 数据加载后预检图标
+      if (res.data.length > 0) {
+        precheckIcons(res.data.map((d: TopSymbol) => d.symbol))
+      }
     }
   } catch (err: any) {
     console.error('获取热门交易对失败:', err)
@@ -200,17 +231,17 @@ const handleSelect = (symbol: string) => {
   visible.value = false
 }
 
-// 获取加密货币图标（直接使用 CDN）
+// 获取加密货币图标（使用本地图标）
 function getCryptoIcon(symbol: string): string {
   const base = symbol.replace('USDT', '').toLowerCase()
-  return `https://assets.coincap.io/assets/icons/${base}@2x.png`
+  return `/assets/crypto-icons/${base}.png`
 }
 
 function getSymbolDisplay(symbol: string): string {
   return symbol.replace('USDT', '')
 }
 
-// 处理图标加载错误：CDN 也失败则显示带颜色的字母占位
+// 处理图标加载错误：显示带颜色的字母占位符（兜底）
 function handleIconError(event: Event) {
   const img = event.target as HTMLImageElement
   const fallback = document.createElement('span')
@@ -329,6 +360,20 @@ watch(visible, (newVal) => {
   border-radius: 50%;
   object-fit: cover;
   flex-shrink: 0;
+}
+
+.crypto-icon-placeholder {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  color: #fff;
+  font-size: 10px;
+  font-weight: bold;
+  flex-shrink: 0;
+  line-height: 1;
 }
 
 

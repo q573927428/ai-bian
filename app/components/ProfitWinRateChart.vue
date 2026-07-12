@@ -367,7 +367,7 @@ onUnmounted(() => {
   padding: 15px;
   background: var(--stats-container-bg);
   border-radius: 8px;
-  margin-top: 15px;
+  margin-top: 30px;
 }
 
 .stat-item {
