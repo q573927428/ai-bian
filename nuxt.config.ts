@@ -53,6 +53,7 @@ export default defineNuxtConfig({
         'dayjs', // CJS
         'dayjs/plugin/*.js',
         'lodash-unified',
+        'lightweight-charts',
         'pinia',
       ]
     },
