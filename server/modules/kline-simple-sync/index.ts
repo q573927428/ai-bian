@@ -46,6 +46,10 @@ export class KLineSimpleSyncService {
   private readonly HIGH_FREQUENCY_INTERVAL = 120 * 1000
   // 高频同步状态锁
   private isHighFrequencySyncing = false
+  private initialSyncQueue: string[] = []
+  private initialSyncSymbols: Set<string> = new Set()
+  private isInitialSyncRunning = false
+  private initialSyncTimeframes: Set<KLineTimeframe> = new Set()
 
   constructor(config?: Partial<KLineSyncConfig>) {
     this.config = { ...DEFAULT_CONFIG, ...config }
@@ -133,6 +137,14 @@ export class KLineSimpleSyncService {
   }
 
   // 获取时间间隔秒数
+  private sleep(ms: number): Promise<void> {
+    return new Promise(resolve => nodeSetTimeout(resolve, ms))
+  }
+
+  private hasInitialBackfillWork(): boolean {
+    return this.isInitialSyncRunning || this.initialSyncQueue.length > 0 || this.initialSyncTimeframes.size > 0
+  }
+
   private getIntervalSeconds(timeframe: KLineTimeframe): number {
     switch (timeframe) {
       case '5m': return 5 * 60
@@ -740,6 +752,10 @@ export class KLineSimpleSyncService {
   
   // 高频同步：仅更新最后一根未收盘K线
   private async highFrequencySync(): Promise<void> {
+    if (this.hasInitialBackfillWork()) {
+      return
+    }
+
     if (this.isHighFrequencySyncing) {
       return
     }
@@ -898,6 +914,10 @@ export class KLineSimpleSyncService {
   private async syncTimeframe(timeframe: KLineTimeframe): Promise<void> {
     const config = this.timeframeConfigs.get(timeframe)
     if (!config || !config.enabled) {
+      return
+    }
+
+    if (this.hasInitialBackfillWork()) {
       return
     }
     
@@ -1124,6 +1144,92 @@ export class KLineSimpleSyncService {
   /**
    * 仅同步指定交易对列表（用于热重载后增量同步）
    */
+  enqueueInitialSync(symbols: string[]): void {
+    if (!symbols || symbols.length === 0) return
+
+    const normalizedSymbols = this.normalizeSymbols(symbols)
+    const configuredSymbols = new Set(this.config.symbols)
+    const symbolsToQueue = normalizedSymbols.filter(symbol =>
+      configuredSymbols.has(symbol) &&
+      !this.initialSyncSymbols.has(symbol)
+    )
+
+    if (symbolsToQueue.length === 0) {
+      return
+    }
+
+    for (const symbol of symbolsToQueue) {
+      this.initialSyncSymbols.add(symbol)
+    }
+    this.initialSyncQueue.push(...symbolsToQueue)
+    console.log(`[KLineSync] 新交易对初始化同步已加入低优先级队列: ${symbolsToQueue.join(', ')}`)
+    this.processInitialSyncQueue()
+  }
+
+  private async waitForTimeframeIdle(timeframe: KLineTimeframe): Promise<void> {
+    const start = Date.now()
+    while (this.isSyncing.get(timeframe)) {
+      if (Date.now() - start > 2 * 60 * 1000) {
+        console.warn(`[KLineSync] 等待 ${timeframe} 周期同步空闲超时，继续执行初始化同步`)
+        return
+      }
+      await this.sleep(1000)
+    }
+  }
+
+  private async processInitialSyncQueue(): Promise<void> {
+    if (this.isInitialSyncRunning) {
+      return
+    }
+
+    this.isInitialSyncRunning = true
+    try {
+      await this.sleep(3000)
+
+      while (this.initialSyncQueue.length > 0) {
+        const symbol = this.initialSyncQueue.shift()
+        if (!symbol || !this.config.symbols.includes(symbol)) {
+          if (symbol) {
+            this.initialSyncSymbols.delete(symbol)
+          }
+          continue
+        }
+
+        console.log(`[KLineSync] 开始低优先级初始化同步: ${symbol}`)
+
+        for (const timeframe of this.config.timeframes) {
+          const config = this.timeframeConfigs.get(timeframe)
+          if (!config || !config.enabled) {
+            continue
+          }
+
+          this.initialSyncTimeframes.add(timeframe)
+          try {
+            await this.waitForTimeframeIdle(timeframe)
+            await this.syncSymbolKLine(symbol, timeframe, { force: true })
+          } catch (error: any) {
+            console.error(`[KLineSync] 初始化同步失败: ${symbol}/${timeframe}`, error.message)
+          } finally {
+            this.initialSyncTimeframes.delete(timeframe)
+          }
+
+          await this.sleep(1000)
+        }
+
+        console.log(`[KLineSync] 低优先级初始化同步完成: ${symbol}`)
+        this.initialSyncSymbols.delete(symbol)
+        await this.sleep(2000)
+      }
+    } finally {
+      this.isInitialSyncRunning = false
+      this.initialSyncTimeframes.clear()
+
+      if (this.initialSyncQueue.length > 0) {
+        this.processInitialSyncQueue()
+      }
+    }
+  }
+
   async syncSymbols(symbols: string[]): Promise<Array<{
     success: boolean
     message: string

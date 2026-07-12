@@ -127,17 +127,6 @@ export default defineEventHandler(async (event) => {
     const syncRemoved = removed.map(toSyncSymbol)
     const syncFinalSymbols = finalSymbols.map(toSyncSymbol)
 
-    // ========== 处理新增交易对 ==========
-    if (added.length > 0 && syncService) {
-      syncService.addSymbols(syncAdded)
-      console.log(`🔄 热重载: 已为 K线同步服务注册新交易对: ${added.join(', ')}`)
-      
-      // 异步触发新交易对的初始同步
-      syncService.syncSymbols(syncAdded).catch((err: Error) => {
-        console.error('新交易对初始同步失败:', err.message)
-      })
-    }
-
     // ========== 处理删除交易对 ==========
     if (removed.length > 0) {
       // 1. 从 K线同步服务和数据库移除
@@ -151,6 +140,12 @@ export default defineEventHandler(async (event) => {
     // 兜底收敛：避免 add/remove 因格式或历史状态导致同步服务内部 symbol 数量漂移。
     if (syncService) {
       syncService.updateConfig({ symbols: syncFinalSymbols })
+    }
+
+    // ========== 处理新增交易对 ==========
+    if (added.length > 0 && syncService) {
+      console.log(`🔄 热重载: 已为 K线同步服务注册新交易对: ${added.join(', ')}`)
+      syncService.enqueueInitialSync(syncAdded)
     }
 
     // ========== 同步所有策略的交易对 ==========
