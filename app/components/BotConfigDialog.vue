@@ -362,10 +362,13 @@ const handleSave = async () => {
 
       if (addedSymbols.length > 0 || removedSymbols.length > 0) {
         try {
-          // 传递完整 symbols 列表，由服务端自动计算增量/删量
+          // 配置已先保存，服务端再读取配置会拿到新列表；这里直接传递本次增删量。
           const reloadRes = await $fetch<any>('/api/bot/reload-symbols', {
             method: 'POST',
-            body: { symbols: currentSymbols }
+            body: {
+              added: addedSymbols,
+              removed: removedSymbols
+            }
           })
           if (reloadRes.success) {
             const parts: string[] = []
@@ -375,10 +378,14 @@ const handleSave = async () => {
               parts.push(`因持仓阻止删除 ${reloadRes.blockedByPosition.length} 个: ${reloadRes.blockedByPosition.join(', ')}`)
             }
             
+            const message = parts.length > 0
+              ? `${parts.join('，')}，无需重启服务`
+              : '配置已保存，交易对列表已是最新，无需重启服务'
+
             if (reloadRes.blockedByPosition?.length > 0) {
-              ElMessage.warning(`${parts.join('，')}，无需重启服务`)
+              ElMessage.warning(message)
             } else {
-              ElMessage.success(`${parts.join('，')}，无需重启服务`)
+              ElMessage.success(message)
             }
           }
         } catch (e: any) {

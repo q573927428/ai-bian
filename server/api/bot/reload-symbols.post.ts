@@ -31,6 +31,7 @@ export default defineEventHandler(async (event) => {
     const syncService = getSyncService()
     const currentConfig = await getBotConfig()
     const existingSymbols: string[] = currentConfig.symbols || []
+    const uniqueSymbols = (symbols: string[]) => Array.from(new Set(symbols))
 
     let added: string[] = []
     let removed: string[] = []
@@ -56,14 +57,21 @@ export default defineEventHandler(async (event) => {
           total: finalSymbols.length
         }
       }
-    } else if (addedOnly && Array.isArray(addedOnly) && addedOnly.length > 0) {
-      const existingSet = new Set(existingSymbols)
-      added = addedOnly.filter(s => !existingSet.has(s))
+    } else if (
+      (addedOnly && Array.isArray(addedOnly) && addedOnly.length > 0) ||
+      (removedOnly && Array.isArray(removedOnly) && removedOnly.length > 0)
+    ) {
+      const requestedAdded = uniqueSymbols(Array.isArray(addedOnly) ? addedOnly : [])
+      const requestedRemoved = uniqueSymbols(Array.isArray(removedOnly) ? removedOnly : [])
+
+      // 显式增删量可能是在配置保存后才传入的，不能再用当前配置过滤掉。
+      added = requestedAdded
+      removed = requestedRemoved
       
-      if (added.length === 0) {
+      if (added.length === 0 && removed.length === 0) {
         return {
           success: true,
-          message: '没有新增的交易对，无需重载',
+          message: '交易对列表没有变化，无需重载',
           added: [],
           removed: [],
           blockedByPosition: [],
@@ -71,22 +79,10 @@ export default defineEventHandler(async (event) => {
         }
       }
       
-      finalSymbols = [...existingSymbols, ...added]
-    } else if (removedOnly && Array.isArray(removedOnly) && removedOnly.length > 0) {
-      removed = removedOnly.filter(s => existingSymbols.includes(s))
-      
-      if (removed.length === 0) {
-        return {
-          success: true,
-          message: '没有需要删除的交易对',
-          added: [],
-          removed: [],
-          blockedByPosition: [],
-          total: existingSymbols.length
-        }
-      }
-      
-      finalSymbols = existingSymbols.filter(s => !removed.includes(s))
+      finalSymbols = uniqueSymbols([
+        ...existingSymbols.filter(s => !removed.includes(s)),
+        ...added
+      ])
     } else {
       return {
         success: false,
@@ -114,7 +110,7 @@ export default defineEventHandler(async (event) => {
       if (blocked.length > 0) {
         blockedByPosition = blocked
         // 将被阻止的交易对重新加回 finalSymbols
-        finalSymbols = [...finalSymbols, ...blocked]
+        finalSymbols = uniqueSymbols([...finalSymbols, ...blocked])
       }
 
       removed = safeToRemove
