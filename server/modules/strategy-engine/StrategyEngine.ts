@@ -392,6 +392,9 @@ export class StrategyEngine {
 
       if (symbolStrategies.size === 0) return
 
+      // 日志：本轮待处理的 symbols
+      logger.info('StrategyEngine', `本轮扫描处理 ${symbolStrategies.size} 个symbols: ${Array.from(symbolStrategies.keys()).join(', ')}`)
+
       // ★ 关键修复：在遍历交易对之前，先统一更新所有到期策略的 nextScanTime
       // 避免在 symbol 循环中提前更新，导致后续 symbol 被跳过
       const updatedInstances = new Set<StrategyInstance>()
