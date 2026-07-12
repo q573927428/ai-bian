@@ -49,6 +49,7 @@ export class KLineSimpleSyncService {
 
   constructor(config?: Partial<KLineSyncConfig>) {
     this.config = { ...DEFAULT_CONFIG, ...config }
+    this.config.symbols = this.normalizeSymbols(this.config.symbols)
     this.eventEmitter = new EventEmitter()
     this.initializeTimeframeConfigs()
     this.initializeStatus()
@@ -108,6 +109,14 @@ export class KLineSimpleSyncService {
   // 获取状态键
   private getStatusKey(symbol: string, timeframe: KLineTimeframe): string {
     return `${symbol}-${timeframe}`
+  }
+
+  private normalizeSymbol(symbol: string): string {
+    return symbol.replace('/', '')
+  }
+
+  private normalizeSymbols(symbols: string[] = []): string[] {
+    return Array.from(new Set(symbols.map(symbol => this.normalizeSymbol(symbol))))
   }
 
   // 更新状态
@@ -647,7 +656,7 @@ export class KLineSimpleSyncService {
       
       // 5. 保存所有数据
       if (allData.length > 0) {
-        console.log(`[手动同步] 保存数据到文件...`)
+        // console.log(`[手动同步] 保存数据到文件...`)
         const success = appendSimpleKLineData(symbol, timeframe, allData)
         
         if (!success) {
@@ -1014,8 +1023,12 @@ export class KLineSimpleSyncService {
   // 更新配置
   updateConfig(newConfig: Partial<KLineSyncConfig>): void {
     this.config = { ...this.config, ...newConfig }
+    if (newConfig.symbols) {
+      this.config.symbols = this.normalizeSymbols(newConfig.symbols)
+    }
     
     // 重新初始化状态
+    this.syncStatus.clear()
     this.initializeTimeframeConfigs()
     this.initializeStatus()
     this.initializeLastSyncTimes()
@@ -1033,8 +1046,9 @@ export class KLineSimpleSyncService {
   addSymbols(newSymbols: string[]): void {
     if (!newSymbols || newSymbols.length === 0) return
 
+    const normalizedSymbols = this.normalizeSymbols(newSymbols)
     const existingSet = new Set(this.config.symbols)
-    const actuallyNew = newSymbols.filter(s => !existingSet.has(s))
+    const actuallyNew = normalizedSymbols.filter(s => !existingSet.has(s))
 
     if (actuallyNew.length === 0) {
       console.log('[KLineSync] 所有交易对已存在，跳过添加')
@@ -1070,8 +1084,9 @@ export class KLineSimpleSyncService {
   removeSymbols(removedSymbols: string[]): void {
     if (!removedSymbols || removedSymbols.length === 0) return
 
+    const normalizedSymbols = this.normalizeSymbols(removedSymbols)
     const existingSet = new Set(this.config.symbols)
-    const actuallyRemoved = removedSymbols.filter(s => existingSet.has(s))
+    const actuallyRemoved = normalizedSymbols.filter(s => existingSet.has(s))
 
     if (actuallyRemoved.length === 0) {
       console.log('[KLineSync] 没有需要移除的交易对')
@@ -1117,8 +1132,9 @@ export class KLineSimpleSyncService {
     count: number
   }>> {
     const results = []
+    const normalizedSymbols = this.normalizeSymbols(symbols)
 
-    for (const symbol of symbols) {
+    for (const symbol of normalizedSymbols) {
       for (const timeframe of this.config.timeframes) {
         try {
           const result = await this.syncSymbolKLine(symbol, timeframe, { force: true })

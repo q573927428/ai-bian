@@ -33,6 +33,7 @@ export default defineEventHandler(async (event) => {
     const currentConfig = await getBotConfig()
     const existingSymbols: string[] = currentConfig.symbols || []
     const uniqueSymbols = (symbols: string[]) => Array.from(new Set(symbols))
+    const toSyncSymbol = (symbol: string) => symbol.replace('/', '')
 
     let added: string[] = []
     let removed: string[] = []
@@ -122,13 +123,17 @@ export default defineEventHandler(async (event) => {
     // 更新配置文件
     await saveBotConfig({ ...currentConfig, symbols: finalSymbols })
 
+    const syncAdded = added.map(toSyncSymbol)
+    const syncRemoved = removed.map(toSyncSymbol)
+    const syncFinalSymbols = finalSymbols.map(toSyncSymbol)
+
     // ========== 处理新增交易对 ==========
     if (added.length > 0 && syncService) {
-      syncService.addSymbols(added)
+      syncService.addSymbols(syncAdded)
       console.log(`🔄 热重载: 已为 K线同步服务注册新交易对: ${added.join(', ')}`)
       
       // 异步触发新交易对的初始同步
-      syncService.syncSymbols(added).catch((err: Error) => {
+      syncService.syncSymbols(syncAdded).catch((err: Error) => {
         console.error('新交易对初始同步失败:', err.message)
       })
     }
@@ -137,10 +142,15 @@ export default defineEventHandler(async (event) => {
     if (removed.length > 0) {
       // 1. 从 K线同步服务和数据库移除
       if (syncService) {
-        syncService.removeSymbols(removed)
+        syncService.removeSymbols(syncRemoved)
       }
 
       console.log(`🔄 热重载: 已从 K线同步服务和所有策略中移除交易对: ${removed.join(', ')}`)
+    }
+
+    // 兜底收敛：避免 add/remove 因格式或历史状态导致同步服务内部 symbol 数量漂移。
+    if (syncService) {
+      syncService.updateConfig({ symbols: syncFinalSymbols })
     }
 
     // ========== 同步所有策略的交易对 ==========
