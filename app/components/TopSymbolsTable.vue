@@ -2,7 +2,7 @@
   <el-dialog
     v-model="visible"
     title="🔥 热门交易对 Top 30"
-    width="50%"
+    width="40%"
     :fullscreen="isMobile"
     :close-on-click-modal="false"
     top="32vh"
@@ -91,18 +91,6 @@
         </el-table-column>
 
         <el-table-column
-          prop="openInterestValue"
-          label="持仓额 (USDT)"
-          sortable="custom"
-          min-width="160"
-        >
-          <template #default="{ row }">
-            <span class="oi-value">{{ formatVolume(row.openInterestValue) }}</span>
-            <span class="oi-volume"> / {{ formatVolume(row.openInterest) }} 张</span>
-          </template>
-        </el-table-column>
-
-        <el-table-column
           prop="fundingRate"
           label="资金费率"
           sortable="custom"
@@ -127,8 +115,6 @@ interface TopSymbol {
   volume: number
   price: number
   priceChangePercent: number
-  openInterest: number
-  openInterestValue: number
   fundingRate: number
   klineCount4h: number
   onboardDate: number
@@ -339,15 +325,6 @@ watch(visible, (newVal) => {
   line-height: 1;
 }
 
-
-.oi-value {
-  font-weight: 600;
-}
-
-.oi-volume {
-  font-size: 12px;
-  color: #909399;
-}
 
 @media (max-width: 768px) {
   .top-symbols-container {

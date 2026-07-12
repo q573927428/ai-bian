@@ -6,8 +6,6 @@ interface TopSymbol {
   volume: number          // 成交额 (USDT)
   price: number           // 当前价格
   priceChangePercent: number // 24小时涨跌幅 (%)
-  openInterest: number    // 持仓量 (张数)
-  openInterestValue: number // 持仓额 (USDT)
   fundingRate: number     // 资金费率 (%)
   klineCount4h: number    // 4H K线可用根数
   onboardDate: number     // 上线时间戳 (ms)
@@ -65,8 +63,6 @@ export default defineEventHandler(async () => {
         volume: parseFloat(t.quoteVolume || '0'),
         price: parseFloat(t.lastPrice || '0'),
         priceChangePercent: parseFloat(t.priceChangePercent || '0'),
-        openInterest: 0,
-        openInterestValue: 0,
         fundingRate: 0,
         klineCount4h,
         onboardDate,
@@ -90,41 +86,11 @@ export default defineEventHandler(async () => {
     // 忽略全量资金费率错误
   }
 
-  // 3b. 并发获取持仓张数（权重 1 × N）
-  const oiPromises = symbols.map(async (item) => {
-    let openInterest = 0
-    try {
-      const oiRes = await binanceApiGateway.fetchJson<any>(
-        'marketData',
-        `openInterest:${item.symbol}`,
-        `https://fapi.binance.com/fapi/v1/openInterest?symbol=${item.symbol}`
-      )
-      openInterest = parseFloat(oiRes.openInterest || '0')
-    } catch {
-      // 忽略单个交易对持仓量错误
-    }
-    return {
-      symbol: item.symbol,
-      openInterest,
-      openInterestValue: openInterest * item.price,
-    }
-  })
-
-  const oiResults = await Promise.all(oiPromises)
-  const oiMap = new Map<string, { openInterest: number; openInterestValue: number }>(
-    oiResults.map(r => [r.symbol, { openInterest: r.openInterest, openInterestValue: r.openInterestValue }])
-  )
-
   // 4. 组装最终结果
-  const result: TopSymbol[] = symbols.map(item => {
-    const oi = oiMap.get(item.symbol)
-    return {
-      ...item,
-      openInterest: oi?.openInterest || 0,
-      openInterestValue: oi?.openInterestValue || 0,
-      fundingRate: fundingMap.get(item.symbol) || 0,
-    }
-  })
+  const result: TopSymbol[] = symbols.map(item => ({
+    ...item,
+    fundingRate: fundingMap.get(item.symbol) || 0,
+  }))
 
   return { success: true, data: result }
 })

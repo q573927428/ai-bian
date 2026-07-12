@@ -395,7 +395,7 @@ interface WebSocketStatusResponse {
   min-height: 70px;
   min-width: 150px;
   flex-shrink: 0;
-  flex: 1 0 calc(16.6% - 8px);
+  flex: 1 0 calc(12.5% - 8px);
 }
 
 .price-card:hover {
