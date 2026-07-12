@@ -16,7 +16,7 @@ interface TopSymbol {
 /** 4H K线的毫秒数 */
 const KLINE_4H_MS = 4 * 60 * 60 * 1000
 /** 返回的热门交易对数量上限 */
-const TOP_SYMBOLS_LIMIT = 20
+const TOP_SYMBOLS_LIMIT = 30
 
 export default defineEventHandler(async () => {
   // 0. 从 bot-config.json 读取 requiredCandles 作为最少需要的4H K线根数
@@ -33,7 +33,8 @@ export default defineEventHandler(async () => {
     )
     const now = Date.now()
     for (const s of (exchangeInfo.symbols || [])) {
-      if (s.contractType === 'PERPETUAL' && s.symbol.endsWith('USDT') && !s.symbol.endsWith('USDCUSDT')) {
+      // PERPETUAL = 普通永续合约, TRADIFI_PERPETUAL = TradFi 永续合约（如 SNDKUSDT）
+      if ((s.contractType === 'PERPETUAL' || s.contractType === 'TRADIFI_PERPETUAL') && s.symbol.endsWith('USDT') && !s.symbol.endsWith('USDCUSDT')) {
         const onboardDate = s.onboardDate ? Number(s.onboardDate) : 0
         onboardMap.set(s.symbol, onboardDate)
       }
