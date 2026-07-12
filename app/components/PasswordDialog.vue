@@ -27,7 +27,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, nextTick, computed } from 'vue'
+import { ref, watch, nextTick, computed, onBeforeUnmount } from 'vue'
 
 interface Props {
   modelValue: boolean
@@ -53,23 +53,31 @@ const loading = ref(false)
 const checkingPassword = ref(false)
 const passwordInput = ref()
 
+// 防止组件卸载后执行异步回调
+let isUnmounted = false
+onBeforeUnmount(() => {
+  isUnmounted = true
+})
+
 // 检查是否需要密码
-const checkRequiresPassword = async () => {
+const checkRequiresPassword = async (): Promise<boolean> => {
   try {
     checkingPassword.value = true
     const res = await $fetch<any>('/api/bot/check-password')
+    if (isUnmounted) return false
     if (res.success && !res.requiresPassword) {
-      // 不需要密码，直接成功
-      emit('success')
-      visible.value = false
+      // 不需要密码，由 watch 的调用方处理关闭和事件
       return false
     }
     return true
   } catch (error: any) {
+    if (isUnmounted) return false
     ElMessage.error('检查密码配置失败: ' + (error.message || '未知错误'))
     return true
   } finally {
-    checkingPassword.value = false
+    if (!isUnmounted) {
+      checkingPassword.value = false
+    }
   }
 }
 
@@ -86,17 +94,23 @@ const handleConfirm = async () => {
       body: { password: form.value.password }
     })
 
-    if (res.success) {
+    if (!isUnmounted && res.success) {
       ElMessage.success('验证成功')
       visible.value = false
       emit('success')
     } else {
-      ElMessage.error(res.message || '密码错误')
+      if (!isUnmounted) {
+        ElMessage.error(res.message || '密码错误')
+      }
     }
   } catch (error: any) {
-    ElMessage.error('验证失败: ' + (error.message || '未知错误'))
+    if (!isUnmounted) {
+      ElMessage.error('验证失败: ' + (error.message || '未知错误'))
+    }
   } finally {
-    loading.value = false
+    if (!isUnmounted) {
+      loading.value = false
+    }
   }
 }
 
@@ -112,11 +126,18 @@ watch(visible, async (newVal) => {
   if (newVal) {
     // 检查是否需要密码
     const requiresPassword = await checkRequiresPassword()
-    if (requiresPassword) {
-      nextTick(() => {
-        passwordInput.value?.focus()
-      })
+    if (isUnmounted) return
+    if (!requiresPassword) {
+      // 不需要密码，直接关闭对话框并触发成功事件
+      visible.value = false
+      emit('success')
+      return
     }
+    nextTick(() => {
+      if (!isUnmounted) {
+        passwordInput.value?.focus()
+      }
+    })
   }
 })
 </script>
