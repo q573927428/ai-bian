@@ -73,12 +73,16 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch, nextTick, computed } from 'vue'
-import * as echarts from 'echarts'
-import type { TradeHistory } from '../../types'
+import { ref, onMounted, onUnmounted, watch } from 'vue'
+import { LineChart } from 'echarts/charts'
+import { GridComponent, TitleComponent, TooltipComponent } from 'echarts/components'
+import { CanvasRenderer } from 'echarts/renderers'
+import { graphic, init, use, type ECharts } from 'echarts/core'
 import { useStrategiesStore } from '../stores/strategies'
 import { useTradeHistoryStore } from '../stores/tradeHistory'
 import { useTheme } from '../composables/useTheme'
+
+use([LineChart, GridComponent, TitleComponent, TooltipComponent, CanvasRenderer])
 
 const strategiesStore = useStrategiesStore()
 const tradeHistoryStore = useTradeHistoryStore()
@@ -98,7 +102,7 @@ const stats = ref({
   totalFee: 0
 })
 const { theme } = useTheme()
-let chartInstance: echarts.ECharts | null = null
+let chartInstance: ECharts | null = null
 
 // 加载历史数据
 const loadData = async (force = false) => {
@@ -200,7 +204,7 @@ const renderChart = () => {
   if (!chartRef.value || chartData.value.length === 0) return
 
   if (!chartInstance) {
-    chartInstance = echarts.init(chartRef.value)
+    chartInstance = init(chartRef.value)
   }
 
   const isPnl = chartType.value === 'pnl'
@@ -269,7 +273,7 @@ const renderChart = () => {
           color: color
         },
         areaStyle: {
-          color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+          color: new graphic.LinearGradient(0, 0, 0, 1, [
             { offset: 0, color: isPnl ? 'rgba(16, 185, 129, 0.3)' : 'rgba(59, 130, 246, 0.3)' },
             { offset: 1, color: isPnl ? 'rgba(16, 185, 129, 0.05)' : 'rgba(59, 130, 246, 0.05)' }
           ])
@@ -278,7 +282,7 @@ const renderChart = () => {
     ]
   }
 
-  chartInstance.setOption(option, true)
+  chartInstance.setOption(option)
 }
 
 // 监听筛选变化
@@ -299,7 +303,9 @@ const handleResize = () => {
 }
 
 onMounted(async () => {
-  await strategiesStore.loadStrategies()
+  if (strategiesStore.strategies.length === 0) {
+    await strategiesStore.loadStrategies()
+  }
   await loadData()
   
   window.addEventListener('resize', handleResize)

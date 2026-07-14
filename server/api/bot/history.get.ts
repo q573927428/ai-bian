@@ -1,5 +1,9 @@
-import { readFileSync, existsSync } from 'fs'
+import { readFileSync, existsSync, statSync } from 'fs'
 import { join } from 'path'
+
+let cachedRecords: any[] = []
+let cachedMtimeMs = 0
+let cachedSize = 0
 
 export default defineEventHandler(async (event) => {
   try {
@@ -23,18 +27,23 @@ export default defineEventHandler(async (event) => {
       }
     }
     
-    const rawData = readFileSync(historyFilePath, 'utf-8')
-    const allRecords = JSON.parse(rawData)
-    
-    // 按 closeTime 降序排序（最新的在前）
-    allRecords.sort((a: any, b: any) => b.closeTime - a.closeTime)
+    const fileStat = statSync(historyFilePath)
+    if (cachedMtimeMs !== fileStat.mtimeMs || cachedSize !== fileStat.size) {
+      const rawData = readFileSync(historyFilePath, 'utf-8')
+      cachedRecords = JSON.parse(rawData)
+
+      // 按 closeTime 降序排序（最新的在前）
+      cachedRecords.sort((a: any, b: any) => b.closeTime - a.closeTime)
+      cachedMtimeMs = fileStat.mtimeMs
+      cachedSize = fileStat.size
+    }
     
     // 计算分页
-    const total = allRecords.length
+    const total = cachedRecords.length
     const totalPages = Math.ceil(total / pageSize)
     const startIndex = (page - 1) * pageSize
     const endIndex = Math.min(startIndex + pageSize, total)
-    const pageData = allRecords.slice(startIndex, endIndex)
+    const pageData = cachedRecords.slice(startIndex, endIndex)
     
     return {
       success: true,
