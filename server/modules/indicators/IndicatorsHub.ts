@@ -19,6 +19,7 @@ import {
 } from '../../utils/kline-simple-storage'
 import { EventEmitter } from 'node:events'
 import { getSquareHeat } from '../../utils/square-heat'
+import { shortHash } from '../../utils/stable-hash'
 
 /**
  * 统一数据缓存条目
@@ -660,8 +661,8 @@ export class IndicatorsHub {
       }
     }
 
-    // 技术指标：按需计算并缓存
-    const cacheKey = `${symbol}_${timeframe}_${type}`
+    // 技术指标：按参数组合计算并缓存，避免不同策略参数互相覆盖
+    const cacheKey = `${symbol}_${timeframe}_${type}_${shortHash(options || {}, 16)}`
     let indicatorData = symbolData.indicators.get(cacheKey)
 
     if (!indicatorData) {

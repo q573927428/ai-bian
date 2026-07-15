@@ -317,6 +317,10 @@ function normalizeBotConfig(input: Partial<BotConfig> = {}): BotConfig {
       ...defaults.binanceRateLimit!,
       ...(input.binanceRateLimit || {})
     },
+    indicatorPrecompute: {
+      ...defaults.indicatorPrecompute!,
+      ...(input.indicatorPrecompute || {})
+    },
     chartMarkerConfig: {
       ...defaults.chartMarkerConfig,
       ...(input.chartMarkerConfig || {})
@@ -347,6 +351,13 @@ function normalizeBotConfig(input: Partial<BotConfig> = {}): BotConfig {
   config.binanceRateLimit!.tradeConcurrency = clampInteger(config.binanceRateLimit!.tradeConcurrency, 1, 5, 1)
   config.binanceRateLimit!.retryBaseMs = clampInteger(config.binanceRateLimit!.retryBaseMs, 250, 30000, 1000)
   config.binanceRateLimit!.retryMaxMs = clampInteger(config.binanceRateLimit!.retryMaxMs, 1000, 300000, 60000)
+  config.indicatorPrecompute!.intervalMs = clampInteger(config.indicatorPrecompute!.intervalMs, 60000, 3600000, 300000)
+  config.indicatorPrecompute!.maxConcurrency = clampInteger(config.indicatorPrecompute!.maxConcurrency, 1, 64, 8)
+  config.indicatorPrecompute!.staleTtlMs = clampInteger(config.indicatorPrecompute!.staleTtlMs, 60000, 7200000, 900000)
+  config.indicatorPrecompute!.technicalIndicatorIntervalMs = clampInteger(config.indicatorPrecompute!.technicalIndicatorIntervalMs, 60000, 3600000, 300000)
+  config.indicatorPrecompute!.oiFastIntervalMs = clampInteger(config.indicatorPrecompute!.oiFastIntervalMs, 60000, 3600000, 600000)
+  config.indicatorPrecompute!.oiSlowIntervalMs = clampInteger(config.indicatorPrecompute!.oiSlowIntervalMs, 60000, 7200000, 1800000)
+  config.indicatorPrecompute!.squareHeatIntervalMs = clampInteger(config.indicatorPrecompute!.squareHeatIntervalMs, 60000, 7200000, 1800000)
 
   const ratio = Number(config.binanceRateLimit!.maxUsedWeight1mRatio)
   config.binanceRateLimit!.maxUsedWeight1mRatio = Number.isFinite(ratio)
@@ -411,6 +422,17 @@ function getDefaultBotConfig(): BotConfig {
       maxUsedWeight1mRatio: 0.75,
       retryBaseMs: 1000,
       retryMaxMs: 60000,
+    },
+    indicatorPrecompute: {
+      enabled: true,
+      intervalMs: 300000,
+      maxConcurrency: 8,
+      staleTtlMs: 900000,
+      computeOnStrategyChange: true,
+      technicalIndicatorIntervalMs: 300000,
+      oiFastIntervalMs: 600000,
+      oiSlowIntervalMs: 1800000,
+      squareHeatIntervalMs: 1800000,
     },
     chartMarkerConfig: {
       showEMAMarkers: false, // 显示EMA金叉死叉标记

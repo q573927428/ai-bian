@@ -12,9 +12,11 @@ import { StrategyStore } from '../strategy-store/StrategyStore'
 import { StrategyEngine } from '../strategy-engine/StrategyEngine'
 import { IndicatorsHub } from '../indicators/IndicatorsHub'
 import { logger } from '../../utils/logger'
-import { saveBotConfig } from '../../utils/storage'
+import { getBotConfig, saveBotConfig } from '../../utils/storage'
 import { concurrencyPoolManager } from '../../utils/concurrency-pool'
 import { binanceApiGateway } from '../../utils/binance-api-gateway'
+import { indicatorCombinationRegistry, type IndicatorCombinationRegistry } from '../indicators/IndicatorCombinationRegistry'
+import type { IndicatorPrecomputeService } from '../indicators/IndicatorPrecomputeService'
 
 /**
  * 策略管理器
@@ -29,9 +31,128 @@ export class StrategyManager {
   private store: StrategyStore
   private engine: StrategyEngine | null = null
   private indicatorsHub: IndicatorsHub | null = null
+  private indicatorRegistry: IndicatorCombinationRegistry = indicatorCombinationRegistry
+  private indicatorPrecompute: IndicatorPrecomputeService | null = null
+  private refreshRegistryTimer: NodeJS.Timeout | null = null
 
   constructor(store: StrategyStore) {
     this.store = store
+  }
+
+  private normalizeSymbol(symbol: string): string {
+    return symbol.replace('/', '').toUpperCase()
+  }
+
+  private async getAllowedSymbolMap(): Promise<Map<string, string>> {
+    const config = await getBotConfig()
+    const symbols = Array.isArray(config.symbols) ? config.symbols : []
+    return new Map(symbols.map(symbol => [this.normalizeSymbol(symbol), symbol]))
+  }
+
+  private filterSymbolsByConfig(
+    symbols: string[] = [],
+    allowedSymbolMap: Map<string, string>
+  ): { symbols: string[]; removed: string[] } {
+    const filtered: string[] = []
+    const removed: string[] = []
+    const seen = new Set<string>()
+
+    for (const symbol of symbols) {
+      const key = this.normalizeSymbol(symbol)
+      const allowedSymbol = allowedSymbolMap.get(key)
+      if (!allowedSymbol) {
+        removed.push(symbol)
+        continue
+      }
+      if (!seen.has(key)) {
+        seen.add(key)
+        filtered.push(allowedSymbol)
+      }
+    }
+
+    return { symbols: filtered, removed }
+  }
+
+  private async sanitizeCreateInput(input: CreateStrategyInput): Promise<CreateStrategyInput> {
+    const allowedSymbolMap = await this.getAllowedSymbolMap()
+    const { symbols, removed } = this.filterSymbolsByConfig(input.marketData?.symbols || [], allowedSymbolMap)
+
+    if (removed.length > 0) {
+      logger.warn('StrategyManager', `创建策略时移除不在 bot-config.symbols 中的交易对: ${removed.join(', ')}`)
+    }
+    if (symbols.length === 0) {
+      throw new Error('策略交易对不能为空，且必须来自 bot-config.symbols')
+    }
+
+    return {
+      ...input,
+      marketData: {
+        ...input.marketData,
+        symbols
+      }
+    }
+  }
+
+  private async sanitizeUpdates(updates: UpdateStrategyInput): Promise<UpdateStrategyInput> {
+    if (!updates.marketData?.symbols) return updates
+
+    const allowedSymbolMap = await this.getAllowedSymbolMap()
+    const { symbols, removed } = this.filterSymbolsByConfig(updates.marketData.symbols, allowedSymbolMap)
+
+    if (removed.length > 0) {
+      logger.warn('StrategyManager', `更新策略时移除不在 bot-config.symbols 中的交易对: ${removed.join(', ')}`)
+    }
+    if (symbols.length === 0) {
+      throw new Error('策略交易对不能为空，且必须来自 bot-config.symbols')
+    }
+
+    return {
+      ...updates,
+      marketData: {
+        ...updates.marketData,
+        symbols
+      }
+    }
+  }
+
+  private async enforceStrategySymbols(strategy: Strategy): Promise<Strategy> {
+    const allowedSymbolMap = await this.getAllowedSymbolMap()
+    const originalSymbols = strategy.marketData?.symbols || []
+    const { symbols, removed } = this.filterSymbolsByConfig(originalSymbols, allowedSymbolMap)
+
+    const changed =
+      symbols.length !== originalSymbols.length ||
+      symbols.some((symbol, index) => symbol !== originalSymbols[index])
+
+    if (!changed) return strategy
+
+    logger.warn(
+      'StrategyManager',
+      `策略 ${strategy.name} (${strategy.id}) 已移除不在 bot-config.symbols 中的交易对: ${removed.join(', ') || '格式归一化'}`
+    )
+
+    const updated = await this.store.updateStrategyWithoutVersion(strategy.id, {
+      marketData: {
+        ...strategy.marketData,
+        symbols
+      }
+    })
+
+    return updated || {
+      ...strategy,
+      marketData: {
+        ...strategy.marketData,
+        symbols
+      }
+    }
+  }
+
+  private async enforceStrategiesSymbols(strategies: Strategy[]): Promise<Strategy[]> {
+    const sanitizedStrategies: Strategy[] = []
+    for (const strategy of strategies) {
+      sanitizedStrategies.push(await this.enforceStrategySymbols(strategy))
+    }
+    return sanitizedStrategies
   }
 
   /**
@@ -58,6 +179,11 @@ export class StrategyManager {
     this.indicatorsHub = hub
   }
 
+  setIndicatorPrecomputeService(service: IndicatorPrecomputeService): void {
+    this.indicatorPrecompute = service
+    this.engine?.setIndicatorPrecomputeService(service)
+  }
+
   /**
    * 获取指标中心
    */
@@ -68,6 +194,41 @@ export class StrategyManager {
     return this.indicatorsHub
   }
 
+  private scheduleIndicatorRegistryRefresh(immediate = false): void {
+    if (this.refreshRegistryTimer) {
+      clearTimeout(this.refreshRegistryTimer)
+      this.refreshRegistryTimer = null
+    }
+
+    const run = async () => {
+      try {
+        const activeStrategies = await this.getActiveStrategies()
+        this.indicatorRegistry.rebuildFromStrategies(activeStrategies)
+        logger.info('StrategyManager', `指标组合注册表已刷新: ${this.indicatorRegistry.getCombinations().length} 个组合`)
+        if (this.indicatorPrecompute && this.engine) {
+          const config = (this.engine as any).config as BotConfig
+          if (config.indicatorPrecompute?.computeOnStrategyChange !== false) {
+            this.indicatorPrecompute.precomputeAll().catch((error: any) => {
+              logger.warn('StrategyManager', `策略变更后指标预计算失败: ${error.message}`)
+            })
+          }
+        }
+      } catch (error: any) {
+        logger.error('StrategyManager', `刷新指标组合注册表失败: ${error.message}`)
+      }
+    }
+
+    if (immediate) {
+      void run()
+      return
+    }
+
+    this.refreshRegistryTimer = setTimeout(() => {
+      this.refreshRegistryTimer = null
+      void run()
+    }, 300)
+  }
+
   // ==================== 策略 CRUD ====================
 
   /**
@@ -76,8 +237,10 @@ export class StrategyManager {
   async createStrategy(input: CreateStrategyInput): Promise<Strategy> {
     logger.info('StrategyManager', `开始创建策略: ${input.name}`)
 
-    const strategy = await this.store.createStrategy(input)
+    const sanitizedInput = await this.sanitizeCreateInput(input)
+    const strategy = await this.store.createStrategy(sanitizedInput)
 
+    this.scheduleIndicatorRegistryRefresh()
     logger.success('StrategyManager', `策略创建成功: ${strategy.name} (${strategy.id})`)
     return strategy
   }
@@ -86,21 +249,22 @@ export class StrategyManager {
    * 获取单个策略
    */
   async getStrategy(strategyId: StrategyId): Promise<Strategy | null> {
-    return this.store.getStrategy(strategyId)
+    const strategy = await this.store.getStrategy(strategyId)
+    return strategy ? await this.enforceStrategySymbols(strategy) : null
   }
 
   /**
    * 获取所有策略
    */
   async getAllStrategies(): Promise<Strategy[]> {
-    return this.store.getAllStrategies()
+    return this.enforceStrategiesSymbols(await this.store.getAllStrategies())
   }
 
   /**
    * 获取所有激活的策略
    */
   async getActiveStrategies(): Promise<Strategy[]> {
-    return this.store.getActiveStrategies()
+    return this.enforceStrategiesSymbols(await this.store.getActiveStrategies())
   }
 
   /**
@@ -112,7 +276,8 @@ export class StrategyManager {
   ): Promise<Strategy | null> {
     logger.info('StrategyManager', `开始更新策略（普通更新）: ${strategyId}`)
 
-    const strategy = await this.store.updateStrategyWithoutVersion(strategyId, updates)
+    const sanitizedUpdates = await this.sanitizeUpdates(updates)
+    const strategy = await this.store.updateStrategyWithoutVersion(strategyId, sanitizedUpdates)
 
     if (strategy) {
       logger.success('StrategyManager', `策略更新成功（普通更新）: ${strategy.name}`)
@@ -122,6 +287,7 @@ export class StrategyManager {
         logger.info('StrategyManager', `策略正在运行，需要重启以应用新配置`)
         await this.engine.restartStrategy(strategyId)
       }
+      this.scheduleIndicatorRegistryRefresh()
     }
 
     return strategy
@@ -137,7 +303,8 @@ export class StrategyManager {
   ): Promise<Strategy | null> {
     logger.info('StrategyManager', `开始更新策略: ${strategyId}`)
 
-    const strategy = await this.store.updateStrategy(strategyId, updates, changes)
+    const sanitizedUpdates = await this.sanitizeUpdates(updates)
+    const strategy = await this.store.updateStrategy(strategyId, sanitizedUpdates, changes)
 
     if (strategy) {
       logger.success('StrategyManager', `策略更新成功: ${strategy.name} (v${strategy.version})`)
@@ -147,6 +314,7 @@ export class StrategyManager {
         logger.info('StrategyManager', `策略正在运行，需要重启以应用新配置`)
         await this.engine.restartStrategy(strategyId)
       }
+      this.scheduleIndicatorRegistryRefresh()
     }
 
     return strategy
@@ -170,6 +338,7 @@ export class StrategyManager {
       if (this.engine && strategy.isActive) {
         await this.engine.restartStrategy(strategyId)
       }
+      this.scheduleIndicatorRegistryRefresh()
     }
 
     return strategy
@@ -189,6 +358,8 @@ export class StrategyManager {
     const success = await this.store.deleteStrategy(strategyId)
 
     if (success) {
+      this.indicatorRegistry.removeStrategy(strategyId)
+      this.scheduleIndicatorRegistryRefresh()
       logger.success('StrategyManager', `策略删除成功: ${strategyId}`)
     }
 
@@ -210,11 +381,14 @@ export class StrategyManager {
       return null
     }
 
+    const sanitizedStrategy = await this.enforceStrategySymbols(strategy)
+
     // 如果激活，加载到执行引擎
     if (active && this.engine && this.indicatorsHub) {
       await this.engine.startStrategy(strategyId)
       await this.indicatorsHub.subscribe(strategyId)
-      logger.success('StrategyManager', `策略已激活并加载: ${strategy.name}`)
+      this.scheduleIndicatorRegistryRefresh()
+      logger.success('StrategyManager', `策略已激活并加载: ${sanitizedStrategy.name}`)
     }
 
     // 如果停用，从执行引擎移除
@@ -223,10 +397,12 @@ export class StrategyManager {
       if (this.indicatorsHub) {
         this.indicatorsHub.unsubscribe(strategyId)
       }
-      logger.success('StrategyManager', `策略已停用并卸载: ${strategy.name}`)
+      this.indicatorRegistry.removeStrategy(strategyId)
+      this.scheduleIndicatorRegistryRefresh()
+      logger.success('StrategyManager', `策略已停用并卸载: ${sanitizedStrategy.name}`)
     }
 
-    return strategy
+    return sanitizedStrategy
   }
 
   /**
@@ -240,9 +416,10 @@ export class StrategyManager {
 
     // logger.info('StrategyManager', '开始加载所有激活的策略...')
 
-    const activeStrategies = await this.store.getActiveStrategies()
+    const activeStrategies = await this.getActiveStrategies()
 
     if (activeStrategies.length === 0) {
+      this.indicatorRegistry.rebuildFromStrategies([])
       logger.info('StrategyManager', '没有激活的策略')
       return
     }
@@ -262,6 +439,13 @@ export class StrategyManager {
     }
 
     logger.success('StrategyManager', `已加载 ${activeStrategies.length} 个策略`)
+    this.indicatorRegistry.rebuildFromStrategies(activeStrategies)
+    logger.info('StrategyManager', `指标组合注册表已初始化: ${this.indicatorRegistry.getCombinations().length} 个组合`)
+    try {
+      await this.indicatorPrecompute?.precomputeAll()
+    } catch (error: any) {
+      logger.warn('StrategyManager', `初始化指标预计算失败: ${error.message}`)
+    }
   }
 
   // ==================== 版本历史 ====================
@@ -353,6 +537,7 @@ export class StrategyManager {
     
     // 通知引擎更新配置
     this.engine.updateConfig(config)
+    this.indicatorPrecompute?.updateConfig(config)
     
     logger.success('StrategyManager', '系统配置已更新')
   }

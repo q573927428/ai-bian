@@ -12,16 +12,9 @@ import { WebSocketStatus } from '../../types/websocket'
 import WebSocket from 'ws'
 
 // 币安WebSocket端点
-// 注意: 币安期货WebSocket有3个分流入口:
-//   /public  - 高频公共行情/盘口数据（如 @depth）
-//   /market  - 常规公共市场数据（如 @ticker, @markPrice, @kline）
-//   /private - 用户私有数据
-// 如果未指定分流路径，仅能接收 /public 类别的数据
-// 参考: https://binance-docs.github.io/apidocs/futures/cn/#WebSocket_Base_URL
 const BINANCE_WS_ENDPOINTS = {
   futures: 'wss://fstream.binance.com/ws',
-  futuresMarket: 'wss://fstream.binance.com/market/ws',
-  futuresPublic: 'wss://fstream.binance.com/public/ws',
+  futuresMarket: 'wss://fstream.binance.com/market/stream',
   futuresTestnet: 'wss://stream.binancefuture.com/ws',
   spot: 'wss://stream.binance.com:9443/ws',
   spotTestnet: 'wss://testnet.binance.vision/ws'
@@ -78,9 +71,6 @@ export class BinanceWebSocketService {
 
     return new Promise((resolve, reject) => {
       try {
-        // 使用币安期货WebSocket /market 分流路径
-        // @ticker、@markPrice、@kline 等常规市场数据属于 /market 类别
-        // 如果使用无分流路径的 /ws，将无法收到 /market 类别的数据
         this.ws = new WebSocket(BINANCE_WS_ENDPOINTS.futuresMarket)
         
         this.ws.onopen = () => {
@@ -88,6 +78,7 @@ export class BinanceWebSocketService {
           this.updateStatus(WebSocketStatus.CONNECTED)
           this.state.reconnectAttempts = 0
           this.startPingTimer()
+          this.resubscribeExistingStreams()
           this.emitEvent({ type: 'status', data: 'connected', timestamp: Date.now() })
           resolve()
         }
@@ -110,6 +101,7 @@ export class BinanceWebSocketService {
         this.ws.onclose = () => {
           console.log('🔌 WebSocket连接关闭')
           this.updateStatus(WebSocketStatus.DISCONNECTED)
+          this.state.connectedSymbols = []
           this.stopPingTimer()
           this.emitEvent({ type: 'status', data: 'disconnected', timestamp: Date.now() })
           this.scheduleReconnect()
@@ -182,6 +174,36 @@ export class BinanceWebSocketService {
     this.state.subscriptions.symbols = [...this.state.subscriptions.symbols, ...newSymbols]
     
     // console.log(`📡 订阅价格数据: ${newSymbols.join(', ')}`)
+  }
+
+  /**
+   * 重连后恢复已有订阅。
+   */
+  private resubscribeExistingStreams(): void {
+    if (!this.ws || this.state.status !== WebSocketStatus.CONNECTED) {
+      return
+    }
+
+    const symbols = this.state.subscriptions.symbols || []
+    if (symbols.length === 0) {
+      return
+    }
+
+    const streams = symbols.map(symbol => `${this.formatSymbolForWebSocket(symbol)}@ticker`)
+    const subscribeMessage = {
+      method: 'SUBSCRIBE',
+      params: streams,
+      id: Date.now()
+    }
+
+    this.ws.send(JSON.stringify(subscribeMessage))
+
+    symbols.forEach(symbol => {
+      const wsSymbol = this.formatSymbolForWebSocket(symbol)
+      this.symbolMapping.set(wsSymbol, symbol)
+    })
+
+    this.state.connectedSymbols = [...symbols]
   }
 
   /**
@@ -321,7 +343,8 @@ export class BinanceWebSocketService {
    */
   private handleMessage(event: any): void {
     try {
-      const data = JSON.parse(event.data as string)
+      const rawData = JSON.parse(event.data as string)
+      const data = rawData?.stream && rawData?.data ? rawData.data : rawData
       
       // 更新最后活动时间
       this.state.lastActivity = Date.now()
@@ -352,7 +375,7 @@ export class BinanceWebSocketService {
         // console.log('✅ 订阅操作成功')
       } else {
         // 其他消息类型
-        console.log('📨 收到未知消息类型:', data)
+        console.log('📨 收到未知消息类型')
       }
     } catch (error: any) {
       console.error('❌ 解析WebSocket消息失败:', error, event.data)

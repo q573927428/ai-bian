@@ -370,14 +370,20 @@ onUnmounted(() => {
 .stats-container {
   display: flex;
   justify-content: space-around;
-  padding: 15px;
-  background: var(--stats-container-bg);
+  padding: 10px;
+  background: var(--balance-card-bg);
+  border: 1px solid var(--balance-card-border);
   border-radius: 8px;
-  margin-top: 30px;
+  margin-top: 13px;
 }
 
 .stat-item {
+  background: var(--stat-card-bg);
+  border: 1px solid var(--stat-card-border);
+  border-radius: 10px;
+  padding: 12px 15px;
   text-align: center;
+  transition: all 0.2s ease;
 }
 
 .stat-label {

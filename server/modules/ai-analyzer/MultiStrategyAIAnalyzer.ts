@@ -10,6 +10,7 @@ import { getProviderConfig, callAIAPI, extractJSONContent, type AIChatMessage } 
 import { concurrencyPoolManager } from '../../utils/concurrency-pool'
 import { getAIAnalysisWriter } from '../../utils/jsonl-batch-writer'
 import { getLatestAnalysis, formatAnalysisToPromptSection, checkDailyAnalysis } from '../../utils/trade-history-analyzer'
+import { shortHash } from '../../utils/stable-hash'
 
 /**
  * AI 分析缓存
@@ -158,16 +159,17 @@ export class MultiStrategyAIAnalyzer {
     candleProgress: number = 0.1
   ): Promise<TradeSignal | null> {
     try {
-      // 1. 检查缓存
-      const cacheKey = this.buildCacheKey(strategyId, symbol, indicators, price, volume, candleProgress, promptConfig)
+      // 1. 获取策略规则并检查缓存
+      const strategy = await strategyStore.getStrategy(strategyId)
+      const structuredRules = (strategy as any)?.structuredRules as StructuredRules | undefined
+      const cacheKey = this.buildCacheKey(strategyId, symbol, indicators, price, volume, candleProgress, promptConfig, structuredRules)
       const cached = aiCache.get(cacheKey)
       if (cached && (Date.now() - cached.timestamp < this.getAiCacheTtl())) {
-        return cached.signal
+        logger.info('MultiStrategyAIAnalyzer', `AI缓存命中: ${symbol} [策略 ${strategyId}]`)
+        return { ...cached.signal, strategyId }
       }
 
       // 2. 构建完整提示词
-      const strategy = await strategyStore.getStrategy(strategyId)
-      const structuredRules = (strategy as any)?.structuredRules as StructuredRules | undefined
 
       const fullPrompt = this.buildFullPrompt(
         promptConfig,
@@ -818,38 +820,22 @@ ${historySection}
     price: number,
     volume: number = 0,
     candleProgress: number = 0.1,
-    promptConfig?: AIPromptConfig
+    promptConfig?: AIPromptConfig,
+    structuredRules?: StructuredRules
   ): string {
-    // 基于关键指标值构建唯一键
-    const indicatorHash = [
-      // EMA
-      indicators.emaList.map(item => `${item.name}:${(item.value ?? 0).toFixed(2)}`).join('|'),
-      // RSI
-      (indicators.rsi ?? 0).toFixed(2),
-      // MACD
-      `${(indicators.macd?.macd ?? 0).toFixed(4)}|${(indicators.macd?.signal ?? 0).toFixed(4)}|${(indicators.macd?.histogram ?? 0).toFixed(4)}`,
-      // ATR
-      (indicators.atr ?? 0).toFixed(2),
-      // ADX
-      `${(indicators.adx ?? 0).toFixed(2)}|${(indicators.adxSlope ?? 0).toFixed(4)}`,
-      // OI
-      `${(indicators.openInterest ?? 0).toFixed(2)}|${(indicators.openInterestChangePercent ?? 0).toFixed(2)}|${indicators.openInterestTrend ?? 'flat'}`,
-      // 成交量
-      (volume ?? 0).toFixed(2),
-      // K线数据（最新两根K线的OHLCV）
-      indicators.lastCandle ? `${indicators.lastCandle.open}|${indicators.lastCandle.high}|${indicators.lastCandle.low}|${indicators.lastCandle.close}|${indicators.lastCandle.volume}` : '',
-      indicators.prevCandle ? `${indicators.prevCandle.open}|${indicators.prevCandle.high}|${indicators.prevCandle.low}|${indicators.prevCandle.close}|${indicators.prevCandle.volume}` : '',
-      // K线完成进度
-      (candleProgress ?? 0.1).toFixed(4),
-      // 价格
-      (price ?? 0).toFixed(2),
-      // 策略提示词内容哈希（提示词更新时缓存失效）
-      promptConfig?.userPrompt ? Buffer.from(promptConfig.userPrompt).toString('base64').substring(0, 16) : ''
-    ].join('_')
-
-    // 简化键（避免过长）
-    const hash = Buffer.from(indicatorHash).toString('base64').substring(0, 32)
-    return `${strategyId}_${symbol}_${hash}`
+    const hash = shortHash({
+      symbol,
+      indicators,
+      price: Number(price.toFixed(2)),
+      volume: Number(volume.toFixed(2)),
+      candleProgress: Number(candleProgress.toFixed(4)),
+      userPrompt: promptConfig?.userPrompt,
+      provider: promptConfig?.provider,
+      model: promptConfig?.model,
+      temperature: promptConfig?.temperature,
+      structuredRulesDsl: structuredRules?.dsl
+    })
+    return `ai:${symbol}:${hash}`
   }
 
   /**

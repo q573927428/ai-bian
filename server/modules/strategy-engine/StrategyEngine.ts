@@ -18,6 +18,9 @@ import { aiPreScreener } from '../../utils/ai-pre-screen'
 import type { BotState } from '../../../types'
 import { SymbolBasedScheduler, type MarketSnapshot } from '../scheduler/SymbolBasedScheduler'
 import { concurrencyPoolManager, type ConcurrencyPoolManager } from '../../utils/concurrency-pool'
+import { shortHash } from '../../utils/stable-hash'
+import { indicatorCombinationRegistry, type IndicatorCombinationRegistry } from '../indicators/IndicatorCombinationRegistry'
+import type { IndicatorPrecomputeService } from '../indicators/IndicatorPrecomputeService'
 
 /**
  * 策略运行时状态
@@ -87,6 +90,21 @@ export class StrategyEngine {
   private globalScanInterval: number = 300000 // 默认5分钟
   private immediateRunScheduled: boolean = false // 防抖：确保多个策略同时启动只触发一次立即运行
   private currentLoopAIRequests: number = 0
+  private isGlobalLoopRunning = false
+  private skippedLoopCount = 0
+  private initialScanNotBefore = 0
+  private loopStats = {
+    isRunning: false,
+    lastStartedAt: 0,
+    lastFinishedAt: 0,
+    lastDurationMs: 0,
+    lastSymbols: 0,
+    lastAIRequests: 0,
+    skippedLoops: 0,
+    exceededDurationCount: 0
+  }
+  private indicatorRegistry: IndicatorCombinationRegistry
+  private indicatorPrecompute: IndicatorPrecomputeService | null
 
 
   constructor(
@@ -95,7 +113,9 @@ export class StrategyEngine {
     positionManager: PositionManager,
     binance: BinanceService,
     config: BotConfig,
-    state: BotState
+    state: BotState,
+    registry: IndicatorCombinationRegistry = indicatorCombinationRegistry,
+    precomputeService: IndicatorPrecomputeService | null = null
   ) {
     this.store = store
     this.indicatorsHub = indicatorsHub
@@ -103,6 +123,8 @@ export class StrategyEngine {
     this.binance = binance
     this.state = state
     this.config = config
+    this.indicatorRegistry = registry
+    this.indicatorPrecompute = precomputeService
     
     // AI预筛配置已改为按策略独立配置，不再从全局加载
     aiPreScreener.initFromBotConfig()
@@ -114,14 +136,23 @@ export class StrategyEngine {
     this.positionCloser = new StrategyPositionCloser(binance, positionManager, config, state)
     this.positionMonitor = new StrategyPositionMonitor(binance, positionManager, this.positionCloser, config, store)
 
-    // 启动持仓监控
-    this.positionMonitor.start()
-
     // 初始化新调度架构
     this.scheduler = new SymbolBasedScheduler(indicatorsHub, binance)
     this.concurrencyPoolManager = concurrencyPoolManager
 
     logger.info('StrategyEngine', '策略执行引擎已初始化（新调度架构已启用）')
+  }
+
+  setIndicatorPrecomputeService(service: IndicatorPrecomputeService | null): void {
+    this.indicatorPrecompute = service
+  }
+
+  startPositionMonitor(options: { immediate?: boolean; initialDelayMs?: number } = {}): void {
+    this.positionMonitor.start(options)
+  }
+
+  delayInitialScans(delayMs: number): void {
+    this.initialScanNotBefore = Math.max(this.initialScanNotBefore, Date.now() + Math.max(0, Number(delayMs || 0)))
   }
 
   /**
@@ -132,9 +163,10 @@ export class StrategyEngine {
     aiPreScreener.initFromBotConfig()
     this.aiAnalyzer.updateConfig(config)
     this.indicatorsHub.updateConfig(config)
+    this.indicatorPrecompute?.updateConfig(config)
     this.positionMonitor.stop()
     this.positionMonitor = new StrategyPositionMonitor(this.binance, this.positionManager, this.positionCloser, config, this.store)
-    this.positionMonitor.start()
+    this.positionMonitor.start({ immediate: true })
     logger.info('StrategyEngine', '配置已更新')
   }
 
@@ -279,8 +311,9 @@ export class StrategyEngine {
    * 不再为每个策略创建独立定时器，改为启动/维护全局统一循环
    */
   private startStrategyLoop(instance: StrategyInstance): void {
-    // 初始化该策略的下次扫描时间：设为当前时间，让首次 setTimeout 触发时立即执行
-    instance.nextScanTime = Date.now()
+    // 初始化该策略的下次扫描时间。启动编排阶段可延后首次扫描，避免与K线同步/预计算/持仓监控抢资源。
+    const now = Date.now()
+    instance.nextScanTime = Math.max(now, this.initialScanNotBefore)
 
     // 更新全局扫描间隔（取所有策略中的最小值）
     this.updateGlobalScanInterval()
@@ -288,11 +321,12 @@ export class StrategyEngine {
     // 防抖：多个策略同时启动时，只安排一次立即运行
     if (!this.immediateRunScheduled) {
       this.immediateRunScheduled = true
-      // 使用 200ms 延迟确保所有策略的异步初始化（subscribeStrategy 等）全部完成后再执行全局循环
+      const delayMs = Math.max(200, instance.nextScanTime - now)
+      // 使用延迟确保所有策略的异步初始化（subscribeStrategy 等）全部完成后再执行全局循环
       setTimeout(async () => {
         this.immediateRunScheduled = false
         await this.globalStrategyLoop()
-      }, 200)
+      }, delayMs)
     }
 
     // 如果全局定时器未启动，则启动
@@ -358,7 +392,19 @@ export class StrategyEngine {
    * - 这样策略A(5min)和策略B(10min)都使用同一份5分钟级快照，但B每两次才执行一次
    */
   private async globalStrategyLoop(): Promise<void> {
+    if (this.isGlobalLoopRunning) {
+      this.skippedLoopCount++
+      this.loopStats.skippedLoops = this.skippedLoopCount
+      logger.warn('StrategyEngine', `上一轮扫描尚未完成，跳过本次扫描，累计跳过 ${this.skippedLoopCount} 次`)
+      return
+    }
+
+    this.isGlobalLoopRunning = true
     const loopStartTime = Date.now()
+    this.loopStats.isRunning = true
+    this.loopStats.lastStartedAt = loopStartTime
+    this.loopStats.lastSymbols = 0
+    this.loopStats.lastAIRequests = 0
     
     try {
       const instances = Array.from(this.runningStrategies.values())
@@ -391,6 +437,7 @@ export class StrategyEngine {
       }
 
       if (symbolStrategies.size === 0) return
+      this.loopStats.lastSymbols = symbolStrategies.size
 
       // 日志：本轮待处理的 symbols
       logger.info('StrategyEngine', `本轮扫描处理 ${symbolStrategies.size} 个symbols: ${Array.from(symbolStrategies.keys()).join(', ')}`)
@@ -470,6 +517,20 @@ export class StrategyEngine {
       }
     } catch (error: any) {
       logger.error('StrategyEngine', `全局策略循环异常: ${error.message}`)
+    } finally {
+      const finishedAt = Date.now()
+      const duration = finishedAt - loopStartTime
+      this.isGlobalLoopRunning = false
+      this.loopStats.isRunning = false
+      this.loopStats.lastFinishedAt = finishedAt
+      this.loopStats.lastDurationMs = duration
+      this.loopStats.lastAIRequests = this.currentLoopAIRequests
+      this.loopStats.skippedLoops = this.skippedLoopCount
+      logger.info('StrategyEngine', `本轮扫描结束，耗时 ${duration}ms，跳过计数 ${this.skippedLoopCount}`)
+      if (duration > this.globalScanInterval * 0.8) {
+        this.loopStats.exceededDurationCount++
+        logger.warn('StrategyEngine', `本轮扫描耗时接近全局间隔: ${duration}ms / ${this.globalScanInterval}ms`)
+      }
     }
   }
 
@@ -514,6 +575,119 @@ export class StrategyEngine {
     return indicatorsData
   }
 
+  private setPrecomputedIndicator(
+    indicatorsData: Map<string, any>,
+    precomputed: Map<string, any>,
+    key: string | undefined,
+    dataKey: string
+  ): boolean {
+    if (!key) return false
+    const data = precomputed.get(key)
+    if (!data) return false
+    indicatorsData.set(dataKey, data)
+    return true
+  }
+
+  private async hydrateIndicatorsForStrategy(
+    strategy: Strategy,
+    symbol: string,
+    mainTimeframe: Timeframe,
+    indicatorsData: Map<string, any>
+  ): Promise<void> {
+    const binding = this.indicatorRegistry.getBinding(strategy.id, symbol)
+    const precomputed = binding && this.indicatorPrecompute
+      ? this.indicatorPrecompute.getMany(Object.values(binding.keys).filter(Boolean) as string[])
+      : new Map<string, any>()
+
+    const volumeStatConfig = strategy.statistics.find((s: any) => s.type === 'Volume' && s.enabled)
+    const oiStatConfig = strategy.statistics.find((s: any) => s.type === 'OI' && s.enabled)
+    const squareHeatStatConfig = strategy.statistics.find((s: any) => s.type === 'SquareHeat' && s.enabled)
+    const volumeTimeframe = volumeStatConfig?.timeframes?.[0] || mainTimeframe
+    const oiTimeframe = oiStatConfig?.timeframes?.[0] || mainTimeframe
+
+    const missing: string[] = []
+    const bindKeys = binding?.keys || {}
+
+    if (strategy.indicators.some((i: any) => i.type === 'EMA' && i.enabled)) {
+      if (!this.setPrecomputedIndicator(indicatorsData, precomputed, bindKeys.ema, `${mainTimeframe}_EMA`)) {
+        missing.push(bindKeys.ema || `${symbol}:${mainTimeframe}:EMA`)
+        try {
+          const emaData = await this.indicatorsHub.getEMAByPeriods(symbol, mainTimeframe, this.getEMAPeriodsFromStrategy(strategy))
+          indicatorsData.set(`${mainTimeframe}_EMA`, emaData)
+        } catch (error: any) {
+          logger.warn('StrategyEngine', `获取动态EMA失败 ${symbol} ${mainTimeframe}: ${error.message}`)
+        }
+      }
+    }
+
+    for (const indicator of strategy.indicators.filter((i: any) => i.enabled && i.type !== 'EMA')) {
+      const dataKey = `${mainTimeframe}_${indicator.type}`
+      const bindingKey = indicator.type === 'RSI' ? bindKeys.rsi
+        : indicator.type === 'ADX' ? bindKeys.adx
+          : indicator.type === 'MACD' ? bindKeys.macd
+            : indicator.type === 'ATR' ? bindKeys.atr
+              : undefined
+      if (this.setPrecomputedIndicator(indicatorsData, precomputed, bindingKey, dataKey)) continue
+
+      missing.push(bindingKey || `${symbol}:${mainTimeframe}:${indicator.type}`)
+      try {
+        if (indicator.type === 'RSI') {
+          indicatorsData.set(dataKey, await this.indicatorsHub.getIndicators(symbol, mainTimeframe, 'RSI', { rsiPeriod: Number(indicator.params?.period ?? 14) }))
+        } else if (indicator.type === 'ADX') {
+          indicatorsData.set(dataKey, await this.indicatorsHub.getIndicators(symbol, mainTimeframe, 'ADX', { adxPeriod: Number(indicator.params?.period ?? 14) }))
+        } else if (indicator.type === 'MACD') {
+          indicatorsData.set(dataKey, await this.indicatorsHub.getIndicators(symbol, mainTimeframe, 'MACD', {
+            macdFastPeriod: Number(indicator.params?.fastPeriod ?? 12),
+            macdSlowPeriod: Number(indicator.params?.slowPeriod ?? 26),
+            macdSignalPeriod: Number(indicator.params?.signalPeriod ?? 9)
+          }))
+        } else if (indicator.type === 'ATR') {
+          indicatorsData.set(dataKey, await this.indicatorsHub.getIndicators(symbol, mainTimeframe, 'ATR', { atrPeriod: Number(indicator.params?.period ?? 14) }))
+        }
+      } catch (error: any) {
+        logger.warn('StrategyEngine', `预计算指标缺失且实时计算失败 ${dataKey}: ${error.message}`)
+      }
+    }
+
+    if (oiStatConfig) {
+      const dataKey = `${oiTimeframe}_OI`
+      if (!this.setPrecomputedIndicator(indicatorsData, precomputed, bindKeys.oi, dataKey)) {
+        missing.push(bindKeys.oi || `${symbol}:${oiTimeframe}:OI`)
+        const changePeriod = Number(oiStatConfig.params?.changePeriod ?? 8)
+        try {
+          indicatorsData.set(dataKey, await this.indicatorsHub.getIndicators(symbol, oiTimeframe, 'OI', {
+            lookbackMinutes: Math.max(1, changePeriod) * this.timeframeToMinutes(oiTimeframe),
+            trendThresholdPercent: Number(oiStatConfig.params?.trendThresholdPercent ?? 0.003)
+          }))
+        } catch (error: any) {
+          logger.warn('StrategyEngine', `获取OI失败 ${symbol} ${oiTimeframe}: ${error.message}`)
+        }
+      }
+    }
+
+    if (volumeStatConfig && !this.setPrecomputedIndicator(indicatorsData, precomputed, bindKeys.volume, `${volumeTimeframe}_Volume`)) {
+      missing.push(bindKeys.volume || `${symbol}:${volumeTimeframe}:Volume`)
+      try {
+        indicatorsData.set(`${volumeTimeframe}_Volume`, await this.indicatorsHub.getIndicators(symbol, volumeTimeframe, 'Volume'))
+      } catch (error: any) {
+        logger.warn('StrategyEngine', `获取Volume失败 ${symbol} ${volumeTimeframe}: ${error.message}`)
+      }
+    }
+
+    if (squareHeatStatConfig && !this.setPrecomputedIndicator(indicatorsData, precomputed, bindKeys.squareHeat, `SquareHeat_SquareHeat`)) {
+      missing.push(bindKeys.squareHeat || `${symbol}:SquareHeat`)
+      try {
+        indicatorsData.set(`SquareHeat_SquareHeat`, await this.indicatorsHub.getIndicators(symbol, '1h', 'SquareHeat'))
+      } catch (error: any) {
+        logger.warn('StrategyEngine', `获取SquareHeat失败 ${symbol}: ${error.message}`)
+      }
+    }
+
+    if (missing.length > 0) {
+      logger.warn('StrategyEngine', `预计算指标缺失，已回退实时计算: ${missing.join(', ')}`)
+    }
+  }
+
   /**
    * 使用市场快照分析交易对
    */
@@ -536,45 +710,8 @@ export class StrategyEngine {
     // 3. 从快照中提取指标数据
     const indicatorsData = this.extractIndicatorsFromSnapshot(snapshot, mainTimeframe)
 
-    // 4. 补充策略特定的指标（OI、SquareHeat 和 EMA）
-    const oiStatConfig = strategy.statistics.find((s: any) => s.type === 'OI' && s.enabled)
-    if (oiStatConfig) {
-      const oiTimeframe = oiStatConfig?.timeframes?.[0] || mainTimeframe
-      const changePeriod = Number(oiStatConfig?.params?.changePeriod ?? 12)
-      const trendThresholdPercent = Number(oiStatConfig?.params?.trendThresholdPercent ?? 0.05)
-      const lookbackMinutes = Math.max(1, changePeriod) * this.timeframeToMinutes(oiTimeframe)
-
-      try {
-        const oiData = await this.indicatorsHub.getIndicators(symbol, oiTimeframe, 'OI', {
-          lookbackMinutes,
-          trendThresholdPercent
-        })
-        indicatorsData.set(`${oiTimeframe}_OI`, oiData)
-      } catch (error: any) {
-        logger.warn('StrategyEngine', `获取OI失败 ${symbol} ${oiTimeframe}: ${error.message}`)
-      }
-    }
-
-    // 补充 SquareHeat 数据（不依赖 timeframe）
-    const squareHeatStatConfig = strategy.statistics.find((s: any) => s.type === 'SquareHeat' && s.enabled)
-    if (squareHeatStatConfig) {
-      try {
-        const squareHeatData = await this.indicatorsHub.getIndicators(symbol, '1h', 'SquareHeat')
-        indicatorsData.set(`SquareHeat_SquareHeat`, squareHeatData)
-      } catch (error: any) {
-        logger.warn('StrategyEngine', `获取SquareHeat失败 ${symbol}: ${error.message}`)
-      }
-    }
-
-    // 动态获取EMA
-    const emaPeriods = this.getEMAPeriodsFromStrategy(strategy)
-    try {
-      const emaData = await this.indicatorsHub.getEMAByPeriods(symbol, mainTimeframe, emaPeriods)
-      const emaCacheKey = `${mainTimeframe}_EMA`
-      indicatorsData.set(emaCacheKey, emaData)
-    } catch (error: any) {
-      logger.warn('StrategyEngine', `获取动态EMA失败 ${symbol} ${mainTimeframe}: ${error.message}`)
-    }
+    // 4. 优先读取预计算指标，缺失时回退实时计算
+    await this.hydrateIndicatorsForStrategy(strategy, symbol, mainTimeframe, indicatorsData)
 
     // 5. 构建 AI 提示词并调用 AI 分析
     const signal = await this.callAI(
@@ -620,16 +757,6 @@ export class StrategyEngine {
     snapshot: MarketSnapshot
   ): Promise<TradeSignal | null> {
     try {
-      // 构建缓存键
-      const cacheKey = this.buildAICacheKey(strategyId, symbol, indicatorsData)
-
-      // 检查缓存
-      const cached = this.aiCache.get(cacheKey)
-      if (cached && (Date.now() - cached.timestamp < this.getAiCacheTtl())) {
-        // logger.info('StrategyEngine', `使用 AI 缓存结果: ${symbol}`)
-        return cached.signal
-      }
-
       // 主时间框架取配置的第一个周期（最小的周期）
       const mainTimeframe = instance.strategy.marketData.timeframes[0] || '15m'
 
@@ -678,6 +805,25 @@ export class StrategyEngine {
       // 使用快照中的价格
       const price = snapshot.price
 
+      const cacheKey = this.buildAICacheKey(
+        symbol,
+        indicatorsData,
+        promptConfig,
+        (instance.strategy as any).structuredRules,
+        {
+          price: Number(price.toFixed(8)),
+          lastCandle,
+          prevCandle,
+          candleProgress: Number(candleProgress.toFixed(4))
+        }
+      )
+
+      const cached = this.aiCache.get(cacheKey)
+      if (cached && (Date.now() - cached.timestamp < this.getAiCacheTtl())) {
+        logger.info('StrategyEngine', `使用 AI 缓存结果: ${symbol} [策略 ${strategyId}]`)
+        return { ...cached.signal, strategyId }
+      }
+
       // 从策略配置中读取各指标参数
       const adxConfig = instance.strategy.indicators.find((i: any) => i.type === 'ADX' && i.enabled)
       const adxPeriod = Number(adxConfig?.params?.period ?? 14)
@@ -689,36 +835,6 @@ export class StrategyEngine {
       const macdFastPeriod = Number(macdConfig?.params?.fastPeriod ?? 12)
       const macdSlowPeriod = Number(macdConfig?.params?.slowPeriod ?? 26)
       const macdSignalPeriod = Number(macdConfig?.params?.signalPeriod ?? 9)
-
-      // 按策略参数重新获取 RSI/MACD/ATR（覆盖快照中的默认参数值）
-      if (enabledRSI) {
-        try {
-          const rsiData = await this.indicatorsHub.getIndicators(symbol, mainTimeframe, 'RSI', { rsiPeriod })
-          indicatorsData.set(`${mainTimeframe}_RSI`, rsiData)
-        } catch (error: any) {
-          logger.warn('StrategyEngine', `按策略参数获取RSI失败 ${symbol}: ${error.message}`)
-        }
-      }
-      if (enabledMACD) {
-        try {
-          const macdData = await this.indicatorsHub.getIndicators(symbol, mainTimeframe, 'MACD', {
-            macdFastPeriod,
-            macdSlowPeriod,
-            macdSignalPeriod
-          })
-          indicatorsData.set(`${mainTimeframe}_MACD`, macdData)
-        } catch (error: any) {
-          logger.warn('StrategyEngine', `按策略参数获取MACD失败 ${symbol}: ${error.message}`)
-        }
-      }
-      if (enabledATR) {
-        try {
-          const atrData = await this.indicatorsHub.getIndicators(symbol, mainTimeframe, 'ATR', { atrPeriod })
-          indicatorsData.set(`${mainTimeframe}_ATR`, atrData)
-        } catch (error: any) {
-          logger.warn('StrategyEngine', `按策略参数获取ATR失败 ${symbol}: ${error.message}`)
-        }
-      }
 
       // 获取策略级阈值（每个策略独立配置，无全局兜底）
       const strategyPreScreenConfig = (instance.strategy as any).preScreenConfig
@@ -866,16 +982,23 @@ export class StrategyEngine {
    * 构建 AI 缓存键
    */
   private buildAICacheKey(
-    strategyId: StrategyId,
     symbol: string,
-    indicatorsData: Map<string, any>
+    indicatorsData: Map<string, any>,
+    promptConfig: AIPromptConfig,
+    structuredRules?: unknown,
+    marketContext?: unknown
   ): string {
-    // 基于指标数据构建唯一键
-    const dataHash = Array.from(indicatorsData.entries())
-      .map(([k, v]) => `${k}:${JSON.stringify(v)}`)
-      .join('|')
-
-    return `${strategyId}_${symbol}_${Buffer.from(dataHash).toString('base64').substring(0, 32)}`
+    const cachePayload = {
+      symbol,
+      indicatorsData,
+      marketContext,
+      userPrompt: promptConfig.userPrompt,
+      provider: promptConfig.provider,
+      model: promptConfig.model,
+      temperature: promptConfig.temperature,
+      structuredRules
+    }
+    return `ai:${symbol}:${shortHash(cachePayload)}`
   }
 
   /**
@@ -1149,6 +1272,7 @@ export class StrategyEngine {
 
       // 10. 记录仓位到PositionManager
       const position = {
+        accountId: 'default',
         symbol: signal.symbol,
         strategyId: strategy.id,
         direction: signal.direction,
@@ -1248,6 +1372,10 @@ export class StrategyEngine {
    */
   isStrategyRunning(strategyId: StrategyId): boolean {
     return this.runningStrategies.has(strategyId)
+  }
+
+  getLoopStats() {
+    return { ...this.loopStats }
   }
 
   // ==================== 测试接口 ====================
@@ -1381,6 +1509,10 @@ export class StrategyEngine {
    */
   getAIAnalyzerStatus(): any {
     return this.aiAnalyzer.getStatus()
+  }
+
+  getIndicatorPrecomputeStatus(): any {
+    return this.indicatorPrecompute?.getStatus() || null
   }
 
   async destroy(): Promise<void> {

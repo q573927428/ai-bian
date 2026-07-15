@@ -6,8 +6,8 @@
 import type { NitroApp } from 'nitropack'
 import { KLineSimpleSyncService } from '../modules/kline-simple-sync'
 import type { KLineSyncConfig } from '../../types/kline-simple'
-import { setSyncService, getSyncService } from '../utils/kline-sync-service'
-import { initKLineDb, closeKLineDb, hasKLineData } from '../utils/kline-simple-storage'
+import { setSyncService, getSyncService, setSyncReadyPromise } from '../utils/kline-sync-service'
+import { initKLineDb, closeKLineDb, flushDb, getSimpleKLineCount } from '../utils/kline-simple-storage'
 
 // 默认配置
 const DEFAULT_SYNC_CONFIG: KLineSyncConfig = {
@@ -41,7 +41,9 @@ export default defineNitroPlugin(async (nitroApp: NitroApp) => {
     
     // console.log('✅ K线同步服务配置:', JSON.stringify(config, null, 2))
     
-    await startInitialSync()
+    const readyPromise = startInitialSync()
+    setSyncReadyPromise(readyPromise)
+    await readyPromise
     
     // 处理服务器关闭
     nitroApp.hooks.hook('close', async () => {
@@ -60,7 +62,7 @@ async function getSyncConfig(): Promise<KLineSyncConfig> {
   // 这里可以从环境变量、配置文件或数据库获取配置
   // 目前使用默认配置，后续可以扩展
   
-  // 从配置文件读取symbols
+  // 只从 bot-config 读取 symbols。bot-config.symbols 是唯一交易对白名单。
   let configSymbols = DEFAULT_SYNC_CONFIG.symbols
   try {
     const fs = await import('fs/promises')
@@ -69,7 +71,6 @@ async function getSyncConfig(): Promise<KLineSyncConfig> {
     const configContent = await fs.readFile(configPath, 'utf-8')
     const botConfig = JSON.parse(configContent)
     if (botConfig.symbols && Array.isArray(botConfig.symbols)) {
-      // 处理交易对中的/，如BTC/USDT -> BTCUSDT
       configSymbols = botConfig.symbols.map((symbol: string) => symbol.replace('/', ''))
     }
   } catch (error) {
@@ -80,6 +81,18 @@ async function getSyncConfig(): Promise<KLineSyncConfig> {
     ...DEFAULT_SYNC_CONFIG,
     symbols: configSymbols
   }
+}
+
+function getMinRequiredBars(timeframe: KLineSyncConfig['timeframes'][number]): number {
+  const minByTimeframe: Record<string, number> = {
+    '5m': 10,
+    '15m': 10,
+    '1h': 10,
+    '4h': 10,
+    '1d': 5,
+    '1w': 1
+  }
+  return minByTimeframe[timeframe] ?? 10
 }
 
 /**
@@ -101,12 +114,13 @@ async function startInitialSync(): Promise<void> {
     
     for (const symbol of config.symbols) {
       for (const timeframe of config.timeframes) {
-        // 检查数据库中是否有该交易对/周期的数据
-        const hasData = hasKLineData(symbol, timeframe)
+        // 检查数据库中是否有足够数据。只要有 1 根并不代表指标可计算，
+        // RSI/ADX/ATR/Volume 至少需要几十根，策略侧当前按 100 根兜底。
+        const count = getSimpleKLineCount(symbol, timeframe)
+        const minRequiredBars = getMinRequiredBars(timeframe)
         
-        if (!hasData) {
-          // 数据库中无数据，需要初始同步
-          console.log(`⚠️  数据库中无数据: ${symbol}/${timeframe}，需要初始同步`)
+        if (count < minRequiredBars) {
+          console.log(`⚠️  数据库K线不足: ${symbol}/${timeframe}，当前 ${count}/${minRequiredBars}，需要初始同步`)
           missingPairs.push(symbol)
         } else {
           // 已有数据的交易对，后续进行增量同步
@@ -136,6 +150,7 @@ async function startInitialSync(): Promise<void> {
     const totalBars = results.reduce((sum, r) => sum + r.count, 0)
     
     console.log(`✅ 增量同步完成: ${successCount}/${results.length} 成功，共获取 ${totalBars} 条数据`)
+    await flushDb()
     
     // 显示当前状态
     const status = syncService.getSyncStatus()
@@ -143,11 +158,7 @@ async function startInitialSync(): Promise<void> {
       // console.log(`  ${s.symbol}/${s.timeframe}: 最后同步: ${new Date(s.lastSyncTime * 1000).toLocaleString()}, 总数据: ${s.totalBars}`)
     })
     
-    // 启动定时同步
-    console.log('⏰ 启动定时同步...')
-    syncService.startAutoSync()
-    
-    console.log('🎯 K线同步服务已完全启动')
+    console.log('✅ K线初始同步和启动增量同步已完成，等待策略系统完成预计算后启动定时同步')
     
   } catch (error) {
     console.error('❌ 启动初始同步失败:', error)

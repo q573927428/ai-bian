@@ -70,22 +70,35 @@ export class StrategyPositionMonitor {
   /**
    * 启动监控
    */
-  start(): void {
+  start(options: { immediate?: boolean; initialDelayMs?: number } = {}): void {
     if (this.monitorTimer) {
       logger.warn('持仓监控', '监控已在运行')
       return
     }
 
-    // 立即执行一次监控
-    this.monitorPositions().catch(error => {
-      logger.error('持仓监控', '首次监控异常:', error.message)
-    })
-
-    this.monitorTimer = setInterval(() => {
+    const immediate = options.immediate ?? true
+    const initialDelayMs = Math.max(0, Number(options.initialDelayMs ?? 0))
+    const runMonitor = () => {
       this.monitorPositions().catch(error => {
         logger.error('持仓监控', '监控循环异常:', error.message)
       })
-    }, this.getMonitorInterval())
+    }
+    const startInterval = () => {
+      if (immediate) {
+        runMonitor()
+      }
+
+      this.monitorTimer = setInterval(runMonitor, this.getMonitorInterval())
+    }
+
+    if (initialDelayMs > 0) {
+      this.monitorTimer = setTimeout(() => {
+        this.monitorTimer = null
+        startInterval()
+      }, initialDelayMs)
+    } else {
+      startInterval()
+    }
 
     // logger.success('持仓监控', '持仓监控已启动')
   }

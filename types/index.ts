@@ -193,6 +193,18 @@ export interface BotBinanceRateLimitConfig {
   retryMaxMs: number
 }
 
+export interface BotIndicatorPrecomputeConfig {
+  enabled: boolean
+  intervalMs: number
+  maxConcurrency: number
+  staleTtlMs: number
+  computeOnStrategyChange: boolean
+  technicalIndicatorIntervalMs?: number
+  oiFastIntervalMs?: number
+  oiSlowIntervalMs?: number
+  squareHeatIntervalMs?: number
+}
+
 // 图表标记控制配置
 export interface ChartMarkerConfig {
   showEMAMarkers?: boolean
@@ -216,6 +228,7 @@ export interface BotConfig {
   strategyScheduler?: BotStrategySchedulerConfig
   aiRateLimit?: BotAIRateLimitConfig
   binanceRateLimit?: BotBinanceRateLimitConfig
+  indicatorPrecompute?: BotIndicatorPrecomputeConfig
   chartMarkerConfig?: ChartMarkerConfig
   /** 初始本金（USDT），用于计算年化收益率。未设置时年化显示为 0 */
   initialCapital?: number

@@ -16,6 +16,8 @@ export default defineEventHandler(async () => {
         binance: binanceApiGateway.getStatus(),
         indicators: indicatorsHub.getCacheStatus(),
         positions: positionManager.getPositionStats(),
+        strategyLoop: engine.getLoopStats(),
+        indicatorPrecompute: engine.getIndicatorPrecomputeStatus(),
         ai: engine.getAIAnalyzerStatus()
       }
     }

@@ -1,5 +1,29 @@
 import { webSocketManager } from '../../../server/utils/websocket-manager'
+import { binanceApiGateway } from '../../../server/utils/binance-api-gateway'
 import type { ApiResponse } from '../../../types'
+
+async function fetchTickerFallback(symbols: string[]): Promise<Map<string, any>> {
+  if (symbols.length === 0) {
+    return new Map()
+  }
+
+  const tickers = await binanceApiGateway.fetchJson<any[]>(
+    'marketData',
+    `ticker24hr:fallback:${symbols.join(',')}`,
+    `https://fapi.binance.com/fapi/v1/ticker/24hr?symbols=${encodeURIComponent(JSON.stringify(symbols))}`
+  )
+
+  return new Map((tickers || []).map(ticker => [
+    ticker.symbol,
+    {
+      symbol: ticker.symbol,
+      price: parseFloat(ticker.lastPrice || '0'),
+      change24hPercent: parseFloat(ticker.priceChangePercent || '0'),
+      volume24h: parseFloat(ticker.quoteVolume || '0'),
+      timestamp: ticker.closeTime || Date.now()
+    }
+  ]))
+}
 
 export default defineEventHandler(async (event) => {
   try {
@@ -28,6 +52,8 @@ export default defineEventHandler(async (event) => {
     let filteredPrices: Record<string, any> = {}
     
     if (symbolList.length > 0) {
+      const missingSymbols: string[] = []
+
       // 返回指定交易对的价格
       symbolList.forEach(symbol => {
         const wsPrice = allPrices.get(symbol)
@@ -41,7 +67,7 @@ export default defineEventHandler(async (event) => {
             timestamp: wsPrice.timestamp || Date.now()
           }
         } else {
-          // 没有WebSocket数据，返回默认结构
+          missingSymbols.push(symbol)
           filteredPrices[symbol] = {
             symbol,
             price: 0,
@@ -51,6 +77,20 @@ export default defineEventHandler(async (event) => {
           }
         }
       })
+
+      if (missingSymbols.length > 0) {
+        try {
+          const fallbackPrices = await fetchTickerFallback(missingSymbols)
+          missingSymbols.forEach(symbol => {
+            const fallbackPrice = fallbackPrices.get(symbol)
+            if (fallbackPrice) {
+              filteredPrices[symbol] = fallbackPrice
+            }
+          })
+        } catch (fallbackError: any) {
+          console.warn('[Price] REST 兜底获取价格失败:', fallbackError.message)
+        }
+      }
     } else {
       // 返回所有价格
       allPrices.forEach((price, symbol) => {

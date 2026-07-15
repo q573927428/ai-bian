@@ -7,13 +7,18 @@ import { logger } from '../../utils/logger'
 import { 
   saveActivePositions,
   loadActivePositions,
-  saveSymbolLocks
+  saveSymbolLocks,
+  loadSymbolLocks
 } from '../../utils/storage'
+
+const DEFAULT_ACCOUNT_ID = 'default'
 
 /**
  * 仓位信息
  */
 export interface PositionInfo {
+  accountId?: string;                  // 账户ID，短期默认 default
+  userId?: string;                     // 用户ID，预留多用户维度
   symbol: string;                      // 交易对
   strategyId: StrategyId;              // 策略ID
   direction: TradeDirection;           // 方向
@@ -58,10 +63,10 @@ export interface PositionInfo {
  * 6. 程序启动时从交易所同步实际持仓
  */
 export class PositionManager {
-  // 当前仓位映射: symbol -> PositionInfo
+  // 当前仓位映射: accountId:symbol -> PositionInfo
   private positions: Map<string, PositionInfo> = new Map()
 
-  // 策略锁映射: symbol -> strategyId (哪个策略锁定了该交易对)
+  // 策略锁映射: accountId:symbol -> strategyId (哪个策略锁定了该交易对)
   private symbolLocks: Map<string, StrategyId> = new Map()
 
   // 策略的仓位列表: strategyId -> Set<symbol>
@@ -79,6 +84,14 @@ export class PositionManager {
    */
   constructor() {
     // 不在构造函数中自动加载，而是通过 init() 方法显式初始化
+  }
+
+  private getPositionKey(symbol: string, accountId = DEFAULT_ACCOUNT_ID): string {
+    return `${accountId || DEFAULT_ACCOUNT_ID}:${symbol}`
+  }
+
+  private normalizeLockKey(key: string): string {
+    return key.includes(':') ? key : this.getPositionKey(key)
   }
 
   /**
@@ -136,8 +149,8 @@ export class PositionManager {
 
         // 保存交易对锁
         const locks: Record<string, string> = {}
-        for (const [symbol, strategyId] of this.symbolLocks.entries()) {
-          locks[symbol] = strategyId
+        for (const [key, strategyId] of this.symbolLocks.entries()) {
+          locks[key] = strategyId
         }
         await saveSymbolLocks(locks)
       } catch (error: any) {
@@ -158,21 +171,35 @@ export class PositionManager {
 
       // 重建内存映射 - 从持仓数据中重建所有映射
       for (const position of positions) {
+        position.accountId = position.accountId || DEFAULT_ACCOUNT_ID
         // 如果没有 position 字段，自动构建一个
         if (!position.position) {
           position.position = this.buildPositionFromInfo(position)
         }
         
-        this.positions.set(position.symbol, position)
+        const key = this.getPositionKey(position.symbol, position.accountId)
+        this.positions.set(key, position)
         
         // 重建 symbolLocks
-        this.symbolLocks.set(position.symbol, position.strategyId)
+        this.symbolLocks.set(key, position.strategyId)
         
         // 重建 strategyPositions
         if (!this.strategyPositions.has(position.strategyId)) {
           this.strategyPositions.set(position.strategyId, new Set())
         }
-        this.strategyPositions.get(position.strategyId)!.add(position.symbol)
+        this.strategyPositions.get(position.strategyId)!.add(key)
+      }
+
+      const persistedLocks = await loadSymbolLocks()
+      for (const [rawKey, strategyId] of Object.entries(persistedLocks)) {
+        const key = this.normalizeLockKey(rawKey)
+        if (!this.symbolLocks.has(key)) {
+          this.symbolLocks.set(key, strategyId)
+          if (!this.strategyPositions.has(strategyId)) {
+            this.strategyPositions.set(strategyId, new Set())
+          }
+          this.strategyPositions.get(strategyId)!.add(key)
+        }
       }
 
       logger.success('PositionManager', `本地状态加载完成: ${positions.length} 个仓位, ${this.symbolLocks.size} 个锁`)
@@ -215,15 +242,16 @@ export class PositionManager {
    * 检查交易对是否可开仓
    */
   async canOpenPosition(symbol: string, strategyId: StrategyId): Promise<boolean> {
+    const key = this.getPositionKey(symbol)
     // 1. 检查是否有其他策略已锁定该交易对
-    const lockHolder = this.symbolLocks.get(symbol)
+    const lockHolder = this.symbolLocks.get(key)
     if (lockHolder && lockHolder !== strategyId) {
       // logger.info('扫描结果', ` ${symbol} 已被策略 ${lockHolder} 锁定`)
       return false
     }
 
     // 2. 检查是否已有仓位
-    if (this.positions.has(symbol)) {
+    if (this.positions.has(key)) {
       // logger.info('扫描结果', ` ${symbol} 已有仓位`)
       return false
     }
@@ -249,20 +277,21 @@ export class PositionManager {
   /**
    * 锁定交易对
    */
-  lockSymbol(symbol: string, strategyId: StrategyId): void {
+  lockSymbol(symbol: string, strategyId: StrategyId, accountId = DEFAULT_ACCOUNT_ID): void {
+    const key = this.getPositionKey(symbol, accountId)
     // 检查是否已被其他策略锁定
-    const existingLock = this.symbolLocks.get(symbol)
+    const existingLock = this.symbolLocks.get(key)
     if (existingLock && existingLock !== strategyId) {
       throw new Error(`交易对 ${symbol} 已被策略 ${existingLock} 锁定`)
     }
 
-    this.symbolLocks.set(symbol, strategyId)
+    this.symbolLocks.set(key, strategyId)
 
     // 记录策略的仓位
     if (!this.strategyPositions.has(strategyId)) {
       this.strategyPositions.set(strategyId, new Set())
     }
-    this.strategyPositions.get(strategyId)!.add(symbol)
+    this.strategyPositions.get(strategyId)!.add(key)
 
     logger.info('PositionManager', `交易对 ${symbol} 已被策略 ${strategyId} 锁定`)
     
@@ -273,19 +302,20 @@ export class PositionManager {
   /**
    * 释放交易对锁
    */
-  unlockSymbol(symbol: string): void {
-    const strategyId = this.symbolLocks.get(symbol)
+  unlockSymbol(symbol: string, accountId = DEFAULT_ACCOUNT_ID): void {
+    const key = this.getPositionKey(symbol, accountId)
+    const strategyId = this.symbolLocks.get(key)
     if (strategyId) {
       // 从策略的仓位列表中移除
       const positions = this.strategyPositions.get(strategyId)
       if (positions) {
-        positions.delete(symbol)
+        positions.delete(key)
         if (positions.size === 0) {
           this.strategyPositions.delete(strategyId)
         }
       }
 
-      this.symbolLocks.delete(symbol)
+      this.symbolLocks.delete(key)
       logger.info('PositionManager', `交易对 ${symbol} 锁已释放`)
       
       // 持久化状态
@@ -297,11 +327,13 @@ export class PositionManager {
    * 记录仓位
    */
   recordPosition(symbol: string, positionInfo: PositionInfo): void {
+    positionInfo.accountId = positionInfo.accountId || DEFAULT_ACCOUNT_ID
+    const key = this.getPositionKey(symbol, positionInfo.accountId)
     // 先锁定
-    this.lockSymbol(symbol, positionInfo.strategyId)
+    this.lockSymbol(symbol, positionInfo.strategyId, positionInfo.accountId)
 
     // 记录仓位
-    this.positions.set(symbol, positionInfo)
+    this.positions.set(key, positionInfo)
 
     logger.info('PositionManager', `仓位已记录: ${symbol} by ${positionInfo.strategyId}`)
     
@@ -313,13 +345,15 @@ export class PositionManager {
    * 清除仓位记录
    */
   clearPosition(symbol: string): void {
-    const positionInfo = this.positions.get(symbol)
+    const defaultKey = this.getPositionKey(symbol)
+    const positionInfo = this.positions.get(defaultKey) || Array.from(this.positions.values()).find(pos => pos.symbol === symbol)
+    const key = positionInfo ? this.getPositionKey(symbol, positionInfo.accountId) : defaultKey
 
     // 先释放锁
-    this.unlockSymbol(symbol)
+    this.unlockSymbol(symbol, positionInfo?.accountId || DEFAULT_ACCOUNT_ID)
 
     // 清除仓位
-    this.positions.delete(symbol)
+    this.positions.delete(key)
 
     if (positionInfo) {
       logger.info('PositionManager', `仓位已清除: ${symbol} (策略: ${positionInfo.strategyId})`)
@@ -346,8 +380,8 @@ export class PositionManager {
     }
 
     const positions: PositionInfo[] = []
-    for (const symbol of symbols) {
-      const position = this.positions.get(symbol)
+    for (const key of symbols) {
+      const position = this.positions.get(key)
       if (position) {
         positions.push(position)
       }
@@ -360,21 +394,21 @@ export class PositionManager {
    * 获取指定交易对的仓位
    */
   getPosition(symbol: string): PositionInfo | undefined {
-    return this.positions.get(symbol)
+    return this.positions.get(this.getPositionKey(symbol))
   }
 
   /**
    * 检查交易对是否有仓位
    */
   hasPosition(symbol: string): boolean {
-    return this.positions.has(symbol)
+    return this.positions.has(this.getPositionKey(symbol))
   }
 
   /**
    * 获取交易对的锁持有者
    */
   getLockHolder(symbol: string): StrategyId | undefined {
-    return this.symbolLocks.get(symbol)
+    return this.symbolLocks.get(this.getPositionKey(symbol))
   }
 
   /**
@@ -412,6 +446,7 @@ export class PositionManager {
       }
 
       const positionInfo: PositionInfo = {
+        accountId: DEFAULT_ACCOUNT_ID,
         symbol,
         strategyId,
         direction,
@@ -435,7 +470,7 @@ export class PositionManager {
    * 更新仓位信息
    */
   updatePosition(symbol: string, updates: Partial<PositionInfo>): void {
-    const existing = this.positions.get(symbol)
+    const existing = this.positions.get(this.getPositionKey(symbol))
     if (existing) {
       Object.assign(existing, updates)
       

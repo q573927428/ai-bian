@@ -26,7 +26,7 @@ let dirty = false
 let saveTimer: NodeJS.Timeout | null = null
 
 const MAX_BARS = 2233
-const SAVE_THROTTLE_MS = 6000000 // 60分钟节流保存（不管写入多频繁，固定每60分钟保存一次）
+const SAVE_THROTTLE_MS = 60 * 60 * 1000 // 60分钟节流保存（不管写入多频繁，固定每60分钟保存一次）
 
 function getDbPath(): string {
   if (process.env.KLINE_DATA_DIR) {
@@ -405,6 +405,25 @@ export function getSimpleStoredSymbols(): Array<{
 }
 
 /**
+ * 获取指定交易对/周期的 K线数量
+ */
+export function getSimpleKLineCount(
+  symbol: string,
+  timeframe: KLineTimeframe
+): number {
+  const normSymbol = normalizeSymbol(symbol)
+
+  const row = queryOne<{ count: number }>(
+    `SELECT COUNT(*) as count
+     FROM kline_data
+     WHERE symbol = ? AND timeframe = ?`,
+    [normSymbol, timeframe]
+  )
+
+  return row?.count ?? 0
+}
+
+/**
  * 获取 OHLCV 格式的 K线数据（供 IndicatorsHub 使用）
  */
 export function getSimpleKLineAsOHLCV(
@@ -445,8 +464,9 @@ export function getKLineFileMTime(
        FROM kline_data 
        WHERE symbol = ? AND timeframe = ? 
        ORDER BY timestamp DESC LIMIT 1) as last_volume
-     FROM kline_data`,
-    [normSymbol, timeframe]
+     FROM kline_data
+     WHERE symbol = ? AND timeframe = ?`,
+    [normSymbol, timeframe, normSymbol, timeframe]
   )
   if (!row || row.last_ts === null) return null
   // 关键：字符串组合，永不重复

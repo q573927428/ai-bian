@@ -209,6 +209,38 @@ onUnmounted(() => {
   box-sizing: border-box;
 }
 
+html,
+body {
+  /* 隐藏页面右侧滚动条，但保留鼠标滚轮、触控板和键盘滚动能力 */
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+html::-webkit-scrollbar,
+body::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+body.el-popup-parent--hidden {
+  /* Element Plus 弹窗打开时会补偿滚动条宽度，这里移除右侧占位 */
+  width: 100% !important;
+  padding-right: 0 !important;
+}
+
+.el-overlay-dialog {
+  /* 弹窗容器可滚动，但不显示右侧滚动条 */
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.el-overlay-dialog::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
 #app {
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
   -webkit-font-smoothing: antialiased;

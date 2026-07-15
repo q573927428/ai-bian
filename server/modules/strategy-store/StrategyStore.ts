@@ -6,6 +6,7 @@ import { existsSync } from 'fs'
 import type { Strategy, StrategyId, CreateStrategyInput, UpdateStrategyInput, AIPromptConfig } from '../../../types/strategy'
 import { logger } from '../../utils/logger'
 import { encrypt, decrypt } from '../../utils/crypto'
+import { normalizeStrategyIndicatorConfig } from '../../utils/strategy-indicators-normalizer'
 
 
 // 项目根目录
@@ -42,7 +43,7 @@ export class StrategyStore {
     const now = new Date().toISOString()
     const strategyId = await this.generateId()
 
-    const strategy: Strategy = {
+    const strategy: Strategy = normalizeStrategyIndicatorConfig({
       id: strategyId,
       name: input.name,
       version: 1,
@@ -88,7 +89,7 @@ export class StrategyStore {
       },
       sessions: [],
       currentSessionId: undefined
-    }
+    })
 
     // 创建初始版本快照（排除versionHistory避免循环引用）
     const snapshot = JSON.parse(JSON.stringify({ ...strategy, versionHistory: [] }))
@@ -249,6 +250,7 @@ export class StrategyStore {
 
       // 只更新 updatedAt，不修改 version
       strategy.updatedAt = now
+      normalizeStrategyIndicatorConfig(strategy)
 
       // 保存更新后的策略
       const filePath = getStrategyFilePath(strategyId)
@@ -300,6 +302,7 @@ export class StrategyStore {
       // 更新元数据
       strategy.version = newVersion
       strategy.updatedAt = now
+      normalizeStrategyIndicatorConfig(strategy)
 
       // 添加版本历史
       strategy.versionHistory.push({
@@ -348,7 +351,7 @@ export class StrategyStore {
       const currentSnapshot = JSON.parse(JSON.stringify(strategy))
 
       // 恢复到目标版本的配置（保留版本历史）
-      const rolledBackStrategy: Strategy = {
+      const rolledBackStrategy: Strategy = normalizeStrategyIndicatorConfig({
         ...targetVersionHistory.snapshot,
         id: strategyId,
         version: newVersion,
@@ -362,7 +365,7 @@ export class StrategyStore {
             snapshot: currentSnapshot
           }
         ]
-      }
+      })
 
       // 保存回滚后的策略
       await this.saveStrategyWithoutTradeRecords(rolledBackStrategy)

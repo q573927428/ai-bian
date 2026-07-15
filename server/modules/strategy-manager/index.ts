@@ -10,12 +10,17 @@ import { loadBotConfig } from '../../utils/storage'
 import { logger } from '../../utils/logger'
 import type { BotState } from '../../../types'
 import { PositionStatus } from '../../../types'
-import { getSyncService } from '../../utils/kline-sync-service'
+import { getSyncService, waitForSyncReady, startKLineAutoSync } from '../../utils/kline-sync-service'
 import { initKLineDb } from '../../utils/kline-simple-storage'
 import { concurrencyPoolManager } from '../../utils/concurrency-pool'
 import { binanceApiGateway } from '../../utils/binance-api-gateway'
+import { indicatorCombinationRegistry } from '../indicators/IndicatorCombinationRegistry'
+import { IndicatorPrecomputeService } from '../indicators/IndicatorPrecomputeService'
 
 let strategyManager: StrategyManager | null = null
+
+const POSITION_MONITOR_START_DELAY_MS = 5000
+const STRATEGY_FIRST_SCAN_DELAY_MS = 20000
 
 /**
  * 初始化策略管理系统
@@ -48,12 +53,17 @@ export async function initStrategyManager(): Promise<StrategyManager> {
     })
     binanceApiGateway.updateConfig(config.binanceRateLimit)
 
+    logger.info('启动顺序', '阶段1/5：初始化基础服务、Binance、并发池和限流配置')
+
     // 初始化指标中心
     const indicatorsHub = IndicatorsHub.getInstance(binanceService, config)
+    const indicatorPrecompute = new IndicatorPrecomputeService(indicatorCombinationRegistry, indicatorsHub, config)
 
     // 订阅 K线同步服务的更新事件
     const syncService = getSyncService()
     if (syncService) {
+      logger.info('启动顺序', '等待K线初始同步完成后再初始化策略系统')
+      await waitForSyncReady()
       const eventEmitter = syncService.getEventEmitter()
       indicatorsHub.subscribeToKLineUpdates(eventEmitter)
       // logger.success('StrategyManager', '已连接K线同步服务与指标中心')
@@ -88,25 +98,37 @@ export async function initStrategyManager(): Promise<StrategyManager> {
       positionMgr,
       binanceService,
       config,
-      defaultState
+      defaultState,
+      indicatorCombinationRegistry,
+      indicatorPrecompute
     )
+    engine.delayInitialScans(STRATEGY_FIRST_SCAN_DELAY_MS)
 
     // 初始化策略管理器
     strategyManager = new StrategyManager(store)
     strategyManager.setEngine(engine)
     strategyManager.setIndicatorsHub(indicatorsHub)
+    strategyManager.setIndicatorPrecomputeService(indicatorPrecompute)
 
     // logger.success('StrategyManager', '策略管理系统初始化完成')
 
-    // 初始化 IndicatorsHub 的所有数据
-    // logger.info('StrategyManager', '开始初始化统一数据源...')
+    logger.info('启动顺序', '阶段2/5：加载K线缓存和指标基础数据')
     await indicatorsHub.initializeAllData()
 
-    // 启动定时更新循环
-    indicatorsHub.startUpdateLoop(60 * 1000)
-
-    // 加载所有激活的策略
+    logger.info('启动顺序', '阶段3/5：加载激活策略并完成首轮指标预计算')
     await strategyManager.loadActiveStrategies()
+    engine.delayInitialScans(STRATEGY_FIRST_SCAN_DELAY_MS)
+
+    logger.info('启动顺序', '阶段4/5：启动指标刷新、指标预计算定时器和K线定时同步')
+    indicatorsHub.startUpdateLoop(60 * 1000)
+    indicatorPrecompute.start()
+    startKLineAutoSync()
+
+    logger.info('启动顺序', `阶段5/5：${POSITION_MONITOR_START_DELAY_MS}ms 后启动持仓监控，${STRATEGY_FIRST_SCAN_DELAY_MS}ms 后允许策略首次扫描`)
+    engine.startPositionMonitor({
+      immediate: true,
+      initialDelayMs: POSITION_MONITOR_START_DELAY_MS
+    })
 
     return strategyManager
   } catch (error: any) {

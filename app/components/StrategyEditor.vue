@@ -109,7 +109,7 @@
             </el-form-item>
 
             <!-- OI参数配置 -->
-            <div v-if="selectedStatistics.includes('OI')" class="params-section">
+            <div v-if="selectedStatistics.includes('OI') && false" class="params-section">
               <el-divider content-position="left">OI 参数配置</el-divider>
               <el-row :gutter="12">
                 <el-col :xs="24" :span="12">
@@ -593,8 +593,8 @@ const selectedStatistics = ref<string[]>(['OI', 'Volume'])
 
 // OI参数
 const oiParams = reactive({
-  changePeriod: 12,
-  trendThresholdPercent: 0.05
+  changePeriod: 8,
+  trendThresholdPercent: 0.003
 })
 
 // 初始化表单
@@ -818,7 +818,12 @@ watch(() => props.strategy, (newVal) => {
     // 同步 EMA 周期
     const emaIndicator = newVal.indicators.find(i => i.type === 'EMA')
     if (emaIndicator && emaIndicator.params && emaIndicator.params.periods) {
-      emaPeriods.value = [...emaIndicator.params.periods].sort((a, b) => a - b)
+      const allowed = new Set([7, 14, 20, 30, 50, 60, 120, 200])
+      const normalized = [...emaIndicator.params.periods]
+        .map(Number)
+        .filter(p => allowed.has(p))
+        .sort((a, b) => a - b)
+      emaPeriods.value = normalized.length >= 2 ? normalized.slice(0, 3) : [14, 50]
     }
 
     // 同步统计数据
