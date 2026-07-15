@@ -78,19 +78,19 @@ export default defineEventHandler(async (event) => {
         }
       })
 
-      if (missingSymbols.length > 0) {
-        try {
-          const fallbackPrices = await fetchTickerFallback(missingSymbols)
-          missingSymbols.forEach(symbol => {
-            const fallbackPrice = fallbackPrices.get(symbol)
-            if (fallbackPrice) {
-              filteredPrices[symbol] = fallbackPrice
-            }
-          })
-        } catch (fallbackError: any) {
-          console.warn('[Price] REST 兜底获取价格失败:', fallbackError.message)
-        }
-      }
+      // if (missingSymbols.length > 0) {
+      //   try {
+      //     const fallbackPrices = await fetchTickerFallback(missingSymbols)
+      //     missingSymbols.forEach(symbol => {
+      //       const fallbackPrice = fallbackPrices.get(symbol)
+      //       if (fallbackPrice) {
+      //         filteredPrices[symbol] = fallbackPrice
+      //       }
+      //     })
+      //   } catch (fallbackError: any) {
+      //     console.warn('[Price] REST 兜底获取价格失败:', fallbackError.message)
+      //   }
+      // }
     } else {
       // 返回所有价格
       allPrices.forEach((price, symbol) => {
