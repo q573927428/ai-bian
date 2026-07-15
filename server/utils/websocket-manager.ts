@@ -1,5 +1,6 @@
 import { BinanceWebSocketService } from './websocket'
 import type { PriceData, WebSocketEvent, WebSocketClientState } from '../../types/websocket'
+import { WebSocketStatus } from '../../types/websocket'
 
 // 全局WebSocket管理器
 export class WebSocketManager {
@@ -35,7 +36,8 @@ export class WebSocketManager {
    * 初始化WebSocket连接
    */
   async initialize(): Promise<void> {
-    if (this.isInitialized) {
+    const state = this.wsService.getState()
+    if (this.isInitialized && state.status === WebSocketStatus.CONNECTED) {
       return
     }
 

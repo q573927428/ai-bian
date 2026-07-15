@@ -80,6 +80,7 @@ export default defineEventHandler(async (event) => {
 
       // if (missingSymbols.length > 0) {
       //   try {
+      //     // WebSocket重连或刚启动时缓存可能为空，REST兜底保证前端不会长时间显示0。
       //     const fallbackPrices = await fetchTickerFallback(missingSymbols)
       //     missingSymbols.forEach(symbol => {
       //       const fallbackPrice = fallbackPrices.get(symbol)

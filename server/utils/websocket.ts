@@ -13,9 +13,9 @@ import WebSocket from 'ws'
 
 // 币安WebSocket端点
 const BINANCE_WS_ENDPOINTS = {
-  futures: 'wss://fstream.binance.com/public/ws',
-  // 这里使用动态订阅模式，连接后通过 SUBSCRIBE 消息订阅交易对；新版文档要求连接 /public/stream。
-  futuresMarket: 'wss://fstream.binance.com/public/stream',
+  futures: 'wss://fstream.binance.com/market/ws',
+  // 本服务订阅的是 @ticker、@kline 等行情流，必须连接 USDⓈ-M Market Streams。
+  futuresMarket: 'wss://fstream.binance.com/market/stream',
   futuresTestnet: 'wss://stream.binancefuture.com/ws',
   spot: 'wss://stream.binance.com:9443/ws',
   spotTestnet: 'wss://testnet.binance.vision/ws'
@@ -97,6 +97,15 @@ export class BinanceWebSocketService {
           this.handleMessage(event)
         }
 
+        this.ws.on('ping', (data) => {
+          // ws 客户端会自动回复 pong，这里只记录活跃时间，避免被状态页误判为长时间无数据。
+          this.state.lastActivity = Date.now()
+        })
+
+        this.ws.on('pong', () => {
+          this.state.lastActivity = Date.now()
+        })
+
         this.ws.onerror = (error: any) => {
           console.error('❌ WebSocket错误:', error)
           this.updateStatus(WebSocketStatus.ERROR)
@@ -108,8 +117,10 @@ export class BinanceWebSocketService {
           reject(error)
         }
 
-        this.ws.onclose = () => {
-          console.log('🔌 WebSocket连接关闭')
+        this.ws.onclose = (event: any) => {
+          const closeCode = event?.code ?? 'unknown'
+          const closeReason = event?.reason?.toString?.() || ''
+          console.log(`🔌 WebSocket连接关闭 code=${closeCode}${closeReason ? ` reason=${closeReason}` : ''}`)
           this.updateStatus(WebSocketStatus.DISCONNECTED)
           this.state.connectedSymbols = []
           this.stopPingTimer()
@@ -368,6 +379,13 @@ export class BinanceWebSocketService {
       
       if (data.pong) {
         // 收到pong响应，连接正常
+        return
+      }
+
+      if (data.code !== undefined && data.msg) {
+        const message = `Binance WebSocket返回错误 code=${data.code}, msg=${data.msg}`
+        console.error(`❌ ${message}`)
+        this.emitEvent({ type: 'error', data: message, timestamp: Date.now() })
         return
       }
 
