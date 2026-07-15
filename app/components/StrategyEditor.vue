@@ -109,7 +109,7 @@
             </el-form-item>
 
             <!-- OI参数配置 -->
-            <div v-if="selectedStatistics.includes('OI') && false" class="params-section">
+            <div v-if="selectedStatistics.includes('OI')" class="params-section">
               <el-divider content-position="left">OI 参数配置</el-divider>
               <el-row :gutter="12">
                 <el-col :xs="24" :span="12">
