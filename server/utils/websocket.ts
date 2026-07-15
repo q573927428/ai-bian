@@ -13,8 +13,9 @@ import WebSocket from 'ws'
 
 // 币安WebSocket端点
 const BINANCE_WS_ENDPOINTS = {
-  futures: 'wss://fstream.binance.com/ws',
-  futuresMarket: 'wss://fstream.binance.com/market/stream',
+  futures: 'wss://fstream.binance.com/public/ws',
+  // 这里使用动态订阅模式，连接后通过 SUBSCRIBE 消息订阅交易对；新版文档要求连接 /public/stream。
+  futuresMarket: 'wss://fstream.binance.com/public/stream',
   futuresTestnet: 'wss://stream.binancefuture.com/ws',
   spot: 'wss://stream.binance.com:9443/ws',
   spotTestnet: 'wss://testnet.binance.vision/ws'
@@ -56,6 +57,15 @@ export class BinanceWebSocketService {
   private formatSymbolForWebSocket(symbol: string): string {
     // 移除斜杠并转换为小写
     return symbol.replace('/', '').toLowerCase()
+  }
+
+  /**
+   * 生成币安WebSocket请求ID。
+   *
+   * 新版USDⓈ-M Futures WebSocket文档要求动态订阅请求ID使用字符串。
+   */
+  private createRequestId(): string {
+    return Date.now().toString()
   }
 
   /**
@@ -159,7 +169,7 @@ export class BinanceWebSocketService {
     const subscribeMessage = {
       method: 'SUBSCRIBE',
       params: streams,
-      id: Date.now()
+      id: this.createRequestId()
     }
 
     this.ws.send(JSON.stringify(subscribeMessage))
@@ -193,7 +203,7 @@ export class BinanceWebSocketService {
     const subscribeMessage = {
       method: 'SUBSCRIBE',
       params: streams,
-      id: Date.now()
+      id: this.createRequestId()
     }
 
     this.ws.send(JSON.stringify(subscribeMessage))
@@ -226,7 +236,7 @@ export class BinanceWebSocketService {
     const subscribeMessage = {
       method: 'SUBSCRIBE',
       params: streams,
-      id: Date.now()
+      id: this.createRequestId()
     }
 
     this.ws.send(JSON.stringify(subscribeMessage))
@@ -266,7 +276,7 @@ export class BinanceWebSocketService {
     const unsubscribeMessage = {
       method: 'UNSUBSCRIBE',
       params: streams,
-      id: Date.now()
+      id: this.createRequestId()
     }
 
     this.ws.send(JSON.stringify(unsubscribeMessage))
