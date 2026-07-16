@@ -398,6 +398,23 @@ onUnmounted(() => {
   color: var(--text-primary);
 }
 
+/* 移动端：4项分成2列显示 */
+@media (max-width: 640px) {
+  .stats-container {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+
+  .stat-item {
+    padding: 10px 12px;
+  }
+
+  .stat-value {
+    font-size: 14px;
+  }
+}
+
 .text-success {
   color: var(--color-success);
 }
