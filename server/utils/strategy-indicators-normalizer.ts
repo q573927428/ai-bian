@@ -51,8 +51,8 @@ export function normalizeStatisticsConfig(statistics: StatisticsConfig[] = []): 
         ...stat,
         params: {
           ...stat.params,
-          changePeriod: 8,
-          trendThresholdPercent: 0.003
+          changePeriod: stat.params?.changePeriod ?? 8,
+          trendThresholdPercent: stat.params?.trendThresholdPercent ?? 0.003
         }
       }
     }
