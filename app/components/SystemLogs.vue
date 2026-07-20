@@ -3,7 +3,7 @@
     <template #header>
       <div class="card-header">
         <div class="header-top">
-          <span class="header-title">⚡运行日志</span>
+          <span class="header-title">⚡ 运行日志</span>
           <div class="filter-group">
             <el-select v-model="activeTab" placeholder="扫描" class="filter-select">
               <el-option label="全部" value="all" />
