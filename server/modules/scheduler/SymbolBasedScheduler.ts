@@ -157,38 +157,20 @@ export class SymbolBasedScheduler {
     const timestamp = Date.now()
     const price = await this.getPrice(symbol)
 
-    // 获取所有订阅该交易对的策略，合并需要的指标和时间周期
+    // 获取所有订阅该交易对的策略，合并需要的时间周期。
+    // 指标由 StrategyEngine 按策略参数从预计算缓存精确装配，避免在这里执行
+    // “全部周期 × 全部指标”的笛卡尔积计算后又被策略级计算覆盖。
     const allTimeframes = new Set<Timeframe>()
-    const allIndicators = new Set<IndicatorType | StatisticsType>()
 
     for (const strategyId of this.getStrategiesForSymbol(symbol)) {
       const subscription = this.strategySubscriptions.get(strategyId)
       if (subscription) {
         subscription.requiredTimeframes.forEach(tf => allTimeframes.add(tf))
-        subscription.requiredIndicators.forEach(ind => allIndicators.add(ind))
       }
     }
 
     const indicatorsByTimeframe = new Map<Timeframe, Map<string, any>>()
     const klinesByTimeframe = new Map<Timeframe, any[]>()
-
-    // 批量获取指标
-    if (allTimeframes.size > 0 && allIndicators.size > 0) {
-      const indicatorsData = await this.indicatorsHub.getBatchIndicators(
-        symbol,
-        Array.from(allTimeframes),
-        Array.from(allIndicators)
-      )
-
-      // 按时间周期组织指标数据
-      for (const [key, value] of indicatorsData.entries()) {
-        const [timeframe, indicatorType] = key.split('_', 2) as [Timeframe, string]
-        if (!indicatorsByTimeframe.has(timeframe)) {
-          indicatorsByTimeframe.set(timeframe, new Map())
-        }
-        indicatorsByTimeframe.get(timeframe)!.set(indicatorType, value)
-      }
-    }
 
     // 获取K线数据
     for (const timeframe of allTimeframes) {

@@ -76,6 +76,9 @@ export class StrategyEngine {
   private aiAnalyzer: MultiStrategyAIAnalyzer
   // AI 分析缓存: cacheKey -> {signal, timestamp}
   private aiCache: Map<string, { signal: TradeSignal; timestamp: number }> = new Map()
+  // AI 结果通常包含较长的推理文本，必须限制条目数，避免行情变化不断产生新 key 后长期占用内存。
+  private readonly AI_CACHE_MAX_ENTRIES = 1000
+  private aiCacheWritesSinceCleanup = 0
 
   // 持仓相关模块
   private positionCloser: StrategyPositionCloser
@@ -823,6 +826,10 @@ export class StrategyEngine {
         logger.info('StrategyEngine', `使用 AI 缓存结果: ${symbol} [策略 ${strategyId}]`)
         return { ...cached.signal, strategyId }
       }
+      if (cached) {
+        // 命中已过期条目时立即释放，不能只把它当作缓存未命中继续保留。
+        this.aiCache.delete(cacheKey)
+      }
 
       // 从策略配置中读取各指标参数
       const adxConfig = instance.strategy.indicators.find((i: any) => i.type === 'ADX' && i.enabled)
@@ -970,6 +977,10 @@ export class StrategyEngine {
 
       // 缓存结果
       this.aiCache.set(cacheKey, { signal, timestamp: Date.now() })
+      this.aiCacheWritesSinceCleanup++
+      if (this.aiCacheWritesSinceCleanup >= 100 || this.aiCache.size > this.AI_CACHE_MAX_ENTRIES) {
+        this.pruneAICache()
+      }
 
       return signal
     } catch (error: any) {
@@ -999,6 +1010,25 @@ export class StrategyEngine {
       structuredRules
     }
     return `ai:${symbol}:${shortHash(cachePayload)}`
+  }
+
+  /**
+   * 清理过期 AI 缓存，并按插入顺序淘汰超过容量上限的最旧结果。
+   */
+  private pruneAICache(): void {
+    const expiresBefore = Date.now() - this.getAiCacheTtl()
+    for (const [key, value] of this.aiCache) {
+      if (value.timestamp < expiresBefore) {
+        this.aiCache.delete(key)
+      }
+    }
+
+    while (this.aiCache.size > this.AI_CACHE_MAX_ENTRIES) {
+      const oldestKey = this.aiCache.keys().next().value as string | undefined
+      if (!oldestKey) break
+      this.aiCache.delete(oldestKey)
+    }
+    this.aiCacheWritesSinceCleanup = 0
   }
 
   /**
@@ -1501,6 +1531,7 @@ export class StrategyEngine {
    */
   clearAICache(): void {
     this.aiCache.clear()
+    this.aiCacheWritesSinceCleanup = 0
     logger.info('StrategyEngine', 'AI缓存已清理')
   }
 

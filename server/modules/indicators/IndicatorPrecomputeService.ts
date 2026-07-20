@@ -70,8 +70,17 @@ export class IndicatorPrecomputeService {
     this.isRunning = true
     const startedAt = Date.now()
     const combinations = this.registry.getCombinations()
+    const activeKeys = new Set(combinations.map(combo => combo.key))
     let succeeded = 0
     let failed = 0
+
+    // 策略编辑或交易对移除后，注册表会重建；同步删除不再使用的旧组合，防止缓存随配置变更增长。
+    for (const key of this.cache.keys()) {
+      if (!activeKeys.has(key)) this.cache.delete(key)
+    }
+    for (const key of this.dirtyKeys) {
+      if (!activeKeys.has(key)) this.dirtyKeys.delete(key)
+    }
 
     this.stats.lastStartedAt = startedAt
     this.stats.lastTotal = combinations.length
