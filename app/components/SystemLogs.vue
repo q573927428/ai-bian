@@ -3,14 +3,15 @@
     <template #header>
       <div class="card-header">
         <div class="header-top">
-          <el-tabs v-model="activeTab" class="log-tabs">
-            <el-tab-pane label="全部" name="all" />
-            <el-tab-pane label="扫描" name="scan" />
-            <el-tab-pane label="持仓" name="position" />
-          </el-tabs>
+          <span class="header-title">⚡运行日志</span>
           <div class="filter-group">
-            <el-select v-model="selectedStrategy" placeholder="策略筛选" clearable class="filter-select">
-              <el-option label="全部策略" value="" />
+            <el-select v-model="activeTab" placeholder="扫描" class="filter-select">
+              <el-option label="全部" value="all" />
+              <el-option label="扫描" value="scan" />
+              <el-option label="持仓" value="position" />
+            </el-select>
+            <el-select v-model="selectedStrategy" placeholder="策略" clearable class="filter-select">
+              <el-option label="全部" value="" />
               <el-option 
                 v-for="strategy in strategies" 
                 :key="strategy.id" 
@@ -18,8 +19,8 @@
                 :value="strategy.id" 
               />
             </el-select>
-            <el-select v-model="selectedSymbol" placeholder="交易对筛选" clearable class="filter-select">
-              <el-option label="全部交易对" value="" />
+            <el-select v-model="selectedSymbol" placeholder="交易对" clearable class="filter-select">
+              <el-option label="全部" value="" />
               <el-option 
                 v-for="symbol in symbols" 
                 :key="symbol" 
@@ -229,7 +230,6 @@ onUnmounted(() => {
   flex-direction: column;
   gap: 12px;
   align-items: flex-start;
-  margin-bottom: -18px;
 }
 
 .header-top {
@@ -247,7 +247,7 @@ onUnmounted(() => {
 }
 
 .filter-select {
-  width: 130px;
+  width: 100px;
 }
 
 .card-header span {
@@ -256,12 +256,10 @@ onUnmounted(() => {
   font-size: 15px;
 }
 
-.log-tabs {
-  width: 100%;
-}
-
-.log-tabs :deep(.el-tabs__header) {
-  margin: 0;
+.header-title {
+  font-weight: 600;
+  font-size: 15px;
+  white-space: nowrap;
 }
 
 .logs-container {
