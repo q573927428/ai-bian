@@ -379,7 +379,7 @@
               </el-col>
               <el-col :xs="24" :span="12">
                 <el-form-item label="持仓超时">
-                  <el-input-number v-model="form.riskManagement.maxHoldTimeMinutes" :min="60" :max="10080" :step="60" /> <small class="unitf">分钟</small>
+                  <el-input-number v-model="form.riskManagement.maxHoldTimeMinutes" :min="1" :max="10080" :step="1" /> <small class="unitf">分钟</small>
                 </el-form-item>
               </el-col>
             </el-row>
