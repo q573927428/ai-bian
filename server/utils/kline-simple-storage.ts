@@ -1,13 +1,15 @@
+// ==================== K线 SQLite 双后端存储模块 ====================
+
 /**
- * K线数据 SQLite 存储模块（基于 sql.js）
- * 
- * sql.js 是 SQLite 的纯 JavaScript/WASM 实现，不依赖原生模块。
- * 数据库在内存中运行，定期/变更后持久化到磁盘。
+ * K线数据 SQLite 存储模块
+ *
+ * 默认优先使用 Node.js 内置 node:sqlite 直接访问磁盘数据库；运行环境不支持时，
+ * 自动回退到原有 sql.js 内存数据库。两个后端共用同一份标准 SQLite 文件和导出 API。
  */
 import initSqlJs, { type Database as SqlJsDatabase, type SqlJsStatic } from 'sql.js'
+import type { DatabaseSync, StatementSync } from 'node:sqlite'
 import fs from 'fs'
 import path from 'path'
-import { createRequire } from 'module'
 import type { 
   KLineSingleFile, 
   SimpleKLineData, 
@@ -19,7 +21,13 @@ import type { OHLCV } from '../../types'
 // ==================== 数据库单例 ====================
 
 let SQL: SqlJsStatic | null = null
-let db: SqlJsDatabase | null = null
+type KLineDbBackend =
+  | { driver: 'node'; database: DatabaseSync }
+  | { driver: 'sqljs'; database: SqlJsDatabase }
+
+type KLineDbDriver = 'auto' | 'node' | 'sqljs'
+
+let db: KLineDbBackend | null = null
 let dbReady = false
 let dbInitPromise: Promise<void> | null = null
 let dirty = false
@@ -27,6 +35,20 @@ let saveTimer: NodeJS.Timeout | null = null
 
 const MAX_BARS = 2233
 const SAVE_THROTTLE_MS = 60 * 60 * 1000 // 60分钟节流保存（不管写入多频繁，固定每60分钟保存一次）
+
+/**
+ * 获取数据库驱动配置。
+ *
+ * auto: 优先 node:sqlite，失败后回退 sql.js（默认）
+ * node: 强制 node:sqlite，初始化失败时直接报错
+ * sqljs: 强制使用原有 sql.js
+ */
+function getConfiguredDriver(): KLineDbDriver {
+  const value = String(process.env.KLINE_DB_DRIVER || 'auto').trim().toLowerCase()
+  if (value === 'node' || value === 'node:sqlite') return 'node'
+  if (value === 'sqljs' || value === 'sql.js') return 'sqljs'
+  return 'auto'
+}
 
 function getDbPath(): string {
   if (process.env.KLINE_DATA_DIR) {
@@ -44,51 +66,28 @@ export async function initKLineDb(): Promise<void> {
 
   dbInitPromise = (async () => {
     try {
-      // 加载 sql.js WASM
-      // 尝试多个可能的路径查找 WASM 文件，兼容开发和生产环境
-      const possiblePaths = [
-        // 开发环境：从当前文件所在 node_modules
-        path.resolve(new URL('.', import.meta.url).pathname, '..', '..', '..', 'node_modules', 'sql.js', 'dist', 'sql-wasm.wasm'),
-        // 开发环境：从项目根目录
-        path.resolve(process.cwd(), 'node_modules', 'sql.js', 'dist', 'sql-wasm.wasm'),
-        // 生产环境（Nitro 构建后）
-        path.resolve(process.cwd(), '.output', 'server', 'node_modules', 'sql.js', 'dist', 'sql-wasm.wasm'),
-      ]
-      
-      let wasmPath = ''
-      for (const p of possiblePaths) {
-        if (fs.existsSync(p)) {
-          wasmPath = p
-          break
-        }
-      }
-      
-      if (!wasmPath) {
-        throw new Error('无法找到 sql-wasm.wasm 文件，请确保 sql.js 依赖已正确安装')
-      }
-      
-      SQL = await initSqlJs({
-        locateFile: (file: string) => wasmPath
-      })
-
       const dbPath = getDbPath()
       const dir = path.dirname(dbPath)
       if (!fs.existsSync(dir)) {
         fs.mkdirSync(dir, { recursive: true })
       }
 
-      // 尝试从磁盘加载现有数据库
-      if (fs.existsSync(dbPath)) {
-        const buffer = fs.readFileSync(dbPath)
-        db = new SQL.Database(buffer)
-        console.log(`✅ 已从磁盘加载数据库: ${dbPath} (${(buffer.length / 1024).toFixed(1)} KB)`)
-      } else {
-        db = new SQL.Database()
-        console.log('🆕 创建新的内存数据库')
+      const configuredDriver = getConfiguredDriver()
+      if (configuredDriver === 'node' || configuredDriver === 'auto') {
+        try {
+          db = await initNodeSqliteBackend(dbPath)
+        } catch (error: any) {
+          if (configuredDriver === 'node') throw error
+          console.warn(`⚠️ node:sqlite 初始化失败，自动回退 sql.js: ${error.message}`)
+        }
+      }
+
+      if (!db) {
+        db = await initSqlJsBackend(dbPath)
       }
 
       // 创建表结构
-      db.exec(`
+      db.database.exec(`
         CREATE TABLE IF NOT EXISTS kline_data (
           symbol TEXT NOT NULL,
           timeframe TEXT NOT NULL,
@@ -106,8 +105,17 @@ export async function initKLineDb(): Promise<void> {
       `)
 
       dbReady = true
-      console.log('✅ K线数据库初始化完成')
+      console.log(`✅ K线数据库初始化完成，驱动: ${db.driver}`)
     } catch (error) {
+      if (db) {
+        try {
+          db.database.close()
+        } catch {
+          // 初始化失败后的关闭异常不应覆盖原始错误。
+        }
+      }
+      db = null
+      SQL = null
       console.error('❌ K线数据库初始化失败:', error)
       dbInitPromise = null
       throw error
@@ -118,9 +126,58 @@ export async function initKLineDb(): Promise<void> {
 }
 
 /**
+ * 初始化 Node.js 内置 SQLite 后端。
+ */
+async function initNodeSqliteBackend(dbPath: string): Promise<KLineDbBackend> {
+  const { DatabaseSync } = await import('node:sqlite')
+  const database = new DatabaseSync(dbPath)
+
+  try {
+    // 使用单文件 rollback journal，确保切换回 sql.js 时无需处理额外 WAL 文件。
+    database.exec('PRAGMA journal_mode = DELETE')
+    database.exec('PRAGMA synchronous = NORMAL')
+    database.exec('PRAGMA busy_timeout = 5000')
+    database.exec('PRAGMA temp_store = MEMORY')
+    database.exec('PRAGMA cache_size = -16000')
+  } catch (error) {
+    database.close()
+    throw error
+  }
+
+  console.log(`✅ 使用 node:sqlite 磁盘数据库: ${dbPath}`)
+  return { driver: 'node', database }
+}
+
+/**
+ * 初始化原有 sql.js 后端，作为显式选择或兼容性回退。
+ */
+async function initSqlJsBackend(dbPath: string): Promise<KLineDbBackend> {
+  const possiblePaths = [
+    path.resolve(new URL('.', import.meta.url).pathname, '..', '..', '..', 'node_modules', 'sql.js', 'dist', 'sql-wasm.wasm'),
+    path.resolve(process.cwd(), 'node_modules', 'sql.js', 'dist', 'sql-wasm.wasm'),
+    path.resolve(process.cwd(), '.output', 'server', 'node_modules', 'sql.js', 'dist', 'sql-wasm.wasm'),
+  ]
+
+  const wasmPath = possiblePaths.find(candidate => fs.existsSync(candidate))
+  if (!wasmPath) {
+    throw new Error('无法找到 sql-wasm.wasm 文件，请确保 sql.js 依赖已正确安装')
+  }
+
+  SQL = await initSqlJs({ locateFile: () => wasmPath })
+  if (fs.existsSync(dbPath)) {
+    const buffer = fs.readFileSync(dbPath)
+    console.log(`✅ 使用 sql.js 加载数据库: ${dbPath} (${(buffer.length / 1024).toFixed(1)} KB)`)
+    return { driver: 'sqljs', database: new SQL.Database(buffer) }
+  }
+
+  console.log('🆕 使用 sql.js 创建新的内存数据库')
+  return { driver: 'sqljs', database: new SQL.Database() }
+}
+
+/**
  * 获取数据库实例（同步，调用前必须确保 initKLineDb() 已完成）
  */
-function getDb(): SqlJsDatabase {
+function getDb(): KLineDbBackend {
   if (!db || !dbReady) {
     throw new Error('K线数据库未初始化，请先调用 initKLineDb()')
   }
@@ -138,6 +195,8 @@ function getDb(): SqlJsDatabase {
  * 所以即使 10 分钟才保存一次也完全安全。
  */
 function markDirty(): void {
+  // node:sqlite 的事务直接持久化到磁盘，不需要整库导出和延迟保存。
+  if (db?.driver === 'node') return
   dirty = true
   // 节流：已有定时器在跑则跳过，确保固定间隔保存
   if (saveTimer) return
@@ -153,11 +212,16 @@ function markDirty(): void {
  * 立即保存数据库到磁盘
  */
 export async function saveDb(): Promise<void> {
-  const database = db
-  if (!database || !dbReady) return
+  const backend = db
+  if (!backend || !dbReady) return
 
   try {
-    const buffer = database.export()
+    if (backend.driver === 'node') {
+      // node:sqlite 的事务提交已直接持久化，无需整库导出。
+      return
+    }
+
+    const buffer = backend.database.export()
     const dbPath = getDbPath()
     const tmpPath = dbPath + '.tmp'
 
@@ -197,9 +261,11 @@ export async function closeKLineDb(): Promise<void> {
   }
 
   if (db) {
-    db.close()
+    db.database.close()
     db = null
     dbReady = false
+    dbInitPromise = null
+    dirty = false
     SQL = null
   }
 }
@@ -210,8 +276,12 @@ export async function closeKLineDb(): Promise<void> {
  * 执行参数化查询并返回所有行（对象数组）
  */
 function queryAll<T = Record<string, unknown>>(sql: string, params: any[] = []): T[] {
-  const database = getDb()
-  const stmt = database.prepare(sql)
+  const backend = getDb()
+  if (backend.driver === 'node') {
+    return backend.database.prepare(sql).all(...params) as T[]
+  }
+
+  const stmt = backend.database.prepare(sql)
   if (params.length > 0) {
     stmt.bind(params)
   }
@@ -227,8 +297,12 @@ function queryAll<T = Record<string, unknown>>(sql: string, params: any[] = []):
  * 执行参数化查询并返回第一行
  */
 function queryOne<T = Record<string, unknown>>(sql: string, params: any[] = []): T | undefined {
-  const database = getDb()
-  const stmt = database.prepare(sql)
+  const backend = getDb()
+  if (backend.driver === 'node') {
+    return backend.database.prepare(sql).get(...params) as T | undefined
+  }
+
+  const stmt = backend.database.prepare(sql)
   if (params.length > 0) {
     stmt.bind(params)
   }
@@ -241,9 +315,43 @@ function queryOne<T = Record<string, unknown>>(sql: string, params: any[] = []):
  * 执行非查询语句（INSERT/UPDATE/DELETE）
  */
 function execute(sql: string, params: any[] = []): void {
-  const database = getDb()
-  database.run(sql, params)
+  runSql(sql, params)
   markDirty()
+}
+
+/**
+ * 执行不返回结果的 SQL，统一两个后端的参数绑定差异。
+ */
+function runSql(sql: string, params: any[] = []): void {
+  const backend = getDb()
+  if (backend.driver === 'node') {
+    if (params.length > 0) backend.database.prepare(sql).run(...params)
+    else backend.database.exec(sql)
+    return
+  }
+  backend.database.run(sql, params)
+}
+
+/**
+ * 批量执行同一个写入语句，复用 prepared statement 降低 K 线同步开销。
+ */
+function executePreparedBatch(sql: string, rows: any[][]): void {
+  const backend = getDb()
+  const statement = backend.database.prepare(sql)
+
+  if (backend.driver === 'node') {
+    const nodeStatement = statement as StatementSync
+    for (const params of rows) nodeStatement.run(...params)
+    return
+  }
+
+  const sqlJsStatement = statement as ReturnType<SqlJsDatabase['prepare']>
+  for (const params of rows) {
+    sqlJsStatement.bind(params)
+    sqlJsStatement.step()
+    sqlJsStatement.reset()
+  }
+  sqlJsStatement.free()
 }
 
 function normalizeSymbol(symbol: string): string {
@@ -503,7 +611,6 @@ export function writeSimpleKLineFile(
   data: KLineData[],
   maxBars: number = MAX_BARS
 ): boolean {
-  const database = getDb()
   const normSymbol = normalizeSymbol(symbol)
   
   // 排序
@@ -524,7 +631,7 @@ export function writeSimpleKLineFile(
   
   try {
     // 手动事务
-    database.run('BEGIN')
+    runSql('BEGIN')
     
     try {
       // 删除超出范围的数据
@@ -532,37 +639,31 @@ export function writeSimpleKLineFile(
         const firstTs = limitedData[0]!.timestamp
         const lastTs = limitedData[limitedData.length - 1]!.timestamp
         
-        database.run(
+        runSql(
           `DELETE FROM kline_data 
            WHERE symbol = ? AND timeframe = ? 
            AND (timestamp < ? OR timestamp > ?)`,
           [normSymbol, timeframe, firstTs, lastTs]
         )
       } else {
-        database.run(
+        runSql(
           `DELETE FROM kline_data WHERE symbol = ? AND timeframe = ?`,
           [normSymbol, timeframe]
         )
       }
       
       // 插入所有数据
-      const insertStmt = database.prepare(
+      executePreparedBatch(
         `INSERT OR REPLACE INTO kline_data (symbol, timeframe, timestamp, open, high, low, close, volume)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        limitedData.map(item => [normSymbol, timeframe, item.timestamp, item.open, item.high, item.low, item.close, item.volume])
       )
-      
-      for (const item of limitedData) {
-        insertStmt.bind([normSymbol, timeframe, item.timestamp, item.open, item.high, item.low, item.close, item.volume])
-        insertStmt.step()
-        insertStmt.reset()
-      }
-      insertStmt.free()
-      
-      database.run('COMMIT')
+
+      runSql('COMMIT')
       markDirty()
       return true
     } catch (innerError) {
-      database.run('ROLLBACK')
+      runSql('ROLLBACK')
       throw innerError
     }
   } catch (error) {
@@ -579,31 +680,24 @@ export function appendSimpleKLineData(
   timeframe: KLineTimeframe,
   newData: KLineData[]
 ): boolean {
-  const database = getDb()
   const normSymbol = normalizeSymbol(symbol)
   
   try {
-    database.run('BEGIN')
+    runSql('BEGIN')
     
     try {
       // 排序新数据
       const sortedNewData = [...newData].sort((a, b) => a.timestamp - b.timestamp)
       
       // 插入新数据（INSERT OR REPLACE 自动去重）
-      const insertStmt = database.prepare(
+      executePreparedBatch(
         `INSERT OR REPLACE INTO kline_data (symbol, timeframe, timestamp, open, high, low, close, volume)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        sortedNewData.map(item => [normSymbol, timeframe, item.timestamp, item.open, item.high, item.low, item.close, item.volume])
       )
-      
-      for (const item of sortedNewData) {
-        insertStmt.bind([normSymbol, timeframe, item.timestamp, item.open, item.high, item.low, item.close, item.volume])
-        insertStmt.step()
-        insertStmt.reset()
-      }
-      insertStmt.free()
-      
+
       // 删除超出 MAX_BARS 的旧数据
-      database.run(
+      runSql(
         `DELETE FROM kline_data 
          WHERE symbol = ? AND timeframe = ?
          AND timestamp NOT IN (
@@ -615,11 +709,11 @@ export function appendSimpleKLineData(
         [normSymbol, timeframe, normSymbol, timeframe, MAX_BARS]
       )
       
-      database.run('COMMIT')
+      runSql('COMMIT')
       markDirty()
       return true
     } catch (innerError) {
-      database.run('ROLLBACK')
+      runSql('ROLLBACK')
       throw innerError
     }
   } catch (error) {
@@ -677,7 +771,6 @@ export function deleteKLineFile(
   symbol: string,
   timeframe: KLineTimeframe
 ): boolean {
-  const database = getDb()
   const normSymbol = normalizeSymbol(symbol)
   
   try {
@@ -703,14 +796,12 @@ export function deleteKLineFile(
  * 清理所有数据
  */
 export function cleanupAllData(): boolean {
-  const database = getDb()
-  
   try {
     const before = queryOne<{ c: number }>(
       `SELECT COUNT(*) as c FROM kline_data`
     )
     
-    database.run('DELETE FROM kline_data')
+    runSql('DELETE FROM kline_data')
     markDirty()
     
     return before != null && before.c > 0
