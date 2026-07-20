@@ -201,7 +201,7 @@
         </template>
       </el-table-column>
 
-      <el-table-column label="交易对" width="100" fixed>
+      <el-table-column label="交易对" width="110" fixed>
         <template #default="{ row }">
           <span class="symbol">{{ row.symbol }}</span>
         </template>
