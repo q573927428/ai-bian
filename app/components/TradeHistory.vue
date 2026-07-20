@@ -26,7 +26,7 @@
             placeholder="全部"
             size="small"
             clearable
-            style="width: 100px"
+            style="width: 110px"
             @change="handleFilterChange"
           >
             <el-option
