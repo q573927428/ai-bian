@@ -475,7 +475,7 @@ interface WebSocketStatusResponse {
 }
 
 .current-price {
-  font-size: 16px;
+  font-size: 14px;
   font-weight: 600;
   color: var(--text-primary);
   line-height: 1.2;
@@ -613,10 +613,6 @@ interface WebSocketStatusResponse {
   .crypto-icon {
     width: 16px;
     height: 16px;
-  }
-  
-  .current-price {
-    font-size: 14px;
   }
   
   .price-change {
