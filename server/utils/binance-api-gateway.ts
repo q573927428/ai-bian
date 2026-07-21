@@ -50,6 +50,17 @@ class BinanceApiGateway {
   getStatus() {
     return binanceRateLimiter.getSnapshot()
   }
+
+  /**
+   * 后台批处理应在 Binance 限流或连续超时时暂停，避免继续堆积请求。
+   */
+  shouldPauseBackgroundWork(): boolean {
+    return binanceRateLimiter.shouldPauseBackgroundWork()
+  }
+
+  getBackgroundPauseReason(): string | undefined {
+    return binanceRateLimiter.getBackgroundPauseReason()
+  }
 }
 
 export const binanceApiGateway = new BinanceApiGateway()

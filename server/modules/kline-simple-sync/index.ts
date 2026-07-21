@@ -258,7 +258,7 @@ export class KLineSimpleSyncService {
       // 发送请求
       const data = await binanceApiGateway.fetchJson<any[]>(
         'marketData',
-        `klines:${binanceSymbol}:${interval}:${limit}`,
+        `klines:${binanceSymbol}:${interval}:${startTime || 0}:${endTime || 0}:${limit}`,
         url
       )
       
@@ -752,6 +752,10 @@ export class KLineSimpleSyncService {
   
   // 高频同步：仅更新最后一根未收盘K线
   private async highFrequencySync(): Promise<void> {
+    if (binanceApiGateway.shouldPauseBackgroundWork()) {
+      return
+    }
+
     if (this.hasInitialBackfillWork()) {
       return
     }
@@ -767,11 +771,17 @@ export class KLineSimpleSyncService {
       const highFreqTimeframes: KLineTimeframe[] = ['5m', '15m', '1h', '4h']
       
       for (const timeframe of highFreqTimeframes) {
+        if (binanceApiGateway.shouldPauseBackgroundWork()) {
+          return
+        }
         if (!this.timeframeConfigs.get(timeframe)?.enabled) {
           continue
         }
         
         for (const symbol of this.config.symbols) {
+          if (binanceApiGateway.shouldPauseBackgroundWork()) {
+            return
+          }
           try {
             await this.syncLastBarOnly(symbol, timeframe)
           } catch (error) {
@@ -920,6 +930,11 @@ export class KLineSimpleSyncService {
     if (this.hasInitialBackfillWork()) {
       return
     }
+
+    if (binanceApiGateway.shouldPauseBackgroundWork()) {
+      console.warn(`⏸️  ${timeframe} 周期同步已暂停: ${binanceApiGateway.getBackgroundPauseReason()}`)
+      return
+    }
     
     // 并发锁检查：防止同一周期同时执行多个同步
     if (this.isSyncing.get(timeframe)) {
@@ -968,6 +983,10 @@ export class KLineSimpleSyncService {
     
     const results = []
     for (const symbol of this.config.symbols) {
+      if (binanceApiGateway.shouldPauseBackgroundWork()) {
+        console.warn(`⏸️  ${timeframe} 周期同步中止: ${binanceApiGateway.getBackgroundPauseReason()}`)
+        break
+      }
       try {
         const result = await this.syncSymbolKLine(symbol, timeframe, { force: false })
         results.push(result)

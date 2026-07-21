@@ -9,6 +9,7 @@ export class WebSocketManager {
   private subscribers: Map<string, ((data: PriceData) => void)[]> = new Map()
   private priceCache: Map<string, PriceData> = new Map()
   private isInitialized = false
+  private initializePromise: Promise<void> | null = null
 
   private constructor() {
     this.wsService = new BinanceWebSocketService({
@@ -40,14 +41,27 @@ export class WebSocketManager {
     if (this.isInitialized && state.status === WebSocketStatus.CONNECTED) {
       return
     }
+    if (this.initializePromise) return await this.initializePromise
 
+    const initialization = (async () => {
+      try {
+        await this.wsService.connect()
+        this.isInitialized = true
+        console.log('✅ WebSocket管理器初始化完成')
+      } catch (error) {
+        this.isInitialized = false
+        console.error('❌ WebSocket管理器初始化失败:', error)
+        throw error
+      }
+    })()
+
+    this.initializePromise = initialization
     try {
-      await this.wsService.connect()
-      this.isInitialized = true
-      console.log('✅ WebSocket管理器初始化完成')
-    } catch (error) {
-      console.error('❌ WebSocket管理器初始化失败:', error)
-      throw error
+      await initialization
+    } finally {
+      if (this.initializePromise === initialization) {
+        this.initializePromise = null
+      }
     }
   }
 

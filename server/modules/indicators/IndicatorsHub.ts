@@ -20,6 +20,7 @@ import {
 import { EventEmitter } from 'node:events'
 import { getSquareHeat } from '../../utils/square-heat'
 import { shortHash } from '../../utils/stable-hash'
+import { binanceApiGateway } from '../../utils/binance-api-gateway'
 
 /**
  * 统一数据缓存条目
@@ -831,6 +832,11 @@ export class IndicatorsHub {
    * 刷新所有数据
    */
   private async refreshAllData(): Promise<void> {
+    if (binanceApiGateway.shouldPauseBackgroundWork()) {
+      logger.warn('IndicatorsHub', `Binance 请求降级，跳过本轮数据刷新: ${binanceApiGateway.getBackgroundPauseReason()}`)
+      return
+    }
+
     if (this.isRefreshingAllData) {
       logger.warn('IndicatorsHub', '上一轮数据刷新尚未完成，跳过本轮刷新')
       return
@@ -845,6 +851,9 @@ export class IndicatorsHub {
       const startTime = Date.now()
 
       for (let i = 0; i < symbols.length; i += this.MAX_CONCURRENT) {
+        if (binanceApiGateway.shouldPauseBackgroundWork()) {
+          break
+        }
         const batch = symbols.slice(i, i + this.MAX_CONCURRENT)
         await Promise.allSettled(
           batch.map(symbol => this.refreshSymbolData(symbol))

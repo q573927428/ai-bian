@@ -34,7 +34,14 @@ export class BinanceWebSocketService {
   private config: WebSocketConfig
   private state: WebSocketClientState
   private reconnectTimer: NodeJS.Timeout | null = null
+  private reconnectNotBefore = 0
   private pingTimer: NodeJS.Timeout | null = null
+  private connectPromise: Promise<void> | null = null
+  private manuallyDisconnected = false
+  private requestId = 0
+  private pendingPriceSubscriptions = new Set<string>()
+  private pendingPriceUnsubscriptions = new Set<string>()
+  private subscriptionFlushTimer: NodeJS.Timeout | null = null
   private eventHandlers: Map<string, ((event: WebSocketEvent) => void)[]> = new Map()
   private priceCache: Map<string, PriceData> = new Map()
   private klineCache: Map<string, Map<string, KlineData>> = new Map() // symbol -> interval -> data
@@ -65,27 +72,51 @@ export class BinanceWebSocketService {
    * 新版USDⓈ-M Futures WebSocket文档要求动态订阅请求ID使用字符串。
    */
   private createRequestId(): string {
-    return Date.now().toString()
+    this.requestId = (this.requestId + 1) % Number.MAX_SAFE_INTEGER
+    return this.requestId.toString()
   }
 
   /**
    * 连接到币安WebSocket
    */
   async connect(): Promise<void> {
-    if (this.state.status === WebSocketStatus.CONNECTED || 
-        this.state.status === WebSocketStatus.CONNECTING) {
+    if (this.state.status === WebSocketStatus.CONNECTED && this.ws?.readyState === WebSocket.OPEN) {
       return
     }
+    if (this.connectPromise) return await this.connectPromise
+    if (this.reconnectNotBefore > Date.now()) {
+      throw new Error(`WebSocket重连冷却中，${this.reconnectNotBefore - Date.now()}ms 后重试`)
+    }
 
+    this.manuallyDisconnected = false
+    this.clearReconnectTimer()
     this.updateStatus(WebSocketStatus.CONNECTING)
 
-    return new Promise((resolve, reject) => {
+    const connection = new Promise<void>((resolve, reject) => {
       try {
-        this.ws = new WebSocket(BINANCE_WS_ENDPOINTS.futuresMarket)
+        const socket = new WebSocket(BINANCE_WS_ENDPOINTS.futuresMarket)
+        this.ws = socket
+        let opened = false
+        let connectionTimeout: NodeJS.Timeout | null = null
+
+        const clearConnectionTimeout = () => {
+          if (connectionTimeout) {
+            clearTimeout(connectionTimeout)
+            connectionTimeout = null
+          }
+        }
         
-        this.ws.onopen = () => {
+        socket.onopen = () => {
+          // 旧连接的迟到事件不能覆盖当前连接状态。
+          if (this.ws !== socket) {
+            socket.close()
+            return
+          }
+          opened = true
+          clearConnectionTimeout()
           console.log('✅ WebSocket连接成功')
           this.updateStatus(WebSocketStatus.CONNECTED)
+          this.reconnectNotBefore = 0
           this.state.reconnectAttempts = 0
           this.startPingTimer()
           this.resubscribeExistingStreams()
@@ -93,20 +124,24 @@ export class BinanceWebSocketService {
           resolve()
         }
 
-        this.ws.onmessage = (event) => {
+        socket.onmessage = (event) => {
+          if (this.ws !== socket) return
           this.handleMessage(event)
         }
 
-        this.ws.on('ping', (data) => {
+        socket.on('ping', (data) => {
+          if (this.ws !== socket) return
           // ws 客户端会自动回复 pong，这里只记录活跃时间，避免被状态页误判为长时间无数据。
           this.state.lastActivity = Date.now()
         })
 
-        this.ws.on('pong', () => {
+        socket.on('pong', () => {
+          if (this.ws !== socket) return
           this.state.lastActivity = Date.now()
         })
 
-        this.ws.onerror = (error: any) => {
+        socket.onerror = (error: any) => {
+          if (this.ws !== socket) return
           console.error('❌ WebSocket错误:', error)
           this.updateStatus(WebSocketStatus.ERROR)
           this.emitEvent({ 
@@ -114,25 +149,36 @@ export class BinanceWebSocketService {
             data: `WebSocket错误: ${error.message || error}`, 
             timestamp: Date.now() 
           })
-          reject(error)
+          // 主动结束故障连接，避免状态为 ERROR 但底层仍 OPEN 时创建第二条连接。
+          socket.terminate()
         }
 
-        this.ws.onclose = (event: any) => {
+        socket.onclose = (event: any) => {
+          if (this.ws !== socket) return
+          clearConnectionTimeout()
+          this.ws = null
           const closeCode = event?.code ?? 'unknown'
           const closeReason = event?.reason?.toString?.() || ''
           console.log(`🔌 WebSocket连接关闭 code=${closeCode}${closeReason ? ` reason=${closeReason}` : ''}`)
           this.updateStatus(WebSocketStatus.DISCONNECTED)
           this.state.connectedSymbols = []
+          this.clearPendingSubscriptionChanges()
           this.stopPingTimer()
           this.emitEvent({ type: 'status', data: 'disconnected', timestamp: Date.now() })
-          this.scheduleReconnect()
+          if (!opened) {
+            reject(new Error(`WebSocket连接关闭 code=${closeCode}${closeReason ? ` reason=${closeReason}` : ''}`))
+          }
+          if (!this.manuallyDisconnected) {
+            const throttled = Number(closeCode) === 1008 || closeReason.toLowerCase().includes('too many requests')
+            this.scheduleReconnect(throttled ? 60000 : 0)
+          }
         }
 
         // 设置连接超时
-        setTimeout(() => {
-          if (this.state.status === WebSocketStatus.CONNECTING) {
-            this.ws?.close()
-            reject(new Error('连接超时'))
+        connectionTimeout = setTimeout(() => {
+          if (this.ws === socket && !opened) {
+            // terminate 能确保触发 close，统一由 close 完成状态清理和 Promise 拒绝。
+            socket.terminate()
           }
         }, this.config.timeout)
 
@@ -142,18 +188,28 @@ export class BinanceWebSocketService {
         reject(error)
       }
     })
+
+    this.connectPromise = connection
+    try {
+      await connection
+    } finally {
+      if (this.connectPromise === connection) {
+        this.connectPromise = null
+      }
+    }
   }
 
   /**
    * 断开连接
    */
   disconnect(): void {
+    this.manuallyDisconnected = true
+    this.reconnectNotBefore = 0
     this.stopPingTimer()
     this.clearReconnectTimer()
     
     if (this.ws) {
       this.ws.close()
-      this.ws = null
     }
     
     this.updateStatus(WebSocketStatus.DISCONNECTED)
@@ -175,24 +231,17 @@ export class BinanceWebSocketService {
       return
     }
 
-    // 构建订阅消息
-    const streams = newSymbols.map(symbol => `${this.formatSymbolForWebSocket(symbol)}@ticker`)
-    const subscribeMessage = {
-      method: 'SUBSCRIBE',
-      params: streams,
-      id: this.createRequestId()
-    }
-
-    this.ws.send(JSON.stringify(subscribeMessage))
-    
     // 更新状态和映射
     newSymbols.forEach(symbol => {
       const wsSymbol = this.formatSymbolForWebSocket(symbol)
       this.symbolMapping.set(wsSymbol, symbol) // 存储映射关系
+      this.pendingPriceUnsubscriptions.delete(symbol)
+      this.pendingPriceSubscriptions.add(symbol)
     })
     
     this.state.connectedSymbols = [...this.state.connectedSymbols, ...newSymbols]
     this.state.subscriptions.symbols = [...this.state.subscriptions.symbols, ...newSymbols]
+    this.scheduleSubscriptionFlush()
     
     // console.log(`📡 订阅价格数据: ${newSymbols.join(', ')}`)
   }
@@ -210,6 +259,8 @@ export class BinanceWebSocketService {
       return
     }
 
+    // 重连后一次性恢复全部订阅，清除断线前尚未发送的变更。
+    this.clearPendingSubscriptionChanges()
     const streams = symbols.map(symbol => `${this.formatSymbolForWebSocket(symbol)}@ticker`)
     const subscribeMessage = {
       method: 'SUBSCRIBE',
@@ -282,20 +333,12 @@ export class BinanceWebSocketService {
       throw new Error('WebSocket未连接')
     }
 
-    // 构建取消订阅消息
-    const streams = symbols.map(symbol => `${this.formatSymbolForWebSocket(symbol)}@ticker`)
-    const unsubscribeMessage = {
-      method: 'UNSUBSCRIBE',
-      params: streams,
-      id: this.createRequestId()
-    }
-
-    this.ws.send(JSON.stringify(unsubscribeMessage))
-    
     // 更新状态和映射
     symbols.forEach(symbol => {
       const wsSymbol = this.formatSymbolForWebSocket(symbol)
       this.symbolMapping.delete(wsSymbol) // 删除映射关系
+      this.pendingPriceSubscriptions.delete(symbol)
+      this.pendingPriceUnsubscriptions.add(symbol)
     })
     
     this.state.connectedSymbols = this.state.connectedSymbols.filter(
@@ -304,6 +347,7 @@ export class BinanceWebSocketService {
     this.state.subscriptions.symbols = this.state.subscriptions.symbols.filter(
       symbol => !symbols.includes(symbol)
     )
+    this.scheduleSubscriptionFlush()
     
   }
 
@@ -559,22 +603,79 @@ export class BinanceWebSocketService {
   }
 
   /**
+   * 合并短时间内的订阅变更，避免逐交易对发送消息触发 Binance WebSocket 频率限制。
+   */
+  private scheduleSubscriptionFlush(): void {
+    if (this.subscriptionFlushTimer) return
+    this.subscriptionFlushTimer = setTimeout(() => {
+      this.subscriptionFlushTimer = null
+      this.flushSubscriptionChanges()
+    }, 100)
+  }
+
+  private flushSubscriptionChanges(): void {
+    if (!this.ws || this.state.status !== WebSocketStatus.CONNECTED) return
+
+    const subscribeStreams = Array.from(this.pendingPriceSubscriptions, symbol =>
+      `${this.formatSymbolForWebSocket(symbol)}@ticker`
+    )
+    const unsubscribeStreams = Array.from(this.pendingPriceUnsubscriptions, symbol =>
+      `${this.formatSymbolForWebSocket(symbol)}@ticker`
+    )
+    this.pendingPriceSubscriptions.clear()
+    this.pendingPriceUnsubscriptions.clear()
+
+    if (subscribeStreams.length > 0) {
+      this.ws.send(JSON.stringify({
+        method: 'SUBSCRIBE',
+        params: subscribeStreams,
+        id: this.createRequestId()
+      }))
+    }
+    if (unsubscribeStreams.length > 0) {
+      this.ws.send(JSON.stringify({
+        method: 'UNSUBSCRIBE',
+        params: unsubscribeStreams,
+        id: this.createRequestId()
+      }))
+    }
+  }
+
+  private clearPendingSubscriptionChanges(): void {
+    if (this.subscriptionFlushTimer) {
+      clearTimeout(this.subscriptionFlushTimer)
+      this.subscriptionFlushTimer = null
+    }
+    this.pendingPriceSubscriptions.clear()
+    this.pendingPriceUnsubscriptions.clear()
+  }
+
+  /**
    * 调度重连
    */
-  private scheduleReconnect(): void {
+  private scheduleReconnect(minimumDelayMs = 0): void {
+    if (this.manuallyDisconnected || this.reconnectTimer) {
+      return
+    }
+
     if (this.state.reconnectAttempts >= this.config.maxReconnectAttempts) {
       console.error(`❌ 达到最大重连次数: ${this.config.maxReconnectAttempts}`)
       return
     }
 
-    this.clearReconnectTimer()
-    
     this.state.reconnectAttempts++
-    const delay = this.config.reconnectInterval * Math.pow(1.5, this.state.reconnectAttempts - 1)
+    const delay = Math.max(
+      minimumDelayMs,
+      this.config.reconnectInterval * Math.pow(1.5, this.state.reconnectAttempts - 1)
+    )
+    this.reconnectNotBefore = Date.now() + delay
     
     console.log(`🔄 ${this.state.reconnectAttempts}/${this.config.maxReconnectAttempts} 将在 ${delay}ms后重连...`)
     
     this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null
+      if (this.manuallyDisconnected) return
+      this.reconnectNotBefore = 0
       this.updateStatus(WebSocketStatus.RECONNECTING)
       this.connect().catch(error => {
         console.error('❌ 重连失败:', error)

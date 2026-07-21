@@ -3,6 +3,9 @@ import { logger } from './logger'
 
 export type BinanceRequestGroup = 'marketData' | 'account' | 'trade'
 
+/**
+ * Binance 限流队列中的单个任务。
+ */
 interface QueueTask<T> {
   key: string
   group: BinanceRequestGroup
@@ -13,6 +16,9 @@ interface QueueTask<T> {
   attempt: number
 }
 
+/**
+ * Binance 请求队列和降级状态快照，用于性能监控与故障诊断。
+ */
 export interface BinanceRateLimitSnapshot {
   usedWeight1m: number
   localEstimatedWeight1m: number
@@ -26,6 +32,12 @@ export interface BinanceRateLimitSnapshot {
   recent429: number
   recent418: number
   recentErrors: number
+  consecutiveTimeouts: number
+  deduplicatedRequests: number
+  rejectedQueueFull: number
+  expiredQueueTasks: number
+  backgroundPaused: boolean
+  degradedReason?: string
 }
 
 const DEFAULT_CONFIG: Required<BotBinanceRateLimitConfig> = {
@@ -48,6 +60,10 @@ const GROUP_ESTIMATED_WEIGHT: Record<BinanceRequestGroup, number> = {
   account: 5,
   trade: 1
 }
+const MAX_QUEUE_SIZE_PER_GROUP = 300
+const QUEUE_TIMEOUT_MS = 30000
+const TIMEOUT_DEGRADE_THRESHOLD = 3
+const TIMEOUT_DEGRADE_MS = 60000
 
 export class BinanceRateLimiter {
   private config = { ...DEFAULT_CONFIG }
@@ -62,6 +78,8 @@ export class BinanceRateLimiter {
     trade: 0
   }
   private processing = false
+  private queueWakeTimer: NodeJS.Timeout | null = null
+  private pendingRequests = new Map<string, Promise<any>>()
   private usedWeight1m = 0
   private orderCount10s: number | undefined
   private orderCount1m: number | undefined
@@ -70,7 +88,12 @@ export class BinanceRateLimiter {
   private recent429 = 0
   private recent418 = 0
   private recentErrors = 0
+  private consecutiveTimeouts = 0
+  private deduplicatedRequests = 0
+  private rejectedQueueFull = 0
+  private expiredQueueTasks = 0
   private retryAttempt = 0
+  private degradedReason = ''
   private usedWeightUpdatedAt = 0
   private localWeightEvents: Array<{ timestamp: number; weight: number }> = []
   private lastStartedAt: Record<BinanceRequestGroup, number> = {
@@ -93,7 +116,19 @@ export class BinanceRateLimiter {
   }
 
   schedule<T>(group: BinanceRequestGroup, key: string, fn: () => Promise<T>): Promise<T> {
-    return new Promise((resolve, reject) => {
+    const requestKey = `${group}:${key}`
+    const pending = this.pendingRequests.get(requestKey)
+    if (pending) {
+      this.deduplicatedRequests++
+      return pending as Promise<T>
+    }
+
+    if (this.queues[group].length >= MAX_QUEUE_SIZE_PER_GROUP) {
+      this.rejectedQueueFull++
+      return Promise.reject(new Error(`Binance ${group} 队列已满（${MAX_QUEUE_SIZE_PER_GROUP}），拒绝请求: ${key}`))
+    }
+
+    const request = new Promise<T>((resolve, reject) => {
       this.queues[group].push({
         key,
         group,
@@ -105,6 +140,13 @@ export class BinanceRateLimiter {
       })
       this.processQueue()
     })
+
+    this.pendingRequests.set(requestKey, request)
+    void request.then(
+      () => this.deletePendingRequest(requestKey, request),
+      () => this.deletePendingRequest(requestKey, request)
+    )
+    return request
   }
 
   updateFromHeaders(headersLike: any): void {
@@ -146,6 +188,7 @@ export class BinanceRateLimiter {
     if (status === 418 || message.includes('418')) {
       this.recent418++
       this.bannedUntil = Date.now() + Math.max(retryAfterMs, this.config.retryMaxMs)
+      this.degradedReason = 'Binance 418 banned'
       logger.error('BinanceRateLimiter', `Binance 418 banned, pause until ${new Date(this.bannedUntil).toISOString()}`)
       return
     }
@@ -155,14 +198,40 @@ export class BinanceRateLimiter {
       this.retryAttempt++
       const backoff = Math.min(this.config.retryMaxMs, this.config.retryBaseMs * (2 ** Math.min(this.retryAttempt, 6)))
       this.degradedUntil = Date.now() + Math.max(retryAfterMs, backoff)
+      this.degradedReason = 'Binance 429 throttled'
       logger.warn('BinanceRateLimiter', `Binance 429 throttled, pause ${Math.max(retryAfterMs, backoff)}ms`)
       return
     }
 
     if (code === -1008 || message.includes('-1008')) {
       this.degradedUntil = Date.now() + this.config.retryMaxMs
+      this.degradedReason = 'Binance overloaded (-1008)'
       logger.warn('BinanceRateLimiter', `Binance overloaded (-1008), degraded until ${new Date(this.degradedUntil).toISOString()}`)
+      return
     }
+
+    if (this.isTimeoutError(error)) {
+      this.consecutiveTimeouts++
+      if (this.consecutiveTimeouts >= TIMEOUT_DEGRADE_THRESHOLD) {
+        this.degradedUntil = Math.max(this.degradedUntil, Date.now() + TIMEOUT_DEGRADE_MS)
+        this.degradedReason = `连续 ${this.consecutiveTimeouts} 次 Binance 请求超时`
+        logger.warn('BinanceRateLimiter', `${this.degradedReason}，暂停后台请求 ${TIMEOUT_DEGRADE_MS}ms`)
+      }
+    } else {
+      this.consecutiveTimeouts = 0
+    }
+  }
+
+  /**
+   * 判断指标预计算、定时K线等非关键后台任务是否应暂停。
+   */
+  shouldPauseBackgroundWork(): boolean {
+    const now = Date.now()
+    return this.bannedUntil > now || this.degradedUntil > now
+  }
+
+  getBackgroundPauseReason(): string | undefined {
+    return this.shouldPauseBackgroundWork() ? (this.degradedReason || 'Binance 请求处于降级状态') : undefined
   }
 
   getSnapshot(): BinanceRateLimitSnapshot {
@@ -182,7 +251,13 @@ export class BinanceRateLimiter {
       degradedUntil: this.degradedUntil || undefined,
       recent429: this.recent429,
       recent418: this.recent418,
-      recentErrors: this.recentErrors
+      recentErrors: this.recentErrors,
+      consecutiveTimeouts: this.consecutiveTimeouts,
+      deduplicatedRequests: this.deduplicatedRequests,
+      rejectedQueueFull: this.rejectedQueueFull,
+      expiredQueueTasks: this.expiredQueueTasks,
+      backgroundPaused: this.shouldPauseBackgroundWork(),
+      degradedReason: this.getBackgroundPauseReason()
     }
   }
 
@@ -196,9 +271,11 @@ export class BinanceRateLimiter {
   }
 
   private drain(): void {
+    this.cleanExpiredTasks()
+
     const now = Date.now()
     if (this.bannedUntil > now) {
-      setTimeout(() => this.processQueue(), Math.min(this.bannedUntil - now, 30000))
+      this.scheduleQueueWake(Math.min(this.bannedUntil - now, 30000))
       return
     }
 
@@ -208,12 +285,11 @@ export class BinanceRateLimiter {
     for (const group of GROUP_ORDER) {
       while (this.queues[group].length > 0 && this.active[group] < maxConcurrency[group]) {
         if (this.shouldPauseGroup(group)) {
-          setTimeout(() => this.processQueue(), 1000)
           break
         }
         const waitMs = this.getGroupWaitMs(group)
         if (waitMs > 0) {
-          setTimeout(() => this.processQueue(), waitMs)
+          this.scheduleQueueWake(waitMs)
           break
         }
         const task = this.queues[group].shift()
@@ -225,9 +301,12 @@ export class BinanceRateLimiter {
       }
     }
 
-    if (!started && this.hasQueuedTasks()) {
-      const delay = Math.max(250, Math.min(5000, this.degradedUntil - Date.now()))
-      setTimeout(() => this.processQueue(), delay)
+    if (this.hasQueuedTasks()) {
+      // 即使活动请求长时间未返回，也要定期清理已超过等待期限的队列任务。
+      const delay = started
+        ? 1000
+        : Math.max(250, Math.min(5000, this.degradedUntil - Date.now()))
+      this.scheduleQueueWake(delay)
     }
   }
 
@@ -236,6 +315,7 @@ export class BinanceRateLimiter {
     try {
       const result = await task.fn()
       this.retryAttempt = 0
+      this.consecutiveTimeouts = 0
       task.resolve(result)
     } catch (error: any) {
       this.reportError(error)
@@ -295,6 +375,42 @@ export class BinanceRateLimiter {
   private pruneLocalWeightEvents(): void {
     const cutoff = Date.now() - 60000
     this.localWeightEvents = this.localWeightEvents.filter(event => event.timestamp >= cutoff)
+  }
+
+  private cleanExpiredTasks(): void {
+    const cutoff = Date.now() - QUEUE_TIMEOUT_MS
+    for (const group of GROUP_ORDER) {
+      const remaining: QueueTask<any>[] = []
+      for (const task of this.queues[group]) {
+        if (task.createdAt <= cutoff) {
+          this.expiredQueueTasks++
+          task.reject(new Error(`Binance ${group} 队列等待超过 ${QUEUE_TIMEOUT_MS}ms: ${task.key}`))
+        } else {
+          remaining.push(task)
+        }
+      }
+      this.queues[group] = remaining
+    }
+  }
+
+  private scheduleQueueWake(delayMs: number): void {
+    if (this.queueWakeTimer) return
+    this.queueWakeTimer = setTimeout(() => {
+      this.queueWakeTimer = null
+      this.processQueue()
+    }, Math.max(1, delayMs))
+  }
+
+  private deletePendingRequest(key: string, request: Promise<any>): void {
+    if (this.pendingRequests.get(key) === request) {
+      this.pendingRequests.delete(key)
+    }
+  }
+
+  private isTimeoutError(error: any): boolean {
+    const message = String(error?.message || '').toLowerCase()
+    const code = String(error?.code || error?.cause?.code || '').toUpperCase()
+    return message.includes('timed out') || message.includes('timeout') || code.includes('TIMEOUT') || code === 'ETIMEDOUT'
   }
 
   private clampInteger(value: unknown, min: number, max: number, fallback: number): number {

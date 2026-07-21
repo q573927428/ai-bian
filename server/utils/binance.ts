@@ -51,7 +51,7 @@ export class BinanceService {
   async fetchOHLCV(symbol: string, timeframe: string, since?: number, limit = 100): Promise<OHLCV[]> {
     try {
       // 使用公共实例查询K线数据
-      const ohlcv = await binanceApiGateway.marketData(`fetchOHLCV:${symbol}:${timeframe}`, () =>
+      const ohlcv = await binanceApiGateway.marketData(`fetchOHLCV:${symbol}:${timeframe}:${since || 0}:${limit}`, () =>
         this.publicExchange.fetchOHLCV(symbol, timeframe, since, limit)
       )
       return ohlcv.map(candle => ({

@@ -2,9 +2,13 @@ import type { BotConfig } from '../../../types'
 import type { IndicatorData, Timeframe } from '../../../types/strategy'
 import { concurrencyPoolManager } from '../../utils/concurrency-pool'
 import { logger } from '../../utils/logger'
+import { binanceApiGateway } from '../../utils/binance-api-gateway'
 import { IndicatorsHub } from '../indicators/IndicatorsHub'
 import type { IndicatorCombinationRegistry } from './IndicatorCombinationRegistry'
 
+/**
+ * 已预计算指标的缓存内容及新鲜度状态。
+ */
 interface CachedIndicator {
   data: IndicatorData
   computedAt: number
@@ -61,6 +65,11 @@ export class IndicatorPrecomputeService {
 
   async precomputeAll(): Promise<void> {
     if (this.config.indicatorPrecompute?.enabled === false) return
+    if (binanceApiGateway.shouldPauseBackgroundWork()) {
+      this.stats.skippedRuns++
+      logger.warn('IndicatorPrecomputeService', `Binance 请求降级，跳过本轮指标预计算: ${binanceApiGateway.getBackgroundPauseReason()}`)
+      return
+    }
     if (this.isRunning) {
       this.stats.skippedRuns++
       logger.warn('IndicatorPrecomputeService', `上一轮指标预计算尚未完成，跳过本次预计算`)
@@ -90,6 +99,9 @@ export class IndicatorPrecomputeService {
 
     const worker = async () => {
       while (cursor < combinations.length) {
+        if (binanceApiGateway.shouldPauseBackgroundWork()) {
+          return
+        }
         const combo = combinations[cursor++]
         if (!combo) continue
         try {
