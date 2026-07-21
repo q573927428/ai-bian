@@ -2,6 +2,89 @@ import * as ccxt from 'ccxt'
 import type { OHLCV, Order, AccountInfo, Position, CryptoBalance } from '../../types'
 import { binanceApiGateway } from './binance-api-gateway'
 
+/**
+ * 脱敏错误文本中的签名和常见凭据，避免诊断日志泄露请求认证信息。
+ */
+function sanitizeBinanceErrorText(value: unknown): string {
+  return String(value ?? '')
+    .replace(/([?&](?:signature|apiKey|secret|token)=)[^&\s]+/gi, '$1***')
+    .replace(/[\r\n]+/g, ' ')
+    .trim()
+}
+
+/**
+ * 将底层网络错误链压缩为单行诊断信息。
+ *
+ * Node fetch 通常会在 cause 中提供 UND_ERR_CONNECT_TIMEOUT、ECONNRESET、
+ * ENOTFOUND 等关键错误码；AggregateError 的子错误也需要一并记录。
+ */
+function formatBinanceErrorDetails(error: unknown): string {
+  const queue: Array<{ label: string; value: any }> = [{ label: 'error', value: error }]
+  const visited = new Set<any>()
+  const details: string[] = []
+
+  while (queue.length > 0 && details.length < 8) {
+    const current = queue.shift()
+    if (!current?.value || visited.has(current.value)) continue
+    visited.add(current.value)
+
+    const value = current.value
+    const fields = [
+      value.name && `name=${sanitizeBinanceErrorText(value.name)}`,
+      value.code && `code=${sanitizeBinanceErrorText(value.code)}`,
+      value.errno && `errno=${sanitizeBinanceErrorText(value.errno)}`,
+      value.syscall && `syscall=${sanitizeBinanceErrorText(value.syscall)}`,
+      value.hostname && `hostname=${sanitizeBinanceErrorText(value.hostname)}`,
+      value.address && `address=${sanitizeBinanceErrorText(value.address)}`,
+      value.port && `port=${sanitizeBinanceErrorText(value.port)}`,
+      value.message && `message=${sanitizeBinanceErrorText(value.message)}`,
+    ].filter(Boolean)
+
+    details.push(`${current.label}{${fields.join(',')}}`)
+
+    if (value.cause) {
+      queue.push({ label: `${current.label}.cause`, value: value.cause })
+    }
+    if (Array.isArray(value.errors)) {
+      value.errors.slice(0, 3).forEach((child: any, index: number) => {
+        queue.push({ label: `${current.label}.errors[${index}]`, value: child })
+      })
+    }
+  }
+
+  return details.join(' | ') || 'error{message=unknown}'
+}
+
+/**
+ * 为 CCXT 安装保留原始 cause 的 fetch 实现。
+ *
+ * 当前 CCXT 会把 FetchError 转换成不含 cause 的 NetworkError，导致 DNS、
+ * TCP、TLS 等底层错误码丢失。这里仅保留诊断信息，不执行重试或额外请求。
+ */
+function enableTransportErrorDiagnostics(exchange: ccxt.binance): void {
+  const exchangeWithFetch = exchange as any
+  const nativeFetch = globalThis.fetch.bind(globalThis)
+  const AbortError = globalThis.DOMException
+
+  exchangeWithFetch.fetchImplementation = async (url: string, init: RequestInit) => {
+    try {
+      return await nativeFetch(url, init)
+    } catch (error: any) {
+      // 让 CCXT 继续按原有逻辑识别请求超时，不能把超时伪装成普通网络错误。
+      if (AbortError && error instanceof AbortError && error.name === 'AbortError') {
+        throw error
+      }
+
+      const transportError: any = new Error('Binance 底层网络请求失败', { cause: error })
+      transportError.name = 'BinanceTransportError'
+      transportError.code = error?.code || error?.cause?.code
+      throw transportError
+    }
+  }
+  exchangeWithFetch.AbortError = AbortError
+  exchangeWithFetch.FetchError = TypeError
+}
+
 export class BinanceService {
   public publicExchange: ccxt.binance  // 公共实例，用于查询公开数据
   private privateExchange: ccxt.binance // 私有实例，用于交易操作
@@ -29,6 +112,7 @@ export class BinanceService {
       },
       enableRateLimit: true,
     })
+    enableTransportErrorDiagnostics(this.privateExchange)
   }
 
   async initialize(): Promise<void> {
@@ -333,7 +417,8 @@ export class BinanceService {
           openTime: Date.now(),
         }))
     } catch (error: any) {
-      throw new Error(`获取持仓失败: ${error.message}`)
+      // 必须保留完整错误链，否则 CCXT 的 NetworkError 无法判断 DNS、TCP 或 TLS 故障。
+      throw new Error(`获取持仓失败: ${formatBinanceErrorDetails(error)}`, { cause: error })
     }
   }
 
