@@ -23,6 +23,7 @@ export class StrategyPositionMonitor {
   private strategyStore: any // 策略存储，获取策略配置
 
   private monitorTimer: NodeJS.Timeout | null = null
+  private isMonitoring = false
 
   // 移动止损激活状态: positionKey(strategyId:symbol:openTime) -> boolean
   private trailingStopActivated: Map<string, boolean> = new Map()
@@ -78,10 +79,21 @@ export class StrategyPositionMonitor {
 
     const immediate = options.immediate ?? true
     const initialDelayMs = Math.max(0, Number(options.initialDelayMs ?? 0))
-    const runMonitor = () => {
-      this.monitorPositions().catch(error => {
+    const runMonitor = async () => {
+      // 网络变慢时上一轮可能尚未结束；跳过重入，避免相同请求成倍进入限流队列。
+      if (this.isMonitoring) {
+        logger.warn('持仓监控', '上一轮监控尚未完成，跳过本轮')
+        return
+      }
+
+      this.isMonitoring = true
+      try {
+        await this.monitorPositions()
+      } catch (error: any) {
         logger.error('持仓监控', '监控循环异常:', error.message)
-      })
+      } finally {
+        this.isMonitoring = false
+      }
     }
     const startInterval = () => {
       if (immediate) {
@@ -129,24 +141,21 @@ export class StrategyPositionMonitor {
     // 清理陈旧的移动止损激活状态，避免跨仓位污染
     this.cleanupTrailingStopState(positions)
 
-    // 每隔一次输出日志（频率为监控间隔的两倍）
+    const exchangePositions = await this.fetchExchangePositionsSnapshot()
+    if (!exchangePositions) return
+    const currentPrices = await this.fetchCurrentPrices(positions)
+
+    // 每隔一次输出日志（频率为监控间隔的两倍），并复用本轮价格快照。
     const logEvery = 2
     if (this.monitorCount % logEvery === 0) {
-      await this.logAllPositionsDetails(positions)
+      this.logAllPositionsDetails(positions, currentPrices)
     }
     // 计数只在 0~logEvery-1 之间循环，避免理论上的溢出
     this.monitorCount = (this.monitorCount + 1) % logEvery
 
-    let exchangePositions: Position[] | undefined
-    try {
-      exchangePositions = await this.binance.fetchPositions()
-    } catch (error: any) {
-      logger.warn('鎸佷粨鐩戞帶', `批量获取交易所持仓失败，将回退到单仓检查: ${error.message}`)
-    }
-
     for (const position of positions) {
       try {
-        await this.monitorSinglePosition(position, exchangePositions)
+        await this.monitorSinglePosition(position, exchangePositions, currentPrices.get(position.symbol))
       } catch (error: any) {
         logger.error('持仓监控', `监控 ${position.symbol} 失败: ${error.message}`)
       }
@@ -154,43 +163,74 @@ export class StrategyPositionMonitor {
   }
 
   /**
+   * 获取本轮价格快照，同一交易对只请求一次并供日志与风控共同使用
+   */
+  private async fetchCurrentPrices(positions: PositionInfo[]): Promise<Map<string, number>> {
+    const symbols = Array.from(new Set(positions.map(position => position.symbol)))
+    const priceEntries = await Promise.all(symbols.map(async symbol => {
+      try {
+        const price = await priceCacheService.getPrice(this.binance, symbol)
+        return [symbol, price] as const
+      } catch (error: any) {
+        logger.error('持仓监控', `获取 ${symbol} 当前价失败: ${error.message}`)
+        return null
+      }
+    }))
+
+    return new Map(priceEntries.filter((entry): entry is readonly [string, number] => entry !== null))
+  }
+
+  /**
+   * 批量获取交易所持仓；失败时跳过本轮，避免退化成每个仓位一次账户请求
+   */
+  private async fetchExchangePositionsSnapshot(): Promise<Position[] | null> {
+    try {
+      return await this.binance.fetchPositions()
+    } catch (error: any) {
+      // 陈旧账户快照可能误判刚开仓的仓位；本轮失败时等待下一轮恢复更稳妥。
+      logger.error('持仓监控', `批量获取交易所持仓失败，跳过本轮: ${error.message}`)
+      return null
+    }
+  }
+
+  /**
    * 记录所有持仓详细信息
    */
-  private async logAllPositionsDetails(positions: any[]): Promise<void> {
-    
+  private logAllPositionsDetails(positions: PositionInfo[], currentPrices: Map<string, number>): void {
     for (const position of positions) {
-      try {
-        const currentPrice = await priceCacheService.getPrice(this.binance, position.symbol)
+      const currentPrice = currentPrices.get(position.symbol)
+      if (currentPrice === undefined) continue
         
-        // 计算盈亏
-        const priceDiff = position.direction === 'long' 
-          ? currentPrice - position.entryPrice
-          : position.entryPrice - currentPrice
+      // 计算盈亏
+      const priceDiff = position.direction === 'long'
+        ? currentPrice - position.entryPrice
+        : position.entryPrice - currentPrice
         
-        const pnl = priceDiff * position.quantity
-        const pnlPercentage = (priceDiff / position.entryPrice) * 100 * position.leverage
+      const pnl = priceDiff * position.quantity
+      const pnlPercentage = (priceDiff / position.entryPrice) * 100 * position.leverage
         
-        const directionText = position.direction === 'long' ? '做多' : '做空'
+      const directionText = position.direction === 'long' ? '做多' : '做空'
         
-        logger.info('持仓监控', 
-          `${position.symbol.padEnd(12)} ` +
-          `${directionText.padEnd(6)} ` +
-          `入场价:${position.entryPrice.toFixed(2).padStart(10)} ` +
-          `当前价:${currentPrice.toFixed(2).padStart(10)} ` +
-          `盈亏:${pnl >= 0 ? '+' : ''}${pnl.toFixed(2)}USDT ` +
-          `${pnlPercentage >= 0 ? '+' : ''}${pnlPercentage.toFixed(2)}% ` +
-          `[${position.strategyId}]`
-        )
-      } catch (error: any) {
-        logger.error('持仓监控', `获取 ${position.symbol} 当前价失败: ${error.message}`)
-      }
+      logger.info('持仓监控',
+        `${position.symbol.padEnd(12)} ` +
+        `${directionText.padEnd(6)} ` +
+        `入场价:${position.entryPrice.toFixed(2).padStart(10)} ` +
+        `当前价:${currentPrice.toFixed(2).padStart(10)} ` +
+        `盈亏:${pnl >= 0 ? '+' : ''}${pnl.toFixed(2)}USDT ` +
+        `${pnlPercentage >= 0 ? '+' : ''}${pnlPercentage.toFixed(2)}% ` +
+        `[${position.strategyId}]`
+      )
     }
   }
 
   /**
    * 监控单个持仓
    */
-  private async monitorSinglePosition(position: PositionInfo, exchangePositions?: Position[]): Promise<void> {
+  private async monitorSinglePosition(
+    position: PositionInfo,
+    exchangePositions: Position[],
+    currentPrice?: number
+  ): Promise<void> {
     const symbol = position.symbol
     
     // 1. 首先检查持仓一致性，防止本地状态与交易所不一致
@@ -200,7 +240,10 @@ export class StrategyPositionMonitor {
       return
     }
 
-    const currentPrice = await priceCacheService.getPrice(this.binance, symbol)
+    if (currentPrice === undefined) {
+      logger.warn('持仓监控', `${symbol} 缺少本轮价格，跳过价格风控检查`)
+      return
+    }
 
     // 更新仓位最高价/最低价
     this.updatePositionExtremes(position, currentPrice)
