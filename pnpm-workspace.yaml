@@ -1,0 +1,6 @@
+allowBuilds:
+  '@parcel/watcher': true
+  bufferutil: true
+  ccxt: true
+  esbuild: true
+  vue-demi: true
