@@ -80,6 +80,11 @@ export default defineNuxtConfig({
   typescript: {
     strict: true,
     typeCheck: false,
+    tsConfig: {
+      compilerOptions: {
+        libReplacement: false,
+      },
+    },
   },
   
 })

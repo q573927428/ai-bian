@@ -166,10 +166,10 @@ const sortedData = computed(() => {
   return arr
 })
 
-const handleSortChange = ({ prop, order }: { prop: string, order: string }) => {
-  if (prop && order) {
-    sortProp.value = prop
-    sortOrder.value = order as 'ascending' | 'descending'
+const handleSortChange = (data: { prop: string | null; order: 'ascending' | 'descending' | null }) => {
+  if (data.prop && data.order) {
+    sortProp.value = data.prop
+    sortOrder.value = data.order
   }
 }
 

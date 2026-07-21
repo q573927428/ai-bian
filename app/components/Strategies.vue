@@ -48,7 +48,7 @@
         </el-table-column>
         <el-table-column label="EMA周期" width="110">
           <template #default="{ row }">
-            {{ getEmaPeriods(row) }}
+            {{ getEmaPeriods(row as Strategy) }}
           </template>
         </el-table-column>
         <el-table-column label="版本" width="60">
@@ -58,8 +58,8 @@
         </el-table-column>
         <el-table-column label="状态" width="80">
           <template #default="{ row }">
-            <el-tag :type="getStatusType(row)">
-              {{ getStatusText(row) }}
+            <el-tag :type="getStatusType(row as Strategy)">
+              {{ getStatusText(row as Strategy) }}
             </el-tag>
           </template>
         </el-table-column>
@@ -70,12 +70,12 @@
         </el-table-column>
         <el-table-column label="操作" min-width="330">
           <template #default="{ row }">
-            <el-button size="small" @click="viewStrategyDetail(row)">详情</el-button>
-            <el-button size="small" @click="editStrategy(row)">编辑</el-button>
+            <el-button size="small" @click="viewStrategyDetail(row as Strategy)">详情</el-button>
+            <el-button size="small" @click="editStrategy(row as Strategy)">编辑</el-button>
             <el-button
               size="small"
               :type="row.isActive ? 'warning' : 'success'"
-              @click="toggleStrategy(row)"
+              @click="toggleStrategy(row as Strategy)"
             >
               {{ row.isActive ? '停用' : '激活' }}
             </el-button>
@@ -91,14 +91,14 @@
             <el-button 
               size="small" 
               type="primary" 
-              @click="openForcePosition(row)" 
+              @click="openForcePosition(row as Strategy)" 
               :disabled="!row.isActive"
               :loading="forcingStrategies.has(row.id)"
             >
               开仓
             </el-button>
             <!-- <el-button size="small" @click="showVersionHistory(row)">版本</el-button> -->
-            <el-button size="small" type="danger" @click="deleteStrategy(row)">删除</el-button>
+            <el-button size="small" type="danger" @click="deleteStrategy(row as Strategy)">删除</el-button>
           </template>
         </el-table-column>
       </el-table>

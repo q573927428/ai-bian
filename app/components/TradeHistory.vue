@@ -372,7 +372,7 @@
             :type="getCloseCategoryType(row.closeCategory)"
             size="small"
             class="close-category-tag"
-            @click="toggleExpand(row)"
+            @click="toggleExpand(row as TradeHistory)"
           >
             <span class="tag-text">{{ getCloseCategoryLabel(row.closeCategory) }}</span>
             <el-icon class="tag-icon">
@@ -519,9 +519,9 @@ const handleResetFilter = () => {
 }
 
 // 排序变更
-const handleSortChange = ({ prop, order }: { prop?: string; order?: string }) => {
-  if (prop && order) {
-    tradeHistoryStore.setSort(prop as any)
+const handleSortChange = (data: { prop: string | null; order: 'ascending' | 'descending' | null }) => {
+  if (data.prop && data.order) {
+    tradeHistoryStore.setSort(data.prop as any)
   }
   currentPage.value = 1
   loadHistory()
