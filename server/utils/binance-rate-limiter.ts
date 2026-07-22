@@ -1,5 +1,6 @@
 import type { BotBinanceRateLimitConfig } from '../../types'
 import { logger } from './logger'
+import { detectBinanceRateLimitHttpStatus } from './binance-http-status'
 
 export type BinanceRequestGroup = 'marketData' | 'account' | 'trade'
 
@@ -177,7 +178,7 @@ export class BinanceRateLimiter {
 
   reportError(error: any): void {
     this.recentErrors++
-    const status = Number(error?.status || error?.response?.status)
+    const rateLimitStatus = detectBinanceRateLimitHttpStatus(error)
     const message = String(error?.message || '')
     const code = Number(error?.code || error?.body?.code)
     const retryAfterSeconds = Number(error?.retryAfter)
@@ -185,7 +186,7 @@ export class BinanceRateLimiter {
       ? retryAfterSeconds * 1000
       : 0
 
-    if (status === 418 || message.includes('418')) {
+    if (rateLimitStatus === 418) {
       this.recent418++
       this.bannedUntil = Date.now() + Math.max(retryAfterMs, this.config.retryMaxMs)
       this.degradedReason = 'Binance 418 banned'
@@ -193,7 +194,7 @@ export class BinanceRateLimiter {
       return
     }
 
-    if (status === 429 || message.includes('429')) {
+    if (rateLimitStatus === 429) {
       this.recent429++
       this.retryAttempt++
       const backoff = Math.min(this.config.retryMaxMs, this.config.retryBaseMs * (2 ** Math.min(this.retryAttempt, 6)))
