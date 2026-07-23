@@ -585,7 +585,7 @@ ${promptConfig.userPrompt}
    * 构建系统提示词（包含历史学习经验）
    * 从 trade-history-analysis.json 读取已保存的分析结果
    */
-  private async buildSystemPrompt(): Promise<string> {
+  private async buildSystemPrompt(hasSquareHeat: boolean = false): Promise<string> {
     // 异步触发每日分析检查（不阻塞主流程）
     checkDailyAnalysis().catch(() => {})
 
@@ -598,6 +598,16 @@ ${promptConfig.userPrompt}
       historySection = historyAnalysis ? formatAnalysisToPromptSection(historyAnalysis) : ''
     }
 
+    // 根据 squareHeat 是否启用来决定 confidence 描述中是否包含币安广场热度相关字段
+    const confidenceMacroFactors = hasSquareHeat
+      ? '市场波动性、趋势强度、风险等级、币安广场热度、24H社区情绪'
+      : '市场波动性、趋势强度、风险等级'
+
+    // 根据 squareHeat 是否启用来决定 reasoning 格式示例中是否包含币安广场热度相关展示
+    const squareHeatReasoningExample = hasSquareHeat
+      ? '；币安广场热度(31) -3.2%：➡️正常；24H社区情绪🟢: 看涨77.78% / 看跌22.22%。'
+      : ''
+
     return `
 你是专业的量化交易策略执行引擎。
 对当前市场数据进行客观分析、计算真实置信度。
@@ -607,7 +617,7 @@ ${historySection}
 2. 先根据策略规则及所需数据确定唯一方向（LONG/SHORT），之后只按该方向执行交易判断：LONG只用做多规则，SHORT只用做空规则。
 3. 所有条件必须逐条验证，带上真实数值。
 4. 输出必须是合法JSON，无任何多余内容。
-5. confidence 不代表是否开仓，而是是结合市场波动性、趋势强度、风险等级、币安广场热度、24H社区情绪等宏观因素的开仓信心度（0-100）（宏观）
+5. confidence 不代表是否开仓，而是是结合${confidenceMacroFactors}等宏观因素的开仓信心度（0-100）（宏观）
 6. 禁止因为单个条件不满足直接输出 confidence=0。
 7. scoreBreakdown.finalScore 为策略规则匹配度（0-100），仅反映策略条件满足程度（微观）。
 8. scoreBreakdown 必须满足：baseScore∈[0,30]，hardScore∈[0,50]，softScore∈[0,20]，penaltyScore∈[-10,0]。
@@ -634,7 +644,7 @@ ${historySection}
 【reasoning 要求】
 - 必须包含：方向、关键指标数值、每条条件是否满足、风险等级
 - 统一用✔️代表条件满足，❌代表不满足
-- 格式示例：方向：LONG，EMA7(52100) > EMA50(51800)；置信度：60；风险等级:MEDIUM；RSI(48)∈[30,65] ✔️；OI增加+1.2% ✔️；预计成交量(5114.13) < 1.8倍 前K量(10464.66) ❌；ATR波动率 0.52% > 0.38% ✔️；币安广场热度(31) -3.2%：➡️正常；24H社区情绪🟢: 看涨77.78% / 看跌22.22%。
+- 格式示例：方向：LONG，EMA7(52100) > EMA50(51800)；置信度：60；风险等级:MEDIUM；RSI(48)∈[30,65] ✔️；OI增加+1.2% ✔️；预计成交量(5114.13) < 1.8倍 前K量(10464.66) ❌；ATR波动率 0.52% > 0.38% ✔️${squareHeatReasoningExample}
 - 所有指标只展示原始数值与大小/区间对比结论，只写判定结果，不写运算逻辑和过程
 - 格式清晰、无换行、无计算过程、不矛盾、精简直白
 - 只输出当前 prompt 数据中实际包含的指标，未提供的指标不要提及
@@ -715,8 +725,9 @@ ${historySection}
           model: promptConfig?.model
         })
         
-        // 构建系统提示词
-        const systemPrompt = await this.buildSystemPrompt()
+        // 构建系统提示词（根据 squareHeat 是否启用动态调整 confidence 宏观因素描述）
+        const hasSquareHeat = !!(indicators.enabledIndicators?.squareHeat)
+        const systemPrompt = await this.buildSystemPrompt(hasSquareHeat)
         
         const messages: AIChatMessage[] = [
           { role: 'system', content: systemPrompt },
