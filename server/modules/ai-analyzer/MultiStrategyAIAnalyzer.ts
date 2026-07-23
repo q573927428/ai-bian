@@ -630,7 +630,7 @@ ${historySection}
 {
   "direction": "LONG | SHORT | IDLE",
   "confidence": number,
-  "reasoning": "一行中文，包含所有条件的判断结果和数值",
+  "reasoning": "一行中文，最多 350 个字符，包含所有条件的判断结果和数值",
   "scoreBreakdown": {
     "baseScore": number,
     "hardScore": number,
@@ -649,7 +649,7 @@ ${historySection}
 - 格式清晰、无换行、无计算过程、不矛盾、精简直白
 - 只输出当前 prompt 数据中实际包含的指标，未提供的指标不要提及
 - 不得包含单引号、双引号、反引号或 Markdown
-- 不能超过350字
+- 不能超过350字符
 
 `;
   }
