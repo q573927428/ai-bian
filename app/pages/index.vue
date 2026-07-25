@@ -77,20 +77,24 @@
                       <div class="stat-card-sub">收益率</div>
                     </div>
                   </div>
-                  <div class="balance-details-large">
-                    <div class="balance-row-large">
-                      <span class="balance-label-large">💵 总余额</span>
-                      <span class="balance-total-large">$ {{ formatBalance(usdtBalance?.total || 0) }}</span>
+                    <div class="balance-details-large">
+                      <div class="balance-row-large">
+                        <span class="balance-label-large">💰 本金</span>
+                        <span class="balance-capital-large">$ {{ formatBalance(initialCapital) }}</span>
+                      </div>
+                      <div class="balance-row-large">
+                        <span class="balance-label-large">💵 总余额</span>
+                        <span class="balance-total-large">$ {{ formatBalance(usdtBalance?.total || 0) }}</span>
+                      </div>
+                      <div class="balance-row-large">
+                        <span class="balance-label-large"> 可用</span>
+                        <span class="balance-free-large">$ {{ formatBalance(usdtBalance?.free || 0) }}</span>
+                      </div>
+                      <div class="balance-row-large">
+                        <span class="balance-label-large">🔐 锁定</span>
+                        <span class="balance-locked-large">$ {{ formatBalance(usdtBalance?.locked || 0) }}</span>
+                      </div>
                     </div>
-                    <div class="balance-row-large">
-                      <span class="balance-label-large"> 可用</span>
-                      <span class="balance-free-large">$ {{ formatBalance(usdtBalance?.free || 0) }}</span>
-                    </div>
-                    <div class="balance-row-large">
-                      <span class="balance-label-large">🔐 锁定</span>
-                      <span class="balance-locked-large">$ {{ formatBalance(usdtBalance?.locked || 0) }}</span>
-                    </div>
-                  </div>
                 </div>
               </div>
             </el-card>
@@ -244,6 +248,11 @@ const pnlClass = computed(() => {
 
 const totalPnLClass = computed(() => {
   return totalPnL.value >= 0 ? 'text-success' : 'text-danger'
+})
+
+// 从配置中读取初始本金
+const initialCapital = computed(() => {
+  return botStore.botConfig?.initialCapital || 0
 })
 
 // 获取USDT余额
@@ -553,14 +562,14 @@ onMounted(async () => {
 }
 
 .balance-total-large {
-  font-size: 16px;
+  font-size: 14px;
   font-weight: 700;
   color: var(--balance-total-color);
   line-height: 1.2;
   padding-left: 5px;
 }
 .balance-usdt-large{
-  font-size: 16px;
+  font-size: 14px;
   color: var(--text-secondary);
   padding-left: 5px;
 }
@@ -588,13 +597,19 @@ onMounted(async () => {
 }
 
 .balance-free-large {
-  font-size: 16px;
+  font-size: 14px;
   font-weight: 600;
   color: var(--balance-free-color);
 }
 
+.balance-capital-large {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--balance-total-color);
+}
+
   .balance-locked-large {
-    font-size: 16px;
+    font-size: 14px;
     font-weight: 600;
     color: var(--balance-locked-color);
   }
@@ -629,7 +644,14 @@ onMounted(async () => {
   
   
   .balance-details-large {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 6px;
     padding: 6px;
+  }
+
+  .balance-row-large {
+    flex: none;
   }
 }
 </style>
