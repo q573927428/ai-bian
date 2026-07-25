@@ -11,6 +11,7 @@
         :show-order-markers="showOrderMarkers"
         :show-ema-lines="showEMALines"
         :ema-periods="selectedEmaPeriods"
+        :active-engine="activeEngine"
         @timeframe-change="selectTimeframe"
         @refresh="loadKLineData"
         @toggle-theme="toggleTheme"
@@ -19,6 +20,7 @@
         @order-markers-change="handleOrderMarkersChange"
         @ema-lines-change="handleEMALinesChange"
         @ema-periods-change="handleEmaPeriodsChange"
+        @switch-engine="(engine: any) => $emit('switch-engine', engine)"
       />
     </div>
 
@@ -136,12 +138,19 @@ const debounce = <T extends (...args: any[]) => any>(
 interface Props {
   symbol?: string
   timeframe?: string
+  activeEngine?: 'native' | 'tradingview'
 }
 
 const props = withDefaults(defineProps<Props>(), {
   symbol: 'BTCUSDT',
-  timeframe: ''  // 默认为空字符串，表示没有提供timeframe
+  timeframe: '',  // 默认为空字符串，表示没有提供timeframe
+  activeEngine: 'native'
 })
+
+// 定义emits
+defineEmits<{
+  'switch-engine': [engine: 'native' | 'tradingview']
+}>()
 
 // 计算显示的symbol
 const displaySymbol = computed(() => {

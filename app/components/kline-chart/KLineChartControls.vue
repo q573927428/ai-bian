@@ -109,29 +109,28 @@
       </div>
       
       <el-button-group size="small" class="action-buttons">
+        <!-- 引擎切换按钮 -->
+        <el-tooltip :content="activeEngine === 'native' ? '切换到TradingView图表' : '切换到自研K线图表'" placement="top">
+          <el-button
+            size="small"
+            type="default"
+            @click="$emit('switch-engine', activeEngine === 'native' ? 'tradingview' : 'native')"
+            :title="activeEngine === 'native' ? '切换至TradingView' : '切换至自研K线'"
+            class="action-btn"
+          >
+            <el-icon><ElIconCoin v-if="activeEngine === 'native'" /><ElIconTrendCharts v-else /></el-icon>
+          </el-button>
+        </el-tooltip>
+
         <el-button
           type="primary"
           size="small"
           @click="$emit('refresh')"
-
           title="刷新图表"
           class="action-btn"
         >
           <el-icon><ElIconRefresh /></el-icon>
         </el-button>
-        
-        <!-- <el-button
-          type="info"
-          size="small"
-          @click="$emit('toggle-theme')"
-          title="切换主题"
-          class="action-btn"
-        >
-          <el-icon>
-            <ElIconSunny v-if="theme === 'light'" />
-            <ElIconMoon v-else />
-          </el-icon>
-        </el-button> -->
 
         <el-button
           type="warning"
@@ -162,6 +161,7 @@ interface Props {
   showOrderMarkers?: boolean
   showEMALines?: boolean
   emaPeriods?: number[]
+  activeEngine?: 'native' | 'tradingview'
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -172,7 +172,8 @@ const props = withDefaults(defineProps<Props>(), {
   showEMAMarkers: false,
   showOrderMarkers: false,
   showEMALines: true,
-  emaPeriods: () => [20, 200]
+  emaPeriods: () => [20, 200],
+  activeEngine: 'native'
 })
 
 // 定义emits
@@ -185,6 +186,7 @@ const emit = defineEmits<{
   'order-markers-change': [show: boolean]
   'ema-lines-change': [show: boolean]
   'ema-periods-change': [periods: number[]]
+  'switch-engine': [engine: 'native' | 'tradingview']
 }>()
 
 // 可用的EMA周期选项

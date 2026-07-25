@@ -27,9 +27,9 @@
       </div>
     </template> -->
 
-    <!-- K线图表弹窗（懒加载，点击卡片时才渲染） -->
+    <!-- K线图表（引擎可切换：自研K线 / TradingView） -->
     <ClientOnly>
-      <KLineChartSimple :symbol="selectedSymbol || 'BTCUSDT'" />
+      <ChartEngineSwitcher :symbol="selectedSymbol || 'BTCUSDT'" />
     </ClientOnly>
     
     <!-- 水平线 -->
@@ -111,7 +111,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
-import KLineChartSimple from '../components/kline-chart/KLineChartSimple.vue'
+import ChartEngineSwitcher from '../components/kline-chart/ChartEngineSwitcher.vue'
 import { formatPrice } from './kline-chart/utils/kline-formatters'
 import { useBotStore } from '../stores/bot'
 

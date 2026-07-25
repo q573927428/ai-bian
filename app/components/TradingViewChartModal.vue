@@ -127,6 +127,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
+import { useTheme } from '../composables/useTheme'
 
 // Props
 const props = defineProps<{
@@ -141,9 +142,11 @@ const emit = defineEmits<{
   'close': []
 }>()
 
+const { theme: globalTheme } = useTheme()
+
 // 响应式数据
 const timeframe = ref('60')
-const theme = ref('light')
+const theme = ref(globalTheme.value)
 const chartType = ref('candlesticks')
 const isFullscreen = ref(false)
 const isLoading = ref(false)
@@ -197,6 +200,14 @@ const chartHeight = computed(() => {
 watch(() => props.symbol, (newSymbol) => {
   if (newSymbol && props.visible) {
     initChart()
+  }
+})
+
+// 监听全局主题变化，自动同步TradingView主题
+watch(globalTheme, (newTheme) => {
+  theme.value = newTheme
+  if (tradingViewWidget.value) {
+    updateChart()
   }
 })
 
@@ -421,21 +432,21 @@ declare global {
 
 <style scoped>
 .tradingview-card {
-  background: white;
+  background: var(--bg-card);
   border-radius: 12px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
-  border: 1px solid #e4e7ed;
+  box-shadow: var(--shadow-card);
+  border: 1px solid var(--border-color);
   overflow: hidden;
   margin-bottom: 20px;
   transition: all 0.3s ease;
 }
 
 .tradingview-card:hover {
-  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.12);
+  box-shadow: var(--shadow-card-hover);
 }
 
 .symbol-badge {
-  background: #409eff;
+  background: var(--color-primary);
   color: white;
   padding: 4px 12px;
   border-radius: 20px;
@@ -454,8 +465,8 @@ declare global {
   justify-content: space-between;
   align-items: center;
   padding: 12px 20px;
-  background: #f8f9fa;
-  border-bottom: 1px solid #e4e7ed;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-color);
 }
 
 .controls-left {
@@ -469,10 +480,10 @@ declare global {
   position: relative;
   min-height: 500px;
   margin: 20px;
-  border: 1px solid #e4e7ed;
+  border: 1px solid var(--border-color);
   border-radius: 8px;
   overflow: hidden;
-  background: #f8f9fa;
+  background: var(--bg-secondary);
 }
 
 .tradingview-chart {
@@ -483,12 +494,12 @@ declare global {
 .chart-loading {
   padding: 60px 20px;
   text-align: center;
-  background: white;
+  background: var(--bg-card);
 }
 
 .loading-text {
   margin-top: 20px;
-  color: #6c757d;
+  color: var(--text-secondary);
   font-size: 16px;
   font-weight: 500;
 }
@@ -496,7 +507,7 @@ declare global {
 .chart-error {
   padding: 60px 20px;
   text-align: center;
-  background: white;
+  background: var(--bg-card);
 }
 
 .error-actions {
