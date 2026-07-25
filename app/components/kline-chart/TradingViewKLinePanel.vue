@@ -169,11 +169,16 @@ const displaySymbol = computed(() => {
   return props.symbol || 'BTCUSDT'
 })
 
-// 辅助函数：将符号转换为TradingView格式
+/**
+ * 将内部符号格式（如 "BTC/USDT"）转换为 TradingView 兼容格式
+ *
+ * 固定使用 Binance 数据源，所有 USDT 交易对统一加 ".P" 后缀。
+ */
 function getTradingViewSymbol(symbol: string): string {
-  if (symbol === 'XAUUSDT') return 'XAUUSDT.P'
-  if (symbol === 'XAGUSDT') return 'XAGUSDT.P'
-  return symbol
+  // 统一移除斜杠，得到 "BASEUSDT" 格式
+  const cleaned = symbol.replace('/', '')
+  // 固定 Binance 数据源 + .P 后缀
+  return `BINANCE:${cleaned}.P`
 }
 
 // 计算属性
