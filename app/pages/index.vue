@@ -605,14 +605,14 @@ onMounted(async () => {
 .balance-capital-large {
   font-size: 14px;
   font-weight: 600;
-  color: var(--balance-total-color);
+  color: var(--text-primary);
 }
 
-  .balance-locked-large {
-    font-size: 14px;
-    font-weight: 600;
-    color: var(--balance-locked-color);
-  }
+.balance-locked-large {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--balance-locked-color);
+}
 
 @media (max-width: 768px) {
   .header h1 {
