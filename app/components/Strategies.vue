@@ -187,11 +187,8 @@
     </el-dialog>
 
     <!-- 策略详情对话框 -->
-    <el-dialog v-model="showDetailDialog" :title="`${detailStrategy?.name} 运行详情`" width="90%" :close-on-click-modal="false">
+    <el-dialog v-model="showDetailDialog" :title="`${detailStrategy?.name} 运行详情`" width="80%" :close-on-click-modal="false">
       <div v-if="detailStrategy" v-loading="detailLoading">
-        <el-tabs v-model="activeDetailTab">
-          <!-- 性能统计 -->
-          <el-tab-pane label="性能统计" name="performance">
             <el-row :gutter="20" style="margin-bottom: 20px;">
               <el-col :xs="24" :sm="12" :md="6">
                 <el-card>
@@ -316,9 +313,6 @@
                 </el-card>
               </el-col>
             </el-row>
-          </el-tab-pane>
-
-        </el-tabs>
       </div>
     </el-dialog>
   </div>
@@ -344,8 +338,6 @@ const detailStrategy = ref<Strategy | null>(null)
 const testingStrategies = ref<Set<string>>(new Set())
 const forcingStrategies = ref<Set<string>>(new Set())
 const detailLoading = ref(false)
-const activeDetailTab = ref('performance')
-
 // 保存确认对话框相关
 const saveAsNewVersion = ref(false)
 const versionChanges = ref('')
@@ -543,7 +535,6 @@ const viewStrategyDetail = async (strategy: Strategy) => {
   detailStrategy.value = strategy
   showDetailDialog.value = true
   detailLoading.value = true
-  activeDetailTab.value = 'performance'
   
   try {
     // 并行加载所有数据
