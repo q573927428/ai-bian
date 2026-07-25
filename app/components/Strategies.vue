@@ -318,73 +318,6 @@
             </el-row>
           </el-tab-pane>
 
-          <!-- 交易记录 -->
-          <el-tab-pane label="交易记录" name="trades">
-            <el-table :data="tradeRecords" stripe border>
-              <el-table-column prop="symbol" label="交易对" width="120" />
-              <el-table-column prop="direction" label="方向" width="80">
-                <template #default="{ row }">
-                  <el-tag :type="row.direction === 'long' ? 'success' : 'danger'">
-                    {{ row.direction === 'long' ? '做多' : '做空' }}
-                  </el-tag>
-                </template>
-              </el-table-column>
-              <el-table-column prop="entryPrice" label="入场价" width="120" />
-              <el-table-column prop="exitPrice" label="出场价" width="120" />
-              <el-table-column prop="quantity" label="数量" width="100" />
-              <el-table-column prop="leverage" label="杠杆" width="80" />
-              <el-table-column prop="profitLoss" label="净利金额" width="120">
-                <template #default="{ row }">
-                  <span :class="(row.profitLoss || 0) >= 0 ? 'text-success' : 'text-danger'">
-                    ${{ (row.profitLoss || 0).toFixed(2) }}
-                  </span>
-                </template>
-              </el-table-column>
-              <el-table-column prop="totalCommission" label="手续费" width="100">
-                <template #default="{ row }">
-                  <span class="text-warning">
-                    ${{ (row.totalCommission || 0).toFixed(4) }}
-                  </span>
-                </template>
-              </el-table-column>
-              <el-table-column prop="profitLossPercentage" label="盈亏百分比" width="120">
-                <template #default="{ row }">
-                  <span :class="(row.profitLossPercentage || 0) >= 0 ? 'text-success' : 'text-danger'">
-                    {{ (row.profitLossPercentage || 0).toFixed(2) }}%
-                  </span>
-                </template>
-              </el-table-column>
-              <el-table-column label="评分" width="80">
-                <template #default="{ row }">
-                  {{ row.entryScore ?? '-' }}
-                </template>
-              </el-table-column>
-              <el-table-column label="置信度" width="80">
-                <template #default="{ row }">
-                  {{ row.entryConfidence ?? '-' }}
-                </template>
-              </el-table-column>
-              <el-table-column prop="openTime" label="开仓时间" width="180">
-                <template #default="{ row }">
-                  {{ formatDate(row.openTime) }}
-                </template>
-              </el-table-column>
-              <el-table-column prop="closeTime" label="平仓时间" width="180">
-                <template #default="{ row }">
-                  {{ row.closeTime ? formatDate(row.closeTime) : '-' }}
-                </template>
-              </el-table-column>
-              <el-table-column prop="status" label="状态" width="100">
-                <template #default="{ row }">
-                  <el-tag :type="row.status === 'closed' ? 'success' : row.status === 'open' ? 'primary' : 'info'">
-                    {{ row.status === 'closed' ? '已平仓' : row.status === 'open' ? '持仓中' : '已取消' }}
-                  </el-tag>
-                </template>
-              </el-table-column>
-              <el-table-column prop="reason" label="原因" show-overflow-tooltip />
-            </el-table>
-          </el-tab-pane>
-
         </el-tabs>
       </div>
     </el-dialog>
@@ -434,9 +367,6 @@ const availableSymbols = computed(() => botStore.botConfig?.symbols || [])
 
 // 详情数据
 const performance = ref<any>({})
-const tradeRecords = ref<any[]>([])
-
-
 // 密码验证成功回调
 const handlePasswordSuccess = () => {
   if (!pendingAction.value) return
@@ -617,13 +547,9 @@ const viewStrategyDetail = async (strategy: Strategy) => {
   
   try {
     // 并行加载所有数据
-    const [perfRes, tradesRes] = await Promise.all([
-      $fetch(`/api/strategies/${strategy.id}/performance`),
-      $fetch(`/api/strategies/${strategy.id}/trades`)
-    ])
+    const perfRes = await $fetch(`/api/strategies/${strategy.id}/performance`)
     
     performance.value = perfRes.data || {}
-    tradeRecords.value = (tradesRes.data as unknown as any[]) || []
   } catch (error: any) {
     ElMessage.error(`加载详情失败: ${error.message}`)
   } finally {
