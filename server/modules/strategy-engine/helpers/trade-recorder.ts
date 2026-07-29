@@ -81,6 +81,7 @@ export async function recordTrade(
     id: settlement?.exitOrderId
       ? `${settlement.exitOrderId}-${position.symbol}-${strategyId}`
       : `${closeTime}-${position.symbol}-${strategyId}`,
+    accountId: positionInfo?.accountId || 'default',
     strategyId,
     symbol: position.symbol,
     direction: position.direction,
@@ -109,8 +110,11 @@ export async function recordTrade(
     // 入场信息
     entryConfidence: positionInfo?.confidence,
     entryScore: positionInfo?.scoreBreakdown?.finalScore,
+    entryScoreBreakdown: positionInfo?.scoreBreakdown,
     entryRiskLevel: positionInfo?.riskLevel,
     stopLossPrice: position.initialStopLoss,
+    // 移动止损只更新 PositionInfo 顶层字段，因此优先保存顶层的最终止损价。
+    finalStopLossPrice: positionInfo?.stopLoss ?? position.stopLoss,
     takeProfit1Price: position.takeProfit1,
     takeProfit2Price: position.takeProfit2,
     // 入场指标

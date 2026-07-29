@@ -365,6 +365,8 @@ export interface StatusResponse {
 // 交易历史记录
 export interface TradeHistory {
   id: string
+  /** 账户标识，用于多账户场景下隔离和汇总交易记录 */
+  accountId?: string
   strategyId?: string
   symbol: string
   direction: Direction
@@ -396,8 +398,13 @@ export interface TradeHistory {
   // 入场信息
   entryConfidence?: number
   entryScore?: number
+  /** 入场评分明细，用于分析各评分维度与最终收益的关系 */
+  entryScoreBreakdown?: ScoreBreakdown
   entryRiskLevel?: string
+  /** 入场时设置的初始止损价 */
   stopLossPrice?: number
+  /** 平仓前最后生效的止损价，可与初始止损价对比移动止损效果 */
+  finalStopLossPrice?: number
   takeProfit1Price?: number
   takeProfit2Price?: number
   
