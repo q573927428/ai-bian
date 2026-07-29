@@ -70,7 +70,15 @@ export class StrategyPositionCloser {
       ?? (exitPrice * position.quantity * (this.config.commissionRate ?? 0.0005))
     const totalCommission = entryCommission + exitCommission
     const grossRealizedPnl = exitExecution?.realizedPnl ?? estimated.pnl
-    const netPnl = grossRealizedPnl - totalCommission
+    const settlementCloseTime = exitExecution?.timestamp || closeTime
+    let fundingFee: number | undefined
+    try {
+      fundingFee = await this.binance.fetchFundingFee(position.symbol, position.openTime, settlementCloseTime)
+    } catch (error: any) {
+      // 资金费查询失败不能阻断平仓，但净收益只能暂时按未计资金费处理并标记为估算。
+      logger.warn('平仓对账', `读取资金费失败，净收益暂未计入资金费: ${error.message}`)
+    }
+    const netPnl = grossRealizedPnl - totalCommission + (fundingFee ?? 0)
     const initialMargin = position.entryPrice * position.quantity / position.leverage
     const netPnlPercentage = initialMargin > 0 ? netPnl / initialMargin * 100 : 0
     const exitCommissionAsset = exitExecution?.commissions.length === 1
@@ -88,6 +96,7 @@ export class StrategyPositionCloser {
       netPnlPercentage,
       settlement: {
         grossRealizedPnl,
+        fundingFee,
         entryCommission,
         exitCommission,
         entryCommissionAsset: positionInfo.entryCommissionAsset ?? position.entryCommissionAsset ?? 'USDT',
@@ -97,8 +106,8 @@ export class StrategyPositionCloser {
         entryOrderId: positionInfo.entryOrderId ?? position.entryOrderId ?? positionInfo.orderId ?? position.orderId,
         exitOrderId,
         executionTradeIds: exitExecution?.tradeIds,
-        closeTime: exitExecution?.timestamp || closeTime,
-        source: exitExecution && hasConfirmedEntry ? 'binance' : 'estimated',
+        closeTime: settlementCloseTime,
+        source: exitExecution && hasConfirmedEntry && fundingFee !== undefined ? 'binance' : 'estimated',
       }
     }
   }
@@ -201,6 +210,7 @@ export class StrategyPositionCloser {
         毛利: settlement.grossRealizedPnl.toFixed(4),
         开仓手续费: settlement.entryCommission.toFixed(4),
         平仓手续费: settlement.exitCommission.toFixed(4),
+        资金费: settlement.fundingFee?.toFixed(4) ?? '未获取',
         净利: netPnl.toFixed(4),
         数据来源: settlement.source
       })

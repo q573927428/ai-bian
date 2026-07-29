@@ -374,12 +374,16 @@ export interface TradeHistory {
   exitPrice: number
   quantity: number
   leverage: number
+  /** 入场指标使用的主时间周期 */
+  mainTimeframe?: string
   pnl: number
   pnlPercentage: number
   openTime: number
   closeTime: number
   reason: string
   totalCommission?: number
+  /** 持仓期间实际资金费，正数表示收到，负数表示支付 */
+  fundingFee?: number
   /** 币安平仓成交返回的已实现毛盈亏 */
   grossRealizedPnl?: number
   entryCommission?: number

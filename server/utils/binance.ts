@@ -425,6 +425,29 @@ export class BinanceService {
   }
 
   /**
+   * 查询指定持仓期间实际发生的资金费
+   *
+   * 返回值保留币安 Income History 的资金方向：正数表示收到资金费，负数表示支付资金费。
+   */
+  async fetchFundingFee(symbol: string, openTime: number, closeTime: number): Promise<number> {
+    const ledger = await binanceApiGateway.account(`fetchFundingFee:${symbol}:${openTime}:${closeTime}`, () =>
+      this.privateExchange.fetchLedger('USDT', openTime, 1000, {
+        until: closeTime,
+        type: 'future',
+        incomeType: 'FUNDING_FEE',
+      })
+    )
+    const marketId = this.privateExchange.market(symbol).id
+
+    return ledger.reduce((total: number, entry: any) => {
+      if (entry.info?.incomeType !== 'FUNDING_FEE') return total
+      if (String(entry.info?.symbol || '') !== marketId) return total
+      const amount = Math.abs(Number(entry.amount || 0))
+      return total + (entry.direction === 'out' ? -amount : amount)
+    }, 0)
+  }
+
+  /**
    * 查询并汇总指定订单的真实成交明细
    *
    * 币安一个订单可能拆成多笔撮合，已实现盈亏和手续费必须从 userTrades

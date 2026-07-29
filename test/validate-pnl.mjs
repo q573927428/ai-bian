@@ -22,7 +22,7 @@ let basedOnPrincipal = []; // 基于本金（错误）
 let unclear = [];
 
 for (const trade of trades) {
-  const { id, symbol, direction, entryPrice, exitPrice, quantity, leverage, pnl, pnlPercentage, totalCommission } = trade;
+  const { id, symbol, direction, entryPrice, exitPrice, quantity, leverage, pnl, pnlPercentage, totalCommission, fundingFee = 0 } = trade;
 
   let rawPnl;
   if (direction === 'LONG') {
@@ -33,7 +33,7 @@ for (const trade of trades) {
     continue;
   }
 
-  const expectedPnl = rawPnl - totalCommission;
+  const expectedPnl = rawPnl - totalCommission + fundingFee;
   const principal = entryPrice * quantity;
   const margin = principal / leverage;
 
@@ -84,7 +84,7 @@ if (basedOnPrincipal.length > 0) {
 
 console.log(`\n========== 结论 ==========`);
 if (pnlErrors.length === 0) {
-  console.log(`✅ pnl 全部正确（已扣除手续费）`);
+  console.log(`✅ pnl 全部正确（已扣除手续费并计入资金费）`);
 }
 console.log(`✅ 基于保证金（含杠杆）正确的记录: ${basedOnMargin.length}/${checkedCount}`);
 console.log(`❌ 基于本金（缺少杠杆）错误的记录: ${basedOnPrincipal.length}/${checkedCount}`);

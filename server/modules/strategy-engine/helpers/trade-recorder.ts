@@ -13,6 +13,8 @@ import { strategyStore } from '../../../modules/strategy-store/StrategyStore'
  */
 export interface TradeSettlement {
   grossRealizedPnl: number
+  /** 实际资金费，正数表示收到，负数表示支付 */
+  fundingFee?: number
   entryCommission: number
   exitCommission: number
   entryCommissionAsset?: string
@@ -89,12 +91,14 @@ export async function recordTrade(
     exitPrice,
     quantity: position.quantity,
     leverage: position.leverage,
+    mainTimeframe: positionInfo?.mainTimeframe,
     pnl: finalNetPnl, // 存储净利
     pnlPercentage: finalNetPnlPercentage, // 存储净利百分比
     openTime: position.openTime,
     closeTime,
     reason,
     totalCommission: finalTotalCommission,
+    fundingFee: settlement?.fundingFee,
     grossRealizedPnl: settlement?.grossRealizedPnl ?? grossPnl,
     entryCommission: settlement?.entryCommission,
     exitCommission: settlement?.exitCommission,

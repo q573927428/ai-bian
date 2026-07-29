@@ -1331,6 +1331,7 @@ export class StrategyEngine {
         entryPrice: actualEntryPrice,
         quantity: actualQuantity,
         leverage: finalLeverage,
+        mainTimeframe,
         stopLoss,
         initialStopLoss: stopLoss,
         takeProfit1,

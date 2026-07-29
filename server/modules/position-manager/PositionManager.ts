@@ -25,6 +25,7 @@ export interface PositionInfo {
   entryPrice: number;                  // 入场价
   quantity: number;                    // 数量
   leverage: number;                    // 杠杆
+  mainTimeframe?: string;              // 入场指标使用的主时间周期
   stopLoss?: number;                   // 止损价格
   initialStopLoss?: number;            // 初始止损价格
   takeProfit1?: number;                // 止盈1价格
