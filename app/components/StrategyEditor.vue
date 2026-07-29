@@ -389,11 +389,11 @@
                 <span class="trailing-stop-group">
                   <el-switch v-model="form.riskManagement.trailingStop.enabled" />
                   <span class="stat-label">激活: </span>
-                  <el-input-number v-model="form.riskManagement.trailingStop.activationRatio" :min="0.5" :max="3" :step="0.1" />
+                  <el-input-number v-model="form.riskManagement.trailingStop.activationRatio" :min="0.1" :max="3" :step="0.1" />
                 </span>
                 <span class="trailing-stop-group">
                   <span class="stat-label">距离: </span>
-                  <el-input-number v-model="form.riskManagement.trailingStop.trailDistance" :min="0.5" :max="3" :step="0.1" />
+                  <el-input-number v-model="form.riskManagement.trailingStop.trailDistance" :min="0.1" :max="3" :step="0.1" />
                 </span>
                 <span class="trailing-stop-group">
                   <span class="stat-label">最小移动: </span>
