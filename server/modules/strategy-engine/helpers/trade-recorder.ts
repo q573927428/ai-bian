@@ -107,6 +107,7 @@ export async function recordTrade(
     entryCommissionRaw: settlement?.entryCommissionRaw,
     exitCommissionRaw: settlement?.exitCommissionRaw,
     entryOrderId: settlement?.entryOrderId,
+    stopLossOrderId: positionInfo?.stopLossOrderId ?? position.stopLossOrderId,
     exitOrderId: settlement?.exitOrderId,
     executionTradeIds: settlement?.executionTradeIds,
     settlementSource: settlement?.source || 'estimated',

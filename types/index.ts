@@ -393,6 +393,9 @@ export interface TradeHistory {
   entryCommissionRaw?: number
   exitCommissionRaw?: number
   entryOrderId?: string
+  /** 币安条件止损算法订单ID，用于查询触发状态和实际出场订单 */
+  stopLossOrderId?: string
+  /** 真实出场订单ID，可用于查询成交明细 */
   exitOrderId?: string
   executionTradeIds?: string[]
   /** binance 表示真实成交结算，estimated 表示兼容回退计算 */

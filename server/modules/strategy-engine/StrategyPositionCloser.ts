@@ -32,6 +32,33 @@ export class StrategyPositionCloser {
   }
 
   /**
+   * 从币安条件单返回中提取实际成交订单和触发时间
+   *
+   * algoId 只是条件单ID，触发后生成的 actualOrderId 才能用于查询真实成交明细。
+   */
+  private getTriggeredStopMetadata(stopOrder: any): {
+    actualOrderId?: string
+    triggerTime?: number
+  } {
+    const rawActualOrderId = String(stopOrder.info?.actualOrderId ?? '').trim()
+    const actualOrderId = rawActualOrderId && rawActualOrderId !== '0'
+      ? rawActualOrderId
+      : undefined
+    const rawTriggerTime = Number(
+      stopOrder.info?.triggerTime
+      || stopOrder.info?.updateTime
+      || 0
+    )
+
+    return {
+      actualOrderId,
+      triggerTime: Number.isFinite(rawTriggerTime) && rawTriggerTime > 0
+        ? rawTriggerTime
+        : undefined,
+    }
+  }
+
+  /**
    * 根据币安成交明细生成最终交易结算
    *
    * 新仓位的开仓手续费与平仓 realizedPnl 均来自 userTrades；旧仓位缺少真实
@@ -331,13 +358,14 @@ export class StrategyPositionCloser {
           
           // 如果止损订单已成交，说明是止损触发，不是手动平仓
           if (stopOrder.status === 'closed' || stopOrder.status === 'filled') {
+            const stopMetadata = this.getTriggeredStopMetadata(stopOrder)
             const exitPrice = stopOrder.average || stopOrder.price || position.position.stopLoss || await this.binance.fetchPrice(position.symbol)
-            logger.info('手动平仓检测', `检测到止损订单已成交: ${stopOrder.status}, 成交价: ${exitPrice}，非手动平仓`)
+            logger.info('手动平仓检测', `检测到止损订单已成交: ${stopOrder.status}, 实际订单: ${stopMetadata.actualOrderId || '未获取'}, 成交价: ${exitPrice}，非手动平仓`)
             return {
               isManualClose: false,
               exitPrice,
-              closeTime: stopOrder.timestamp || Date.now(),
-              orderId: stopOrder.orderId
+              closeTime: stopMetadata.triggerTime || Date.now(),
+              orderId: stopMetadata.actualOrderId
             }
           }
         } catch (error: any) {
@@ -645,11 +673,12 @@ export class StrategyPositionCloser {
           
           // 如果订单已成交，获取成交价格
           if (stopOrder.status === 'closed' || stopOrder.status === 'filled') {
+            const stopMetadata = this.getTriggeredStopMetadata(stopOrder)
             // 优化：优先使用average（平均成交价），然后是price，最后是position.stopLoss
             exitPrice = Number(stopOrder.info?.actualPrice) || stopOrder.average || stopOrder.price || tempPosition.stopLoss
-            exitOrderId = stopOrder.orderId
-            closeTime = stopOrder.timestamp || closeTime
-            logger.info('补偿平仓', `止损订单已成交: ${stopOrder.status}，成交价: ${exitPrice}`)
+            exitOrderId = stopMetadata.actualOrderId || detectedExitOrderId
+            closeTime = stopMetadata.triggerTime || closeTime
+            logger.info('补偿平仓', `止损订单已成交: ${stopOrder.status}，算法订单: ${stopLossOrderId}，实际订单: ${exitOrderId || '未获取'}，成交价: ${exitPrice}`)
           } else {
             //如果订单未成交 尝试取消止损单
             try {
