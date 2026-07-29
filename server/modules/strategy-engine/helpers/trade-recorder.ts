@@ -7,6 +7,26 @@ import { calculatePnL } from '../../../utils/trade-helpers'
 import { strategyStore } from '../../../modules/strategy-store/StrategyStore'
 
 /**
+ * 交易结算元数据
+ *
+ * 币安成交明细存在时用于保存真实订单、已实现盈亏和手续费来源；缺失时保持旧版估算逻辑兼容。
+ */
+export interface TradeSettlement {
+  grossRealizedPnl: number
+  entryCommission: number
+  exitCommission: number
+  entryCommissionAsset?: string
+  exitCommissionAsset?: string
+  entryCommissionRaw?: number
+  exitCommissionRaw?: number
+  entryOrderId?: string
+  exitOrderId?: string
+  executionTradeIds?: string[]
+  closeTime?: number
+  source: 'binance' | 'estimated'
+}
+
+/**
  * 记录多策略交易历史
  */
 export async function recordTrade(
@@ -18,7 +38,8 @@ export async function recordTrade(
   netPnl?: number,
   netPnlPercentage?: number,
   commissionRate: number = 0.0005, // 默认手续费率
-  positionInfo?: any // 额外的仓位信息
+  positionInfo?: any, // 额外的仓位信息
+  settlement?: TradeSettlement
 ): Promise<void> {
   // 计算盈亏（包含手续费）
   const { 
@@ -35,7 +56,8 @@ export async function recordTrade(
   const finalTotalCommission = totalCommission !== undefined ? totalCommission : calculatedTotalCommission
 
   // 计算持仓时间（分钟）
-  const holdingMinutes = Math.round((Date.now() - position.openTime) / 60000)
+  const closeTime = settlement?.closeTime || Date.now()
+  const holdingMinutes = Math.round((closeTime - position.openTime) / 60000)
 
   // 判断平仓分类
   let closeCategory: any = 'unknown'
@@ -56,7 +78,9 @@ export async function recordTrade(
 
   // 记录交易历史（注意：TradeHistory 的 pnl 现在存储的是净利）
   const trade: TradeHistory = {
-    id: `${Date.now()}-${position.symbol}-${strategyId}`,
+    id: settlement?.exitOrderId
+      ? `${settlement.exitOrderId}-${position.symbol}-${strategyId}`
+      : `${closeTime}-${position.symbol}-${strategyId}`,
     strategyId,
     symbol: position.symbol,
     direction: position.direction,
@@ -67,9 +91,21 @@ export async function recordTrade(
     pnl: finalNetPnl, // 存储净利
     pnlPercentage: finalNetPnlPercentage, // 存储净利百分比
     openTime: position.openTime,
-    closeTime: Date.now(),
+    closeTime,
     reason,
     totalCommission: finalTotalCommission,
+    grossRealizedPnl: settlement?.grossRealizedPnl ?? grossPnl,
+    entryCommission: settlement?.entryCommission,
+    exitCommission: settlement?.exitCommission,
+    entryCommissionAsset: settlement?.entryCommissionAsset,
+    exitCommissionAsset: settlement?.exitCommissionAsset,
+    entryCommissionRaw: settlement?.entryCommissionRaw,
+    exitCommissionRaw: settlement?.exitCommissionRaw,
+    entryOrderId: settlement?.entryOrderId,
+    exitOrderId: settlement?.exitOrderId,
+    executionTradeIds: settlement?.executionTradeIds,
+    settlementSource: settlement?.source || 'estimated',
+    reconciliationStatus: settlement?.source === 'binance' ? 'confirmed' : 'estimated',
     // 入场信息
     entryConfidence: positionInfo?.confidence,
     entryScore: positionInfo?.scoreBreakdown?.finalScore,

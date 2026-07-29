@@ -164,6 +164,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useBotStore } from '../stores/bot'
 import { useStrategiesStore } from '../stores/strategies'
+import { useTradeHistoryStore } from '../stores/tradeHistory'
 import { useTheme } from '../composables/useTheme'
 
 // 密码验证相关
@@ -204,6 +205,7 @@ import PerformancePanel from '../components/PerformancePanel.vue'
 
 const botStore = useBotStore()
 const strategiesStore = useStrategiesStore()
+const tradeHistoryStore = useTradeHistoryStore()
 const { theme: currentTheme, toggleTheme } = useTheme()
 
 // 配置对话框
@@ -215,30 +217,34 @@ const handleConfigSuccess = () => {
   botStore.fetchStatus()
 }
 
-// 计算总交易次数（从 performance 读取）
+// 首页与盈亏图表统一以交易历史为统计真源，避免策略文件中的 performance 缓存过期。
 const totalTrades = computed(() => {
-  return strategiesStore.strategies.reduce((sum, s) => sum + (s.performance?.totalTrades || 0), 0)
+  return tradeHistoryStore.allHistory.length
 })
 
 // 计算今日交易次数
 const todayTrades = computed(() => {
-  return strategiesStore.strategies.reduce((sum, s) => sum + (s.performance?.todayTrades || 0), 0)
+  const today = new Date().toDateString()
+  return tradeHistoryStore.allHistory.filter(trade => new Date(trade.closeTime).toDateString() === today).length
 })
 
-// 计算总盈亏（从 performance 读取）
+// pnl 对新记录表示币安 realizedPnl 扣除真实开平仓手续费后的净收益。
 const totalPnL = computed(() => {
-  return strategiesStore.strategies.reduce((sum, s) => sum + (s.performance?.netProfit || 0), 0)
+  return tradeHistoryStore.allHistory.reduce((sum, trade) => sum + (trade.pnl || 0), 0)
 })
 
 // 计算今日盈亏
 const dailyPnL = computed(() => {
-  return strategiesStore.strategies.reduce((sum, s) => sum + (s.performance?.dailyPnL || 0), 0)
+  const today = new Date().toDateString()
+  return tradeHistoryStore.allHistory
+    .filter(trade => new Date(trade.closeTime).toDateString() === today)
+    .reduce((sum, trade) => sum + (trade.pnl || 0), 0)
 })
 
-// 计算总胜率（从 performance 读取）
+// 计算总胜率
 const winRate = computed(() => {
-  const totalTradesCount = strategiesStore.strategies.reduce((sum, s) => sum + (s.performance?.totalTrades || 0), 0)
-  const totalWinsCount = strategiesStore.strategies.reduce((sum, s) => sum + (s.performance?.totalWins || 0), 0)
+  const totalTradesCount = tradeHistoryStore.allHistory.length
+  const totalWinsCount = tradeHistoryStore.allHistory.filter(trade => trade.pnl > 0).length
   return totalTradesCount > 0 ? (totalWinsCount / totalTradesCount) * 100 : 0
 })
 
@@ -359,7 +365,8 @@ onMounted(async () => {
 
   await Promise.all([
     botStore.fetchStatus(),
-    strategiesStore.loadStrategies()
+    strategiesStore.loadStrategies(),
+    tradeHistoryStore.fetchAllHistory()
   ])
 })
 </script>

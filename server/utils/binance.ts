@@ -1,5 +1,5 @@
 import * as ccxt from 'ccxt'
-import type { OHLCV, Order, AccountInfo, Position, CryptoBalance } from '../../types'
+import type { OHLCV, Order, AccountInfo, Position, CryptoBalance, OrderExecutionSummary } from '../../types'
 import { binanceApiGateway } from './binance-api-gateway'
 
 /**
@@ -279,8 +279,10 @@ export class BinanceService {
         type: 'MARKET',
         quantity: order.amount,
         price: order.price,
+        average: order.average || order.price,
         status: order.status || 'unknown',
         timestamp: order.timestamp || Date.now(),
+        info: order.info,
       }
     } catch (error: any) {
       throw new Error(`市价下单失败: ${error.message}`)
@@ -420,6 +422,103 @@ export class BinanceService {
       // 必须保留完整错误链，否则 CCXT 的 NetworkError 无法判断 DNS、TCP 或 TLS 故障。
       throw new Error(`获取持仓失败: ${formatBinanceErrorDetails(error)}`, { cause: error })
     }
+  }
+
+  /**
+   * 查询并汇总指定订单的真实成交明细
+   *
+   * 币安一个订单可能拆成多笔撮合，已实现盈亏和手续费必须从 userTrades
+   * 汇总，不能使用订单名义价格或统一费率推算。
+   */
+  async fetchOrderExecutionSummary(
+    symbol: string,
+    orderId: string
+  ): Promise<OrderExecutionSummary | null> {
+    // 币安 USD-M 接口不允许 orderId 与 startTime 同时传递；orderId 已足够精确定位成交。
+    const trades = await binanceApiGateway.account(`fetchOrderTrades:${symbol}:${orderId}`, () =>
+      this.privateExchange.fetchMyTrades(symbol, undefined, 1000, { orderId })
+    )
+
+    const orderTrades = trades.filter((trade: any) => {
+      const tradeOrderId = trade.order || trade.info?.orderId
+      return String(tradeOrderId ?? '') === String(orderId)
+    })
+
+    if (orderTrades.length === 0) {
+      return null
+    }
+
+    const commissionMap = new Map<string, { amount: number; amountInUsdt: number }>()
+    const assetPriceCache = new Map<string, number>()
+    let executedQuantity = 0
+    let quoteQuantity = 0
+    let realizedPnl = 0
+    let commissionInUsdt = 0
+    let timestamp = 0
+
+    for (const trade of orderTrades) {
+      const quantity = Number(trade.amount || trade.info?.qty || 0)
+      const price = Number(trade.price || trade.info?.price || 0)
+      const quote = Number(trade.cost || trade.info?.quoteQty || price * quantity)
+      const commissionAmount = Math.abs(Number(trade.fee?.cost ?? trade.info?.commission ?? 0))
+      const commissionAsset = String(trade.fee?.currency || trade.info?.commissionAsset || 'USDT').toUpperCase()
+
+      let assetPrice = 1
+      if (!['USDT', 'USDC', 'FDUSD'].includes(commissionAsset)) {
+        if (!assetPriceCache.has(commissionAsset)) {
+          // 币安未在成交明细中提供手续费的 USDT 价值，只能按结算时市场价折算并保留原始币种数量。
+          assetPriceCache.set(commissionAsset, await this.fetchPrice(`${commissionAsset}/USDT`))
+        }
+        assetPrice = assetPriceCache.get(commissionAsset) || 0
+      }
+
+      const amountInUsdt = commissionAmount * assetPrice
+      const currentCommission = commissionMap.get(commissionAsset) || { amount: 0, amountInUsdt: 0 }
+      currentCommission.amount += commissionAmount
+      currentCommission.amountInUsdt += amountInUsdt
+      commissionMap.set(commissionAsset, currentCommission)
+
+      executedQuantity += quantity
+      quoteQuantity += quote
+      realizedPnl += Number(trade.info?.realizedPnl || 0)
+      commissionInUsdt += amountInUsdt
+      timestamp = Math.max(timestamp, Number(trade.timestamp || trade.info?.time || 0))
+    }
+
+    return {
+      orderId: String(orderId),
+      symbol,
+      averagePrice: executedQuantity > 0 ? quoteQuantity / executedQuantity : 0,
+      executedQuantity,
+      quoteQuantity,
+      realizedPnl,
+      commissionInUsdt,
+      commissions: Array.from(commissionMap.entries()).map(([asset, value]) => ({ asset, ...value })),
+      tradeIds: orderTrades.map((trade: any) => String(trade.id || trade.info?.id || '')),
+      timestamp: timestamp || Date.now(),
+    }
+  }
+
+  /**
+   * 等待币安成交明细可查询
+   *
+   * 下单接口返回和 userTrades 可见之间存在短暂延迟，因此进行有限次数重试。
+   */
+  async waitForOrderExecutionSummary(
+    symbol: string,
+    orderId: string,
+    maxAttempts: number = 6
+  ): Promise<OrderExecutionSummary | null> {
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      const summary = await this.fetchOrderExecutionSummary(symbol, orderId)
+      if (summary && summary.executedQuantity > 0) {
+        return summary
+      }
+      if (attempt < maxAttempts) {
+        await new Promise(resolve => setTimeout(resolve, 400 * attempt))
+      }
+    }
+    return null
   }
 
   /**

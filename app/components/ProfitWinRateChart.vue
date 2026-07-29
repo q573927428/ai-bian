@@ -167,7 +167,7 @@ const processChartData = () => {
   filteredData.forEach(trade => {
     cumulativePnl += trade.pnl
     totalCount++
-    if (trade.pnl >= 0) winCount++
+    if (trade.pnl > 0) winCount++
     
     const date = formatChartTime(trade.closeTime)
     const winRate = totalCount > 0 ? (winCount / totalCount) * 100 : 0

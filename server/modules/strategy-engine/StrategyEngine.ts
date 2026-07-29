@@ -2,7 +2,7 @@
 
 import type { Strategy, StrategyId, Timeframe, AIPromptConfig } from '../../../types/strategy'
 import type { TradeSignal } from '../../../types/signal'
-import type { BotConfig } from '../../../types'
+import type { BotConfig, OrderExecutionSummary } from '../../../types'
 import { StrategyStore } from '../strategy-store/StrategyStore'
 import { IndicatorsHub } from '../indicators/IndicatorsHub'
 import { PositionManager } from '../position-manager/PositionManager'
@@ -1241,6 +1241,19 @@ export class StrategyEngine {
       const actualQuantity = realPosition.quantity
       logger.info('持仓确认', `实际成交数量: ${actualQuantity} (下单数量: ${quantity})`)
 
+      // 开仓完成后立即读取币安成交明细。查询失败时不能中断已建立的仓位，只能标记为估算数据等待平仓时继续兼容处理。
+      let entryExecution: OrderExecutionSummary | null = null
+      try {
+        entryExecution = await this.binance.waitForOrderExecutionSummary(
+          signal.symbol,
+          order.orderId
+        )
+      } catch (error: any) {
+        logger.warn('开仓对账', `读取币安成交明细失败，暂用估算手续费: ${error.message}`)
+      }
+
+      const actualEntryPrice = entryExecution?.averagePrice || realPosition.entryPrice || order.average || signal.price
+
       // 8. 计算止盈价格
       const takeProfit1 = calculateTakeProfit(signal.price, stopLoss, signal.direction.toUpperCase() as 'LONG' | 'SHORT', strategy.riskManagement.takeProfitRatios[0])
       const takeProfit2 = calculateTakeProfit(signal.price, stopLoss, signal.direction.toUpperCase() as 'LONG' | 'SHORT', strategy.riskManagement.takeProfitRatios[1])
@@ -1292,12 +1305,21 @@ export class StrategyEngine {
       logger.success('止损', `止损单已设置`, stopOrder)
 
       // 计算开仓手续费
-      const positionValue = Math.abs(actualQuantity) * signal.price
-      const entryCommission = positionValue * (this.config.commissionRate || 0.0005)
+      const positionValue = Math.abs(actualQuantity) * actualEntryPrice
+      const entryCommission = entryExecution?.commissionInUsdt
+        ?? positionValue * (this.config.commissionRate ?? 0.0005)
+      const entryCommissionAsset = entryExecution?.commissions.length === 1
+        ? entryExecution.commissions[0]?.asset || 'USDT'
+        : entryExecution?.commissions.length ? 'MULTI' : 'USDT'
+      const entryCommissionRaw = entryExecution?.commissions.length === 1
+        ? entryExecution.commissions[0]?.amount ?? entryCommission
+        : entryCommission
+      const entryDataSource: 'binance' | 'estimated' = entryExecution ? 'binance' : 'estimated'
 
-      logger.info('开仓', `开仓手续费: ${entryCommission.toFixed(4)} USDT`, {
-        positionValue: positionValue.toFixed(3),
-        commissionRate: this.config.commissionRate || 0.0005
+      logger.info('开仓', `开仓手续费: ${entryCommission.toFixed(7)} USDT`, {
+        positionValue: positionValue.toFixed(6),
+        source: entryExecution ? 'binance' : 'estimated',
+        commissionAsset: entryCommissionAsset
       })
 
       // 10. 记录仓位到PositionManager
@@ -1306,7 +1328,7 @@ export class StrategyEngine {
         symbol: signal.symbol,
         strategyId: strategy.id,
         direction: signal.direction,
-        entryPrice: signal.price,
+        entryPrice: actualEntryPrice,
         quantity: actualQuantity,
         leverage: finalLeverage,
         stopLoss,
@@ -1321,6 +1343,10 @@ export class StrategyEngine {
         confidence: signal.confidence,
         reasoning: signal.reasoning,
         entryCommission,
+        entryCommissionAsset,
+        entryCommissionRaw,
+        entryOrderId: order.orderId,
+        entryDataSource,
         scoreBreakdown: signal.scoreBreakdown,
         riskLevel: signal.riskLevel,
         entryIndicators,
@@ -1331,7 +1357,7 @@ export class StrategyEngine {
         position: {
           symbol: signal.symbol,
           direction: signal.direction.toUpperCase() as 'LONG' | 'SHORT',
-          entryPrice: signal.price,
+          entryPrice: actualEntryPrice,
           quantity: actualQuantity,
           leverage: finalLeverage,
           stopLoss,
@@ -1343,7 +1369,11 @@ export class StrategyEngine {
           lowestPrice: signal.price,
           orderId: order.orderId,
           stopLossOrderId: stopOrder.orderId,
-          entryCommission
+          entryCommission,
+          entryCommissionAsset,
+          entryCommissionRaw,
+          entryOrderId: order.orderId,
+          entryDataSource
         }
       }
 

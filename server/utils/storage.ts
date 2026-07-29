@@ -68,7 +68,13 @@ export async function addTradeHistory(trade: TradeHistory): Promise<void> {
       trade.id = `${trade.closeTime}-${trade.symbol.replace('/', '-')}`
     }
 
-    history.push(trade)
+    // 币安订单ID参与交易ID后，同一平仓订单的重试必须覆盖原记录，避免对账重试重复累计收益。
+    const existingIndex = history.findIndex(item => item.id === trade.id)
+    if (existingIndex >= 0) {
+      history[existingIndex] = trade
+    } else {
+      history.push(trade)
+    }
     history.sort((a, b) => b.closeTime - a.closeTime)
 
     await safeWriteFile(HISTORY_FILE, JSON.stringify(history, null, 2))

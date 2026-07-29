@@ -38,6 +38,10 @@ export interface PositionInfo {
   confidence?: number;                 // 置信度
   reasoning?: string;                  // 推理信息
   entryCommission?: number;            // 开仓手续费
+  entryCommissionAsset?: string;       // 开仓手续费原始资产
+  entryCommissionRaw?: number;         // 开仓手续费原始数量
+  entryOrderId?: string;               // 开仓订单ID，用于平仓后对账
+  entryDataSource?: 'binance' | 'estimated'; // 开仓数据来源
   scoreBreakdown?: ScoreBreakdown;     // 评分拆解
   riskLevel?: string;                  // 风险等级
   
@@ -234,7 +238,11 @@ export class PositionManager {
       lowestPrice: info.lowestPrice,
       orderId: info.orderId,
       stopLossOrderId: info.stopLossOrderId,
-      entryCommission: info.entryCommission
+      entryCommission: info.entryCommission,
+      entryCommissionAsset: info.entryCommissionAsset,
+      entryCommissionRaw: info.entryCommissionRaw,
+      entryOrderId: info.entryOrderId || info.orderId,
+      entryDataSource: info.entryDataSource
     }
   }
 

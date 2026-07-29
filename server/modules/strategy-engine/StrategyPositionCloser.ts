@@ -5,9 +5,9 @@ import { BinanceService } from '../../utils/binance'
 import { logger } from '../../utils/logger'
 import { saveBotState } from '../../utils/storage'
 import { calculatePnL, checkCircuitBreaker } from '../../utils/trade-helpers'
-import { recordTrade } from './helpers/trade-recorder'
+import { recordTrade, type TradeSettlement } from './helpers/trade-recorder'
 import { PositionStatus } from '../../../types'
-import type { BotConfig, BotState, Order, Position } from '../../../types'
+import type { BotConfig, BotState, OrderExecutionSummary, Position } from '../../../types'
 
 /**
  * 多策略平仓模块
@@ -29,6 +29,78 @@ export class StrategyPositionCloser {
     this.positionManager = positionManager
     this.config = config
     this.state = state
+  }
+
+  /**
+   * 根据币安成交明细生成最终交易结算
+   *
+   * 新仓位的开仓手续费与平仓 realizedPnl 均来自 userTrades；旧仓位缺少真实
+   * 开仓数据时，仅对缺失部分使用历史估算值并标记为 estimated。
+   */
+  private async resolveSettlement(
+    positionInfo: any,
+    position: Position,
+    exitOrderId: string | undefined,
+    fallbackExitPrice: number,
+    closeTime: number = Date.now()
+  ): Promise<{
+    exitPrice: number
+    totalCommission: number
+    netPnl: number
+    netPnlPercentage: number
+    settlement: TradeSettlement
+  }> {
+    let exitExecution: OrderExecutionSummary | null = null
+    if (exitOrderId) {
+      try {
+        exitExecution = await this.binance.waitForOrderExecutionSummary(
+          position.symbol,
+          exitOrderId
+        )
+      } catch (error: any) {
+        logger.warn('平仓对账', `读取币安成交明细失败，使用兼容估算: ${error.message}`)
+      }
+    }
+
+    const exitPrice = exitExecution?.averagePrice || fallbackExitPrice
+    const estimated = calculatePnL(exitPrice, position, this.config.commissionRate ?? 0.0005)
+    const entryCommission = positionInfo.entryCommission ?? position.entryCommission
+      ?? (position.entryPrice * position.quantity * (this.config.commissionRate ?? 0.0005))
+    const exitCommission = exitExecution?.commissionInUsdt
+      ?? (exitPrice * position.quantity * (this.config.commissionRate ?? 0.0005))
+    const totalCommission = entryCommission + exitCommission
+    const grossRealizedPnl = exitExecution?.realizedPnl ?? estimated.pnl
+    const netPnl = grossRealizedPnl - totalCommission
+    const initialMargin = position.entryPrice * position.quantity / position.leverage
+    const netPnlPercentage = initialMargin > 0 ? netPnl / initialMargin * 100 : 0
+    const exitCommissionAsset = exitExecution?.commissions.length === 1
+      ? exitExecution.commissions[0]?.asset || 'USDT'
+      : exitExecution?.commissions.length ? 'MULTI' : 'USDT'
+    const exitCommissionRaw = exitExecution?.commissions.length === 1
+      ? exitExecution.commissions[0]?.amount ?? exitCommission
+      : exitCommission
+    const hasConfirmedEntry = (positionInfo.entryDataSource ?? position.entryDataSource) === 'binance'
+
+    return {
+      exitPrice,
+      totalCommission,
+      netPnl,
+      netPnlPercentage,
+      settlement: {
+        grossRealizedPnl,
+        entryCommission,
+        exitCommission,
+        entryCommissionAsset: positionInfo.entryCommissionAsset ?? position.entryCommissionAsset ?? 'USDT',
+        exitCommissionAsset,
+        entryCommissionRaw: positionInfo.entryCommissionRaw ?? position.entryCommissionRaw ?? entryCommission,
+        exitCommissionRaw,
+        entryOrderId: positionInfo.entryOrderId ?? position.entryOrderId ?? positionInfo.orderId ?? position.orderId,
+        exitOrderId,
+        executionTradeIds: exitExecution?.tradeIds,
+        closeTime: exitExecution?.timestamp || closeTime,
+        source: exitExecution && hasConfirmedEntry ? 'binance' : 'estimated',
+      }
+    }
   }
 
   /**
@@ -115,27 +187,23 @@ export class StrategyPositionCloser {
       const order = await this.binance.marketOrder(symbol, side, quantity)
       logger.success('平仓', `平仓订单已提交`, order)
 
-      // 3. 获取实际成交价格
-      const finalExitPrice = exitPrice || order.average || await this.binance.fetchPrice(symbol)
+      // 3. 以币安成交明细作为最终收益来源，行情价只用于接口暂时不可用时兼容回退。
+      const fallbackExitPrice = order.average || exitPrice || await this.binance.fetchPrice(symbol)
+      const result = await this.resolveSettlement(
+        position,
+        position.position!,
+        order.orderId,
+        fallbackExitPrice
+      )
+      const { exitPrice: finalExitPrice, totalCommission, netPnl, netPnlPercentage, settlement } = result
 
-      // 4. 计算平仓手续费
-      const positionValue = quantity * finalExitPrice
-      const exitCommission = positionValue * (this.config.commissionRate || 0.0005)
-      const entryCommission = position.entryCommission || position.position?.entryCommission || 0
-      const totalCommission = entryCommission + exitCommission
-
-      logger.info('平仓', `手续费明细:`, {
-        开仓手续费: entryCommission.toFixed(4),
-        平仓手续费: exitCommission.toFixed(4),
-        总手续费: totalCommission.toFixed(4),
-        手续费率: this.config.commissionRate || 0.0005
+      logger.info('平仓', `币安结算结果:`, {
+        毛利: settlement.grossRealizedPnl.toFixed(4),
+        开仓手续费: settlement.entryCommission.toFixed(4),
+        平仓手续费: settlement.exitCommission.toFixed(4),
+        净利: netPnl.toFixed(4),
+        数据来源: settlement.source
       })
-
-      // 5. 计算盈亏（扣除手续费）
-      const { pnl: grossPnl, pnlPercentage: grossPnlPercentage, netPnlPercentage } = calculatePnL(finalExitPrice, position.position!)
-      const netPnl = grossPnl - totalCommission
-
-      logger.info('平仓', `平仓盈亏: 毛利 ${grossPnl.toFixed(2)} USDT (${grossPnlPercentage.toFixed(3)}%), 净利 ${netPnl.toFixed(2)} USDT (${netPnlPercentage.toFixed(3)}%)`)
 
       // 6. 记录交易历史（包含完整指标）
       await recordTrade(
@@ -146,8 +214,9 @@ export class StrategyPositionCloser {
         totalCommission, 
         netPnl, 
         netPnlPercentage,
-        this.config.commissionRate || 0.0005,
-        position // 传入完整的 positionInfo
+        this.config.commissionRate ?? 0.0005,
+        position, // 传入完整的 positionInfo
+        settlement
       )
 
       // 7. 安全初始化 state
@@ -355,11 +424,35 @@ export class StrategyPositionCloser {
         takeProfit2: 0
       }
 
-      // 计算盈亏（包含手续费）
-      const { pnl: grossPnl, pnlPercentage: grossPnlPercentage, netPnl, netPnlPercentage, totalCommission } = calculatePnL(exitPrice, tempPosition, this.config.commissionRate || 0.0005)
+      // 手动平仓同样按检测到的币安订单ID读取真实成交，而不是使用检测时行情价直接估算。
+      const result = await this.resolveSettlement(
+        position,
+        tempPosition,
+        manualCloseInfo.orderId,
+        exitPrice,
+        closeTime
+      )
+      const {
+        exitPrice: finalExitPrice,
+        totalCommission,
+        netPnl,
+        netPnlPercentage,
+        settlement
+      } = result
 
       // 记录交易历史并更新状态（手动平仓，传入完整的 positionInfo 以保存入场指标和持仓统计）
-      await recordTrade(position.strategyId, tempPosition, exitPrice, '手动平仓', totalCommission, netPnl, netPnlPercentage, this.config.commissionRate || 0.0005, position)
+      await recordTrade(
+        position.strategyId,
+        tempPosition,
+        finalExitPrice,
+        '手动平仓',
+        totalCommission,
+        netPnl,
+        netPnlPercentage,
+        this.config.commissionRate ?? 0.0005,
+        position,
+        settlement
+      )
 
       // 安全初始化 state
       this.ensureStateInitialized()
@@ -484,7 +577,7 @@ export class StrategyPositionCloser {
             reason = '未知原因'
           }
           
-          await this.handleCompensatedClose(position, reason)
+          await this.handleCompensatedClose(position, reason, manualCloseInfo.orderId)
         }
       } catch (error: any) {
         logger.error('持仓一致性检查', '处理平仓流程失败', error.message)
@@ -505,7 +598,7 @@ export class StrategyPositionCloser {
   /**
    * 处理补偿平仓（当检测到仓位已被平仓但本地没有记录时）
    */
-  async handleCompensatedClose(position: any, reason: string): Promise<void> {
+  async handleCompensatedClose(position: any, reason: string, detectedExitOrderId?: string): Promise<void> {
     try {
       // 安全检查：确保position存在
       if (!position) {
@@ -517,6 +610,7 @@ export class StrategyPositionCloser {
 
       let exitPrice = 0
       let closeTime = Date.now()
+      let exitOrderId = detectedExitOrderId
 
       // 创建临时仓位对象
       const tempPosition = position.position || {
@@ -543,6 +637,8 @@ export class StrategyPositionCloser {
           if (stopOrder.status === 'closed' || stopOrder.status === 'filled') {
             // 优化：优先使用average（平均成交价），然后是price，最后是position.stopLoss
             exitPrice = Number(stopOrder.info?.actualPrice) || stopOrder.average || stopOrder.price || tempPosition.stopLoss
+            exitOrderId = stopOrder.orderId
+            closeTime = stopOrder.timestamp || closeTime
             logger.info('补偿平仓', `止损订单已成交: ${stopOrder.status}，成交价: ${exitPrice}`)
           } else {
             //如果订单未成交 尝试取消止损单
@@ -576,11 +672,35 @@ export class StrategyPositionCloser {
       }
 
 
-      // 计算盈亏（包含手续费）
-      const { pnl: grossPnl, pnlPercentage: grossPnlPercentage, netPnl, netPnlPercentage, totalCommission } = calculatePnL(exitPrice, tempPosition, this.config.commissionRate || 0.0005)
+      // 止损触发和补偿记录也必须回查真实成交；查询不到时才保留旧版估算结果。
+      const result = await this.resolveSettlement(
+        position,
+        tempPosition,
+        exitOrderId,
+        exitPrice,
+        closeTime
+      )
+      const {
+        exitPrice: finalExitPrice,
+        totalCommission,
+        netPnl,
+        netPnlPercentage,
+        settlement
+      } = result
 
       // 记录交易历史并更新状态（传入完整的 positionInfo 以保存入场指标和持仓统计）
-      await recordTrade(position.strategyId, tempPosition, exitPrice, reason, totalCommission, netPnl, netPnlPercentage, this.config.commissionRate || 0.0005, position)
+      await recordTrade(
+        position.strategyId,
+        tempPosition,
+        finalExitPrice,
+        reason,
+        totalCommission,
+        netPnl,
+        netPnlPercentage,
+        this.config.commissionRate ?? 0.0005,
+        position,
+        settlement
+      )
 
       // 安全初始化 state
       this.ensureStateInitialized()

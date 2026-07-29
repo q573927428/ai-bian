@@ -255,6 +255,32 @@ export interface Position {
   lastStopLossUpdate?: number
   trailingStopData?: any
   entryCommission?: number
+  entryCommissionAsset?: string
+  entryCommissionRaw?: number
+  entryOrderId?: string
+  entryDataSource?: 'binance' | 'estimated'
+}
+
+/**
+ * 币安订单成交汇总
+ *
+ * 用于把一个可能包含多笔撮合的订单归并为系统可持久化的真实成交结果。
+ */
+export interface OrderExecutionSummary {
+  orderId: string
+  symbol: string
+  averagePrice: number
+  executedQuantity: number
+  quoteQuantity: number
+  realizedPnl: number
+  commissionInUsdt: number
+  commissions: Array<{
+    asset: string
+    amount: number
+    amountInUsdt: number
+  }>
+  tradeIds: string[]
+  timestamp: number
 }
 
 // 订单信息
@@ -352,6 +378,20 @@ export interface TradeHistory {
   closeTime: number
   reason: string
   totalCommission?: number
+  /** 币安平仓成交返回的已实现毛盈亏 */
+  grossRealizedPnl?: number
+  entryCommission?: number
+  exitCommission?: number
+  entryCommissionAsset?: string
+  exitCommissionAsset?: string
+  entryCommissionRaw?: number
+  exitCommissionRaw?: number
+  entryOrderId?: string
+  exitOrderId?: string
+  executionTradeIds?: string[]
+  /** binance 表示真实成交结算，estimated 表示兼容回退计算 */
+  settlementSource?: 'binance' | 'estimated'
+  reconciliationStatus?: 'confirmed' | 'estimated'
   
   // 入场信息
   entryConfidence?: number
