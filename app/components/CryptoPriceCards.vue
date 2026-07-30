@@ -392,8 +392,8 @@ interface WebSocketStatusResponse {
   transition: all 0.3s ease;
   position: relative;
   overflow: hidden;
-  min-height: 70px;
-  min-width: 150px;
+  min-height: 60px;
+  min-width: 120px;
   flex-shrink: 0;
   flex: 1 0 calc(12.5% - 8px);
 }
