@@ -21,6 +21,7 @@ import { concurrencyPoolManager, type ConcurrencyPoolManager } from '../../utils
 import { shortHash } from '../../utils/stable-hash'
 import { indicatorCombinationRegistry, type IndicatorCombinationRegistry } from '../indicators/IndicatorCombinationRegistry'
 import type { IndicatorPrecomputeService } from '../indicators/IndicatorPrecomputeService'
+import { DailyTradeLimiter } from '../risk-control/DailyTradeLimiter'
 
 /**
  * 策略运行时状态
@@ -108,6 +109,8 @@ export class StrategyEngine {
   }
   private indicatorRegistry: IndicatorCombinationRegistry
   private indicatorPrecompute: IndicatorPrecomputeService | null
+  // 每日开仓限制必须由所有信号共享同一实例，才能正确处理并发预占。
+  private dailyTradeLimiter: DailyTradeLimiter
 
 
   constructor(
@@ -128,6 +131,7 @@ export class StrategyEngine {
     this.config = config
     this.indicatorRegistry = registry
     this.indicatorPrecompute = precomputeService
+    this.dailyTradeLimiter = new DailyTradeLimiter(positionManager)
     
     // AI预筛配置已改为按策略独立配置，不再从全局加载
     aiPreScreener.initFromBotConfig()
@@ -1089,10 +1093,28 @@ export class StrategyEngine {
   public async executeSignal(instance: StrategyInstance, signal: TradeSignal, indicatorsData: Map<string, any>): Promise<void> {
     let symbolLocked = false
     let positionRecorded = false
+    let dailyTradeReservationId: string | undefined
+    let dailyTradeReservationCommitted = false
     try {
       const strategy = instance.strategy
 
       logger.info('开仓信号', `执行信号: ${signal.symbol} ${signal.direction} (${signal.reasoning})`)
+
+      // 必须在任何下单操作前原子预占名额，防止同一轮并发信号突破每日上限。
+      const dailyTradeReservation = await this.dailyTradeLimiter.reserve(
+        strategy.id,
+        strategy.riskManagement.maxDailyTrades
+      )
+      if (!dailyTradeReservation.allowed || !dailyTradeReservation.reservationId) {
+        logger.warn(
+          '每日开仓限制',
+          `${strategy.name} 今日已开仓 ${dailyTradeReservation.openedCount} 笔` +
+          `${dailyTradeReservation.reservedCount > 0 ? `，另有 ${dailyTradeReservation.reservedCount} 笔正在开仓` : ''}` +
+          `，达到上限 ${dailyTradeReservation.limit} 笔，今日禁止继续开仓`
+        )
+        return
+      }
+      dailyTradeReservationId = dailyTradeReservation.reservationId
 
       // 1. 获取账户余额
       const account = await this.binance.fetchBalance()
@@ -1241,6 +1263,16 @@ export class StrategyEngine {
       const actualQuantity = realPosition.quantity
       logger.info('持仓确认', `实际成交数量: ${actualQuantity} (下单数量: ${quantity})`)
 
+      // 交易所已确认真实持仓，此时即计为一次开仓；后续止损单设置失败也不能退还次数。
+      const confirmedOpenTime = Date.now()
+      await this.dailyTradeLimiter.commit(dailyTradeReservationId, {
+        strategyId: strategy.id,
+        symbol: signal.symbol,
+        openedAt: confirmedOpenTime,
+        entryOrderId: order.orderId
+      })
+      dailyTradeReservationCommitted = true
+
       // 开仓完成后立即读取币安成交明细。查询失败时不能中断已建立的仓位，只能标记为估算数据等待平仓时继续兼容处理。
       let entryExecution: OrderExecutionSummary | null = null
       try {
@@ -1336,7 +1368,7 @@ export class StrategyEngine {
         initialStopLoss: stopLoss,
         takeProfit1,
         takeProfit2,
-        openTime: Date.now(),
+        openTime: confirmedOpenTime,
         highestPrice: signal.price,
         lowestPrice: signal.price,
         orderId: order.orderId,
@@ -1365,7 +1397,7 @@ export class StrategyEngine {
           initialStopLoss: stopLoss,
           takeProfit1,
           takeProfit2,
-          openTime: Date.now(),
+          openTime: confirmedOpenTime,
           highestPrice: signal.price,
           lowestPrice: signal.price,
           orderId: order.orderId,
@@ -1391,6 +1423,9 @@ export class StrategyEngine {
       instance.error = error.message
       throw error
     } finally {
+      if (dailyTradeReservationId && !dailyTradeReservationCommitted) {
+        await this.dailyTradeLimiter.release(dailyTradeReservationId)
+      }
       // 兜底：只要未成功记录仓位，就释放锁，防止残留锁
       if (symbolLocked && !positionRecorded) {
         this.positionManager.unlockSymbol(signal.symbol)
