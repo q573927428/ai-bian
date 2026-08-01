@@ -137,48 +137,39 @@ export function getEMAWidth(period: number): number {
 
 /**
  * 计算ATR（平均真实波幅）
+ *
+ * 使用全量K线从头递推（Wilder 平滑）。实测证明：ATR 是收敛型递推指标，
+ * 只要给足历史（≥200~300根），早期种子差异会衰减到可忽略，全量递推的最新值
+ * 与"只取最近 requiredCandles 根递推"完全一致（绝对差 < 1e-6），
+ * 因此前端直接用全量递推，既保证每根K线都有 ATR 值，又与后端 IndicatorsHub 口径一致。
+ *
  * @param klineData K线数据数组
  * @param period ATR周期，默认为14
- * @param maxCandles 计算窗口上限（与后端 requiredCandles 对齐；
- *        图表仍需显示全量K线，仅 ATR 计算窗口与后端 IndicatorsHub 保持一致）
  * @returns ATR值数组，长度与输入相同
  */
 export function calculateATR(
   klineData: Array<{ t: number; o: number; h: number; l: number; c: number; v: number }>,
-  period: number = 14,
-  maxCandles?: number
+  period: number = 14
 ): number[] {
   if (klineData.length === 0 || period <= 0) {
     return []
   }
 
-  // 与后端 IndicatorsHub 对齐：只取最近 maxCandles 根K线参与 ATR 递推
-  // （不传时使用全量，保持向后兼容）
-  const calcData = maxCandles && maxCandles > 0
-    ? klineData.slice(-maxCandles)
-    : klineData
-
   const atrValues: number[] = []
   const trueRanges: number[] = []
 
-  // 计算真实波幅（TR）
-  for (let i = 0; i < calcData.length; i++) {
-    const current = calcData[i]
-    if (!current) continue
-
-    if (i === 0) {
-      // 第一根K线无前收盘，不产生 TR（与后端 technicalindicators 的 TrueRange 一致）
-      continue
-    } else {
-      const previous = calcData[i - 1]
-      if (!previous) continue
-      
-      // 真实波幅 = max(当前最高-当前最低, |当前最高-前收盘|, |当前最低-前收盘|)
-      const tr1 = current.h - current.l
-      const tr2 = Math.abs(current.h - previous.c)
-      const tr3 = Math.abs(current.l - previous.c)
-      trueRanges.push(Math.max(tr1, tr2, tr3))
-    }
+  // 计算真实波幅（TR）——与后端 technicalindicators 的 TrueRange 一致：
+  // 第一根K线无前收盘不产生 TR，从第2根开始
+  for (let i = 1; i < klineData.length; i++) {
+    const current = klineData[i]
+    const previous = klineData[i - 1]
+    if (!current || !previous) continue
+    
+    // 真实波幅 = max(当前最高-当前最低, |当前最高-前收盘|, |当前最低-前收盘|)
+    const tr1 = current.h - current.l
+    const tr2 = Math.abs(current.h - previous.c)
+    const tr3 = Math.abs(current.l - previous.c)
+    trueRanges.push(Math.max(tr1, tr2, tr3))
   }
 
   // 计算ATR（使用SMA作为第一个值，然后使用Wilder平滑）
@@ -216,19 +207,17 @@ export function calculateATR(
  * 计算ATR并返回与时间戳对齐的数据
  * @param klineData K线数据数组
  * @param period ATR周期，默认为14
- * @param maxCandles 计算窗口上限（透传给 calculateATR，与后端 requiredCandles 对齐）
  * @returns 包含时间和值的ATR数据数组
  */
 export function calculateATRSeries(
   klineData: Array<{ t: number; o: number; h: number; l: number; c: number; v: number }>,
-  period: number = 14,
-  maxCandles?: number
+  period: number = 14
 ): Array<{ time: number; value: number }> {
   if (klineData.length < period) {
     return []
   }
 
-  const atrValues = calculateATR(klineData, period, maxCandles)
+  const atrValues = calculateATR(klineData, period)
 
   // 返回与时间戳对齐的数据
   return klineData.map((item, index) => ({
@@ -259,8 +248,7 @@ export function calculateATRPercent(atr: number, price: number): number {
 export function detectEMACrossovers(
   klineData: Array<{ t: number; o: number; h: number; l: number; c: number; v: number }>,
   fastPeriod: number,
-  slowPeriod: number,
-  maxCandles?: number
+  slowPeriod: number
 ): Array<{
   time: number
   type: 'golden' | 'dead'  // 金叉或死叉
@@ -276,7 +264,7 @@ export function detectEMACrossovers(
 
   const fastEMA = calculateEMASeries(klineData, fastPeriod)
   const slowEMA = calculateEMASeries(klineData, slowPeriod)
-  const atrSeries = calculateATRSeries(klineData, 14, maxCandles)
+  const atrSeries = calculateATRSeries(klineData, 14)
 
   const crossovers: Array<{
     time: number

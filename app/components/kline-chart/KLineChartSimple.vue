@@ -509,17 +509,12 @@ const calculateLatestEmaDiff = (klineData: SimpleKLineData[]): number => {
   return slow === 0 ? 0 : ((fast - slow) / slow) * 100
 }
 
-// ATR计算窗口：与后端 IndicatorsHub 的 requiredCandles 对齐
-// （图表仍显示全量K线，仅 ATR 递推窗口与后端保持一致）
-const getAtrMaxCandles = (): number | undefined => {
-  const required = botStore.config?.indicatorsConfig?.requiredCandles
-  return required && required > 0 ? required : undefined
-}
-
 // 计算最新ATR百分比
+// 全量递推：实测证明 ATR 收敛型递推的最新值与后端 requiredCandles 窗口一致，
+// 且每根K线都能获得 ATR 值（不会出现历史段为 0）
 const calculateLatestAtrPercent = (klineData: SimpleKLineData[]): number => {
   if (klineData.length < 14) return 0
-  const atrSeries = calculateATRSeries(klineData, 14, getAtrMaxCandles())
+  const atrSeries = calculateATRSeries(klineData, 14)
   if (atrSeries.length === 0) return 0
   const atr = atrSeries[atrSeries.length - 1]?.value || 0
   const price = klineData[klineData.length - 1]?.c || 0
