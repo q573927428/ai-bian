@@ -158,6 +158,13 @@ const emaDiffPercent = computed<number | null>(() => {
   return cachedEmaSeries.value.diffPercent[cachedEmaSeries.value.diffPercent.length - 1] ?? null
 })
 
+// ATR计算窗口：与后端 IndicatorsHub 的 requiredCandles 对齐
+// （图表仍显示全量K线 props.klineData，仅 ATR 递推窗口与后端保持一致）
+const getAtrMaxCandles = (): number | undefined => {
+  const required = botStore.config?.indicatorsConfig?.requiredCandles
+  return required && required > 0 ? required : undefined
+}
+
 // 监听klineData变化，预计算ATR百分比序列
 watch(() => props.klineData, () => {
   if (props.klineData.length === 0) {
@@ -165,7 +172,7 @@ watch(() => props.klineData, () => {
     return
   }
   
-  const atrSeries = calculateATRSeries(props.klineData, 14)
+  const atrSeries = calculateATRSeries(props.klineData, 14, getAtrMaxCandles())
   if (atrSeries.length === 0) {
     cachedAtrPercentSeries.value = null
     return
@@ -404,8 +411,8 @@ const generateEMACrossoverMarkers = () => {
     return []
   }
   
-  // 检测EMA交叉点
-  const crossovers = detectEMACrossovers(props.klineData, fastPeriod, slowPeriod)
+  // 检测EMA交叉点（ATR计算窗口与后端 requiredCandles 对齐）
+  const crossovers = detectEMACrossovers(props.klineData, fastPeriod, slowPeriod, getAtrMaxCandles())
   
   if (crossovers.length === 0) {
     // console.log(`📊 未检测到EMA${fastPeriod}和EMA${slowPeriod}的交叉点`)
