@@ -413,15 +413,24 @@ const handleSave = async () => {
   }
 }
 
-// 从热门交易对列表中选择交易对
-const handleTopSymbolSelect = (symbol: string) => {
-  // 统一格式：API 返回 ETHUSDT，转换为 EL 选择器兼容的格式
-  const normalized = symbol.replace('USDT', '/USDT')
-  if (form.value && !form.value.symbols.includes(normalized)) {
-    form.value.symbols.push(normalized)
-    ElMessage.success(`已添加 ${normalized}`)
+// 从热门交易对列表中选择交易对（支持多选批量添加）
+const handleTopSymbolSelect = (symbols: string[]) => {
+  if (!form.value || symbols.length === 0) return
+  let addedCount = 0
+  const addedNames: string[] = []
+  for (const symbol of symbols) {
+    // 统一格式：API 返回 ETHUSDT，转换为 EL 选择器兼容的格式
+    const normalized = symbol.replace('USDT', '/USDT')
+    if (!form.value.symbols.includes(normalized)) {
+      form.value.symbols.push(normalized)
+      addedCount++
+      addedNames.push(normalized)
+    }
+  }
+  if (addedCount > 0) {
+    ElMessage.success(`已添加 ${addedCount} 个交易对: ${addedNames.join(', ')}`)
   } else {
-    ElMessage.info('该交易对已存在')
+    ElMessage.info('所选交易对均已存在')
   }
 }
 

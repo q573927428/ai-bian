@@ -1,38 +1,107 @@
 <template>
   <el-dialog
     v-model="visible"
-    title="🔥 热门交易对 Top 30"
-    width="40%"
+    :title="dialogTitle"
+    width="66%"
     :fullscreen="isMobile"
     :close-on-click-modal="false"
-    top="32vh"
+    top="22vh"
   >
     <div class="top-symbols-container">
+      <!-- 模式切换与工具栏 -->
       <div class="top-symbols-toolbar">
-        <span class="toolbar-hint">点击交易对名称可快速添加到配置列表中</span>
+        <el-radio-group v-model="mode" size="small" @change="handleModeChange">
+          <el-radio-button value="hot">🔥 24h 热门</el-radio-button>
+          <el-radio-button value="stable">📈 持续放量</el-radio-button>
+        </el-radio-group>
         <el-button type="primary" size="small" :loading="loading" @click="fetchData">
           <el-icon><ElIconRefresh /></el-icon>
           刷新数据
         </el-button>
       </div>
 
+      <div v-if="mode === 'hot'" class="toolbar-hint">
+        勾选交易对后点击底部"添加选中到列表"可批量添加
+      </div>
+
+      <!-- 持续放量模式参数设置 -->
+      <el-collapse v-if="mode === 'stable'" class="stable-params">
+        <el-collapse-item title="⚙️ 持续放量筛选参数设置" name="params">
+          <div class="params-grid">
+            <div class="param-item">
+              <label>统计窗口 (天)</label>
+              <el-input-number v-model="filterParams.days" :min="5" :max="90" size="small" controls-position="right" />
+              <span class="param-desc">拉取最近 N 天日线分析成交量</span>
+            </div>
+            <div class="param-item">
+              <label>候选池数量</label>
+              <el-input-number v-model="filterParams.pool" :min="30" :max="500" size="small" controls-position="right" />
+              <span class="param-desc">24h 成交额前 N 名进入分析</span>
+            </div>
+            <div class="param-item">
+              <label>输出数量</label>
+              <el-input-number v-model="filterParams.top" :min="5" :max="100" size="small" controls-position="right" />
+              <span class="param-desc">榜单最终展示数量</span>
+            </div>
+            <div class="param-item">
+              <label>日均成交额下限 (万USDT)</label>
+              <el-input-number v-model="minDailyWan" :min="0" :step="1000" size="small" controls-position="right" />
+              <span class="param-desc">30 天平均日成交额须 ≥ 此值</span>
+            </div>
+            <div class="param-item">
+              <label>最低/最高比</label>
+              <el-input-number v-model="filterParams.minRatio" :min="0" :max="1" :step="0.01" size="small" controls-position="right" />
+              <span class="param-desc">最低量那天 ≥ 最高量那天的此比例</span>
+            </div>
+            <div class="param-item">
+              <label>最大变异系数 CV</label>
+              <el-input-number v-model="filterParams.cvMax" :min="0" :max="10" :step="0.1" size="small" controls-position="right" />
+              <span class="param-desc">CV = 标准差÷均值，越小越稳定</span>
+            </div>
+            <div class="param-item">
+              <label>分段稳定性阈值</label>
+              <el-input-number v-model="filterParams.segmentRatio" :min="0" :max="1" :step="0.05" size="small" controls-position="right" />
+              <span class="param-desc">每段平均成交额 ≥ 全期均值的此比例</span>
+            </div>
+          </div>
+          <div class="params-actions">
+            <el-button size="small" @click="resetParams">恢复默认</el-button>
+            <el-button type="primary" size="small" :loading="loading" @click="fetchData">应用筛选</el-button>
+          </div>
+        </el-collapse-item>
+      </el-collapse>
+
+      <el-alert
+        v-if="mode === 'stable' && message"
+        type="warning"
+        :closable="false"
+        show-icon
+        class="stable-alert"
+      >
+        {{ message }}
+      </el-alert>
+
       <el-table
+        ref="tableRef"
         v-loading="loading"
         :data="sortedData"
         stripe
-        highlight-current-row
+        row-key="symbol"
         style="width: 100%"
         size="small"
         @sort-change="handleSortChange"
-        @row-click="(row) => handleSelect(row.symbol)"
-        :default-sort="{ prop: 'volume', order: 'descending' }"
+        @row-click="toggleRowSelection"
+        @selection-change="handleSelectionChange"
+        :default-sort="defaultSort"
+        :key="tableKey"
       >
+        <el-table-column type="selection" width="40" reserve-selection />
         <el-table-column type="index" label="#" width="50" />
 
         <el-table-column
           prop="symbol"
           label="交易对"
-          min-width="160"
+          min-width="150"
         >
           <template #default="{ row }">
             <div class="symbol-cell">
@@ -48,29 +117,79 @@
                 class="crypto-icon-placeholder"
                 :style="{ backgroundColor: getRandomColor(getSymbolDisplay(row.symbol)) }"
               >{{ getSymbolDisplay(row.symbol).substring(0, 1).toUpperCase() }}</span>
-              <el-link type="primary" :underline="false" style="cursor: pointer;" @click="handleSelect(row.symbol)">
+              <el-link type="primary" :underline="false" style="cursor: pointer;" @click.stop="toggleRowSelection(row)">
                 {{ row.symbol.replace('USDT', '/USDT') }}
               </el-link>
+              <el-tag v-if="row.contractType === 'TRADIFI_PERPETUAL'" size="small" type="warning" effect="plain">T</el-tag>
             </div>
           </template>
         </el-table-column>
 
         <el-table-column
           prop="volume"
-          label="成交额 (USDT)"
+          label="24h成交额"
           sortable="custom"
-          min-width="140"
+          min-width="120"
         >
           <template #default="{ row }">
             {{ formatVolume(row.volume) }}
           </template>
         </el-table-column>
 
+        <!-- 持续放量模式附加列 -->
+        <template v-if="mode === 'stable'">
+          <el-table-column
+            prop="avgDailyVolume"
+            label="日均成交额"
+            sortable="custom"
+            min-width="120"
+          >
+            <template #default="{ row }">
+              {{ formatVolume(row.avgDailyVolume) }}
+            </template>
+          </el-table-column>
+
+          <el-table-column
+            prop="volumeCv"
+            label="稳定性CV"
+            sortable="custom"
+            min-width="100"
+          >
+            <template #default="{ row }">
+              <span :class="cvClass(row.volumeCv)">
+                {{ row.volumeCv !== undefined ? row.volumeCv.toFixed(2) : '--' }}
+              </span>
+            </template>
+          </el-table-column>
+
+          <el-table-column
+            prop="minMaxRatio"
+            label="最低/最高"
+            sortable="custom"
+            min-width="100"
+          >
+            <template #default="{ row }">
+              {{ row.minMaxRatio !== undefined ? (row.minMaxRatio * 100).toFixed(0) + '%' : '--' }}
+            </template>
+          </el-table-column>
+
+          <el-table-column
+            prop="activeDays"
+            label="活跃天数"
+            sortable="custom"
+            min-width="90"
+          >
+            <template #default="{ row }">
+              {{ row.activeDays || '--' }}
+            </template>
+          </el-table-column>
+        </template>
+
         <el-table-column
           prop="price"
           label="价格 (USDT)"
           sortable="custom"
-          min-width="130"
+          min-width="110"
         >
           <template #default="{ row }">
             {{ formatPrice(row.price) }}
@@ -81,7 +200,7 @@
           prop="priceChangePercent"
           label="24h涨跌幅"
           sortable="custom"
-          min-width="110"
+          min-width="100"
         >
           <template #default="{ row }">
             <span :class="percentClass(row.priceChangePercent)">
@@ -94,7 +213,7 @@
           prop="fundingRate"
           label="资金费率"
           sortable="custom"
-          min-width="100"
+          min-width="90"
         >
           <template #default="{ row }">
             <span :class="fundingClass(row.fundingRate)">
@@ -103,12 +222,26 @@
           </template>
         </el-table-column>
       </el-table>
+
+      <!-- 多选操作栏 -->
+      <div class="selection-actions">
+        <span class="selection-count">已选 {{ selectedRows.length }} 个</span>
+        <div class="selection-buttons">
+          <el-button size="small" @click="selectAll">全选</el-button>
+          <el-button size="small" :disabled="selectedRows.length === 0" @click="clearSelection">清空</el-button>
+          <el-button type="primary" size="small" :disabled="selectedRows.length === 0" @click="confirmSelect">
+            添加选中 ({{ selectedRows.length }})
+          </el-button>
+        </div>
+      </div>
     </div>
   </el-dialog>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
+
+type Mode = 'hot' | 'stable'
 
 interface TopSymbol {
   symbol: string
@@ -118,6 +251,35 @@ interface TopSymbol {
   fundingRate: number
   klineCount4h: number
   onboardDate: number
+  // 持续放量模式附加字段
+  avgDailyVolume?: number
+  volumeCv?: number
+  minMaxRatio?: number
+  activeDays?: string
+  contractType?: string
+  score?: number
+}
+
+/** 持续放量筛选参数 */
+interface FilterParams {
+  days: number
+  pool: number
+  top: number
+  minDaily: number
+  minRatio: number
+  cvMax: number
+  segmentRatio: number
+}
+
+/** 与服务端 FILTER_DEFAULTS 保持一致的默认值 */
+const DEFAULT_FILTER_PARAMS: FilterParams = {
+  days: 12,
+  pool: 200,
+  top: 30,
+  minDaily: 50_000_000,
+  minRatio: 0.02,
+  cvMax: 1.0,
+  segmentRatio: 0.2,
 }
 
 interface Props {
@@ -126,7 +288,7 @@ interface Props {
 
 interface Emits {
   (e: 'update:modelValue', value: boolean): void
-  (e: 'select', symbol: string): void
+  (e: 'select', symbols: string[]): void
 }
 
 const props = defineProps<Props>()
@@ -139,11 +301,48 @@ const visible = computed({
 
 const loading = ref(false)
 const data = ref<TopSymbol[]>([])
+const mode = ref<Mode>('hot')
+const message = ref('')
 const sortProp = ref('volume')
 const sortOrder = ref<'ascending' | 'descending'>('descending')
 const windowWidth = ref(typeof window !== 'undefined' ? window.innerWidth : 1200)
+const tableRef = ref()
+const selectedRows = ref<TopSymbol[]>([])
+
+// 筛选参数副本（默认值）
+const filterParams = ref<FilterParams>({ ...DEFAULT_FILTER_PARAMS })
+
+// minDaily 以"万 USDT"为单位便于输入
+const minDailyWan = computed({
+  get: () => Math.round(filterParams.value.minDaily / 10000),
+  set: (val: number) => { filterParams.value.minDaily = Number(val) * 10000 }
+})
 
 const isMobile = computed(() => windowWidth.value < 768)
+
+const dialogTitle = computed(() =>
+  mode.value === 'stable' ? '📈 持续放量交易对 Top' + filterParams.value.top : '🔥 热门交易对 Top 30'
+)
+
+const defaultSort = computed<{ prop: string; order: 'ascending' | 'descending' }>(() =>
+  mode.value === 'stable'
+    ? { prop: 'avgDailyVolume', order: 'descending' }
+    : { prop: 'volume', order: 'descending' }
+)
+
+// 表格 key：模式切换时强制重渲染以重置默认排序
+const tableKey = computed(() => `${mode.value}-${sortProp.value}-${sortOrder.value}`)
+
+const handleModeChange = () => {
+  message.value = ''
+  sortProp.value = 'volume'
+  sortOrder.value = 'descending'
+  fetchData()
+}
+
+const resetParams = () => {
+  filterParams.value = { ...DEFAULT_FILTER_PARAMS }
+}
 
 const handleResize = () => {
   if (typeof window !== 'undefined') {
@@ -159,17 +358,22 @@ if (typeof window !== 'undefined') {
 const sortedData = computed(() => {
   const arr = [...data.value]
   arr.sort((a, b) => {
-    const aVal = a[sortProp.value as keyof TopSymbol] as number
-    const bVal = b[sortProp.value as keyof TopSymbol] as number
+    let aVal = a[sortProp.value as keyof TopSymbol] as number
+    let bVal = b[sortProp.value as keyof TopSymbol] as number
+    // activeDays 为字符串 "12/12"，排序时取分子
+    if (sortProp.value === 'activeDays') {
+      aVal = Number(String((a as any).activeDays || '0').split('/')[0])
+      bVal = Number(String((b as any).activeDays || '0').split('/')[0])
+    }
     return sortOrder.value === 'descending' ? bVal - aVal : aVal - bVal
   })
   return arr
 })
 
-const handleSortChange = (data: { prop: string | null; order: 'ascending' | 'descending' | null }) => {
-  if (data.prop && data.order) {
-    sortProp.value = data.prop
-    sortOrder.value = data.order
+const handleSortChange = (sortData: { prop: string | null; order: 'ascending' | 'descending' | null }) => {
+  if (sortData.prop && sortData.order) {
+    sortProp.value = sortData.prop
+    sortOrder.value = sortData.order
   }
 }
 
@@ -184,21 +388,73 @@ function onIconError(symbol: string) {
 // 获取数据
 const fetchData = async () => {
   loading.value = true
+  message.value = ''
   try {
-    const res = await $fetch<{ success: boolean; data: TopSymbol[] }>('/api/binance/top-symbols')
+    const query = mode.value === 'stable'
+      ? {
+          mode: 'stable',
+          days: filterParams.value.days,
+          pool: filterParams.value.pool,
+          top: filterParams.value.top,
+          minDaily: filterParams.value.minDaily,
+          minRatio: filterParams.value.minRatio,
+          cvMax: filterParams.value.cvMax,
+          segmentRatio: filterParams.value.segmentRatio,
+        }
+      : {}
+    const res = await $fetch<{
+      success: boolean
+      mode?: string
+      message?: string
+      data: TopSymbol[]
+    }>('/api/binance/top-symbols', { query })
     if (res.success) {
       data.value = res.data
+      if (res.mode === 'hot-fallback') {
+        message.value = res.message || '持续放量筛选失败，已降级为 24h 热门'
+      }
+      // 切换回默认排序基准列
+      sortProp.value = mode.value === 'stable' ? 'avgDailyVolume' : 'volume'
+      sortOrder.value = 'descending'
+      clearSelection()
     }
   } catch (err: any) {
     console.error('获取热门交易对失败:', err)
+    message.value = `获取数据失败: ${err?.message || '未知错误'}`
   } finally {
     loading.value = false
   }
 }
 
-// 选择交易对
-const handleSelect = (symbol: string) => {
-  emit('select', symbol)
+// ==================== 多选逻辑 ====================
+
+/** 表格勾选变化时同步选中行 */
+const handleSelectionChange = (rows: TopSymbol[]) => {
+  selectedRows.value = rows
+}
+
+/** 切换单行选中状态（点击行或交易对名称） */
+const toggleRowSelection = (row: any) => {
+  tableRef.value?.toggleRowSelection(row, undefined)
+}
+
+/** 全部选择：勾选当前列表所有交易对 */
+const selectAll = () => {
+  sortedData.value.forEach(row => {
+    tableRef.value?.toggleRowSelection(row, true)
+  })
+}
+
+/** 清空所有勾选 */
+const clearSelection = () => {
+  tableRef.value?.clearSelection()
+}
+
+/** 确认选择：一次性把勾选的多个交易对发给父组件并关闭 */
+const confirmSelect = () => {
+  if (selectedRows.value.length === 0) return
+  emit('select', selectedRows.value.map(r => r.symbol))
+  clearSelection()
   visible.value = false
 }
 
@@ -212,7 +468,6 @@ function getSymbolDisplay(symbol: string): string {
   return symbol.replace('USDT', '')
 }
 
-
 // 为币种生成稳定的随机颜色
 function getRandomColor(symbol: string) {
   let hash = 0
@@ -224,8 +479,9 @@ function getRandomColor(symbol: string) {
   return `#${color}`
 }
 
-// 格式化
+// 格式化（B/M/K 单位）
 const formatVolume = (val: number): string => {
+  if (val == null || isNaN(val)) return '--'
   if (val >= 1e9) return (val / 1e9).toFixed(2) + 'B'
   if (val >= 1e6) return (val / 1e6).toFixed(2) + 'M'
   if (val >= 1e3) return (val / 1e3).toFixed(2) + 'K'
@@ -263,6 +519,14 @@ const fundingClass = (val: number): string => {
   return val >= 0 ? 'color-up' : 'color-down'
 }
 
+/** 稳定性 CV 颜色分级：< 0.3 稳定绿，0.3~0.6 一般橙，> 0.6 波动大红 */
+const cvClass = (val: number | undefined): string => {
+  if (val === undefined) return ''
+  if (val < 0.3) return 'color-up'
+  if (val <= 0.6) return 'color-warn'
+  return 'color-down'
+}
+
 // 监听对话框打开时刷新数据
 watch(visible, (newVal) => {
   if (newVal) {
@@ -273,7 +537,7 @@ watch(visible, (newVal) => {
 
 <style scoped>
 .top-symbols-container {
-  max-height: 38vh;
+  max-height: 60vh;
   overflow-y: auto;
 }
 
@@ -287,6 +551,68 @@ watch(visible, (newVal) => {
 .toolbar-hint {
   font-size: 12px;
   color: #909399;
+  margin-bottom: 8px;
+}
+
+.stable-params {
+  margin-bottom: 10px;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 6px;
+}
+
+.params-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 10px;
+  padding: 4px 8px;
+}
+
+.param-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.param-item label {
+  font-size: 12px;
+  color: #606266;
+  font-weight: 500;
+}
+
+.param-desc {
+  font-size: 11px;
+  color: #909399;
+}
+
+.params-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 8px;
+}
+
+.stable-alert {
+  margin-bottom: 10px;
+}
+
+.selection-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 10px;
+  padding: 8px 12px;
+  background: var(--el-fill-color-light);
+  border-radius: 6px;
+}
+
+.selection-count {
+  font-size: 13px;
+  color: #606266;
+}
+
+.selection-buttons {
+  display: flex;
+  gap: 8px;
 }
 
 .color-up {
@@ -297,10 +623,18 @@ watch(visible, (newVal) => {
   color: var(--el-color-danger);
 }
 
+.color-warn {
+  color: var(--el-color-warning);
+}
+
 .symbol-cell {
   display: flex;
   align-items: center;
   gap: 6px;
+}
+
+.symbol-cell .el-tag {
+  margin-left: 2px;
 }
 
 .crypto-icon {
@@ -325,10 +659,24 @@ watch(visible, (newVal) => {
   line-height: 1;
 }
 
-
 @media (max-width: 768px) {
   .top-symbols-container {
-    max-height: 80vh;
+    max-height: 82vh;
+  }
+  .top-symbols-toolbar {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .params-grid {
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  }
+  .selection-actions {
+    flex-direction: column;
+    gap: 8px;
+    align-items: stretch;
+  }
+  .selection-buttons {
+    justify-content: flex-end;
   }
 }
 </style>
