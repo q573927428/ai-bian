@@ -159,7 +159,25 @@ export class StrategyEngine {
   }
 
   delayInitialScans(delayMs: number): void {
-    this.initialScanNotBefore = Math.max(this.initialScanNotBefore, Date.now() + Math.max(0, Number(delayMs || 0)))
+    const targetTime = Date.now() + Math.max(0, Number(delayMs || 0))
+    this.initialScanNotBefore = Math.max(this.initialScanNotBefore, targetTime)
+
+    // 策略可能已在第一次延迟配置下创建；此时必须同步更新实例，否则旧的
+    // nextScanTime 会让全局循环绕过新的启动保护窗口。
+    for (const instance of this.runningStrategies.values()) {
+      if (instance.isRunning) {
+        instance.nextScanTime = Math.max(instance.nextScanTime || 0, this.initialScanNotBefore)
+      }
+    }
+
+    // 首次循环定时器可能已经按旧时间触发，补一次新的调度确保延迟窗口结束后
+    // 能立即开始扫描，而不必等待完整的全局扫描间隔。
+    if (this.runningStrategies.size > 0) {
+      const waitMs = Math.max(200, this.initialScanNotBefore - Date.now())
+      setTimeout(() => {
+        void this.globalStrategyLoop()
+      }, waitMs)
+    }
   }
 
   /**
