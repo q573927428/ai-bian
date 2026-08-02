@@ -547,7 +547,10 @@ export class IndicatorsHub {
       const trendThresholdPercent = Math.max(0.001, Number(options?.trendThresholdPercent ?? 0.05))
       const defaultLookbackMinutes = this.timeframeToMinutes(timeframe)
       const lookbackMinutes = Math.max(1, Math.floor(options?.lookbackMinutes ?? defaultLookbackMinutes))
-      const limitCandles = Math.max(2, Math.ceil(lookbackMinutes / this.timeframeToMinutes(timeframe)))
+      // 实际回看K线数：表示对比"多少根之前"的 OI（changePeriod=1 时即上一根已收盘K线）
+      const effectiveLookbackCandles = Math.max(1, Math.ceil(lookbackMinutes / this.timeframeToMinutes(timeframe)))
+      // 拉取K线数：保证至少 2 根，确保有足够历史数据做对比
+      const limitCandles = Math.max(2, effectiveLookbackCandles)
 
       let changePercent = 0
       let trend: 'increasing' | 'decreasing' | 'flat' = 'flat'
@@ -556,7 +559,11 @@ export class IndicatorsHub {
       const oiHistory = await this.getCachedOIHistory(symbol, timeframe, limitCandles)
 
       if (oiHistory && oiHistory.length >= 2) {
-        const oldestOI = oiHistory[0]?.openInterest ?? 0
+        // 基准取"倒数第 effectiveLookbackCandles 根已收盘K线"的 OI：
+        // oiHistory 为升序，最后一个元素是最近已收盘K线，
+        // changePeriod=1 时取最后一位（上一根），而非被 Math.max(2) 钳制后的最旧值
+        const baseIndex = Math.max(0, oiHistory.length - effectiveLookbackCandles)
+        const oldestOI = oiHistory[baseIndex]?.openInterest ?? 0
         // 使用 fetchOpenInterest 缓存的最新 OI 值作为 newestOI
         const newestOI = oi.value
 
