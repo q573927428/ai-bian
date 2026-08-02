@@ -43,13 +43,13 @@ export function isPositionTimeout(
 ): boolean {
   if (!position.openTime) return false
 
-  const holdTimeMs = Date.now() - position.openTime
-  const holdTimeMinutes = holdTimeMs / (1000 * 60)
-
   // 仅当ADX走弱时才检查超时
   if (!isADXDecreasing) {
     return false
   }
+
+  const holdTimeMs = Date.now() - position.openTime
+  const holdTimeMinutes = holdTimeMs / (1000 * 60)
 
   return holdTimeMinutes >= timeoutMinutes
 }
