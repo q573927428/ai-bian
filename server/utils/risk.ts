@@ -49,6 +49,7 @@ export function isPositionTimeout(
   }
 
   const holdTimeMs = Date.now() - position.openTime
+  if (holdTimeMs < 0) return false
   const holdTimeMinutes = holdTimeMs / (1000 * 60)
 
   return holdTimeMinutes >= timeoutMinutes
