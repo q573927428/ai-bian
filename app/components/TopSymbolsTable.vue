@@ -274,7 +274,7 @@ interface FilterParams {
 /** 与服务端 FILTER_DEFAULTS 保持一致的默认值 */
 const DEFAULT_FILTER_PARAMS: FilterParams = {
   days: 12,
-  pool: 200,
+  pool: 100,
   top: 30,
   minDaily: 50_000_000,
   minRatio: 0.02,
