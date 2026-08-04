@@ -26,7 +26,7 @@
     </el-timeline>
 
     <!-- 配置快照对话框 -->
-    <el-dialog v-model="showSnapshotDialog" title="策略配置快照" width="70%" append-to-body>
+    <el-dialog v-model="showSnapshotDialog" title="策略配置快照" width="70%" draggable append-to-body>
       <pre class="snapshot-content">{{ JSON.stringify(snapshot, null, 2) }}</pre>
     </el-dialog>
 
@@ -37,6 +37,7 @@
       width="400px"
       append-to-body
       :close-on-click-modal="false"
+      draggable
     >
       <div style="text-align: center; padding: 20px 0;">
         <p>确定要回滚到版本 v{{ confirmRollbackVersion }} 吗？</p>

@@ -30,6 +30,7 @@ import { ref, onMounted, onUnmounted, watch, nextTick, computed } from 'vue'
 import { createChart, ColorType, CandlestickSeries, HistogramSeries, LineSeries, createSeriesMarkers } from 'lightweight-charts'
 import type { SimpleKLineData } from '../../../types/kline-simple'
 import type { TradeHistory } from '../../../types'
+import type { StrategyScanResult } from '../../../types/scan-result'
 import type { SeriesMarkerShape } from 'lightweight-charts'
 import { 
   calculateEMASeries, 
@@ -51,6 +52,7 @@ import { useBotStore } from '../../stores/bot'
 interface Props {
   klineData: SimpleKLineData[]
   tradeHistory?: TradeHistory[]
+  scanResults?: StrategyScanResult[]
   theme?: 'light' | 'dark'
   symbol?: string
   timeframe?: string  // 如果提供，则使用提供的timeframe；否则根据策略模式自动选择
@@ -58,6 +60,7 @@ interface Props {
   error?: string
   showEmaMarkers?: boolean
   showOrderMarkers?: boolean
+  showScanMarkers?: boolean
   showEmaLines?: boolean
   emaPeriods?: number[]
   height?: number
@@ -66,6 +69,7 @@ interface Props {
 const props = withDefaults(defineProps<Props>(), {
   klineData: () => [],
   tradeHistory: () => [],
+  scanResults: () => [],
   theme: 'light',
   symbol: 'BTCUSDT',
   timeframe: '',  // 默认为空，根据策略模式自动选择
@@ -73,6 +77,7 @@ const props = withDefaults(defineProps<Props>(), {
   error: '',
   showEmaMarkers: false,
   showOrderMarkers: false,
+  showScanMarkers: false,
   showEmaLines: true,
   emaPeriods: () => [20, 200],
   height: 500
@@ -235,6 +240,7 @@ const emit = defineEmits<{
     adx?: number | null
   }, time: string]
   'order-click': [orders: TradeHistory[], klineTime: number]
+  'scan-click': [results: StrategyScanResult[], klineTime: number]
   'retry': []
 }>()
 
@@ -290,6 +296,19 @@ const generateMarkers = () => {
   if (!props.tradeHistory || props.tradeHistory.length === 0) {
     return []
   }
+
+  const firstKlineTime = props.klineData[0]?.t
+  const lastKlineTime = props.klineData[props.klineData.length - 1]?.t
+  if (firstKlineTime === undefined || lastKlineTime === undefined) {
+    return []
+  }
+
+  /**
+   * 图表库会把数据范围外的标记夹到首尾 K 线上，因此必须在聚合前过滤。
+   */
+  const isWithinLoadedKlineRange = (klineTime: number) => {
+    return klineTime >= firstKlineTime && klineTime <= lastKlineTime
+  }
   
   // 按 K线时间 聚合每种类型的数量（同一类型同一时间合并）
   // key: `${klineTime}|${type}`, value: 数量
@@ -300,13 +319,15 @@ const generateMarkers = () => {
     const openTime = alignToKlineTime(order.openTime, currentTimeframe)
     const closeTime = alignToKlineTime(order.closeTime, currentTimeframe)
     
-    // 开仓
-    const openType: OrderType = order.direction === 'LONG' ? '开多' : '开空'
-    const openKey = `${openTime}|${openType}`
-    countMap.set(openKey, (countMap.get(openKey) || 0) + 1)
+    // 开仓和平仓独立过滤：订单可能在图表范围前开仓，但在当前范围内平仓。
+    if (isWithinLoadedKlineRange(openTime)) {
+      const openType: OrderType = order.direction === 'LONG' ? '开多' : '开空'
+      const openKey = `${openTime}|${openType}`
+      countMap.set(openKey, (countMap.get(openKey) || 0) + 1)
+    }
     
     // 平仓（不与开仓在同一K线时单独记录）
-    if (closeTime !== openTime) {
+    if (closeTime !== openTime && isWithinLoadedKlineRange(closeTime)) {
       const closeType: OrderType = order.direction === 'LONG' ? '平多' : '平空'
       const closeKey = `${closeTime}|${closeType}`
       countMap.set(closeKey, (countMap.get(closeKey) || 0) + 1)
@@ -373,6 +394,37 @@ const generateMarkers = () => {
   
   // 按时间升序排序（lightweight-charts 5.x 要求）
   return markers.sort((a, b) => a.time - b.time)
+}
+
+/**
+ * 将同一根 K 线内的多条扫描日志聚合为一个标记，避免高频扫描遮住蜡烛图。
+ */
+const generateScanMarkers = () => {
+  if (!props.showScanMarkers || !props.scanResults?.length) return []
+
+  const resultsByKline = new Map<number, StrategyScanResult[]>()
+  for (const result of props.scanResults) {
+    const results = resultsByKline.get(result.klineTime) || []
+    results.push(result)
+    resultsByKline.set(result.klineTime, results)
+  }
+
+  return Array.from(resultsByKline.entries()).map(([time, results]) => {
+    // 小圆点保留每根 K 线的可点击入口，同时用颜色表达扫描阶段，避免文字遮挡行情。
+    const color = results.some(result => result.level === 'SUCCESS')
+      ? '#2f9e69'
+      : results.some(result => !result.skipped)
+        ? '#d79b28'
+        : '#8b929c'
+
+    return {
+      time,
+      position: 'aboveBar' as const,
+      color,
+      shape: 'circle' as SeriesMarkerShape,
+      text: ''
+    }
+  })
 }
 
 // 生成EMA交叉标记数据
@@ -449,25 +501,9 @@ let lastMarkersHash = ''
 let updateMarkersTimeout: NodeJS.Timeout | null = null
 
 // 计算标记数据的哈希值，用于比较是否发生变化
-const calculateMarkersHash = (orderMarkers: any[], emaCrossoverMarkers: any[]): string => {
-  const orderCount = orderMarkers.length
-  const emaCount = emaCrossoverMarkers.length
-  
-  // 如果标记数量为0，使用特殊哈希
-  if (orderCount === 0 && emaCount === 0) return 'empty'
-  
-  // 简单哈希：使用标记数量和第一个标记的时间（如果有）
-  let hash = `${orderCount}-${emaCount}`
-  
-  if (orderCount > 0 && orderMarkers[0]) {
-    hash += `-o${orderMarkers[0].time}`
-  }
-  
-  if (emaCount > 0 && emaCrossoverMarkers[0]) {
-    hash += `-e${emaCrossoverMarkers[0].time}`
-  }
-  
-  return hash
+const calculateMarkersHash = (markers: any[]): string => {
+  if (markers.length === 0) return 'empty'
+  return markers.map(marker => `${marker.time}:${marker.position}:${marker.shape}:${marker.color}:${marker.text}`).join('|')
 }
 
 // 更新图表标记（带防抖和缓存）
@@ -486,9 +522,14 @@ const updateMarkers = (immediate = false) => {
       // 获取订单标记和EMA交叉标记
       const orderMarkers = generateMarkers()
       const emaCrossoverMarkers = generateEMACrossoverMarkers()
+      const scanMarkers = generateScanMarkers()
+
+      // lightweight-charts 要求标记按时间升序排列。
+      const sortedMarkers = [...orderMarkers, ...emaCrossoverMarkers, ...scanMarkers]
+        .sort((a, b) => a.time - b.time)
       
       // 计算当前标记的哈希值
-      const currentHash = calculateMarkersHash(orderMarkers, emaCrossoverMarkers)
+      const currentHash = calculateMarkersHash(sortedMarkers)
       
       // 如果标记没有变化，跳过更新
       if (currentHash === lastMarkersHash) {
@@ -499,12 +540,6 @@ const updateMarkers = (immediate = false) => {
       // 更新缓存
       lastMarkersHash = currentHash
       
-      // 合并所有标记
-      const allMarkers = [...orderMarkers, ...emaCrossoverMarkers]
-      
-      // 按时间升序排序（lightweight-charts 5.x 要求）
-      const sortedMarkers = allMarkers.sort((a, b) => a.time - b.time)
-      
       // 如果已经有markersApi，使用setMarkers更新
       if (markersApi) {
         markersApi.setMarkers(sortedMarkers)
@@ -513,7 +548,7 @@ const updateMarkers = (immediate = false) => {
         markersApi = createSeriesMarkers(candlestickSeries, sortedMarkers)
       }
       
-      console.log(`📊 更新图表标记：订单标记${orderMarkers.length}个，EMA交叉标记${emaCrossoverMarkers.length}个`)
+      console.log(`📊 更新图表标记：订单${orderMarkers.length}个，EMA交叉${emaCrossoverMarkers.length}个，扫描${scanMarkers.length}个`)
       
     } catch (error) {
       console.warn('更新图表标记失败:', error)
@@ -539,6 +574,7 @@ const clearMarkers = () => {
     } else {
       createSeriesMarkers(candlestickSeries, [])
     }
+    lastMarkersHash = ''
   } catch (error) {
     console.warn('清理订单标记失败:', error)
   }
@@ -559,6 +595,14 @@ const findOrdersByKlineTime = (clickedKlineTime: number, timeframe: string): Tra
     const closeTime = alignToKlineTime(order.closeTime, timeframe)
     return openTime === clickedKlineTime || closeTime === clickedKlineTime
   })
+}
+
+/**
+ * 查找点击 K 线中发生的全部扫描，保留同一周期内的多次结果。
+ */
+const findScansByKlineTime = (clickedKlineTime: number): StrategyScanResult[] => {
+  if (!props.scanResults?.length) return []
+  return props.scanResults.filter(result => result.klineTime === clickedKlineTime)
 }
 
 // 获取时间段的秒数
@@ -673,11 +717,21 @@ const initChart = () => {
     const currentTimeframe = props.timeframe || computedTimeframe.value
     const clickedKlineTime = param.time as number
     
+    const matchedScans = props.showScanMarkers ? findScansByKlineTime(clickedKlineTime) : []
+
+    // 扫描详情是模态弹窗；同一 K 线也有订单时优先显示扫描，避免两个详情层重叠。
+    if (matchedScans.length > 0) {
+      emit('order-click', [], clickedKlineTime)
+      emit('scan-click', matchedScans, clickedKlineTime)
+      return
+    }
+
     // 查找该K线时间对应的所有订单（无订单时返回空数组）
     const matchedOrders = props.tradeHistory && props.tradeHistory.length > 0
       ? findOrdersByKlineTime(clickedKlineTime, currentTimeframe)
       : []
     emit('order-click', matchedOrders, clickedKlineTime)
+    emit('scan-click', [], clickedKlineTime)
   })
   
   // 更新图表数据
@@ -1028,8 +1082,10 @@ watch(() => chartHeight.value, (height) => {
 // 监听标记相关数据变化（合并监听器，减少触发次数）
 watch(() => ({
   tradeHistory: props.tradeHistory,
+  scanResults: props.scanResults,
   showEmaMarkers: props.showEmaMarkers,
   showOrderMarkers: props.showOrderMarkers,
+  showScanMarkers: props.showScanMarkers,
   showEmaLines: props.showEmaLines
 }), (newVal, oldVal) => {
   // 只有EMA线开关变化时动态添加/移除EMA系列，不重新初始化整个图表

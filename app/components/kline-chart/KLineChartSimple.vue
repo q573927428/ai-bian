@@ -10,6 +10,12 @@
         :show-ema-markers="showEMAMarkers"
         :show-order-markers="showOrderMarkers"
         :show-ema-lines="showEMALines"
+        :show-scan-markers="showScanMarkers"
+        :scan-loading="scanLoading"
+        :scan-supported="scanSupported"
+        :scan-count="scanResults.length"
+        :scan-time-range="scanTimeRange"
+        :scan-range-bounds="scanRangeBounds"
         :ema-periods="selectedEmaPeriods"
         :active-engine="activeEngine"
         @timeframe-change="selectTimeframe"
@@ -19,6 +25,8 @@
         @ema-markers-change="handleEMAMarkersChange"
         @order-markers-change="handleOrderMarkersChange"
         @ema-lines-change="handleEMALinesChange"
+        @scan-markers-change="handleScanMarkersChange"
+        @scan-range-change="handleScanRangeChange"
         @ema-periods-change="handleEmaPeriodsChange"
         @switch-engine="(engine: any) => $emit('switch-engine', engine)"
       />
@@ -30,6 +38,7 @@
         ref="chartCanvasRef"
         :kline-data="klineData"
         :trade-history="tradeHistory"
+        :scan-results="scanResults"
         :theme="theme"
         :symbol="displaySymbol"
         :timeframe="selectedTimeframe"
@@ -37,12 +46,22 @@
         :error="error"
         :show-ema-markers="showEMAMarkers"
         :show-order-markers="showOrderMarkers"
+        :show-scan-markers="showScanMarkers"
         :show-ema-lines="showEMALines"
         :ema-periods="selectedEmaPeriods"
         :height="chartHeight"
         @tooltip-update="handleTooltipUpdate"
         @order-click="handleOrderClick"
+        @scan-click="handleScanClick"
         @retry="loadKLineData"
+      />
+
+      <KLineScanResultDialog
+        v-model="scanDialogVisible"
+        :symbol="displaySymbol"
+        :timeframe="selectedTimeframe"
+        :kline-time="scanDialogKlineTime"
+        :results="scanDialogResults"
       />
 
       <!-- K线数据浮动面板 -->
@@ -83,12 +102,14 @@
 import { ref, onMounted, onUnmounted, watch, computed, onBeforeUnmount } from 'vue'
 import type { SimpleKLineData, KLineApiResponse } from '../../../types/kline-simple'
 import type { TradeHistory } from '../../../types'
+import type { ScanResultApiResponse, StrategyScanResult } from '../../../types/scan-result'
 
 // 导入子组件
 import KLineChartControls from './KLineChartControls.vue'
 import KLineChartCanvas from './KLineChartCanvas.vue'
 import KLineTooltip from './KLineTooltip.vue'
 import KLineChartInfo from './KLineChartInfo.vue'
+import KLineScanResultDialog from './KLineScanResultDialog.vue'
 
 // 导入bot store
 import { useBotStore } from '../../stores/bot'
@@ -174,6 +195,22 @@ const chartMarkerConfig = computed(() => botStore.config?.chartMarkerConfig || {
 const showEMAMarkers = ref(chartMarkerConfig.value.showEMAMarkers ?? false)
 const showOrderMarkers = ref(chartMarkerConfig.value.showOrderMarkers ?? false)
 const showEMALines = ref(chartMarkerConfig.value.showEMALines ?? true)
+const showScanMarkers = ref(false)
+const scanLoading = ref(false)
+const scanResults = ref<StrategyScanResult[]>([])
+const scanTimeRange = ref<[number, number] | null>(null)
+const scanSupported = computed(() => ['5m', '15m', '1h', '4h'].includes(selectedTimeframe.value))
+const scanRangeBounds = computed<[number, number] | null>(() => {
+  const firstKline = klineData.value[0]
+  const lastKline = klineData.value[klineData.value.length - 1]
+  if (!firstKline || !lastKline) return null
+
+  return [
+    firstKline.t * 1000,
+    (lastKline.t + getTimeframeSeconds(selectedTimeframe.value)) * 1000 - 1
+  ]
+})
+let scanRequestGeneration = 0
 
 // EMA周期选择 - 从botStore.config获取，如果未加载完成则使用默认值
 const selectedEmaPeriods = ref<number[]>(botStore.config?.emaPeriods?.length ? [...botStore.config.emaPeriods] : [20, 200])
@@ -262,6 +299,9 @@ const selectTimeframe = (timeframe: string) => {
   // 清空当前K线数据，避免显示旧周期的数据
   klineData.value = []
   tradeHistory.value = []
+  scanResults.value = []
+  scanDialogVisible.value = false
+  scanRequestGeneration++
   hideTooltip()
   
   // 清理图表上的订单标记
@@ -333,6 +373,11 @@ const loadKLineData = async () => {
       
       // 加载历史订单数据（等待完成）
       await loadTradeHistory()
+
+      // 扫描结果是可选图层，仅在用户开启后随 K 线刷新。
+      if (showScanMarkers.value) {
+        void loadScanResults()
+      }
       
       // 显示最新K线数据
       showLatestKline()
@@ -409,6 +454,124 @@ const handleOrderMarkersChange = (show: boolean) => {
 // 处理EMA线开关变化
 const handleEMALinesChange = (show: boolean) => {
   showEMALines.value = show
+}
+
+/**
+ * 开启或关闭历史扫描图层；首次开启时按当前 K 线范围读取日志。
+ */
+const handleScanMarkersChange = (show: boolean) => {
+  if (show && !scanSupported.value) return
+
+  showScanMarkers.value = show
+  scanDialogVisible.value = false
+
+  if (show) {
+    void loadScanResults()
+  } else {
+    scanRequestGeneration++
+    scanResults.value = []
+  }
+}
+
+/**
+ * 更新自定义扫描时间范围；扫描图层开启时立即按新范围重新提取。
+ */
+const handleScanRangeChange = (range: [number, number] | null) => {
+  scanTimeRange.value = range
+  scanDialogVisible.value = false
+
+  if (showScanMarkers.value) {
+    void loadScanResults()
+  }
+}
+
+/**
+ * 根据当前交易对、周期和已加载 K 线区间获取历史扫描结果。
+ */
+const loadScanResults = async () => {
+  const firstKline = klineData.value[0]
+  const lastKline = klineData.value[klineData.value.length - 1]
+  if (!showScanMarkers.value || !scanSupported.value || !firstKline || !lastKline) return
+
+  const symbol = displaySymbol.value
+  const timeframe = selectedTimeframe.value
+  const loadedFrom = firstKline.t
+  const loadedTo = lastKline.t + getTimeframeSeconds(timeframe) - 1
+  const from = scanTimeRange.value
+    ? Math.max(loadedFrom, Math.floor(scanTimeRange.value[0] / 1000))
+    : loadedFrom
+  const to = scanTimeRange.value
+    ? Math.min(loadedTo, Math.floor(scanTimeRange.value[1] / 1000))
+    : loadedTo
+  const generation = ++scanRequestGeneration
+
+  if (from > to) {
+    scanResults.value = []
+    scanLoading.value = false
+    return
+  }
+
+  scanLoading.value = true
+
+  try {
+    const params = new URLSearchParams({
+      symbol,
+      timeframe,
+      from: String(from),
+      to: String(to)
+    })
+    const response = await fetch(`/api/scan-results?${params}`)
+    const result: ScanResultApiResponse = await response.json()
+
+    // 切换交易对、周期或关闭图层后，丢弃旧请求结果。
+    if (generation !== scanRequestGeneration || symbol !== displaySymbol.value || timeframe !== selectedTimeframe.value) return
+    if (!response.ok || !result.success || !result.data) {
+      throw new Error(result.message || '获取历史扫描结果失败')
+    }
+
+    scanResults.value = alignScanResultsToKlines(result.data.results)
+  } catch (err: any) {
+    if (generation !== scanRequestGeneration) return
+    console.error('加载历史扫描结果失败:', err)
+    scanResults.value = []
+  } finally {
+    if (generation === scanRequestGeneration) {
+      scanLoading.value = false
+    }
+  }
+}
+
+/**
+ * 使用图表实际 K 线时间重新对齐扫描结果。
+ *
+ * 后端按标准周期预分桶，前端仍以已加载的真实 K 线为准，避免数据缺口或
+ * 时间边界差异把扫描结果落到不存在或错误的蜡烛上。
+ */
+const alignScanResultsToKlines = (results: StrategyScanResult[]): StrategyScanResult[] => {
+  if (results.length === 0 || klineData.value.length === 0) return []
+
+  const timeframeSeconds = getTimeframeSeconds(selectedTimeframe.value)
+  const sortedResults = [...results].sort((a, b) => a.timestamp - b.timestamp)
+  const alignedResults: StrategyScanResult[] = []
+  let klineIndex = 0
+
+  for (const result of sortedResults) {
+    // 扫描时间单调递增时只向前移动索引，避免逐条全量查找。
+    while (klineIndex < klineData.value.length - 1 &&
+      (klineData.value[klineIndex + 1]?.t || Number.POSITIVE_INFINITY) <= result.timestamp) {
+      klineIndex++
+    }
+
+    const kline = klineData.value[klineIndex]
+    if (!kline || result.timestamp < kline.t || result.timestamp >= kline.t + timeframeSeconds) continue
+
+    alignedResults.push({
+      ...result,
+      klineTime: kline.t
+    })
+  }
+
+  return alignedResults
 }
 
 // 处理EMA周期变化
@@ -599,6 +762,27 @@ const handleOrderClick = (orders: TradeHistory[], klineTime: number) => {
   })
 }
 
+// ========== 扫描结果详情弹窗 ==========
+
+const scanDialogVisible = ref(false)
+const scanDialogResults = ref<StrategyScanResult[]>([])
+const scanDialogKlineTime = ref(0)
+
+/**
+ * 点击有扫描标记的 K 线时，展示该周期内的全部结果。
+ */
+const handleScanClick = (results: StrategyScanResult[], klineTime: number) => {
+  if (results.length === 0) {
+    scanDialogVisible.value = false
+    return
+  }
+
+  orderTooltipVisible.value = false
+  scanDialogResults.value = results
+  scanDialogKlineTime.value = klineTime
+  scanDialogVisible.value = true
+}
+
 // ========== 价格订阅（使用 botStore 共享价格）==========
 
 // 价格订阅者ID
@@ -710,6 +894,9 @@ const handleSymbolChange = async (newSymbol: string, oldSymbol: string) => {
     // 2. 立即清空当前显示的K线数据，避免显示旧数据
     klineData.value = []
     tradeHistory.value = []
+    scanResults.value = []
+    scanDialogVisible.value = false
+    scanRequestGeneration++
     hideTooltip()
     
     // 3. 清理图表上的订单标记
@@ -734,6 +921,9 @@ watch(() => props.symbol, (newSymbol, oldSymbol) => {
     requestGeneration++
     klineData.value = []
     tradeHistory.value = []
+    scanResults.value = []
+    scanDialogVisible.value = false
+    scanRequestGeneration++
     hideTooltip()
     if (chartCanvasRef.value) {
       chartCanvasRef.value.clearMarkers()

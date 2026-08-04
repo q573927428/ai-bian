@@ -6,6 +6,7 @@
     :fullscreen="isMobile"
     :close-on-click-modal="false"
     top="22vh"
+    draggable
   >
     <div class="top-symbols-container">
       <!-- 模式切换与工具栏 -->

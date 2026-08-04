@@ -461,7 +461,7 @@
         </div>
       </div>
 
-      <el-dialog v-model="generatedRulesDialogVisible" title="确认自动生成 DSL" width="720px">
+      <el-dialog v-model="generatedRulesDialogVisible" title="确认自动生成 DSL" draggable width="720px">
         <div class="form-tip" style="margin-bottom: 8px;">
           已根据 AI 交易逻辑提示词生成候选 DSL，请确认后应用并保存。
         </div>

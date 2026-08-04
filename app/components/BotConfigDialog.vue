@@ -15,6 +15,7 @@
       :fullscreen="isMobile"
       :close-on-click-modal="false"
       @closed="handleClosed"
+      draggable
     >
       <div v-loading="loading" class="config-container">
         <el-form v-if="form" :model="form" :label-width="isMobile ? '120px' : '130px'" label-position="left">

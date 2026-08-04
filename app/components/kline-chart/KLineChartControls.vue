@@ -77,6 +77,61 @@
     <div class="controls-right">
       <!-- 图表标记控制开关 -->
       <div class="marker-controls">
+        <el-tooltip
+          :content="scanSupported ? '显示当前周期的历史策略扫描结果' : '当前周期没有对应的扫描策略'"
+          placement="top"
+        >
+          <el-button
+            size="small"
+            :type="showScanMarkers ? 'warning' : 'default'"
+            :loading="scanLoading"
+            :disabled="!scanSupported"
+            class="scan-marker-btn"
+            @click="$emit('scan-markers-change', !showScanMarkers)"
+          >
+            <el-icon v-if="!scanLoading"><ElIconDataAnalysis /></el-icon>
+            <span>扫描<span v-if="showScanMarkers">({{ scanCount }})</span></span>
+          </el-button>
+        </el-tooltip>
+
+        <el-popover
+          v-model:visible="scanRangePopoverVisible"
+          placement="bottom-end"
+          :width="390"
+          trigger="click"
+        >
+          <template #reference>
+            <el-button
+              size="small"
+              :type="scanTimeRange ? 'primary' : 'default'"
+              :disabled="!scanSupported || !scanRangeBounds"
+              class="scan-range-btn"
+              title="设置扫描时间范围"
+            >
+              <el-icon><ElIconCalendar /></el-icon>
+            </el-button>
+          </template>
+
+          <div class="scan-range-panel">
+            <el-date-picker
+              v-model="scanDateRange"
+              type="datetimerange"
+              range-separator="至"
+              start-placeholder="开始时间"
+              end-placeholder="结束时间"
+              format="YYYY-MM-DD HH:mm"
+              value-format="x"
+              :disabled-date="disableScanRangeDate"
+              clearable
+              class="scan-range-picker"
+            />
+            <div class="scan-range-actions">
+              <el-button size="small" @click="resetScanTimeRange">重置</el-button>
+              <el-button size="small" type="primary" @click="applyScanTimeRange">应用</el-button>
+            </div>
+          </div>
+        </el-popover>
+
         <!-- <el-tooltip content="显示/隐藏EMA金叉死叉标记" placement="top">
           <el-switch
             v-model="showEMAMarkers"
@@ -160,6 +215,12 @@ interface Props {
   showEMAMarkers?: boolean
   showOrderMarkers?: boolean
   showEMALines?: boolean
+  showScanMarkers?: boolean
+  scanLoading?: boolean
+  scanSupported?: boolean
+  scanCount?: number
+  scanTimeRange?: [number, number] | null
+  scanRangeBounds?: [number, number] | null
   emaPeriods?: number[]
   activeEngine?: 'native' | 'tradingview'
 }
@@ -172,6 +233,12 @@ const props = withDefaults(defineProps<Props>(), {
   showEMAMarkers: false,
   showOrderMarkers: false,
   showEMALines: true,
+  showScanMarkers: false,
+  scanLoading: false,
+  scanSupported: true,
+  scanCount: 0,
+  scanTimeRange: null,
+  scanRangeBounds: null,
   emaPeriods: () => [20, 200],
   activeEngine: 'native'
 })
@@ -185,6 +252,8 @@ const emit = defineEmits<{
   'ema-markers-change': [show: boolean]
   'order-markers-change': [show: boolean]
   'ema-lines-change': [show: boolean]
+  'scan-markers-change': [show: boolean]
+  'scan-range-change': [range: [number, number] | null]
   'ema-periods-change': [periods: number[]]
   'switch-engine': [engine: 'native' | 'tradingview']
 }>()
@@ -198,6 +267,9 @@ const selectedEmaPeriods = ref<number[]>([...props.emaPeriods])
 const showEMAMarkers = ref(props.showEMAMarkers)
 const showOrderMarkers = ref(props.showOrderMarkers)
 const showEMALines = ref(props.showEMALines)
+const showScanMarkers = ref(props.showScanMarkers)
+const scanRangePopoverVisible = ref(false)
+const scanDateRange = ref<[number, number] | null>(props.scanTimeRange ? [...props.scanTimeRange] : null)
 
 // 计算显示的symbol
 const displaySymbol = computed(() => {
@@ -247,6 +319,36 @@ const handleEMALinesChange = (show: string | number | boolean) => {
   emit('ema-lines-change', Boolean(show))
 }
 
+/**
+ * 应用用户选择的扫描时间范围。
+ */
+const applyScanTimeRange = () => {
+  const range = scanDateRange.value
+    ? [Number(scanDateRange.value[0]), Number(scanDateRange.value[1])] as [number, number]
+    : null
+  emit('scan-range-change', range)
+  scanRangePopoverVisible.value = false
+}
+
+/**
+ * 恢复为当前已加载 K 线的完整时间范围。
+ */
+const resetScanTimeRange = () => {
+  scanDateRange.value = null
+  emit('scan-range-change', null)
+  scanRangePopoverVisible.value = false
+}
+
+/**
+ * 禁止选择当前 K 线数据覆盖范围以外的日期。
+ */
+const disableScanRangeDate = (date: Date) => {
+  if (!props.scanRangeBounds) return false
+  const dayStart = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime()
+  const dayEnd = dayStart + 24 * 60 * 60 * 1000 - 1
+  return dayEnd < props.scanRangeBounds[0] || dayStart > props.scanRangeBounds[1]
+}
+
 // 监听props.timeframe变化
 watch(() => props.timeframe, (newTimeframe) => {
   if (newTimeframe && newTimeframe !== selectedTimeframe.value) {
@@ -281,13 +383,26 @@ watch(() => props.showEMALines, (newValue) => {
     showEMALines.value = newValue
   }
 })
+
+// 扫描按钮状态由父组件统一管理，切换周期和请求失败时也能保持一致。
+watch(() => props.showScanMarkers, (newValue) => {
+  if (newValue !== undefined && newValue !== showScanMarkers.value) {
+    showScanMarkers.value = newValue
+  }
+})
+
+watch(() => props.scanTimeRange, (newRange) => {
+  scanDateRange.value = newRange ? [...newRange] : null
+}, { deep: true })
 </script>
 
 <style scoped>
 .chart-controls {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   align-items: center;
+  gap: 8px;
   padding: 12px 20px;
   border-bottom: 1px solid var(--border-color);
   transition: all 0.3s ease;
@@ -295,14 +410,18 @@ watch(() => props.showEMALines, (newValue) => {
 
 .controls-left {
   display: flex;
+  flex: 1 1 20px;
+  flex-wrap: wrap;
   align-items: center;
   gap: 12px;
 }
 
 .controls-right {
   display: flex;
+  flex: 0 1 auto;
   align-items: center;
   gap: 16px;
+  margin-left: auto;
 }
 
 /* 标记控制开关 */
@@ -329,6 +448,31 @@ watch(() => props.showEMALines, (newValue) => {
 
 .marker-switch :deep(.el-switch__label.is-active) {
   color: var(--color-primary);
+}
+
+.scan-marker-btn {
+  min-width: 66px;
+}
+
+.scan-range-btn {
+  width: 32px;
+  padding: 5px;
+}
+
+.scan-range-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.scan-range-picker {
+  width: 100% !important;
+}
+
+.scan-range-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
 }
 
 .symbol-badge {

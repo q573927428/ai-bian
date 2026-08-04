@@ -6,6 +6,7 @@
     :close-on-click-modal="false"
     :style="{ width: '90%', maxWidth: '400px' }"
     @closed="handleClosed"
+    draggable
   >
     <el-form :model="form" label-width="0">
       <el-form-item>

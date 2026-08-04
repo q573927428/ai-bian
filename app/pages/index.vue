@@ -152,7 +152,7 @@
 
       <!-- 性能面板对话框 -->
       <ClientOnly>
-        <el-dialog v-model="showPerformanceDialog" title="系统性能面板" :style="{ width: '90%', maxWidth: '600px' }" destroy-on-close>
+        <el-dialog v-model="showPerformanceDialog" title="系统性能面板" :style="{ width: '90%', maxWidth: '600px' }" draggable destroy-on-close>
           <PerformancePanel />
         </el-dialog>
       </ClientOnly>
