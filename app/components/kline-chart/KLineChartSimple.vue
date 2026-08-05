@@ -506,7 +506,7 @@ const handleEMALinesChange = (show: boolean) => {
 }
 
 /**
- * 开启或关闭历史扫描图层；首次开启时按当前 K 线范围读取日志。
+ * 开启或关闭历史扫描图层；开启时默认按图表当前可视范围读取日志。
  */
 const handleScanMarkersChange = (show: boolean) => {
   if (show && !scanSupported.value) return
@@ -515,6 +515,8 @@ const handleScanMarkersChange = (show: boolean) => {
   scanDialogVisible.value = false
 
   if (show) {
+    // 每次开启都以用户当前看到的 K 线区间为起点，图表尚未就绪时回退到完整加载范围。
+    scanTimeRange.value = chartCanvasRef.value?.getVisibleTimeRange() ?? scanRangeBounds.value
     void loadScanResults()
   } else {
     scanRequestGeneration++

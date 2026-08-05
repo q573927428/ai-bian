@@ -77,60 +77,66 @@
     <div class="controls-right">
       <!-- 图表标记控制开关 -->
       <div class="marker-controls">
-        <el-tooltip
-          :content="scanSupported ? '显示当前周期的历史策略扫描结果' : '当前周期没有对应的扫描策略'"
-          placement="top"
-        >
-          <el-button
-            size="small"
-            :type="showScanMarkers ? 'warning' : 'default'"
-            :loading="scanLoading"
-            :disabled="!scanSupported"
-            class="scan-marker-btn"
-            @click="$emit('scan-markers-change', !showScanMarkers)"
+        <div class="scan-controls-group">
+          <el-tooltip
+            :content="scanSupported ? `显示当前周期的历史策略扫描结果（${scanCount}）` : '当前周期没有对应的扫描策略'"
+            placement="top"
           >
-            <el-icon v-if="!scanLoading"><ElIconDataAnalysis /></el-icon>
-            <span>扫描<span v-if="showScanMarkers">({{ scanCount }})</span></span>
-          </el-button>
-        </el-tooltip>
-
-        <el-popover
-          v-model:visible="scanRangePopoverVisible"
-          placement="bottom-end"
-          :width="390"
-          trigger="click"
-        >
-          <template #reference>
-            <el-button
+            <el-switch
+              v-model="showScanMarkers"
               size="small"
-              :type="scanTimeRange ? 'primary' : 'default'"
-              :disabled="!scanSupported || !scanRangeBounds"
-              class="scan-range-btn"
-              title="设置扫描时间范围"
-            >
-              <el-icon><ElIconCalendar /></el-icon>
-            </el-button>
-          </template>
-
-          <div class="scan-range-panel">
-            <el-date-picker
-              v-model="scanDateRange"
-              type="datetimerange"
-              range-separator="至"
-              start-placeholder="开始时间"
-              end-placeholder="结束时间"
-              format="YYYY-MM-DD HH:mm"
-              value-format="x"
-              :disabled-date="disableScanRangeDate"
-              clearable
-              class="scan-range-picker"
+              inactive-text="扫描"
+              :loading="scanLoading"
+              :disabled="!scanSupported"
+              class="marker-switch scan-marker-switch"
+              @change="handleScanMarkersChange"
             />
-            <div class="scan-range-actions">
-              <el-button size="small" @click="resetScanTimeRange">重置</el-button>
-              <el-button size="small" type="primary" @click="applyScanTimeRange">应用</el-button>
+          </el-tooltip>
+
+          <el-popover
+            v-if="showScanMarkers"
+            v-model:visible="scanRangePopoverVisible"
+            placement="bottom-end"
+            :width="390"
+            trigger="click"
+            popper-class="scan-range-popover"
+          >
+            <template #reference>
+              <el-button
+                size="small"
+                :type="scanTimeRange ? 'primary' : 'default'"
+                :disabled="!scanSupported || !scanRangeBounds"
+                class="scan-range-btn"
+                title="设置扫描时间范围"
+              >
+                <el-icon><ElIconCalendar /></el-icon>
+              </el-button>
+            </template>
+
+            <div class="scan-range-panel">
+              <!-- 日期面板留在 Popover 内，并解除左右月份联动以支持选择较长时间范围。 -->
+              <el-date-picker
+                v-model="scanDateRange"
+                type="datetimerange"
+                range-separator="至"
+                start-placeholder="开始时间"
+                end-placeholder="结束时间"
+                format="YYYY-MM-DD HH:mm"
+                value-format="x"
+                :disabled-date="disableScanRangeDate"
+                :teleported="false"
+                unlink-panels
+                clearable
+                class="scan-range-picker"
+                style="width: 100%; min-width: 0; --el-date-editor-width: 100%; --el-date-editor-datetimerange-width: 100%"
+              />
+              <div class="scan-range-actions">
+                <el-button size="small" @click="resetScanTimeRange">重置</el-button>
+                <el-button size="small" type="primary" @click="applyScanTimeRange">应用</el-button>
+              </div>
             </div>
-          </div>
-        </el-popover>
+          </el-popover>
+        </div>
 
         <!-- <el-tooltip content="显示/隐藏EMA金叉死叉标记" placement="top">
           <el-switch
@@ -335,6 +341,13 @@ const handleOrderMarkersChange = (show: string | number | boolean) => {
 }
 
 /**
+ * 切换历史扫描结果图层，具体数据加载由父组件统一处理。
+ */
+const handleScanMarkersChange = (show: string | number | boolean) => {
+  emit('scan-markers-change', Boolean(show))
+}
+
+/**
  * 控制历史订单是否只显示在其策略主周期对应的K线上。
  */
 const handleOrderTimeframeFilterChange = (filter: string | number | boolean) => {
@@ -483,11 +496,20 @@ watch(() => props.scanTimeRange, (newRange) => {
   color: var(--color-primary);
 }
 
-.scan-marker-btn {
-  min-width: 66px;
+.scan-controls-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-right: 4px;
+  border-right: 1px solid var(--border-color);
+}
+
+.scan-marker-switch {
+  flex-shrink: 0;
 }
 
 .scan-range-btn {
+  flex-shrink: 0;
   width: 32px;
   padding: 5px;
 }
@@ -496,16 +518,40 @@ watch(() => props.scanTimeRange, (newRange) => {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  width: 100%;
+  min-width: 0;
 }
 
 .scan-range-picker {
   width: 100% !important;
+  max-width: 100%;
+  min-width: 0 !important;
+  box-sizing: border-box;
+}
+
+.scan-range-picker :deep(.el-range-input) {
+  min-width: 0;
 }
 
 .scan-range-actions {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
+}
+
+:global(.scan-range-popover.el-popover) {
+  width: min(390px, calc(100vw - 24px)) !important;
+  max-width: calc(100vw - 24px);
+  box-sizing: border-box;
+}
+
+/* 日期范围组件默认固定为 400px，需要按 Popover 的实际内容宽度收缩。 */
+:global(.scan-range-popover .scan-range-picker.el-date-editor--datetimerange) {
+  --el-date-editor-width: 100%;
+  --el-date-editor-datetimerange-width: 100%;
+  width: 100% !important;
+  max-width: 100%;
+  min-width: 0 !important;
 }
 
 .symbol-badge {
@@ -668,6 +714,11 @@ watch(() => props.scanTimeRange, (newRange) => {
     gap: 8px;
     padding: 2px 8px;
     border-radius: 6px;
+  }
+
+  .scan-controls-group {
+    gap: 4px;
+    padding-right: 6px;
   }
   
   .marker-switch :deep(.el-switch__label) {

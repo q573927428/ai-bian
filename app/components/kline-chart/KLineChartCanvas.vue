@@ -1028,6 +1028,25 @@ const updateChart = () => {
   updateMarkers()
 }
 
+/**
+ * 获取图表当前可视区域对应的时间范围。
+ *
+ * 返回毫秒时间戳，并将结束时间扩展到最后一根可见 K 线的周期末尾，
+ * 便于父组件直接作为扫描查询和日期范围控件的默认值。
+ */
+const getVisibleTimeRange = (): [number, number] | null => {
+  const visibleRange = chart?.timeScale().getVisibleRange()
+  if (!visibleRange || typeof visibleRange.from !== 'number' || typeof visibleRange.to !== 'number') {
+    return null
+  }
+
+  const timeframeSeconds = getTimeframeSeconds(props.timeframe || computedTimeframe.value)
+  return [
+    visibleRange.from * 1000,
+    (visibleRange.to + timeframeSeconds) * 1000 - 1
+  ]
+}
+
 // 监听数据变化 - 只在数据长度变化或初始加载时刷新图表
 watch(() => props.klineData, (newData, oldData) => {
   // 如果数据为空，不刷新
@@ -1249,7 +1268,8 @@ watch(() => computedTimeframe.value, (newTimeframe: string, oldTimeframe: string
 defineExpose({
   updateLastKline,
   appendNewKline,
-  clearMarkers
+  clearMarkers,
+  getVisibleTimeRange
 })
 </script>
 
