@@ -9,6 +9,7 @@
         :loading="loading"
         :show-ema-markers="showEMAMarkers"
         :show-order-markers="showOrderMarkers"
+        :filter-order-markers-by-timeframe="filterOrderMarkersByTimeframe"
         :show-ema-lines="showEMALines"
         :show-scan-markers="showScanMarkers"
         :scan-loading="scanLoading"
@@ -24,6 +25,7 @@
         @toggle-fullscreen="toggleFullscreen"
         @ema-markers-change="handleEMAMarkersChange"
         @order-markers-change="handleOrderMarkersChange"
+        @order-timeframe-filter-change="handleOrderTimeframeFilterChange"
         @ema-lines-change="handleEMALinesChange"
         @scan-markers-change="handleScanMarkersChange"
         @scan-range-change="handleScanRangeChange"
@@ -37,7 +39,7 @@
       <KLineChartCanvas
         ref="chartCanvasRef"
         :kline-data="klineData"
-        :trade-history="tradeHistory"
+        :trade-history="visibleTradeHistory"
         :scan-results="scanResults"
         :theme="theme"
         :symbol="displaySymbol"
@@ -194,6 +196,8 @@ const selectedTimeframe = ref(computedTimeframe.value)
 const chartMarkerConfig = computed(() => botStore.config?.chartMarkerConfig || {})
 const showEMAMarkers = ref(chartMarkerConfig.value.showEMAMarkers ?? false)
 const showOrderMarkers = ref(chartMarkerConfig.value.showOrderMarkers ?? false)
+// 默认隔离不同策略主周期的订单，用户可在订单开关旁关闭过滤。
+const filterOrderMarkersByTimeframe = ref(true)
 const showEMALines = ref(chartMarkerConfig.value.showEMALines ?? true)
 const showScanMarkers = ref(false)
 const scanLoading = ref(false)
@@ -270,6 +274,43 @@ watch(globalTheme, (newTheme) => {
 // 历史订单数据
 const tradeHistory = ref<TradeHistory[]>([])
 const loadingHistory = ref(false)
+
+/**
+ * 建立策略与主周期的唯一映射，用于兼容尚未保存 mainTimeframe 的旧订单。
+ * 同一策略出现多个主周期时不做推断，避免把订单标记到错误的K线上。
+ */
+const getStrategyTimeframeMap = (orders: TradeHistory[]) => {
+  const strategyTimeframes = new Map<string, Set<string>>()
+
+  for (const order of orders) {
+    if (!order.strategyId || !order.mainTimeframe) continue
+    const timeframes = strategyTimeframes.get(order.strategyId) || new Set<string>()
+    timeframes.add(order.mainTimeframe)
+    strategyTimeframes.set(order.strategyId, timeframes)
+  }
+
+  const uniqueTimeframes = new Map<string, string>()
+  for (const [strategyId, timeframes] of strategyTimeframes) {
+    if (timeframes.size === 1) {
+      uniqueTimeframes.set(strategyId, [...timeframes][0]!)
+    }
+  }
+  return uniqueTimeframes
+}
+
+/**
+ * 开启周期过滤时，订单优先使用自身 mainTimeframe；旧订单再按 strategyId 推断。
+ */
+const visibleTradeHistory = computed(() => {
+  if (!filterOrderMarkersByTimeframe.value) return tradeHistory.value
+
+  const strategyTimeframes = getStrategyTimeframeMap(tradeHistoryStore.allHistory)
+  return tradeHistory.value.filter((order) => {
+    const orderTimeframe = order.mainTimeframe
+      || (order.strategyId ? strategyTimeframes.get(order.strategyId) : undefined)
+    return orderTimeframe === selectedTimeframe.value
+  })
+})
 
 
 // 浮动面板相关
@@ -449,6 +490,14 @@ const handleEMAMarkersChange = (show: boolean) => {
 // 处理订单标记开关变化
 const handleOrderMarkersChange = (show: boolean) => {
   showOrderMarkers.value = show
+}
+
+/**
+ * 切换历史订单的主周期过滤，不重新请求K线或订单数据。
+ */
+const handleOrderTimeframeFilterChange = (filter: boolean) => {
+  filterOrderMarkersByTimeframe.value = filter
+  orderTooltipVisible.value = false
 }
 
 // 处理EMA线开关变化

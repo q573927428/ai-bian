@@ -151,6 +151,20 @@
             class="marker-switch"
           />
         </el-tooltip>
+
+        <el-tooltip
+          v-if="showOrderMarkers"
+          content="仅显示主周期与当前K线周期一致的历史订单"
+          placement="top"
+        >
+          <el-switch
+            v-model="filterOrderMarkersByTimeframe"
+            size="small"
+            inactive-text="周期"
+            @change="handleOrderTimeframeFilterChange"
+            class="marker-switch"
+          />
+        </el-tooltip>
         
         <el-tooltip content="显示/隐藏EMA快慢线" placement="top">
           <el-switch
@@ -206,7 +220,9 @@
 <script setup lang="ts">
 import { ref, watch, computed } from 'vue'
 
-// 定义props
+/**
+ * K线控制栏属性，包含图表状态、标记开关和周期过滤配置。
+ */
 interface Props {
   symbol?: string
   timeframe?: string
@@ -214,6 +230,7 @@ interface Props {
   loading?: boolean
   showEMAMarkers?: boolean
   showOrderMarkers?: boolean
+  filterOrderMarkersByTimeframe?: boolean
   showEMALines?: boolean
   showScanMarkers?: boolean
   scanLoading?: boolean
@@ -232,6 +249,7 @@ const props = withDefaults(defineProps<Props>(), {
   loading: false,
   showEMAMarkers: false,
   showOrderMarkers: false,
+  filterOrderMarkersByTimeframe: true,
   showEMALines: true,
   showScanMarkers: false,
   scanLoading: false,
@@ -251,6 +269,7 @@ const emit = defineEmits<{
   'toggle-fullscreen': []
   'ema-markers-change': [show: boolean]
   'order-markers-change': [show: boolean]
+  'order-timeframe-filter-change': [filter: boolean]
   'ema-lines-change': [show: boolean]
   'scan-markers-change': [show: boolean]
   'scan-range-change': [range: [number, number] | null]
@@ -266,6 +285,7 @@ const selectedTimeframe = ref(props.timeframe)
 const selectedEmaPeriods = ref<number[]>([...props.emaPeriods])
 const showEMAMarkers = ref(props.showEMAMarkers)
 const showOrderMarkers = ref(props.showOrderMarkers)
+const filterOrderMarkersByTimeframe = ref(props.filterOrderMarkersByTimeframe)
 const showEMALines = ref(props.showEMALines)
 const showScanMarkers = ref(props.showScanMarkers)
 const scanRangePopoverVisible = ref(false)
@@ -312,6 +332,13 @@ const handleEMAMarkersChange = (show: string | number | boolean) => {
 // 处理订单标记开关变化
 const handleOrderMarkersChange = (show: string | number | boolean) => {
   emit('order-markers-change', Boolean(show))
+}
+
+/**
+ * 控制历史订单是否只显示在其策略主周期对应的K线上。
+ */
+const handleOrderTimeframeFilterChange = (filter: string | number | boolean) => {
+  emit('order-timeframe-filter-change', Boolean(filter))
 }
 
 // 处理EMA线开关变化
@@ -374,6 +401,12 @@ watch(() => props.showEMAMarkers, (newValue) => {
 watch(() => props.showOrderMarkers, (newValue) => {
   if (newValue !== undefined && newValue !== showOrderMarkers.value) {
     showOrderMarkers.value = newValue
+  }
+})
+
+watch(() => props.filterOrderMarkersByTimeframe, (newValue) => {
+  if (newValue !== undefined && newValue !== filterOrderMarkersByTimeframe.value) {
+    filterOrderMarkersByTimeframe.value = newValue
   }
 })
 
