@@ -916,7 +916,9 @@ export class StrategyEngine {
         squareHeatChangePercent: enabledSquareHeat ? indicatorsData.get(`SquareHeat_SquareHeat`)?.values?.changePercent : undefined,
         squareHeatHistoryAvg: enabledSquareHeat ? indicatorsData.get(`SquareHeat_SquareHeat`)?.values?.historyAvg : undefined,
         squareHeatBullishPercent: enabledSquareHeat ? indicatorsData.get(`SquareHeat_SquareHeat`)?.values?.bullishPercent : undefined,
+        squareHeatBullishCount: enabledSquareHeat ? indicatorsData.get(`SquareHeat_SquareHeat`)?.values?.bullishCount : undefined,
         squareHeatBearishPercent: enabledSquareHeat ? indicatorsData.get(`SquareHeat_SquareHeat`)?.values?.bearishPercent : undefined,
+        squareHeatBearishCount: enabledSquareHeat ? indicatorsData.get(`SquareHeat_SquareHeat`)?.values?.bearishCount : undefined,
         squareHeatNeutralCount: enabledSquareHeat ? indicatorsData.get(`SquareHeat_SquareHeat`)?.values?.neutralCount : undefined,
         // 将实际情绪统计窗口传给 AI，避免把策略周期误写成固定 24H
         squareHeatWindowMinutes: enabledSquareHeat

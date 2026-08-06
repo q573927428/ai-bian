@@ -20,8 +20,12 @@ export interface SquareHeatResult {
   historyAvg: number
   /** 看涨占比（基于看涨+看跌，0~100） */
   bullishPercent: number
+  /** 看涨帖子数量 */
+  bullishCount: number
   /** 看跌占比（基于看涨+看跌，0~100） */
   bearishPercent: number
+  /** 看跌帖子数量 */
+  bearishCount: number
   /** 中性帖子数（未表明方向） */
   neutralCount: number
   lastUpdated: number
@@ -33,6 +37,10 @@ export interface SquareHeatResult {
 interface HistoryEntry {
   postCount: number
   timestamp: number
+  /** 兼容旧历史文件，新增字段允许缺失 */
+  bullishCount?: number
+  bearishCount?: number
+  neutralCount?: number
 }
 
 /**
@@ -276,7 +284,13 @@ async function fetchSquareHeat(baseAsset: string, windowMinutes: number): Promis
       // 没有历史数据时，trend 保持 'normal'
 
       // 保存本次数据到历史记录
-      history.push({ postCount, timestamp: nowMs })
+      history.push({
+        postCount,
+        bullishCount: bullish,
+        bearishCount: bearish,
+        neutralCount: neutral,
+        timestamp: nowMs
+      })
       // 只保留最近 MAX_HISTORY 条
       if (history.length > MAX_HISTORY) {
         history.splice(0, history.length - MAX_HISTORY)
@@ -294,7 +308,9 @@ async function fetchSquareHeat(baseAsset: string, windowMinutes: number): Promis
         changePercent: Number(changePercent.toFixed(1)),
         historyAvg: Number(historyAvg.toFixed(1)),
         bullishPercent,
+        bullishCount: bullish,
         bearishPercent,
+        bearishCount: bearish,
         neutralCount: neutral,
         lastUpdated: nowMs,
       }
@@ -313,7 +329,9 @@ async function fetchSquareHeat(baseAsset: string, windowMinutes: number): Promis
         changePercent: 0,
         historyAvg: 0,
         bullishPercent: 0,
+        bullishCount: 0,
         bearishPercent: 0,
+        bearishCount: 0,
         neutralCount: 0,
         lastUpdated: Date.now(),
       }
@@ -329,7 +347,9 @@ async function fetchSquareHeat(baseAsset: string, windowMinutes: number): Promis
     changePercent: 0,
     historyAvg: 0,
     bullishPercent: 0,
+    bullishCount: 0,
     bearishPercent: 0,
+    bearishCount: 0,
     neutralCount: 0,
     lastUpdated: Date.now(),
   }

@@ -619,7 +619,9 @@ export class IndicatorsHub {
           changePercent: heatData.changePercent,
           historyAvg: heatData.historyAvg,
           bullishPercent: heatData.bullishPercent,
+          bullishCount: heatData.bullishCount,
           bearishPercent: heatData.bearishPercent,
+          bearishCount: heatData.bearishCount,
           neutralCount: heatData.neutralCount,
         }
       }

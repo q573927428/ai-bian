@@ -60,7 +60,9 @@ export interface TechnicalIndicators {
   squareHeatChangePercent?: number
   squareHeatHistoryAvg?: number
   squareHeatBullishPercent?: number
+  squareHeatBullishCount?: number
   squareHeatBearishPercent?: number
+  squareHeatBearishCount?: number
   squareHeatNeutralCount?: number
   /** 社区情绪统计窗口，单位为分钟，来源于策略 maxHoldTimeMinutes */
   squareHeatWindowMinutes?: number
