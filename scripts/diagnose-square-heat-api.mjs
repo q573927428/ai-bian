@@ -8,9 +8,10 @@
 const symbols = process.argv.slice(2).map(value => value.toUpperCase()).filter(Boolean)
 const targets = symbols.length > 0 ? symbols : ['DOGE', 'BNB', 'ETH']
 const pageSizes = [100]
-const pageIndexes = [1, 2, 3, 4, 5]
-const windows = [24]
-const MIN_PAGE_WINDOW_POSTS = 90
+const pageIndexes = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+const windows = [5]
+const MIN_PAGE_WINDOW_POSTS = 95
+const primaryWindowKey = `${windows[0]}h`
 
 function getHashtag(symbol) {
   return symbol.replace(/\/?USDT$/i, '')
@@ -84,8 +85,9 @@ for (const symbol of targets) {
         const result = await inspect(symbol, pageIndex, pageSize)
         console.log(JSON.stringify(result, null, 2))
 
-        // 当前页 24h 内样本不足时，后续页通常已超出窗口，停止后续分页
-        if (result.feedDataLength === 0 || result.windows['24h']?.count < MIN_PAGE_WINDOW_POSTS) {
+        // 当前页主窗口样本不足时，后续页通常已超出窗口，停止后续分页
+        const primaryWindowCount = result.windows[primaryWindowKey]?.count ?? 0
+        if (result.feedDataLength === 0 || primaryWindowCount < MIN_PAGE_WINDOW_POSTS) {
           break
         }
       } catch (error) {

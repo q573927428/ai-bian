@@ -63,7 +63,7 @@ const MAX_HISTORY = 24
 const DEFAULT_WINDOW_MINUTES = 24 * 60
 
 // 币安广场接口默认抓取页数，扩大热门交易对的帖子样本范围
-const DEFAULT_FETCH_PAGES = 5
+const DEFAULT_FETCH_PAGES = 6
 
 // 当前页窗口内样本不足时，后续分页通常已超出统计窗口，停止继续请求
 const MIN_PAGE_WINDOW_POSTS = 90
@@ -180,8 +180,7 @@ async function fetchSquareHeat(baseAsset: string, windowMinutes: number): Promis
       // pageIndex 才是该接口实际使用的分页参数，默认连续抓取 5 页
       for (let pageIndex = 1; pageIndex <= DEFAULT_FETCH_PAGES; pageIndex++) {
         const url =
-          `https://www.binance.com/bapi/composite/v4/friendly/pgc/content/queryByHashtag` +
-          `?hashtag=%23${hashtag}&pageIndex=${pageIndex}&pageSize=200&orderBy=LATEST`
+          `https://www.binance.com/bapi/composite/v4/friendly/pgc/content/queryByHashtag?hashtag=${hashtag}&pageIndex=${pageIndex}&pageSize=100&orderBy=LATEST`
 
         const res = await fetch(url, {
           headers: {
