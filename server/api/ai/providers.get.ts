@@ -16,6 +16,11 @@ export default defineEventHandler(async (event) => {
         configured: !!(config.doubaoApiKey && config.doubaoApiKey !== '')
       },
       {
+        id: 'doubao-agent',
+        name: '豆包 (Doubao Agent Plan)',
+        configured: !!(config.doubaoAgentApiKey && config.doubaoAgentApiKey !== '')
+      },
+      {
         id: 'qwen',
         name: '阿里千问 (Qwen)',
         configured: !!(config.qwenApiKey && config.qwenApiKey !== '')

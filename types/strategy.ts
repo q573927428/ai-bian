@@ -56,7 +56,7 @@ export type IndicatorType = 'EMA' | 'RSI' | 'MACD' | 'ATR' | 'ADX';
 export type StatisticsType = 'OI' | 'Volume' | 'SquareHeat';
 
 // AI提供商类型
-export type AIProvider = 'deepseek' | 'doubao' | 'qwen' | 'openai';
+export type AIProvider = 'deepseek' | 'doubao' | 'doubao-agent' | 'qwen' | 'openai';
 
 // AI模型类型
 export type AIModel = 'deepseek-v4-flash' | 'deepseek-v4-pro' | string;

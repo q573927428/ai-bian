@@ -23,6 +23,10 @@ export default defineNuxtConfig({
     doubaoApiKey: process.env.DOUBAO_API_KEY || '',
     doubaoApiUrl: process.env.DOUBAO_API_URL || 'https://ark.cn-beijing.volces.com/api/v3',
     doubaoModel: process.env.DOUBAO_MODEL || 'doubao-seed-2-0-pro',
+    // 豆包 Agent Plan 配置（与普通豆包使用独立环境变量，避免相互覆盖）
+    doubaoAgentApiKey: process.env.DOUBAO_AGENT_API_KEY || '',
+    doubaoAgentApiUrl: process.env.DOUBAO_AGENT_API_URL || 'https://ark.cn-beijing.volces.com/api/plan/v3',
+    doubaoAgentModel: process.env.DOUBAO_AGENT_MODEL || 'doubao-seed-2.0-code',
     // 阿里千问 (Qwen) 配置
     qwenApiKey: process.env.QWEN_API_KEY || '',
     qwenApiUrl: process.env.QWEN_API_URL || 'https://dashscope.aliyuncs.com/compatible-mode/v1',

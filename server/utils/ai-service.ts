@@ -51,6 +51,12 @@ export function getProviderConfig(provider: AIProvider, runtimeConfig: any, over
           apiUrl: runtimeConfig.doubaoApiUrl,
           model: runtimeConfig.doubaoModel
         }
+      case 'doubao-agent':
+        return {
+          apiKey: runtimeConfig.doubaoAgentApiKey,
+          apiUrl: runtimeConfig.doubaoAgentApiUrl,
+          model: runtimeConfig.doubaoAgentModel
+        }
       case 'qwen':
         return {
           apiKey: runtimeConfig.qwenApiKey,
@@ -70,9 +76,9 @@ export function getProviderConfig(provider: AIProvider, runtimeConfig: any, over
 
   // 如果有自定义覆盖配置，则合并（优先使用自定义值）
   if (overrides) {
-    // 对于内置已知提供商（deepseek/doubao/qwen），忽略策略级别的 apiUrl/apiKey 覆盖
+    // 对于内置已知提供商，忽略策略级别的 apiUrl/apiKey 覆盖，防止策略绕过服务端配置。
     // 仅当 provider 为 'openai'（开放兼容适配）时，允许自定义 apiUrl/apiKey
-    const isKnownProvider = ['deepseek', 'doubao', 'qwen'].includes(provider)
+    const isKnownProvider = ['deepseek', 'doubao', 'doubao-agent', 'qwen'].includes(provider)
     return {
       apiKey: !isKnownProvider && overrides.apiKey ? overrides.apiKey : baseConfig.apiKey,
       apiUrl: !isKnownProvider && overrides.apiUrl ? overrides.apiUrl : baseConfig.apiUrl,
@@ -123,7 +129,7 @@ export async function callAIAPI(
     const model = providerConfig.model.toLowerCase()
     if (provider === 'deepseek' && /(v4|reasoner)/i.test(model)) {
       requestBody.thinking = { type: options.thinkingEnabled ? 'enabled' : 'disabled' }
-    } else if (provider === 'doubao' && /(seed-2|thinking|reasoning)/i.test(model)) {
+    } else if ((provider === 'doubao' || provider === 'doubao-agent') && /(seed-2|thinking|reasoning)/i.test(model)) {
       requestBody.thinking = { type: options.thinkingEnabled ? 'enabled' : 'disabled' }
     } else if (provider === 'qwen' && /(qwen3|thinking|reasoning)/i.test(model)) {
       requestBody.enable_thinking = options.thinkingEnabled
