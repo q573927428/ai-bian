@@ -918,6 +918,10 @@ export class StrategyEngine {
         squareHeatBullishPercent: enabledSquareHeat ? indicatorsData.get(`SquareHeat_SquareHeat`)?.values?.bullishPercent : undefined,
         squareHeatBearishPercent: enabledSquareHeat ? indicatorsData.get(`SquareHeat_SquareHeat`)?.values?.bearishPercent : undefined,
         squareHeatNeutralCount: enabledSquareHeat ? indicatorsData.get(`SquareHeat_SquareHeat`)?.values?.neutralCount : undefined,
+        // 将实际情绪统计窗口传给 AI，避免把策略周期误写成固定 24H
+        squareHeatWindowMinutes: enabledSquareHeat
+          ? Number(instance.strategy.riskManagement?.maxHoldTimeMinutes ?? 24 * 60)
+          : undefined,
         adxPeriodLabel: mainTimeframe,
         enabledIndicators: {
           ema: enabledEMAs,

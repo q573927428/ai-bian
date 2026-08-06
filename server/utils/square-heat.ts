@@ -53,14 +53,20 @@ const cache = new Map<string, CacheEntry>()
 // 历史记录：baseAsset_windowMinutes -> HistoryEntry[]（最多保留 24 条）
 const historyStore = new Map<string, HistoryEntry[]>()
 
-// 缓存 TTL：60 分钟
-const CACHE_TTL = 60 * 60 * 1000
+// 缓存 TTL：30 分钟；社区情绪属于慢数据，避免每次策略扫描重复请求接口
+export const SQUARE_HEAT_CACHE_TTL_MS = 30 * 60 * 1000
 
 // 历史记录最大保留数
 const MAX_HISTORY = 24
 
 // 未传入策略持仓时长时，保持原有 24 小时统计行为
 const DEFAULT_WINDOW_MINUTES = 24 * 60
+
+// 币安广场接口默认抓取页数，扩大热门交易对的帖子样本范围
+const DEFAULT_FETCH_PAGES = 5
+
+// 当前页窗口内样本不足时，后续分页通常已超出统计窗口，停止继续请求
+const MIN_PAGE_WINDOW_POSTS = 90
 
 // 进行中的请求（防抖）
 const pendingRequests = new Map<string, Promise<SquareHeatResult>>()
@@ -130,7 +136,7 @@ export async function getSquareHeat(symbol: string, windowMinutes: number = DEFA
 
   // 1. 检查缓存
   const cached = cache.get(cacheKey)
-  if (cached && (Date.now() - cached.timestamp < CACHE_TTL)) {
+  if (cached && (Date.now() - cached.timestamp < SQUARE_HEAT_CACHE_TTL_MS)) {
     return cached.data
   }
 
@@ -155,11 +161,8 @@ export async function getSquareHeat(symbol: string, windowMinutes: number = DEFA
 }
 
 /**
- * 调用币安广场 API 获取最新帖子，按策略持仓窗口统计帖子数和社区情绪
- */
-/**
  * 请求并统计广场帖子。
- * 方向样本不足时扩大到两倍策略持仓窗口，以避免极少样本导致的情绪误判。
+ * 所有热度与情绪数据严格使用策略最大持仓时间对应的窗口。
  */
 async function fetchSquareHeat(baseAsset: string, windowMinutes: number): Promise<SquareHeatResult> {
   // 重试配置
@@ -168,49 +171,60 @@ async function fetchSquareHeat(baseAsset: string, windowMinutes: number): Promis
 
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     try {
-      // BTC 特殊处理：币安广场 #BTC 获取不到数据，需要用 #BTCUSDT
-      const hashtag = baseAsset === 'BTC' ? 'BTCUSDT' : baseAsset
-      const url =
-        `https://www.binance.com/bapi/composite/v4/friendly/pgc/content/queryByHashtag` +
-        `?hashtag=%23${hashtag}&pageNum=1&pageSize=200&sortBy=LATEST`
-
-      const res = await fetch(url, {
-        headers: {
-          'user-agent': 'Mozilla/5.0'
-        }
-      })
-
-      const json = await res.json()
-      const posts = json.data?.feedData || []
-
+      // 币安广场使用基础币种标签，例如 #BTC、#ETH、#DOGE
+      const hashtag = baseAsset
+      const fetchedPosts: any[] = []
       const now = Math.floor(Date.now() / 1000)
       const primaryWindowSeconds = windowMinutes * 60
-      const fallbackWindowSeconds = primaryWindowSeconds * 2
 
-      // 先统计 24h 内看涨+看跌的帖子数，判断是否需要扩展窗口
-      let bullishBearish24h = 0
-      for (const post of posts) {
-        const diff = now - post.date
-        if (diff >= 0 && diff <= primaryWindowSeconds) {
-          const tendency = Number(post.tendency)
-          if (tendency === 1 || tendency === 2) {
-            bullishBearish24h++
+      // pageIndex 才是该接口实际使用的分页参数，默认连续抓取 5 页
+      for (let pageIndex = 1; pageIndex <= DEFAULT_FETCH_PAGES; pageIndex++) {
+        const url =
+          `https://www.binance.com/bapi/composite/v4/friendly/pgc/content/queryByHashtag` +
+          `?hashtag=%23${hashtag}&pageIndex=${pageIndex}&pageSize=200&orderBy=LATEST`
+
+        const res = await fetch(url, {
+          headers: {
+            'user-agent': 'Mozilla/5.0'
           }
+        })
+        if (!res.ok) {
+          throw new Error(`币安广场请求失败: HTTP ${res.status}, pageIndex=${pageIndex}`)
+        }
+
+        const json = await res.json()
+        const pagePosts = Array.isArray(json.data?.feedData) ? json.data.feedData : []
+        fetchedPosts.push(...pagePosts)
+
+        // 接口可能返回更早的历史帖子而不是空数组；当前页窗口样本不足时，后续页只会更旧
+        const pageWindowPostCount = pagePosts.filter((post: any) => {
+          const diff = now - Number(post.date)
+          return Number.isFinite(diff) && diff >= 0 && diff <= primaryWindowSeconds
+        }).length
+        if (pagePosts.length === 0 || pageWindowPostCount < MIN_PAGE_WINDOW_POSTS) {
+          break
         }
       }
 
-      // 如果 24h 内看涨+看跌帖子数 < 10，扩展到 48h 获取更多样本
-      const useFallbackWindow = bullishBearish24h < 10
-      const sentimentWindow = useFallbackWindow ? fallbackWindowSeconds : primaryWindowSeconds
+      // 分页边界可能出现重复帖子，按帖子标识去重后再统计，避免重复放大热度
+      const uniquePosts = new Map<string, any>()
+      for (const post of fetchedPosts) {
+        const postKey = String(
+          post.id ?? post.contentId ?? post.postId ?? post.shareId
+          ?? `${post.date}_${post.tendency}_${post.title ?? post.content ?? ''}`
+        )
+        uniquePosts.set(postKey, post)
+      }
+      const posts = Array.from(uniquePosts.values())
 
-      // 按时间窗口统计总帖子数、看涨、看跌、中性
+      // 即使方向样本不足也不扩大窗口，确保数据周期与策略持仓周期一致
       let postCount = 0
       let bullish = 0   // tendency=1 看涨
       let bearish = 0   // tendency=2 看跌
       let neutral = 0   // tendency=0 中性
       for (const post of posts) {
         const diff = now - post.date
-        if (diff <= sentimentWindow) {
+        if (diff >= 0 && diff <= primaryWindowSeconds) {
           postCount++
           const tendency = Number(post.tendency)
           if (tendency === 1) {
@@ -328,7 +342,7 @@ async function fetchSquareHeat(baseAsset: string, windowMinutes: number): Promis
 export function cleanExpiredSquareHeatCache(): void {
   const now = Date.now()
   for (const [key, entry] of cache) {
-    if (now - entry.timestamp >= CACHE_TTL) {
+    if (now - entry.timestamp >= SQUARE_HEAT_CACHE_TTL_MS) {
       cache.delete(key)
     }
   }
@@ -340,7 +354,7 @@ export function cleanExpiredSquareHeatCache(): void {
 export function getSquareHeatCacheStatus(): { size: number; ttl: number } {
   return {
     size: cache.size,
-    ttl: CACHE_TTL,
+    ttl: SQUARE_HEAT_CACHE_TTL_MS,
   }
 }
 

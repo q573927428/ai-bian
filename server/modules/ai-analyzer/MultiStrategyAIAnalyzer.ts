@@ -379,6 +379,7 @@ export class MultiStrategyAIAnalyzer {
     // SquareHeat行
     const squareHeatLines: string[] = []
     if (indicators.enabledIndicators?.squareHeat) {
+      const squareHeatWindow = this.formatSquareHeatWindow(indicators.squareHeatWindowMinutes)
       const heat = indicators.squareHeat !== undefined ? `${indicators.squareHeat}` : '?'
       const change = indicators.squareHeatChangePercent !== undefined
         ? ` ${indicators.squareHeatChangePercent > 0 ? '+' : ''}${indicators.squareHeatChangePercent.toFixed(1)}%`
@@ -391,7 +392,7 @@ export class MultiStrategyAIAnalyzer {
       const bearishP = indicators.squareHeatBearishPercent
       if (bullishP !== undefined && bearishP !== undefined) {
         const sentimentIcon = bullishP > bearishP ? '🟢' : bullishP < bearishP ? '🔴' : '⚪'
-        sentimentStr = `；24H社区情绪${sentimentIcon}: 看涨${bullishP.toFixed(2)}% / 看跌${bearishP.toFixed(2)}%`
+        sentimentStr = `；${squareHeatWindow}社区情绪${sentimentIcon}: 看涨${bullishP.toFixed(2)}% / 看跌${bearishP.toFixed(2)}%`
       }
 
       squareHeatLines.push(`- 币安广场热度(${heat})${change}：${trendLabel}${sentimentStr}`)
@@ -497,6 +498,17 @@ export class MultiStrategyAIAnalyzer {
   }
 
   /**
+   * 将社区情绪统计窗口格式化为 AI 可读的周期标签。
+   */
+  private formatSquareHeatWindow(minutes: unknown): string {
+    const value = Number(minutes)
+    if (!Number.isFinite(value) || value <= 0) return '24H'
+    if (value % (24 * 60) === 0) return `${value / (24 * 60)}D`
+    if (value % 60 === 0) return `${value / 60}H`
+    return `${value}M`
+  }
+
+  /**
    * 构建完整提示词
    */
   private buildFullPrompt(
@@ -585,7 +597,7 @@ ${promptConfig.userPrompt}
    * 构建系统提示词（包含历史学习经验）
    * 从 trade-history-analysis.json 读取已保存的分析结果
    */
-  private async buildSystemPrompt(hasSquareHeat: boolean = false): Promise<string> {
+  private async buildSystemPrompt(hasSquareHeat: boolean = false, squareHeatWindowMinutes?: number): Promise<string> {
     // 异步触发每日分析检查（不阻塞主流程）
     checkDailyAnalysis().catch(() => {})
 
@@ -599,13 +611,14 @@ ${promptConfig.userPrompt}
     }
 
     // 根据 squareHeat 是否启用来决定 confidence 描述中是否包含币安广场热度相关字段
+    const squareHeatWindow = this.formatSquareHeatWindow(squareHeatWindowMinutes)
     const confidenceMacroFactors = hasSquareHeat
-      ? '市场波动性、趋势强度、风险等级、币安广场热度、24H社区情绪'
+      ? `市场波动性、趋势强度、风险等级、币安广场热度、${squareHeatWindow}社区情绪`
       : '市场波动性、趋势强度、风险等级'
 
     // 根据 squareHeat 是否启用来决定 reasoning 格式示例中是否包含币安广场热度相关展示
     const squareHeatReasoningExample = hasSquareHeat
-      ? '；币安广场热度(31) -3.2%：➡️正常；24H社区情绪🟢: 看涨77.78% / 看跌22.22%。'
+      ? `；币安广场热度(31) -3.2%：➡️正常；${squareHeatWindow}社区情绪🟢: 看涨77.78% / 看跌22.22%。`
       : ''
 
     return `
@@ -729,7 +742,7 @@ ${historySection}
         
         // 构建系统提示词（根据 squareHeat 是否启用动态调整 confidence 宏观因素描述）
         const hasSquareHeat = !!(indicators.enabledIndicators?.squareHeat)
-        const systemPrompt = await this.buildSystemPrompt(hasSquareHeat)
+        const systemPrompt = await this.buildSystemPrompt(hasSquareHeat, indicators.squareHeatWindowMinutes)
         
         const messages: AIChatMessage[] = [
           { role: 'system', content: systemPrompt },

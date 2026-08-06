@@ -8,16 +8,17 @@
 const symbols = process.argv.slice(2).map(value => value.toUpperCase()).filter(Boolean)
 const targets = symbols.length > 0 ? symbols : ['DOGE', 'BNB', 'ETH']
 const pageSizes = [100]
-const pageNumbers = [1]
-const windows = [1, 3, 12, 48]
+const pageIndexes = [1, 2, 3, 4, 5]
+const windows = [24]
+const MIN_PAGE_WINDOW_POSTS = 90
 
 function getHashtag(symbol) {
-  return symbol === 'BTC' ? 'BTCUSDT' : symbol
+  return symbol.replace(/\/?USDT$/i, '')
 }
 
-function getUrl(symbol, pageNum, pageSize) {
+function getUrl(symbol, pageIndex, pageSize) {
   const hashtag = encodeURIComponent(`#${getHashtag(symbol)}`)
-  return `https://www.binance.com/bapi/composite/v4/friendly/pgc/content/queryByHashtag?hashtag=${hashtag}&pageNum=${pageNum}&pageSize=${pageSize}&sortBy=LATEST`
+  return `https://www.binance.com/bapi/composite/v4/friendly/pgc/content/queryByHashtag?hashtag=${hashtag}&pageIndex=${pageIndex}&pageSize=${pageSize}&orderBy=LATEST`
 }
 
 function getPaginationMeta(data) {
@@ -53,8 +54,8 @@ function summarizePosts(posts) {
   return result
 }
 
-async function inspect(symbol, pageNum, pageSize) {
-  const url = getUrl(symbol, pageNum, pageSize)
+async function inspect(symbol, pageIndex, pageSize) {
+  const url = getUrl(symbol, pageIndex, pageSize)
   const response = await fetch(url, { headers: { 'user-agent': 'Mozilla/5.0' } })
   const body = await response.json()
   const data = body?.data
@@ -62,7 +63,7 @@ async function inspect(symbol, pageNum, pageSize) {
 
   return {
     symbol,
-    pageNum,
+    pageIndex,
     requestedPageSize: pageSize,
     httpStatus: response.status,
     responseKeys: body && typeof body === 'object' ? Object.keys(body) : [],
@@ -78,12 +79,17 @@ async function inspect(symbol, pageNum, pageSize) {
 for (const symbol of targets) {
   console.log(`\n===== ${symbol} =====`)
   for (const pageSize of pageSizes) {
-    for (const pageNum of pageNumbers) {
+    for (const pageIndex of pageIndexes) {
       try {
-        const result = await inspect(symbol, pageNum, pageSize)
+        const result = await inspect(symbol, pageIndex, pageSize)
         console.log(JSON.stringify(result, null, 2))
+
+        // 当前页 24h 内样本不足时，后续页通常已超出窗口，停止后续分页
+        if (result.feedDataLength === 0 || result.windows['24h']?.count < MIN_PAGE_WINDOW_POSTS) {
+          break
+        }
       } catch (error) {
-        console.error(JSON.stringify({ symbol, pageNum, pageSize, error: error instanceof Error ? error.message : String(error) }, null, 2))
+        console.error(JSON.stringify({ symbol, pageIndex, pageSize, error: error instanceof Error ? error.message : String(error) }, null, 2))
       }
     }
   }

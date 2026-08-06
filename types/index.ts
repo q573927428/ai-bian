@@ -62,6 +62,8 @@ export interface TechnicalIndicators {
   squareHeatBullishPercent?: number
   squareHeatBearishPercent?: number
   squareHeatNeutralCount?: number
+  /** 社区情绪统计窗口，单位为分钟，来源于策略 maxHoldTimeMinutes */
+  squareHeatWindowMinutes?: number
   enabledIndicators: {
     ema: boolean
     rsi: boolean

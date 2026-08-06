@@ -18,7 +18,7 @@ import {
   hasKLineData 
 } from '../../utils/kline-simple-storage'
 import { EventEmitter } from 'node:events'
-import { getSquareHeat } from '../../utils/square-heat'
+import { getSquareHeat, SQUARE_HEAT_CACHE_TTL_MS } from '../../utils/square-heat'
 import { shortHash } from '../../utils/stable-hash'
 import { binanceApiGateway } from '../../utils/binance-api-gateway'
 
@@ -600,9 +600,11 @@ export class IndicatorsHub {
         : 24 * 60
       const cacheKey = `${symbol}_SquareHeat_${normalizedWindowMinutes}`
       const cached = symbolData.indicators.get(cacheKey)
-      if (cached) {
+      // 指标层也必须检查 TTL，否则会绕过 square-heat 工具层一直复用旧结果
+      if (cached && Date.now() - cached.timestamp < SQUARE_HEAT_CACHE_TTL_MS) {
         return cached
       }
+      if (cached) symbolData.indicators.delete(cacheKey)
 
       const heatData = await getSquareHeat(symbol, normalizedWindowMinutes)
 
