@@ -76,6 +76,9 @@ export type LeverageType = number | 'dynamic';
 // 交易动作
 export type TradeAction = 'open' | 'close' | 'hold';
 
+// 策略开仓阈值的判定依据
+export type EntryThresholdMode = 'confidence' | 'finalScore';
+
 // ==================== 策略配置 ====================
 
 // 策略定义
@@ -114,6 +117,8 @@ export interface Strategy {
   minConfidence?: number;
   // 策略级最小最终评分阈值 
   minFinalScore?: number;
+  // 开仓时使用的阈值类型，默认使用置信度
+  entryThresholdMode?: EntryThresholdMode;
   // 策略级最大风险等级
   maxRiskLevel?: RiskLevel;
   
@@ -222,6 +227,8 @@ export interface CreateStrategyInput {
   minConfidence?: number;
   /** 策略级最小最终评分阈值（覆盖全局 bot-config.minFinalScore），未配置时回退到全局 */
   minFinalScore?: number;
+  /** 开仓阈值类型，默认使用 confidence */
+  entryThresholdMode?: EntryThresholdMode;
   /** 策略级最大风险等级（覆盖全局 bot-config.maxRiskLevel），未配置时回退到全局 */
   maxRiskLevel?: RiskLevel;
 }
@@ -242,6 +249,8 @@ export interface UpdateStrategyInput {
   minConfidence?: number;
   /** 策略级最小最终评分阈值（覆盖全局 bot-config.minFinalScore），未配置时回退到全局 */
   minFinalScore?: number;
+  /** 开仓阈值类型，默认使用 confidence */
+  entryThresholdMode?: EntryThresholdMode;
   /** 策略级最大风险等级（覆盖全局 bot-config.maxRiskLevel），未配置时回退到全局 */
   maxRiskLevel?: RiskLevel;
 }

@@ -60,6 +60,7 @@ export class StrategyStore {
       preScreenConfig: input.preScreenConfig,
       minConfidence: input.minConfidence,
       minFinalScore: input.minFinalScore,
+      entryThresholdMode: input.entryThresholdMode,
       maxRiskLevel: input.maxRiskLevel,
       versionHistory: [],
       // 初始化运行数据
@@ -246,6 +247,7 @@ export class StrategyStore {
       if (updates.preScreenConfig !== undefined) strategy.preScreenConfig = updates.preScreenConfig
       if (updates.minConfidence !== undefined) strategy.minConfidence = updates.minConfidence
       if (updates.minFinalScore !== undefined) strategy.minFinalScore = updates.minFinalScore
+      if (updates.entryThresholdMode !== undefined) strategy.entryThresholdMode = updates.entryThresholdMode
       if (updates.maxRiskLevel !== undefined) strategy.maxRiskLevel = updates.maxRiskLevel
 
       // 只更新 updatedAt，不修改 version
@@ -297,6 +299,7 @@ export class StrategyStore {
       if (updates.preScreenConfig !== undefined) strategy.preScreenConfig = updates.preScreenConfig
       if (updates.minConfidence !== undefined) strategy.minConfidence = updates.minConfidence
       if (updates.minFinalScore !== undefined) strategy.minFinalScore = updates.minFinalScore
+      if (updates.entryThresholdMode !== undefined) strategy.entryThresholdMode = updates.entryThresholdMode
       if (updates.maxRiskLevel !== undefined) strategy.maxRiskLevel = updates.maxRiskLevel
 
       // 更新元数据

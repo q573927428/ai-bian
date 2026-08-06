@@ -757,7 +757,7 @@ export class StrategyEngine {
     }
 
     // 6. 验证信号
-    if (!this.validateSignal(signal)) {
+    if (!this.validateSignal(instance, signal)) {
       return
     }
 
@@ -873,6 +873,7 @@ export class StrategyEngine {
       const strategyPreScreenConfig = (instance.strategy as any).preScreenConfig
       const strategyMinConfidence = instance.strategy.minConfidence ?? 50
       const strategyMinFinalScore = instance.strategy.minFinalScore ?? 0
+      const entryThresholdMode = instance.strategy.entryThresholdMode ?? 'confidence'
       const strategyMaxRiskLevel = instance.strategy.maxRiskLevel ?? 'MEDIUM'
 
       // AI预筛（支持策略级覆盖）
@@ -975,7 +976,9 @@ export class StrategyEngine {
       const minConfidence = strategyMinConfidence
       const minFinalScore = strategyMinFinalScore
       const finalScore = signal.scoreBreakdown?.finalScore
-      const isFinalScoreOK = minFinalScore === undefined || finalScore === undefined || finalScore >= minFinalScore
+      const thresholdValue = entryThresholdMode === 'finalScore' ? finalScore : signal.confidence
+      const threshold = entryThresholdMode === 'finalScore' ? minFinalScore : minConfidence
+      const isThresholdOK = typeof thresholdValue === 'number' && thresholdValue >= threshold
 
       const maxRiskLevel = strategyMaxRiskLevel
       let isRiskLevelOK = true
@@ -987,19 +990,16 @@ export class StrategyEngine {
       }
 
       if (signal.direction === 'idle') {
-        logger.info('扫描结果', `${signal.symbol} @${signal.price} IDLE 置信度（${signal.confidence} < ${minConfidence}）评分（${finalScore}） [${signal.strategyId}] ===详细AI日志=== ${enhancedLog}`)
+        logger.info('扫描结果', `${signal.symbol} @${signal.price} IDLE ${entryThresholdMode}（${thresholdValue ?? '缺失'}，阈值 ${threshold}）置信度（${signal.confidence}）评分（${finalScore}） [${signal.strategyId}] ===详细AI日志=== ${enhancedLog}`)
         return null
-      } else if (signal.confidence < minConfidence) {
-        logger.info('扫描结果', `${signal.symbol} @${signal.price} ${signal.direction.toUpperCase()} 置信度（${signal.confidence} < ${minConfidence}）评分（${finalScore}） [${signal.strategyId}] ===详细AI日志=== ${enhancedLog}`)
-        return null
-      } else if (!isFinalScoreOK) {
-        logger.info('扫描结果', `${signal.symbol} @${signal.price} ${signal.direction.toUpperCase()} 置信度（${signal.confidence} >= ${minConfidence}）评分（${finalScore} < ${minFinalScore}）[${signal.strategyId}] ===详细AI日志=== ${enhancedLog}`)
+      } else if (!isThresholdOK) {
+        logger.info('扫描结果', `${signal.symbol} @${signal.price} ${signal.direction.toUpperCase()} ${entryThresholdMode}（${thresholdValue ?? '缺失'} < ${threshold}）置信度（${signal.confidence}）评分（${finalScore}）[${signal.strategyId}] ===详细AI日志=== ${enhancedLog}`)
         return null
       } else if (!isRiskLevelOK) {
-        logger.info('扫描结果', `${signal.symbol} @${signal.price} ${signal.direction.toUpperCase()} 置信度（${signal.confidence} >= ${minConfidence}）评分（${finalScore} >= ${minFinalScore}）风险等级（${signal.riskLevel} > ${maxRiskLevel}）[${signal.strategyId}] ===详细AI日志=== ${enhancedLog}`)
+        logger.info('扫描结果', `${signal.symbol} @${signal.price} ${signal.direction.toUpperCase()} ${entryThresholdMode}（${thresholdValue} >= ${threshold}）风险等级（${signal.riskLevel} > ${maxRiskLevel}）[${signal.strategyId}] ===详细AI日志=== ${enhancedLog}`)
         return null
       } else {
-        logger.success('扫描结果', `${signal.symbol} @${signal.price} ${signal.direction.toUpperCase()} 置信度（${signal.confidence} >= ${minConfidence}）评分（${finalScore} >= ${minFinalScore}）风险等级（${signal.riskLevel} < ${maxRiskLevel}）[${signal.strategyId}] ===详细AI日志=== ${enhancedLog}`)
+        logger.success('扫描结果', `${signal.symbol} @${signal.price} ${signal.direction.toUpperCase()} ${entryThresholdMode}（${thresholdValue} >= ${threshold}）风险等级（${signal.riskLevel} <= ${maxRiskLevel}）[${signal.strategyId}] ===详细AI日志=== ${enhancedLog}`)
       }
 
       // 补充止损价
@@ -1080,22 +1080,20 @@ export class StrategyEngine {
   /**
    * 验证信号
    */
-  private validateSignal(signal: TradeSignal): boolean {
+  private validateSignal(instance: StrategyInstance, signal: TradeSignal): boolean {
     // 检查必填字段
     if (!signal.strategyId || !signal.symbol || !signal.direction || !signal.action) {
       logger.info('StrategyEngine', `[缺失字段] 策略ID=${signal.strategyId || '未知'} 交易对=${signal.symbol || '未知'} 方向=${signal.direction || '未知'} 操作=${signal.action || '未知'}`);
       return false
     }
 
-    // 检查置信度（策略独立配置，兜底 50）
-    const minConfidence = 50
-    if (signal.confidence < minConfidence) {
-      return false
-    }
-
-    // 检查最终评分（策略独立配置，兜底 0）
-    const minFinalScore = 0
-    if (minFinalScore !== undefined && signal.scoreBreakdown?.finalScore !== undefined && signal.scoreBreakdown.finalScore < minFinalScore) {
+    // 只按策略选择的单一阈值判定，避免两种指标互相拦截。
+    const mode = instance.strategy.entryThresholdMode ?? 'confidence'
+    const threshold = mode === 'finalScore'
+      ? (instance.strategy.minFinalScore ?? 0)
+      : (instance.strategy.minConfidence ?? 50)
+    const value = mode === 'finalScore' ? signal.scoreBreakdown?.finalScore : signal.confidence
+    if (typeof value !== 'number' || value < threshold) {
       return false
     }
 
@@ -1176,30 +1174,36 @@ export class StrategyEngine {
         finalLeverage = strategy.executionConfig.leverage
         leverageCalculationDetails = { mode: 'fixed', leverage: finalLeverage }
       } else {
-        // 动态杠杆：基于 confidence 超出 minConfidence 的超额部分，线性映射到整数杠杆
+        // 动态杠杆：基于所选开仓指标超出阈值的超额部分，线性映射到整数杠杆
         const minLev = Math.max(1, strategy.executionConfig.dynamicLeverageMin ?? 5)
         const maxLev = Math.min(125, strategy.executionConfig.dynamicLeverageMax ?? 10)
         const clampedMinLev = Math.min(minLev, maxLev)
         const clampedMaxLev = maxLev
 
-        const minConf = instance.strategy.minConfidence ?? 50
-        const confidence = signal.confidence ?? minConf
+        const thresholdMode = instance.strategy.entryThresholdMode ?? 'confidence'
+        const minThreshold = thresholdMode === 'finalScore'
+          ? (instance.strategy.minFinalScore ?? 0)
+          : (instance.strategy.minConfidence ?? 50)
+        const thresholdValue = thresholdMode === 'finalScore'
+          ? (signal.scoreBreakdown?.finalScore ?? minThreshold)
+          : (signal.confidence ?? minThreshold)
 
         // 在阈值之上归一化：0=刚过线，1=满分
-        const confExcess = minConf < 100
-          ? Math.max(0, (confidence - minConf) / (100 - minConf))
+        const thresholdExcess = minThreshold < 100
+          ? Math.max(0, (thresholdValue - minThreshold) / (100 - minThreshold))
           : 0
 
         // 线性映射到 [minLev, maxLev]，取整数
-        finalLeverage = Math.round(clampedMinLev + (clampedMaxLev - clampedMinLev) * confExcess)
+        finalLeverage = Math.round(clampedMinLev + (clampedMaxLev - clampedMinLev) * thresholdExcess)
 
         leverageCalculationDetails = {
           mode: 'dynamic',
           minLeverage: clampedMinLev,
           maxLeverage: clampedMaxLev,
-          minConfidence: minConf,
-          confidence,
-          confExcess: (confExcess * 100).toFixed(0) + '%',
+          thresholdMode,
+          threshold: minThreshold,
+          thresholdValue,
+          thresholdExcess: (thresholdExcess * 100).toFixed(0) + '%',
           finalLeverage
         }
       }

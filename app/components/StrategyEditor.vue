@@ -150,6 +150,14 @@
               <el-input-number v-model="form.minConfidence" :min="0" :max="100" :step="1" placeholder="全局默认" />
             </el-form-item>
 
+            <!-- 开仓判定依据 -->
+            <el-form-item label="开仓判定依据">
+              <el-select v-model="form.entryThresholdMode" style="width: 100%">
+                <el-option label="置信度（confidence）" value="confidence" />
+                <el-option label="最终评分（finalScore）" value="finalScore" />
+              </el-select>
+            </el-form-item>
+
             <!-- 最小最终评分 -->
             <el-form-item label="最小评分">
               <el-input-number v-model="form.minFinalScore" :min="0" :max="100" :step="1" placeholder="全局默认" />
@@ -665,6 +673,7 @@ const form = reactive<CreateStrategyInput>({
   },
   minConfidence: 70,
   minFinalScore: 80,
+  entryThresholdMode: 'confidence',
   maxRiskLevel: 'MEDIUM'
 })
 
@@ -805,6 +814,7 @@ watch(() => props.strategy, (newVal) => {
       structuredRules: (newVal as any).structuredRules,
       minConfidence: newVal.minConfidence,
       minFinalScore: newVal.minFinalScore,
+      entryThresholdMode: newVal.entryThresholdMode || 'confidence',
       maxRiskLevel: newVal.maxRiskLevel,
       preScreenConfig: newVal.preScreenConfig || {
         enableAdx: true,
