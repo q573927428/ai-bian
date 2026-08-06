@@ -47,10 +47,10 @@ interface CacheEntry {
 const DATA_DIR = join(process.cwd(), 'data')
 const HISTORY_FILE = join(DATA_DIR, 'square-heat-history.json')
 
-// 内存缓存：baseAsset -> CacheEntry
+// 内存缓存：baseAsset_windowMinutes -> CacheEntry
 const cache = new Map<string, CacheEntry>()
 
-// 历史记录：baseAsset -> HistoryEntry[]（最多保留 24 条，约 24 小时）
+// 历史记录：baseAsset_windowMinutes -> HistoryEntry[]（最多保留 24 条）
 const historyStore = new Map<string, HistoryEntry[]>()
 
 // 缓存 TTL：60 分钟
@@ -58,6 +58,9 @@ const CACHE_TTL = 60 * 60 * 1000
 
 // 历史记录最大保留数
 const MAX_HISTORY = 24
+
+// 未传入策略持仓时长时，保持原有 24 小时统计行为
+const DEFAULT_WINDOW_MINUTES = 24 * 60
 
 // 进行中的请求（防抖）
 const pendingRequests = new Map<string, Promise<SquareHeatResult>>()
@@ -110,42 +113,55 @@ function saveHistoryToFile(): void {
  * @param symbol 交易对，如 BTCUSDT
  * @returns 热度数据
  */
-export async function getSquareHeat(symbol: string): Promise<SquareHeatResult> {
+/**
+ * 获取指定持仓周期对应的广场热度。
+ * @param symbol 交易对，如 BTCUSDT
+ * @param windowMinutes 策略最大持仓时间（分钟），决定情绪统计窗口
+ */
+export async function getSquareHeat(symbol: string, windowMinutes: number = DEFAULT_WINDOW_MINUTES): Promise<SquareHeatResult> {
   // 首次使用时加载持久化数据
   loadHistoryFromFile()
 
   const baseAsset = symbol.replace(/\/?USDT$/i, '')
+  const normalizedWindowMinutes = Number.isFinite(windowMinutes) && windowMinutes > 0
+    ? Math.floor(windowMinutes)
+    : DEFAULT_WINDOW_MINUTES
+  const cacheKey = `${baseAsset}_${normalizedWindowMinutes}`
 
   // 1. 检查缓存
-  const cached = cache.get(baseAsset)
+  const cached = cache.get(cacheKey)
   if (cached && (Date.now() - cached.timestamp < CACHE_TTL)) {
     return cached.data
   }
 
   // 2. 检查是否有进行中的请求（防抖）
-  const pending = pendingRequests.get(baseAsset)
+  const pending = pendingRequests.get(cacheKey)
   if (pending) {
     return pending
   }
 
   // 3. 发起请求
-  const requestPromise = fetchSquareHeat(baseAsset)
-  pendingRequests.set(baseAsset, requestPromise)
+  const requestPromise = fetchSquareHeat(baseAsset, normalizedWindowMinutes)
+  pendingRequests.set(cacheKey, requestPromise)
 
   try {
     const result = await requestPromise
     // 写入缓存
-    cache.set(baseAsset, { data: result, timestamp: Date.now() })
+    cache.set(cacheKey, { data: result, timestamp: Date.now() })
     return result
   } finally {
-    pendingRequests.delete(baseAsset)
+    pendingRequests.delete(cacheKey)
   }
 }
 
 /**
- * 调用币安广场 API 获取最新帖子，统计 24 小时内帖子数
+ * 调用币安广场 API 获取最新帖子，按策略持仓窗口统计帖子数和社区情绪
  */
-async function fetchSquareHeat(baseAsset: string): Promise<SquareHeatResult> {
+/**
+ * 请求并统计广场帖子。
+ * 方向样本不足时扩大到两倍策略持仓窗口，以避免极少样本导致的情绪误判。
+ */
+async function fetchSquareHeat(baseAsset: string, windowMinutes: number): Promise<SquareHeatResult> {
   // 重试配置
   const MAX_RETRIES = 2
   const RETRY_DELAY = 1000 // 1秒
@@ -168,14 +184,14 @@ async function fetchSquareHeat(baseAsset: string): Promise<SquareHeatResult> {
       const posts = json.data?.feedData || []
 
       const now = Math.floor(Date.now() / 1000)
-      const TWENTY_FOUR_HOURS = 3600 * 24
-      const FORTY_EIGHT_HOURS = 3600 * 48
+      const primaryWindowSeconds = windowMinutes * 60
+      const fallbackWindowSeconds = primaryWindowSeconds * 2
 
       // 先统计 24h 内看涨+看跌的帖子数，判断是否需要扩展窗口
       let bullishBearish24h = 0
       for (const post of posts) {
         const diff = now - post.date
-        if (diff <= TWENTY_FOUR_HOURS) {
+        if (diff >= 0 && diff <= primaryWindowSeconds) {
           const tendency = Number(post.tendency)
           if (tendency === 1 || tendency === 2) {
             bullishBearish24h++
@@ -184,8 +200,8 @@ async function fetchSquareHeat(baseAsset: string): Promise<SquareHeatResult> {
       }
 
       // 如果 24h 内看涨+看跌帖子数 < 10，扩展到 48h 获取更多样本
-      const use48h = bullishBearish24h < 10
-      const sentimentWindow = use48h ? FORTY_EIGHT_HOURS : TWENTY_FOUR_HOURS
+      const useFallbackWindow = bullishBearish24h < 10
+      const sentimentWindow = useFallbackWindow ? fallbackWindowSeconds : primaryWindowSeconds
 
       // 按时间窗口统计总帖子数、看涨、看跌、中性
       let postCount = 0
@@ -216,7 +232,11 @@ async function fetchSquareHeat(baseAsset: string): Promise<SquareHeatResult> {
       const bearishPercent = trendTotal > 0 ? Number(((bearish / trendTotal) * 100).toFixed(2)) : 0
 
       // ========== 历史对比逻辑 ==========
-      const history = historyStore.get(baseAsset) || []
+      // 不同策略窗口必须分开计算历史均值，避免 4h 与 24h 数据互相污染
+      const historyKey = windowMinutes === DEFAULT_WINDOW_MINUTES
+        ? baseAsset
+        : `${baseAsset}_${windowMinutes}m`
+      const history = historyStore.get(historyKey) || []
       const nowMs = Date.now()
 
       // 计算历史均值（排除当前这次）
@@ -248,7 +268,7 @@ async function fetchSquareHeat(baseAsset: string): Promise<SquareHeatResult> {
       if (history.length > MAX_HISTORY) {
         history.splice(0, history.length - MAX_HISTORY)
       }
-      historyStore.set(baseAsset, history)
+      historyStore.set(historyKey, history)
 
       // 持久化到文件
       saveHistoryToFile()

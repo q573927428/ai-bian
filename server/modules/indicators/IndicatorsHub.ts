@@ -593,14 +593,18 @@ export class IndicatorsHub {
     }
 
     if (type === 'SquareHeat') {
-      // SquareHeat 不依赖 timeframe，使用独立缓存
-      const cacheKey = `${symbol}_SquareHeat`
+      // 情绪窗口由策略最大持仓时间决定；纳入缓存键，避免不同策略复用错误窗口
+      const windowMinutes = Number(options?.lookbackMinutes ?? 24 * 60)
+      const normalizedWindowMinutes = Number.isFinite(windowMinutes) && windowMinutes > 0
+        ? Math.floor(windowMinutes)
+        : 24 * 60
+      const cacheKey = `${symbol}_SquareHeat_${normalizedWindowMinutes}`
       const cached = symbolData.indicators.get(cacheKey)
       if (cached) {
         return cached
       }
 
-      const heatData = await getSquareHeat(symbol)
+      const heatData = await getSquareHeat(symbol, normalizedWindowMinutes)
 
       const indicatorData: IndicatorData = {
         symbol,

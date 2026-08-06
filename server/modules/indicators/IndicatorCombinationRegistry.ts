@@ -81,7 +81,10 @@ export class IndicatorCombinationRegistry {
           const timeframe = stat.type === 'SquareHeat'
             ? mainTimeframe
             : (stat.timeframes?.[0] || mainTimeframe)
-          const params = this.normalizeStatisticParams(stat.type, stat.params, timeframe)
+          const params = this.normalizeStatisticParams(stat.type, {
+            ...stat.params,
+            maxHoldTimeMinutes: strategy.riskManagement?.maxHoldTimeMinutes
+          }, timeframe)
           const key = this.register(symbol, timeframe, stat.type, params)
           if (stat.type === 'OI') binding.keys.oi = key
           if (stat.type === 'Volume') binding.keys.volume = key
@@ -164,7 +167,15 @@ export class IndicatorCombinationRegistry {
       }
     }
     if (type === 'Volume') return { comparePeriod: Number(params.comparePeriod ?? 20) }
-    if (type === 'SquareHeat') return { scope: 'symbol' }
+    if (type === 'SquareHeat') {
+      const windowMinutes = Number(params.maxHoldTimeMinutes ?? 24 * 60)
+      return {
+        scope: 'symbol',
+        lookbackMinutes: Number.isFinite(windowMinutes) && windowMinutes > 0
+          ? Math.floor(windowMinutes)
+          : 24 * 60
+      }
+    }
     return JSON.parse(stableStringify(params))
   }
 

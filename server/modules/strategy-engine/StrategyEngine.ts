@@ -702,7 +702,11 @@ export class StrategyEngine {
     if (squareHeatStatConfig && !this.setPrecomputedIndicator(indicatorsData, precomputed, bindKeys.squareHeat, `SquareHeat_SquareHeat`)) {
       missing.push(bindKeys.squareHeat || `${symbol}:SquareHeat`)
       try {
-        indicatorsData.set(`SquareHeat_SquareHeat`, await this.indicatorsHub.getIndicators(symbol, '1h', 'SquareHeat'))
+        // 社区情绪窗口跟随策略最大持仓时间，确保短线策略不会使用过长的滞后窗口
+        const maxHoldTimeMinutes = Number(strategy.riskManagement?.maxHoldTimeMinutes ?? 24 * 60)
+        indicatorsData.set(`SquareHeat_SquareHeat`, await this.indicatorsHub.getIndicators(symbol, '1h', 'SquareHeat', {
+          lookbackMinutes: maxHoldTimeMinutes
+        }))
       } catch (error: any) {
         logger.warn('StrategyEngine', `获取SquareHeat失败 ${symbol}: ${error.message}`)
       }
