@@ -26,6 +26,8 @@ export interface AIChatMessage {
 export interface AICallOptions {
   temperature?: number
   maxTokens?: number
+  thinkingEnabled?: boolean
+  thinkingProvider?: AIProvider
   responseFormat?: { type: 'json_object' | 'text' }
   timeoutMs?: number
 }
@@ -107,6 +109,27 @@ export async function callAIAPI(
     messages,
     temperature,
     max_tokens: maxTokens,
+  }
+
+  const isOpenAIReasoningModel = options.thinkingProvider === 'openai' && /^(gpt-5|o[1345])/.test(providerConfig.model.toLowerCase())
+  // OpenAI 推理模型不接受 temperature；普通模型仍保持原有请求参数。
+  if (isOpenAIReasoningModel) {
+    delete requestBody.temperature
+  }
+
+  // 不同厂商的思考参数不一致，且普通模型不应接收推理参数，因此只对已知思考模型透传。
+  if (typeof options.thinkingEnabled === 'boolean' && options.thinkingProvider) {
+    const provider = options.thinkingProvider
+    const model = providerConfig.model.toLowerCase()
+    if (provider === 'deepseek' && /(v4|reasoner)/i.test(model)) {
+      requestBody.thinking = { type: options.thinkingEnabled ? 'enabled' : 'disabled' }
+    } else if (provider === 'doubao' && /(seed-2|thinking|reasoning)/i.test(model)) {
+      requestBody.thinking = { type: options.thinkingEnabled ? 'enabled' : 'disabled' }
+    } else if (provider === 'qwen' && /(qwen3|thinking|reasoning)/i.test(model)) {
+      requestBody.enable_thinking = options.thinkingEnabled
+    } else if (provider === 'openai' && /^(gpt-5|o[1345])/.test(model)) {
+      requestBody.reasoning_effort = options.thinkingEnabled ? 'low' : 'none'
+    }
   }
 
   // 仅当 responseFormat 为 json_object 且提供商不是 doubao 时才添加

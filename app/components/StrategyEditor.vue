@@ -280,6 +280,13 @@
                 </el-form-item>
               </el-col>
             </el-row>
+            <el-form-item label="思考模式">
+              <el-switch
+                v-model="form.aiPrompt.thinkingEnabled"
+                active-text="开启"
+                inactive-text="关闭"
+              />
+            </el-form-item>
             <!-- OpenAI 兼容自定义配置 -->
             <template v-if="form.aiPrompt.provider === 'openai'">
               <el-divider content-position="left">OpenAI 兼容自定义配置</el-divider>
@@ -610,6 +617,7 @@ const form = reactive<CreateStrategyInput>({
     userPrompt: '请分析当前市场趋势，当技术指标显示明确的方向时给出开仓建议。\n\n要求：\n1. 趋势明确时才给出信号\n2. 严格控制风险\n3. 返回JSON格式：{direction: "long/short", confidence: 0-100, reasoning: "理由"}',
     temperature: 0.3,
     maxTokens: 2000,
+    thinkingEnabled: false,
     model: 'deepseek-v4-flash',
     provider: 'deepseek'
   },

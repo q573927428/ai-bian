@@ -154,6 +154,7 @@ export interface StatisticsConfig {
 // AI 提示词配置
 export interface AIPromptConfig {
   userPrompt: string;                  // 用户提示词（交易逻辑）
+  thinkingEnabled?: boolean;            // 思考模式开关（模型不支持时忽略）
   temperature: number;                 // AI 温度 (0-1)
   maxTokens: number;                   // 最大token数
   model: AIModel;                      // AI模型

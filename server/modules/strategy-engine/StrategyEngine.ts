@@ -1028,6 +1028,7 @@ export class StrategyEngine {
       userPrompt: promptConfig.userPrompt,
       provider: promptConfig.provider,
       model: promptConfig.model,
+      thinkingEnabled: promptConfig.thinkingEnabled,
       temperature: promptConfig.temperature,
       structuredRules
     }
