@@ -35,6 +35,8 @@ export interface IndicatorValues {
   rsi?: number;
   macd?: MACDValues;
   atr?: number;
+  /** ATR 相对当前价格的波动率百分比 */
+  atrVolatilityPercent?: number;
   oi?: OIValues;
   volume?: VolumeValues;
 }

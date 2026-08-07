@@ -189,7 +189,7 @@
                   size="small"
                   effect="plain"
                 >
-                  {{ key }}: {{ formatIndicatorValue(String(key), val) }}
+                  {{ formatIndicatorLabel(String(key)) }}: {{ formatIndicatorValue(String(key), val) }}
                 </el-tag>
               </div>
             </div>
@@ -465,6 +465,16 @@ function formatIndicatorValue(key: string, value: unknown): string {
   const formatted = formatPrice(value)
   return key.endsWith('Percent') ? `${formatted}%` : formatted
 }
+
+const INDICATOR_LABELS: Record<string, string> = {
+  ATRVolatilityPercent: 'ATR波动率',
+  OIChangePercent: 'OI变化率',
+  EstimatedVolume: '预计量',
+  VolumeEmaAverage: 'EMA均量',
+  EstimatedVolumeEmaRatioPercent: '预计量/EMA'
+}
+
+function formatIndicatorLabel(key: string): string { return INDICATOR_LABELS[key] || key }
 
 // 本地筛选条件（与 store 同步）
 

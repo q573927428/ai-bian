@@ -215,6 +215,9 @@ export class MultiStrategyAIAnalyzer {
         ? (estimatedVolume / volumeEmaAverage) * 100
         : undefined
       const openInterest = Number(indicators.openInterest ?? 0)
+      const atrVolatilityPercent = indicators.atr !== undefined && price > 0
+        ? (indicators.atr / price) * 100
+        : undefined
       const signal: TradeSignal = {
         strategyId,
         symbol,
@@ -231,6 +234,7 @@ export class MultiStrategyAIAnalyzer {
           },
           rsi: aiResult.technicalData.rsi ?? 0,
           atr: indicators.atr,
+          atrVolatilityPercent,
           oi: indicators.enabledIndicators?.oi && indicators.openInterest !== undefined
             ? {
                 value: openInterest,

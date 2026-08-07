@@ -1348,6 +1348,9 @@ export class StrategyEngine {
       if (macdData.macd !== undefined) entryIndicators['MACD'] = macdData.macd
       if (adxData.adx !== undefined) entryIndicators['ADX'] = adxData.adx
       if (atrData.atr !== undefined) entryIndicators['ATR'] = atrData.atr
+      if (signal.indicators?.atrVolatilityPercent !== undefined) {
+        entryIndicators['ATRVolatilityPercent'] = signal.indicators.atrVolatilityPercent
+      }
       
       // 收集 OI 和 Volume
       const oiStatConfig = strategy.statistics.find((s: any) => s.type === 'OI' && s.enabled)
