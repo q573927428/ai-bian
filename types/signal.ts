@@ -65,8 +65,15 @@ export interface OIValues {
 // 成交量值
 export interface VolumeValues {
   current: number;                     // 当前成交量
+  prev?: number;                       // 上一根K线成交量
   average: number;                     // 平均成交量
   ratio?: number;                      // 量比
+  /** AI 分析使用的整根K线预计成交量 */
+  estimatedVolume?: number;
+  /** AI 分析使用的成交量 EMA 均值 */
+  emaAverage?: number;
+  /** 预计成交量 / EMA均值，以百分比表示 */
+  estimatedEmaRatioPercent?: number;
 }
 
 // ==================== 信号验证 ====================

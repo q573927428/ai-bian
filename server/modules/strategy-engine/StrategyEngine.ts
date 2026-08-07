@@ -1337,7 +1337,9 @@ export class StrategyEngine {
       // 收集 EMA
       if (emaData.emaMap) {
         Object.entries(emaData.emaMap).forEach(([period, value]) => {
-          entryIndicators[`EMA${period}`] = Number(value)
+          // emaMap 的 key 在不同计算路径中可能是 "14" 或 "EMA14"，统一避免重复前缀。
+          const indicatorKey = /^EMA/i.test(period) ? period : `EMA${period}`
+          entryIndicators[indicatorKey] = Number(value)
         })
       }
       
@@ -1352,15 +1354,22 @@ export class StrategyEngine {
       const volumeStatConfig = strategy.statistics.find((s: any) => s.type === 'Volume' && s.enabled)
       
       if (oiStatConfig) {
-        const oiTimeframe = oiStatConfig.timeframes?.[0] || mainTimeframe
-        const oiData = indicatorsData.get(`${oiTimeframe}_OI`)?.values || {}
-        if (oiData.value !== undefined) entryIndicators['OI'] = oiData.value
+        const oiIndicators = signal.indicators?.oi
+        if (oiIndicators?.value !== undefined) entryIndicators['OI'] = oiIndicators.value
+        if (oiIndicators?.changePercent !== undefined) entryIndicators['OIChangePercent'] = oiIndicators.changePercent
       }
       
       if (volumeStatConfig) {
-        const volumeTimeframe = volumeStatConfig.timeframes?.[0] || '1h'
-        const volumeData = indicatorsData.get(`${volumeTimeframe}_Volume`)?.values || {}
-        if (volumeData.current !== undefined) entryIndicators['Volume'] = volumeData.current
+        const volumeIndicators = signal.indicators?.volume
+        if (volumeIndicators?.estimatedVolume !== undefined) {
+          entryIndicators['EstimatedVolume'] = volumeIndicators.estimatedVolume
+        }
+        if (volumeIndicators?.emaAverage !== undefined) {
+          entryIndicators['VolumeEmaAverage'] = volumeIndicators.emaAverage
+        }
+        if (volumeIndicators?.estimatedEmaRatioPercent !== undefined) {
+          entryIndicators['EstimatedVolumeEmaRatioPercent'] = volumeIndicators.estimatedEmaRatioPercent
+        }
       }
 
       // 9. 设置止损单

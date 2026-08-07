@@ -207,6 +207,14 @@ export class MultiStrategyAIAnalyzer {
       // }
 
       // 4. 转换为标准交易信号（支持 IDLE 状态）
+      // 将 prompt 中使用的成交量派生值随信号传递，保证最终落盘值与 AI 实际分析值一致。
+      const currentCandleVolume = indicators.lastCandle?.volume ?? volume
+      const estimatedVolume = candleProgress > 0 ? currentCandleVolume / candleProgress : currentCandleVolume
+      const volumeEmaAverage = Number(indicators.volumeEmaAverage ?? 0)
+      const estimatedEmaRatioPercent = volumeEmaAverage > 0
+        ? (estimatedVolume / volumeEmaAverage) * 100
+        : undefined
+      const openInterest = Number(indicators.openInterest ?? 0)
       const signal: TradeSignal = {
         strategyId,
         symbol,
@@ -222,7 +230,27 @@ export class MultiStrategyAIAnalyzer {
             slow: indicators.emaList[indicators.emaList.length - 1]?.value ?? 0
           },
           rsi: aiResult.technicalData.rsi ?? 0,
-          atr: indicators.atr
+          atr: indicators.atr,
+          oi: indicators.enabledIndicators?.oi && indicators.openInterest !== undefined
+            ? {
+                value: openInterest,
+                changePercent: indicators.openInterestChangePercent,
+                trend: indicators.openInterestTrend ?? 'flat'
+              }
+            : undefined,
+          volume: indicators.enabledIndicators?.volume
+            ? {
+                current: currentCandleVolume,
+                prev: indicators.volumePrev,
+                average: indicators.volumeAverage ?? 0,
+                ratio: indicators.volumeEmaAverage && indicators.volumeEmaAverage > 0
+                  ? estimatedVolume / indicators.volumeEmaAverage
+                  : undefined,
+                estimatedVolume,
+                emaAverage: volumeEmaAverage,
+                estimatedEmaRatioPercent
+              }
+            : undefined
         },
         timestamp: new Date().toISOString(),
         // 新增增强字段
@@ -425,7 +453,7 @@ export class MultiStrategyAIAnalyzer {
 
     // 使用 lastCandle.volume 来计算预计成交量，确保和 candleProgress 来自同一根K线
     const currentCandleVolume = indicators.lastCandle?.volume ?? volume
-    const estimatedVolume = candleProgress > 0 ? (currentCandleVolume / candleProgress).toFixed(2) : currentCandleVolume.toFixed(2)
+    const estimatedVolume = candleProgress > 0 ? currentCandleVolume / candleProgress : currentCandleVolume
 
     // ========== 通用预计算数据（按策略启用指标条件输出） ==========
 
@@ -459,7 +487,7 @@ export class MultiStrategyAIAnalyzer {
       if (indicators.volumeEmaAverage !== undefined && indicators.volumeEmaPeriod !== undefined) {
         const volumeEma = Number(indicators.volumeEmaAverage)
         if (volumeEma > 0) {
-          const volumeRatio = Number(estimatedVolume) / volumeEma
+          const volumeRatio = estimatedVolume / volumeEma
           volumeCompareLines.push(`- 预计成交量/成交量EMA均值(${indicators.volumeEmaPeriod}周期): ${volumeRatio.toFixed(2)}倍`)
         }
         volumeCompareLines.push(`- 成交量EMA均值(${indicators.volumeEmaPeriod}周期): ${volumeEma.toFixed(2)}`)
@@ -484,7 +512,7 @@ export class MultiStrategyAIAnalyzer {
       currentTime: new Date().toISOString(),
       candleProgressPercent: (candleProgress * 100).toFixed(1),
       currentVolume: indicators.enabledIndicators?.volume ? (currentCandleVolume ?? 0).toFixed(2) : '',
-      estimatedVolume,
+      estimatedVolume: estimatedVolume.toFixed(2),
       lastCandle: indicators.lastCandle ? formatCandle(indicators.lastCandle) : '',
       prevCandle: indicators.prevCandle ? formatCandle(indicators.prevCandle) : '',
       technicalIndicatorLines,

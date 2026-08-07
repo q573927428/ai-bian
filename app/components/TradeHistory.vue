@@ -189,7 +189,7 @@
                   size="small"
                   effect="plain"
                 >
-                  {{ key }}: {{ typeof val === 'number' ? formatPrice(val) : val }}
+                  {{ key }}: {{ formatIndicatorValue(String(key), val) }}
                 </el-tag>
               </div>
             </div>
@@ -457,6 +457,13 @@ function formatPrice(value: number | undefined | null): string {
     minimumFractionDigits: 2,
     maximumFractionDigits: maxFractionDigits,
   })
+}
+
+// 入场指标中以 Percent 结尾的字段本身已经是百分数值，需要补充百分号避免与普通数值混淆。
+function formatIndicatorValue(key: string, value: unknown): string {
+  if (typeof value !== 'number') return String(value ?? '--')
+  const formatted = formatPrice(value)
+  return key.endsWith('Percent') ? `${formatted}%` : formatted
 }
 
 // 本地筛选条件（与 store 同步）
