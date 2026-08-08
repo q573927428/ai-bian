@@ -682,7 +682,7 @@ ${promptConfig.userPrompt}
 
     // 根据 squareHeat 是否启用来决定 reasoning 格式示例中是否包含币安广场热度相关展示
     const squareHeatReasoningExample = hasSquareHeat
-      ? `；币安广场热度(31) -3.2%：➡️正常；${squareHeatWindow}社区情绪🟢: 看涨(7) / 看跌(2) / 中立(78)，方向覆盖率10.34%，净情绪+55.56%。`
+      ? `；币安广场热度(31) -3.2%：➡️正常；${squareHeatWindow}社区情绪🟢: 看涨(7) / 看跌(2) / 中立(78)，方向覆盖率 10.34%，多空情绪指数 +55.56%。`
       : ''
 
     return `
