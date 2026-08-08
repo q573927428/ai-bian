@@ -618,11 +618,12 @@ export class IndicatorsHub {
           trend: heatData.trend,
           changePercent: heatData.changePercent,
           historyAvg: heatData.historyAvg,
-          bullishPercent: heatData.bullishPercent,
           bullishCount: heatData.bullishCount,
-          bearishPercent: heatData.bearishPercent,
           bearishCount: heatData.bearishCount,
           neutralCount: heatData.neutralCount,
+          directionalCoveragePercent: heatData.directionalCoveragePercent,
+          netDirectionalSentimentPercent: heatData.netDirectionalSentimentPercent,
+          dataUpdatedAt: heatData.lastUpdated,
         }
       }
 

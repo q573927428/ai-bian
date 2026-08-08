@@ -1,7 +1,7 @@
 // ==================== 多策略 AI 分析器 ====================
 
 import type { StrategyId, AIPromptConfig, AIProvider } from '../../../types/strategy'
-import type { AIAnalysis, RiskLevel, TechnicalIndicators, BotConfig, Direction, ScoreBreakdown } from '../../../types'
+import type { AIAnalysis, RiskLevel, TechnicalIndicators, BotConfig, Direction, ScoreBreakdown, EntryCommunitySentiment } from '../../../types'
 import type { TradeSignal } from '../../../types/signal'
 import { BinanceService } from '../../utils/binance'
 import { logger } from '../../utils/logger'
@@ -218,6 +218,23 @@ export class MultiStrategyAIAnalyzer {
       const atrVolatilityPercent = indicators.atr !== undefined && price > 0
         ? (indicators.atr / price) * 100
         : undefined
+      const communitySentiment: EntryCommunitySentiment | undefined = indicators.enabledIndicators?.squareHeat
+        && indicators.squareHeat !== undefined
+        ? {
+            windowMinutes: Number(indicators.squareHeatWindowMinutes ?? 24 * 60),
+            dataUpdatedAt: Number(indicators.squareHeatDataUpdatedAt ?? Date.now()),
+            heat: Number(indicators.squareHeat),
+            postCount: Number(indicators.squareHeatPostCount ?? 0),
+            historyAveragePostCount: Number(indicators.squareHeatHistoryAvg ?? 0),
+            heatChangePercent: Number(indicators.squareHeatChangePercent ?? 0),
+            heatTrend: indicators.squareHeatTrend ?? 'normal',
+            bullishCount: Number(indicators.squareHeatBullishCount ?? 0),
+            bearishCount: Number(indicators.squareHeatBearishCount ?? 0),
+            neutralCount: Number(indicators.squareHeatNeutralCount ?? 0),
+            directionalCoveragePercent: Number(indicators.squareHeatDirectionalCoveragePercent ?? 0),
+            netDirectionalSentimentPercent: Number(indicators.squareHeatNetDirectionalSentimentPercent ?? 0)
+          }
+        : undefined
       const signal: TradeSignal = {
         strategyId,
         symbol,
@@ -254,7 +271,8 @@ export class MultiStrategyAIAnalyzer {
                 emaAverage: volumeEmaAverage,
                 estimatedEmaRatioPercent
               }
-            : undefined
+            : undefined,
+          communitySentiment
         },
         timestamp: new Date().toISOString(),
         // 新增增强字段
@@ -418,19 +436,30 @@ export class MultiStrategyAIAnalyzer {
         : ''
       const trendLabel = indicators.squareHeatTrend === 'increasing' ? '📈增长' : indicators.squareHeatTrend === 'decreasing' ? '📉下降' : '➡️正常'
 
-      // 涨跌比展示
+      // 同时展示方向覆盖率与净情绪，避免少量方向样本被解读为社区整体强烈看涨或看跌。
       let sentimentStr = ''
-      const bullishP = indicators.squareHeatBullishPercent
-      const bearishP = indicators.squareHeatBearishPercent
-      if (bullishP !== undefined && bearishP !== undefined) {
-        const sentimentIcon = bullishP > bearishP ? '🟢' : bullishP < bearishP ? '🔴' : '⚪'
+      const coveragePercent = indicators.squareHeatDirectionalCoveragePercent
+      const netSentimentPercent = indicators.squareHeatNetDirectionalSentimentPercent
+      if (coveragePercent !== undefined && netSentimentPercent !== undefined) {
+        const sentimentIcon = netSentimentPercent > 0 ? '🟢' : netSentimentPercent < 0 ? '🔴' : '⚪'
         const bullishCount = indicators.squareHeatBullishCount ?? 0
         const bearishCount = indicators.squareHeatBearishCount ?? 0
         const neutralCount = indicators.squareHeatNeutralCount ?? 0
-        sentimentStr = `；${squareHeatWindow}社区情绪${sentimentIcon}: 看涨(${bullishCount}) ${bullishP.toFixed(2)}% / 看跌(${bearishCount}) ${bearishP.toFixed(2)}% / 中立(${neutralCount})`
+        const directionalCount = bullishCount + bearishCount
+        const bullishDirectionalPercent = directionalCount > 0
+          ? (bullishCount / directionalCount) * 100
+          : 0
+        const sentimentDirection = netSentimentPercent > 0 ? '偏多' : netSentimentPercent < 0 ? '偏空' : '多空均衡'
+        sentimentStr = `；${squareHeatWindow}社区情绪${sentimentIcon}: 共${bullishCount + bearishCount + neutralCount}帖，看涨${bullishCount} / 看跌${bearishCount} / 中立${neutralCount}；明确表态${directionalCount}帖(${coveragePercent.toFixed(2)}%)，方向样本${sentimentDirection}${directionalCount > 0 ? `（看涨占明确表态${bullishDirectionalPercent.toFixed(2)}%）` : ''}`
       }
 
-      squareHeatLines.push(`- 币安广场热度(${heat})${change}：${trendLabel}${sentimentStr}`)
+      const postCount = indicators.squareHeatPostCount ?? 0
+      const historyAveragePostCount = indicators.squareHeatHistoryAvg ?? 0
+      const updatedAt = Number(indicators.squareHeatDataUpdatedAt)
+      const updatedAtText = Number.isFinite(updatedAt) && updatedAt > 0
+        ? `，数据更新时间${new Date(updatedAt).toISOString()}`
+        : ''
+      squareHeatLines.push(`- 币安广场热度(${heat})${change}：${trendLabel}，帖子数${postCount}，历史平均帖子数${historyAveragePostCount}${sentimentStr}${updatedAtText}`)
     }
 
     // 启用指标列表
@@ -653,7 +682,7 @@ ${promptConfig.userPrompt}
 
     // 根据 squareHeat 是否启用来决定 reasoning 格式示例中是否包含币安广场热度相关展示
     const squareHeatReasoningExample = hasSquareHeat
-      ? `；币安广场热度(31) -3.2%：➡️正常；${squareHeatWindow}社区情绪🟢: 看涨(7) 77.78% / 看跌(2) 22.22% / 中立(78)。`
+      ? `；币安广场热度(31) -3.2%：➡️正常；${squareHeatWindow}社区情绪🟢: 看涨(7) / 看跌(2) / 中立(78)，方向覆盖率10.34%，净情绪+55.56%。`
       : ''
 
     return `

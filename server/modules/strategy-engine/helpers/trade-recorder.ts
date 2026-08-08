@@ -124,6 +124,8 @@ export async function recordTrade(
     takeProfit2Price: position.takeProfit2,
     // 入场指标
     entryIndicators: positionInfo?.entryIndicators,
+    // 社区情绪必须保存入场快照，不能使用平仓时的最新数据覆盖。
+    entryCommunitySentiment: positionInfo?.entryCommunitySentiment,
     // AI信息
     aiReasoning: positionInfo?.reasoning,
     // 持仓统计

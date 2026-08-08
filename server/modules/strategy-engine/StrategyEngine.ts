@@ -916,11 +916,12 @@ export class StrategyEngine {
         squareHeatTrend: enabledSquareHeat ? indicatorsData.get(`SquareHeat_SquareHeat`)?.values?.trend : undefined,
         squareHeatChangePercent: enabledSquareHeat ? indicatorsData.get(`SquareHeat_SquareHeat`)?.values?.changePercent : undefined,
         squareHeatHistoryAvg: enabledSquareHeat ? indicatorsData.get(`SquareHeat_SquareHeat`)?.values?.historyAvg : undefined,
-        squareHeatBullishPercent: enabledSquareHeat ? indicatorsData.get(`SquareHeat_SquareHeat`)?.values?.bullishPercent : undefined,
         squareHeatBullishCount: enabledSquareHeat ? indicatorsData.get(`SquareHeat_SquareHeat`)?.values?.bullishCount : undefined,
-        squareHeatBearishPercent: enabledSquareHeat ? indicatorsData.get(`SquareHeat_SquareHeat`)?.values?.bearishPercent : undefined,
         squareHeatBearishCount: enabledSquareHeat ? indicatorsData.get(`SquareHeat_SquareHeat`)?.values?.bearishCount : undefined,
         squareHeatNeutralCount: enabledSquareHeat ? indicatorsData.get(`SquareHeat_SquareHeat`)?.values?.neutralCount : undefined,
+        squareHeatDirectionalCoveragePercent: enabledSquareHeat ? indicatorsData.get(`SquareHeat_SquareHeat`)?.values?.directionalCoveragePercent : undefined,
+        squareHeatNetDirectionalSentimentPercent: enabledSquareHeat ? indicatorsData.get(`SquareHeat_SquareHeat`)?.values?.netDirectionalSentimentPercent : undefined,
+        squareHeatDataUpdatedAt: enabledSquareHeat ? indicatorsData.get(`SquareHeat_SquareHeat`)?.values?.dataUpdatedAt : undefined,
         // 将实际情绪统计窗口传给 AI，避免把策略周期误写成固定 24H
         squareHeatWindowMinutes: enabledSquareHeat
           ? Number(instance.strategy.riskManagement?.maxHoldTimeMinutes ?? 24 * 60)
@@ -1375,6 +1376,9 @@ export class StrategyEngine {
         }
       }
 
+      // 社区情绪使用 AI 实际分析时的快照，避免开仓阶段重新请求导致数据口径变化。
+      const entryCommunitySentiment = signal.indicators?.communitySentiment
+
       // 9. 设置止损单
       const stopSide = getOrderSide(signal.direction.toUpperCase() as 'LONG' | 'SHORT', false)
       const stopOrder = await this.binance.stopLossOrder(signal.symbol, stopSide, actualQuantity, stopLoss)
@@ -1428,6 +1432,7 @@ export class StrategyEngine {
         scoreBreakdown: signal.scoreBreakdown,
         riskLevel: signal.riskLevel,
         entryIndicators,
+        entryCommunitySentiment,
         maxFloatingProfit: 0,
         maxFloatingProfitPercent: 0,
         maxFloatingLoss: 0,

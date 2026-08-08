@@ -18,16 +18,16 @@ export interface SquareHeatResult {
   changePercent: number
   /** 历史均值（24小时帖子数） */
   historyAvg: number
-  /** 看涨占比（基于看涨+看跌，0~100） */
-  bullishPercent: number
   /** 看涨帖子数量 */
   bullishCount: number
-  /** 看跌占比（基于看涨+看跌，0~100） */
-  bearishPercent: number
   /** 看跌帖子数量 */
   bearishCount: number
   /** 中性帖子数（未表明方向） */
   neutralCount: number
+  /** 有明确方向的帖子占全部帖子的比例 */
+  directionalCoveragePercent: number
+  /** 看涨与看跌样本的净倾向，范围为 -100~100 */
+  netDirectionalSentimentPercent: number
   lastUpdated: number
 }
 
@@ -247,10 +247,14 @@ async function fetchSquareHeat(baseAsset: string, windowMinutes: number): Promis
       // 热度直接使用时间窗口内的帖子数
       const heat = postCount
 
-      // 计算涨跌占比（基于看涨+看跌）
+      // 覆盖率用于约束情绪结论的可信度，避免少量方向样本被误解为社区整体倾向。
       const trendTotal = bullish + bearish
-      const bullishPercent = trendTotal > 0 ? Number(((bullish / trendTotal) * 100).toFixed(2)) : 0
-      const bearishPercent = trendTotal > 0 ? Number(((bearish / trendTotal) * 100).toFixed(2)) : 0
+      const directionalCoveragePercent = postCount > 0
+        ? Number(((trendTotal / postCount) * 100).toFixed(2))
+        : 0
+      const netDirectionalSentimentPercent = trendTotal > 0
+        ? Number((((bullish - bearish) / trendTotal) * 100).toFixed(2))
+        : 0
 
       // ========== 历史对比逻辑 ==========
       // 不同策略窗口必须分开计算历史均值，避免 4h 与 24h 数据互相污染
@@ -307,11 +311,11 @@ async function fetchSquareHeat(baseAsset: string, windowMinutes: number): Promis
         trend,
         changePercent: Number(changePercent.toFixed(1)),
         historyAvg: Number(historyAvg.toFixed(1)),
-        bullishPercent,
         bullishCount: bullish,
-        bearishPercent,
         bearishCount: bearish,
         neutralCount: neutral,
+        directionalCoveragePercent,
+        netDirectionalSentimentPercent,
         lastUpdated: nowMs,
       }
     } catch {
@@ -328,11 +332,11 @@ async function fetchSquareHeat(baseAsset: string, windowMinutes: number): Promis
         trend: 'normal',
         changePercent: 0,
         historyAvg: 0,
-        bullishPercent: 0,
         bullishCount: 0,
-        bearishPercent: 0,
         bearishCount: 0,
         neutralCount: 0,
+        directionalCoveragePercent: 0,
+        netDirectionalSentimentPercent: 0,
         lastUpdated: Date.now(),
       }
     }
@@ -346,11 +350,11 @@ async function fetchSquareHeat(baseAsset: string, windowMinutes: number): Promis
     trend: 'normal',
     changePercent: 0,
     historyAvg: 0,
-    bullishPercent: 0,
     bullishCount: 0,
-    bearishPercent: 0,
     bearishCount: 0,
     neutralCount: 0,
+    directionalCoveragePercent: 0,
+    netDirectionalSentimentPercent: 0,
     lastUpdated: Date.now(),
   }
 }

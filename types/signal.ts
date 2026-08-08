@@ -5,7 +5,7 @@ import type { Timeframe } from './strategy';
 
 // ==================== 标准交易信号 ====================
 
-import type { RiskLevel, ScoreBreakdown } from './index';
+import type { EntryCommunitySentiment, RiskLevel, ScoreBreakdown } from './index';
 
 // AI 返回的标准交易信号
 export interface TradeSignal {
@@ -39,6 +39,8 @@ export interface IndicatorValues {
   atrVolatilityPercent?: number;
   oi?: OIValues;
   volume?: VolumeValues;
+  /** AI 分析时使用的社区情绪快照 */
+  communitySentiment?: EntryCommunitySentiment;
 }
 
 // EMA 指标值

@@ -15,6 +15,38 @@ export interface ScoreBreakdown {
   finalScore: number
 }
 
+/**
+ * 入场时的币安广场社区情绪快照
+ *
+ * 原始帖子计数与当时的派生指标同时保存，确保历史订单不受后续采集数据和算法调整影响。
+ */
+export interface EntryCommunitySentiment {
+  /** 社区情绪统计窗口，单位为分钟 */
+  windowMinutes: number
+  /** 社区数据实际采集时间，毫秒时间戳 */
+  dataUpdatedAt: number
+  /** 币安广场热度值，当前等于统计窗口内帖子总数 */
+  heat: number
+  /** 统计窗口内帖子总数 */
+  postCount: number
+  /** 同标的、同窗口的历史平均帖子数 */
+  historyAveragePostCount: number
+  /** 当前热度相对历史均值的变化率 */
+  heatChangePercent: number
+  /** 热度变化趋势 */
+  heatTrend: 'increasing' | 'normal' | 'decreasing'
+  /** 明确看涨的帖子数量 */
+  bullishCount: number
+  /** 明确看跌的帖子数量 */
+  bearishCount: number
+  /** 未表达明确方向的帖子数量 */
+  neutralCount: number
+  /** 有明确方向的帖子占全部帖子的比例 */
+  directionalCoveragePercent: number
+  /** 看涨与看跌样本的净倾向，范围为 -100~100 */
+  netDirectionalSentimentPercent: number
+}
+
 // 仓位状态
 export enum PositionStatus {
   IDLE = 'IDLE',
@@ -59,11 +91,12 @@ export interface TechnicalIndicators {
   squareHeatTrend?: 'increasing' | 'normal' | 'decreasing'
   squareHeatChangePercent?: number
   squareHeatHistoryAvg?: number
-  squareHeatBullishPercent?: number
   squareHeatBullishCount?: number
-  squareHeatBearishPercent?: number
   squareHeatBearishCount?: number
   squareHeatNeutralCount?: number
+  squareHeatDirectionalCoveragePercent?: number
+  squareHeatNetDirectionalSentimentPercent?: number
+  squareHeatDataUpdatedAt?: number
   /** 社区情绪统计窗口，单位为分钟，来源于策略 maxHoldTimeMinutes */
   squareHeatWindowMinutes?: number
   enabledIndicators: {
@@ -421,6 +454,9 @@ export interface TradeHistory {
   
   // 入场技术指标（动态）
   entryIndicators?: Record<string, number>
+
+  /** 入场时的社区情绪快照，仅在策略启用 SquareHeat 时保存 */
+  entryCommunitySentiment?: EntryCommunitySentiment
   
   // AI分析信息
   aiReasoning?: string

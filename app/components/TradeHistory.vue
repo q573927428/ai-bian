@@ -193,6 +193,19 @@
                 </el-tag>
               </div>
             </div>
+            <div v-if="row.entryCommunitySentiment" class="detail-section">
+              <span class="detail-label">入场社区情绪</span>
+              <div class="indicators-tags">
+                <el-tag
+                  v-for="(val, key) in row.entryCommunitySentiment"
+                  :key="key"
+                  size="small"
+                  effect="plain"
+                >
+                  {{ formatCommunitySentimentLabel(String(key)) }}: {{ formatCommunitySentimentValue(String(key), val) }}
+                </el-tag>
+              </div>
+            </div>
             <div v-if="row.aiReasoning" class="detail-section">
               <span class="detail-label">AI 推理</span>
               <span class="detail-value reason-text">平仓原因：{{ row.reason }}； {{ row.aiReasoning }}</span>
@@ -475,6 +488,51 @@ const INDICATOR_LABELS: Record<string, string> = {
 }
 
 function formatIndicatorLabel(key: string): string { return INDICATOR_LABELS[key] || key }
+
+const COMMUNITY_SENTIMENT_LABELS: Record<string, string> = {
+  windowMinutes: '统计窗口',
+  dataUpdatedAt: '数据更新时间',
+  heat: '广场热度',
+  postCount: '帖子总数',
+  historyAveragePostCount: '历史平均帖子数',
+  heatChangePercent: '热度变化率',
+  heatTrend: '热度趋势',
+  bullishCount: '看涨数',
+  bearishCount: '看跌数',
+  neutralCount: '中立数',
+  directionalCoveragePercent: '方向覆盖率',
+  netDirectionalSentimentPercent: '净情绪'
+}
+
+/**
+ * 格式化社区情绪字段名称，确保历史订单展示使用稳定的业务口径。
+ */
+function formatCommunitySentimentLabel(key: string): string {
+  return COMMUNITY_SENTIMENT_LABELS[key] || key
+}
+
+/**
+ * 根据社区情绪字段语义格式化数值、周期、趋势和采集时间。
+ */
+function formatCommunitySentimentValue(key: string, value: unknown): string {
+  if (key === 'dataUpdatedAt' && typeof value === 'number') return formatTime(value)
+  if (key === 'windowMinutes' && typeof value === 'number') {
+    if (value % (24 * 60) === 0) return `${value / (24 * 60)}D`
+    if (value % 60 === 0) return `${value / 60}H`
+    return `${value}M`
+  }
+  if (key === 'heatTrend') {
+    const trendLabels: Record<string, string> = {
+      increasing: '增长',
+      normal: '正常',
+      decreasing: '下降'
+    }
+    return trendLabels[String(value)] || String(value ?? '--')
+  }
+  if (typeof value !== 'number') return String(value ?? '--')
+  const formatted = formatPrice(value)
+  return key.endsWith('Percent') ? `${formatted}%` : formatted
+}
 
 // 本地筛选条件（与 store 同步）
 

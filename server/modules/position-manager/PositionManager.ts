@@ -1,8 +1,7 @@
 // ==================== 仓位管理器 ====================
 
 import type { StrategyId, TradeDirection } from '../../../types/strategy'
-import type { Position } from '../../../types'
-import type { ScoreBreakdown } from '../../../types'
+import type { EntryCommunitySentiment, Position, ScoreBreakdown } from '../../../types'
 import { logger } from '../../utils/logger'
 import { 
   saveActivePositions,
@@ -48,6 +47,8 @@ export interface PositionInfo {
   
   // 入场指标（新增）
   entryIndicators?: Record<string, number>;  // 入场时的技术指标
+  /** 入场时的社区情绪快照，平仓后原样写入历史订单 */
+  entryCommunitySentiment?: EntryCommunitySentiment;
   
   // 持仓期间的极值追踪（用于计算最大浮盈浮亏）
   maxFloatingProfit?: number;
