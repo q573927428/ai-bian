@@ -232,7 +232,7 @@
         </template>
       </el-table-column>
 
-      <el-table-column label="策略" min-width="100">
+      <el-table-column label="策略" min-width="110">
         <template #default="{ row }">
           <el-tag v-if="row.strategyId" type="info" size="small" effect="plain">
             {{ row.strategyId }}
@@ -246,7 +246,6 @@
         width="80"
         align="right"
         prop="entryPrice"
-        sortable="custom"
       >
         <template #default="{ row }">
           ${{ formatPrice(row.entryPrice) }}
@@ -258,14 +257,13 @@
         width="80"
         align="right"
         prop="exitPrice"
-        sortable="custom"
       >
         <template #default="{ row }">
           ${{ formatPrice(row.exitPrice) }}
         </template>
       </el-table-column>
 
-      <el-table-column
+      <!-- <el-table-column
         label="数量"
         width="70"
         align="right"
@@ -275,9 +273,9 @@
         <template #default="{ row }">
           {{ row.quantity }}
         </template>
-      </el-table-column>
+      </el-table-column> -->
 
-      <el-table-column label="杠杆" width="60" align="center">
+      <el-table-column label="杠杆" width="50" align="center">
         <template #default="{ row }">
           {{ row.leverage }}x
         </template>
@@ -311,7 +309,7 @@
         </template>
       </el-table-column>
 
-      <el-table-column label="手续费" width="70" align="right">
+      <el-table-column label="手续费" width="60" align="right">
         <template #default="{ row }">
           ${{ row.totalCommission != null ? row.totalCommission.toFixed(2) : '--' }}
         </template>
@@ -323,7 +321,7 @@
         </template>
       </el-table-column>
 
-      <el-table-column label="置信度" width="80" align="center" prop="entryConfidence" sortable="custom">
+      <el-table-column label="置信" width="65" align="center" prop="entryConfidence" sortable="custom">
         <template #default="{ row }">
           {{ row.entryConfidence != null ? row.entryConfidence : '--' }}
         </template>
@@ -342,6 +340,27 @@
           <span v-else class="text-muted">--</span>
         </template>
       </el-table-column> -->
+
+      <el-table-column label="OI" width="60" align="center">
+        <template #default="{ row }">
+          <span
+            v-if="row.entryIndicators?.OIChangePercent != null"
+            :class="getOiChangeClass(row.entryIndicators.OIChangePercent)"
+          >
+            {{ formatPercent2(row.entryIndicators.OIChangePercent) }}
+          </span>
+          <span v-else class="text-muted">--</span>
+        </template>
+      </el-table-column>
+
+      <el-table-column label="预计量" width="70" align="center">
+        <template #default="{ row }">
+          <span v-if="row.entryIndicators?.EstimatedVolumeEmaRatioPercent != null">
+            {{ formatPercent2(row.entryIndicators.EstimatedVolumeEmaRatioPercent) }}
+          </span>
+          <span v-else class="text-muted">--</span>
+        </template>
+      </el-table-column>
 
       <el-table-column
         label="开仓时间"
@@ -477,6 +496,12 @@ function formatIndicatorValue(key: string, value: unknown): string {
   if (typeof value !== 'number') return String(value ?? '--')
   const formatted = formatPrice(value)
   return key.endsWith('Percent') ? `${formatted}%` : formatted
+}
+
+// 百分比数值只保留两位小数（用于 OI变化率、预计量/EMA 列）
+function formatPercent2(value: number | undefined | null): string {
+  if (value == null || isNaN(value) || !isFinite(value)) return '--'
+  return `${value.toFixed(2)}%`
 }
 
 const INDICATOR_LABELS: Record<string, string> = {
@@ -658,6 +683,14 @@ function getCloseCategoryLabel(category?: string): string {
     unknown: '未知',
   }
   return category ? labels[category] || category : '--'
+}
+
+// OI变化率正负值样式
+function getOiChangeClass(value: number | undefined): string {
+  if (value == null || isNaN(value)) return ''
+  if (value > 0) return 'text-success'
+  if (value < 0) return 'text-danger'
+  return ''
 }
 
 // 获取平仓分类类型
