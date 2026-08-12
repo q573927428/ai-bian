@@ -208,6 +208,17 @@ export class StrategyPositionMonitor {
         
       const pnl = priceDiff * position.quantity
       const pnlPercentage = (priceDiff / position.entryPrice) * 100 * position.leverage
+
+      // 移动止损状态保存在完整 Position 中；兼容旧仓位只保存顶层字段的情况。
+      const trailingStopCount = position.position?.trailingStopData?.trailingStopCount ?? 0
+      const currentStopLoss = position.stopLoss ?? position.position?.stopLoss
+      const initialStopLoss = position.initialStopLoss ?? position.position?.initialStopLoss
+      // 只有止损价实际移动过，才在常规持仓日志中追加移动止损信息。
+      const trailingStopText = trailingStopCount > 0
+        ? `移动:${trailingStopCount}次 ` +
+          `移损:${currentStopLoss !== undefined ? currentStopLoss.toFixed(4) : '--'} ` +
+          `初损:${initialStopLoss !== undefined ? initialStopLoss.toFixed(4) : '--'} `
+        : ''
         
       const directionText = position.direction === 'long' ? '做多' : '做空'
         
@@ -218,6 +229,7 @@ export class StrategyPositionMonitor {
         `当前价:${currentPrice.toFixed(2).padStart(10)} ` +
         `盈亏:${pnl >= 0 ? '+' : ''}${pnl.toFixed(2)}USDT ` +
         `${pnlPercentage >= 0 ? '+' : ''}${pnlPercentage.toFixed(2)}% ` +
+        trailingStopText +
         `[${position.strategyId}]`
       )
     }
