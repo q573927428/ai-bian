@@ -449,6 +449,8 @@ export interface TradeHistory {
   stopLossPrice?: number
   /** 平仓前最后生效的止损价，可与初始止损价对比移动止损效果 */
   finalStopLossPrice?: number
+  /** 持仓期间止损价实际向盈利方向移动的次数 */
+  trailingStopCount?: number
   takeProfit1Price?: number
   takeProfit2Price?: number
   

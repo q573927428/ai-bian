@@ -120,6 +120,10 @@ export async function recordTrade(
     stopLossPrice: position.initialStopLoss,
     // 移动止损只更新 PositionInfo 顶层字段，因此优先保存顶层的最终止损价。
     finalStopLossPrice: positionInfo?.stopLoss ?? position.stopLoss,
+    // 次数保存在内层 Position 中；落库后即使仓位被清理，历史订单仍可追溯移动过程。
+    trailingStopCount: positionInfo?.position?.trailingStopData?.trailingStopCount
+      ?? position.trailingStopData?.trailingStopCount
+      ?? 0,
     takeProfit1Price: position.takeProfit1,
     takeProfit2Price: position.takeProfit2,
     // 入场指标

@@ -129,8 +129,24 @@
                 <span class="detail-value">{{ row.entryConfidence ?? '--' }}</span>
               </div>
               <div class="detail-item">
-                <span class="detail-label">入场评分</span>
-                <span class="detail-value">{{ row.entryScore ?? '--' }}</span>
+                <span class="detail-label">总评分</span>
+                <span class="detail-value">{{ formatScore(row.entryScoreBreakdown?.finalScore ?? row.entryScore) }}</span>
+              </div>
+              <div class="detail-item">
+                <span class="detail-label">基础分</span>
+                <span class="detail-value">{{ formatScore(row.entryScoreBreakdown?.baseScore) }}</span>
+              </div>
+              <div class="detail-item">
+                <span class="detail-label">硬条件分</span>
+                <span class="detail-value">{{ formatScore(row.entryScoreBreakdown?.hardScore) }}</span>
+              </div>
+              <div class="detail-item">
+                <span class="detail-label">软条件分</span>
+                <span class="detail-value">{{ formatScore(row.entryScoreBreakdown?.softScore) }}</span>
+              </div>
+              <div class="detail-item">
+                <span class="detail-label">扣分</span>
+                <span class="detail-value">{{ formatScore(row.entryScoreBreakdown?.penaltyScore) }}</span>
               </div>
               <div class="detail-item">
                 <span class="detail-label">风险等级</span>
@@ -143,9 +159,18 @@
                   </el-tag>
                 </span>
               </div>
+
               <div class="detail-item">
                 <span class="detail-label">止损价</span>
                 <span class="detail-value">${{ formatPrice(row.stopLossPrice) }}</span>
+              </div>
+              <div class="detail-item">
+                <span class="detail-label">最终止损价</span>
+                <span class="detail-value">${{ formatPrice(row.finalStopLossPrice) }}</span>
+              </div>
+              <div class="detail-item">
+                <span class="detail-label">移动止损次数</span>
+                <span class="detail-value">{{ formatTrailingStopCount(row.trailingStopCount) }}</span>
               </div>
               <div class="detail-item">
                 <span class="detail-label">止盈1价</span>
@@ -317,7 +342,7 @@
 
       <el-table-column label="评分" width="65" align="center" prop="entryScore" sortable="custom">
         <template #default="{ row }">
-          {{ row.entryScore != null ? row.entryScore : '--' }}
+          {{ formatScore(row.entryScoreBreakdown?.finalScore ?? row.entryScore) }}
         </template>
       </el-table-column>
 
@@ -364,7 +389,7 @@
 
       <el-table-column
         label="开仓时间"
-        width="100"
+        width="95"
         align="center"
         prop="openTime"
         sortable="custom"
@@ -376,7 +401,7 @@
 
       <el-table-column
         label="平仓时间"
-        width="100"
+        width="95"
         align="center"
         prop="closeTime"
         sortable="custom"
@@ -388,7 +413,7 @@
 
       <el-table-column
         label="持仓"
-        min-width="90"
+        min-width="98"
         align="center"
         prop="holdingMinutes"
         sortable="custom"
@@ -467,6 +492,22 @@ function getRiskLevelType(level?: string): 'success' | 'warning' | 'danger' | 'i
   return level ? types[level] || 'info' : 'info'
 }
 
+/**
+ * 格式化评分，保留非整数评分精度并兼容旧历史记录缺少拆分分数的情况。
+ */
+function formatScore(value: number | undefined | null): string {
+  if (value == null || !Number.isFinite(value)) return '--'
+  return Number.isInteger(value) ? String(value) : value.toFixed(2)
+}
+
+/**
+ * 格式化移动止损次数；旧记录没有保存真实次数时不做推测。
+ */
+function formatTrailingStopCount(value: number | undefined | null): string {
+  if (value == null || !Number.isFinite(value)) return '--'
+  return `${Math.max(0, Math.trunc(value))}次`
+}
+
 // 格式化价格（根据价格大小动态小数位）
 function formatPrice(value: number | undefined | null): string {
   if (value == null || isNaN(value) || !isFinite(value)) return '--'
@@ -516,7 +557,7 @@ function formatIndicatorLabel(key: string): string { return INDICATOR_LABELS[key
 
 const COMMUNITY_SENTIMENT_LABELS: Record<string, string> = {
   windowMinutes: '统计窗口',
-  dataUpdatedAt: '数据更新时间',
+  dataUpdatedAt: '时间',
   heat: '广场热度',
   postCount: '帖子总数',
   historyAveragePostCount: '历史平均帖子数',
@@ -846,7 +887,7 @@ onUnmounted(() => {
 
 .detail-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
   gap: 12px;
   margin-bottom: 12px;
 }
