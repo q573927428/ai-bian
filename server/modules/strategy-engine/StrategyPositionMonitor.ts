@@ -419,12 +419,21 @@ export class StrategyPositionMonitor {
         const highestPrice = position.highestPrice || entryPrice
         const lowestPrice = position.lowestPrice || entryPrice
 
-        // 计算新的止损价
+        // 使用入场时已经固化的 ATR，避免持仓期间波动率变化导致止损距离被动放宽。
+        const entryAtr = position.entryIndicators?.ATR
+        if (typeof entryAtr !== 'number' || !Number.isFinite(entryAtr) || entryAtr <= 0) {
+          logger.warn('移动止损', `${position.symbol} 缺少有效的入场ATR，保留当前止损价`)
+          return false
+        }
+
+        const trailingDistance = entryAtr * trailingStopConfig.trailDistance
+
+        // trailDistance 表示 ATR 倍数，多单从最高价向下跟踪，空单从最低价向上跟踪。
         let newStopLoss: number
         if (position.direction === 'long') {
-          newStopLoss = highestPrice * (1 - trailingStopConfig.trailDistance / 100)
+          newStopLoss = highestPrice - trailingDistance
         } else {
-          newStopLoss = lowestPrice * (1 + trailingStopConfig.trailDistance / 100)
+          newStopLoss = lowestPrice + trailingDistance
         }
 
         // 检查是否需要更新止损单（至少移动minMoveDistance）
