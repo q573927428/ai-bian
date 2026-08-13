@@ -1003,10 +1003,8 @@ export class StrategyEngine {
         logger.success('扫描结果', `${signal.symbol} @${signal.price} ${signal.direction.toUpperCase()} ${entryThresholdMode}（${thresholdValue} >= ${threshold}）风险等级（${signal.riskLevel} <= ${maxRiskLevel}）[${signal.strategyId}] ===详细AI日志=== ${enhancedLog}`)
       }
 
-      // 补充止损价
-      if (signal.direction === 'long' || signal.direction === 'short') {
-        signal.stopLoss = this.calculateStopLoss(price, signal.direction)
-      }
+      // 信号中的止损价用于缓存和后续扩展展示，必须与正式下单使用同一套策略 ATR 口径。
+      signal.stopLoss = this.calculateConfiguredStopLoss(signal, instance.strategy)
 
       // 缓存结果
       this.aiCache.set(cacheKey, { signal, timestamp: Date.now() })
@@ -1066,16 +1064,17 @@ export class StrategyEngine {
   }
 
   /**
-   * 计算止损价
+   * 按策略风险配置计算止损价
+   *
+   * ATR 缺失时沿用现有兼容规则，以价格的 1% 作为 ATR，确保信号缓存与正式下单口径一致。
    */
-  private calculateStopLoss(price: number, direction: 'long' | 'short'): number {
-    // 简化版本，实际应该基于 ATR 计算
-    const stopLossPercent = 0.02 // 2% 止损
-    if (direction === 'long') {
-      return price * (1 - stopLossPercent)
-    } else {
-      return price * (1 + stopLossPercent)
-    }
+  private calculateConfiguredStopLoss(signal: TradeSignal, strategy: Strategy): number {
+    return calculateStopLoss(
+      signal.price,
+      signal.direction.toUpperCase() as 'LONG' | 'SHORT',
+      signal.indicators.atr || (signal.price * 0.01),
+      strategy.riskManagement.stopLossATRMultiplier
+    )
   }
 
   /**
@@ -1159,12 +1158,7 @@ export class StrategyEngine {
       symbolLocked = true
 
       // 2. 计算止损价格
-      const stopLoss = calculateStopLoss(
-        signal.price,
-        signal.direction.toUpperCase() as 'LONG' | 'SHORT',
-        signal.indicators.atr || (signal.price * 0.01), // 默认ATR为价格的1%
-        strategy.riskManagement.stopLossATRMultiplier
-      )
+      const stopLoss = this.calculateConfiguredStopLoss(signal, strategy)
 
       // 3. 计算杠杆
       let finalLeverage: number
