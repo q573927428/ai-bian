@@ -44,6 +44,30 @@ export function formatCloseReason(reason: string, riskRewardRatio: number): stri
 }
 
 /**
+ * 根据策略产生的原始平仓原因确定结构化分类
+ *
+ * 必须在追加最终盈亏比文本之前调用，避免超时、手动平仓被错误识别成止盈。
+ */
+export function classifyCloseCategory(reason: string): NonNullable<TradeHistory['closeCategory']> {
+  const reasonLower = reason.toLowerCase()
+
+  if (reasonLower.includes('止损')) {
+    return reasonLower.includes('移动') ? 'trailing_stop' : 'stop_loss'
+  }
+  if (reasonLower.includes('超时')) {
+    return 'timeout'
+  }
+  if (reasonLower.includes('手动')) {
+    return 'manual'
+  }
+  if (reasonLower.includes('止盈') || reasonLower.includes('tp')) {
+    return 'take_profit'
+  }
+
+  return 'unknown'
+}
+
+/**
  * 交易结算元数据
  *
  * 币安成交明细存在时用于保存真实订单、已实现盈亏和手续费来源；缺失时保持旧版估算逻辑兼容。
@@ -102,22 +126,8 @@ export async function recordTrade(
   const closeTime = settlement?.closeTime || Date.now()
   const holdingMinutes = Math.round((closeTime - position.openTime) / 60000)
 
-  // 判断平仓分类
-  let closeCategory: any = 'unknown'
-  const reasonLower = finalReason.toLowerCase()
-  if (reasonLower.includes('止损')) {
-    if (reasonLower.includes('移动')) {
-      closeCategory = 'trailing_stop'
-    } else {
-      closeCategory = 'stop_loss'
-    }
-  } else if (reasonLower.includes('止盈') || reasonLower.includes('tp') || reasonLower.includes('盈亏比')) {
-    closeCategory = 'take_profit'
-  } else if (reasonLower.includes('超时')) {
-    closeCategory = 'timeout'
-  } else if (reasonLower.includes('手动')) {
-    closeCategory = 'manual'
-  }
+  // 分类只使用策略传入的原始原因，不能被随后统一追加的盈亏比文本干扰。
+  const closeCategory = classifyCloseCategory(reason)
 
   // 记录交易历史（注意：TradeHistory 的 pnl 现在存储的是净利）
   const trade: TradeHistory = {
