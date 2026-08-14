@@ -6,6 +6,43 @@ import type { StrategyId } from '../../../../types/strategy'
 import { calculatePnL } from '../../../utils/trade-helpers'
 import { strategyStore } from '../../../modules/strategy-store/StrategyStore'
 
+/** 平仓原因中已经存在的盈亏比文本，用于按实际成交价更新而不是重复追加。 */
+const RISK_REWARD_TEXT_PATTERN = /盈亏比\s*[+-]?\d+(?:\.\d+)?\s*:\s*1/g
+
+/**
+ * 计算实际平仓盈亏比（R 倍数）
+ *
+ * 使用初始止损定义单笔初始风险；盈利为正数，亏损为负数。
+ */
+export function calculateRiskRewardRatio(position: Position, exitPrice: number): number {
+  const risk = Math.abs(position.entryPrice - position.initialStopLoss)
+  if (!Number.isFinite(risk) || risk <= 0 || !Number.isFinite(exitPrice)) {
+    return 0
+  }
+
+  const profit = position.direction === 'LONG'
+    ? exitPrice - position.entryPrice
+    : position.entryPrice - exitPrice
+
+  return profit / risk
+}
+
+/**
+ * 将最终实际盈亏比写入平仓原因
+ *
+ * TP 原因可能已包含触发时的盈亏比，需要用最终成交结果替换；其他原因统一追加。
+ */
+export function formatCloseReason(reason: string, riskRewardRatio: number): string {
+  const riskRewardText = `盈亏比 ${riskRewardRatio.toFixed(2)}:1`
+  if (RISK_REWARD_TEXT_PATTERN.test(reason)) {
+    RISK_REWARD_TEXT_PATTERN.lastIndex = 0
+    return reason.replace(RISK_REWARD_TEXT_PATTERN, riskRewardText)
+  }
+
+  RISK_REWARD_TEXT_PATTERN.lastIndex = 0
+  return `${reason}：${riskRewardText}`
+}
+
 /**
  * 交易结算元数据
  *
@@ -57,13 +94,17 @@ export async function recordTrade(
   const finalNetPnlPercentage = netPnlPercentage !== undefined ? netPnlPercentage : calculatedNetPnlPercentage
   const finalTotalCommission = totalCommission !== undefined ? totalCommission : calculatedTotalCommission
 
+  // 原因和结构化字段必须使用最终成交价，确保滑点发生后两处数据仍保持一致。
+  const riskRewardRatio = calculateRiskRewardRatio(position, exitPrice)
+  const finalReason = formatCloseReason(reason, riskRewardRatio)
+
   // 计算持仓时间（分钟）
   const closeTime = settlement?.closeTime || Date.now()
   const holdingMinutes = Math.round((closeTime - position.openTime) / 60000)
 
   // 判断平仓分类
   let closeCategory: any = 'unknown'
-  const reasonLower = reason.toLowerCase()
+  const reasonLower = finalReason.toLowerCase()
   if (reasonLower.includes('止损')) {
     if (reasonLower.includes('移动')) {
       closeCategory = 'trailing_stop'
@@ -96,7 +137,8 @@ export async function recordTrade(
     pnlPercentage: finalNetPnlPercentage, // 存储净利百分比
     openTime: position.openTime,
     closeTime,
-    reason,
+    reason: finalReason,
+    riskRewardRatio,
     totalCommission: finalTotalCommission,
     fundingFee: settlement?.fundingFee,
     grossRealizedPnl: settlement?.grossRealizedPnl ?? grossPnl,

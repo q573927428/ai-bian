@@ -418,6 +418,8 @@ export interface TradeHistory {
   openTime: number
   closeTime: number
   reason: string
+  /** 实际出场收益相对于入场初始风险的倍数（R），亏损时为负数 */
+  riskRewardRatio?: number
   totalCommission?: number
   /** 持仓期间实际资金费，正数表示收到，负数表示支付 */
   fundingFee?: number
