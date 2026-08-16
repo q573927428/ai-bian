@@ -1426,6 +1426,8 @@ export class StrategyEngine {
         scoreBreakdown: signal.scoreBreakdown,
         riskLevel: signal.riskLevel,
         entryIndicators,
+        // 固化 AI 决策时的 K 线进度，不能在平仓时用另一根 K 线重新计算。
+        candleProgressPercent: signal.indicators.candleProgressPercent,
         entryCommunitySentiment,
         maxFloatingProfit: 0,
         maxFloatingProfitPercent: 0,

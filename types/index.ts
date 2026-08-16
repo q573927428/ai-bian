@@ -459,6 +459,9 @@ export interface TradeHistory {
   // 入场技术指标（动态）
   entryIndicators?: Record<string, number>
 
+  /** AI 分析并决定入场时的 K 线完成进度，以百分比表示 */
+  candleProgressPercent?: number
+
   /** 入场时的社区情绪快照，仅在策略启用 SquareHeat 时保存 */
   entryCommunitySentiment?: EntryCommunitySentiment
   

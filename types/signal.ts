@@ -35,6 +35,8 @@ export interface IndicatorValues {
   rsi?: number;
   macd?: MACDValues;
   atr?: number;
+  /** AI 分析时当前 K 线的完成进度，以百分比表示 */
+  candleProgressPercent?: number;
   /** ATR 相对当前价格的波动率百分比 */
   atrVolatilityPercent?: number;
   oi?: OIValues;

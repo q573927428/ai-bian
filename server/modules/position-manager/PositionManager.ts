@@ -47,6 +47,8 @@ export interface PositionInfo {
   
   // 入场指标（新增）
   entryIndicators?: Record<string, number>;  // 入场时的技术指标
+  /** AI 决定入场时的 K 线完成进度，以百分比表示，平仓后原样写入历史订单 */
+  candleProgressPercent?: number;
   /** 入场时的社区情绪快照，平仓后原样写入历史订单 */
   entryCommunitySentiment?: EntryCommunitySentiment;
   

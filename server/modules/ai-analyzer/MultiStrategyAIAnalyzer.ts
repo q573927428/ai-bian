@@ -209,6 +209,8 @@ export class MultiStrategyAIAnalyzer {
       // 4. 转换为标准交易信号（支持 IDLE 状态）
       // 将 prompt 中使用的成交量派生值随信号传递，保证最终落盘值与 AI 实际分析值一致。
       const currentCandleVolume = indicators.lastCandle?.volume ?? volume
+      // 与 Prompt 展示精度保持一致，历史订单记录 AI 决策时实际看到的 K 线进度。
+      const candleProgressPercent = Number((candleProgress * 100).toFixed(1))
       const estimatedVolume = candleProgress > 0 ? currentCandleVolume / candleProgress : currentCandleVolume
       const volumeEmaAverage = Number(indicators.volumeEmaAverage ?? 0)
       const estimatedEmaRatioPercent = volumeEmaAverage > 0
@@ -251,6 +253,7 @@ export class MultiStrategyAIAnalyzer {
           },
           rsi: aiResult.technicalData.rsi ?? 0,
           atr: indicators.atr,
+          candleProgressPercent,
           atrVolatilityPercent,
           oi: indicators.enabledIndicators?.oi && indicators.openInterest !== undefined
             ? {
@@ -603,7 +606,7 @@ export class MultiStrategyAIAnalyzer {
 交易对：${data.symbol}
 当前价格：${data.price} USDT
 当前时间：${data.currentTime}
-K线完成进度：${data.candleProgressPercent}%
+ K线完成进度：${data.candleProgressPercent}%
 ${data.currentVolume ? `当前成交量：${data.currentVolume}` : ''}
 预计K线结束成交量：${data.estimatedVolume}（you must use this）
 
