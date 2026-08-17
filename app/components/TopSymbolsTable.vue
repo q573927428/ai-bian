@@ -106,9 +106,9 @@
         >
           <template #default="{ row }">
             <div class="symbol-cell">
-              <template v-if="!iconFailed[row.symbol]">
+              <template v-if="!iconFailed[row.symbol] && cryptoIconUrl(row.symbol)">
                 <img
-                  :src="getCryptoIcon(row.symbol)"
+                  :src="cryptoIconUrl(row.symbol)"
                   :alt="getSymbolDisplay(row.symbol)"
                   class="crypto-icon"
                   @error="onIconError(row.symbol)"
@@ -241,6 +241,9 @@
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
+import { useCoinIcon } from '../composables/useCoinIcon'
+
+const { getCoinIconUrl } = useCoinIcon()
 
 type Mode = 'hot' | 'stable'
 
@@ -459,10 +462,9 @@ const confirmSelect = () => {
   visible.value = false
 }
 
-// 获取加密货币图标（使用本地图标）
-function getCryptoIcon(symbol: string): string {
-  const base = symbol.replace('USDT', '').toLowerCase()
-  return `/assets/crypto-icons/${base}.png`
+// 获取加密货币图标（由币安官方清单驱动；无图标时返回空串，触发占位符显示）
+function cryptoIconUrl(symbol: string): string {
+  return getCoinIconUrl(symbol) || ''
 }
 
 function getSymbolDisplay(symbol: string): string {

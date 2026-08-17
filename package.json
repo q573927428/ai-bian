@@ -12,7 +12,8 @@
     "start": "PORT=3002 NITRO_HOST=0.0.0.0 node .output/server/index.mjs",
     "start:with-sync": "PORT=3002 NITRO_HOST=0.0.0.0 node .output/server/index.mjs",
     "diagnose:square-heat": "node scripts/diagnose-square-heat-api.mjs",
-    "sync:legacy": "node scripts/start-kline-simple-sync.js"
+    "sync:legacy": "node scripts/start-kline-simple-sync.js",
+    "sync:coin-icons": "node scripts/sync-binance-coin-icons.mjs"
   },
   "dependencies": {
     "@element-plus/nuxt": "^1.0.10",

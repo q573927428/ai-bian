@@ -60,10 +60,10 @@
       >
         <div class="price-card-header">
         <div class="crypto-info">
-          <div class="crypto-symbol">
-            <template v-if="!iconFailed[crypto.symbol]">
+        <div class="crypto-symbol">
+            <template v-if="!iconFailed[crypto.symbol] && cryptoIconUrl(crypto.symbol)">
               <img 
-                :src="getCryptoIcon(crypto.symbol)" 
+                :src="cryptoIconUrl(crypto.symbol)" 
                 :alt="getSymbolDisplay(crypto.symbol)"
                 class="crypto-icon"
                 @error="onIconError(crypto.symbol)"
@@ -114,8 +114,10 @@ import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import ChartEngineSwitcher from '../components/kline-chart/ChartEngineSwitcher.vue'
 import { formatPrice } from './kline-chart/utils/kline-formatters'
 import { useBotStore } from '../stores/bot'
+import { useCoinIcon } from '../composables/useCoinIcon'
 
 const botStore = useBotStore()
+const { getCoinIconUrl } = useCoinIcon()
 
 // 从配置文件获取加密货币列表，处理去掉/
 const DEFAULT_CRYPTOS = computed<string[]>(() => {
@@ -279,10 +281,9 @@ function getSymbolDisplay(symbol: string): string {
   return symbol.replace('USDT', '')
 }
 
-// 获取加密货币图标（使用本地图标）
-function getCryptoIcon(symbol: string): string {
-  const base = symbol.replace('USDT', '').toLowerCase()
-  return `/assets/crypto-icons/${base}.png`
+// 获取加密货币图标（由币安官方清单驱动；无图标时返回空串，触发占位符显示）
+function cryptoIconUrl(symbol: string): string {
+  return getCoinIconUrl(symbol) || ''
 }
 
 // 记录加载失败的图标（true=加载失败，显示占位符）
