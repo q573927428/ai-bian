@@ -73,7 +73,7 @@ export class StrategyPositionMonitor {
    */
   start(options: { immediate?: boolean; initialDelayMs?: number } = {}): void {
     if (this.monitorTimer) {
-      logger.warn('持仓监控', '监控已在运行')
+      logger.warn('💹持仓监控', '监控已在运行')
       return
     }
 
@@ -82,7 +82,7 @@ export class StrategyPositionMonitor {
     const runMonitor = async () => {
       // 网络变慢时上一轮可能尚未结束；跳过重入，避免相同请求成倍进入限流队列。
       if (this.isMonitoring) {
-        logger.warn('持仓监控', '上一轮监控尚未完成，跳过本轮')
+        logger.warn('💹持仓监控', '上一轮监控尚未完成，跳过本轮')
         return
       }
 
@@ -90,7 +90,7 @@ export class StrategyPositionMonitor {
       try {
         await this.monitorPositions()
       } catch (error: any) {
-        logger.error('持仓监控', '监控循环异常:', error.message)
+        logger.error('💹持仓监控', '监控循环异常:', error.message)
       } finally {
         this.isMonitoring = false
       }
@@ -122,7 +122,7 @@ export class StrategyPositionMonitor {
     if (this.monitorTimer) {
       clearInterval(this.monitorTimer)
       this.monitorTimer = null
-      logger.info('持仓监控', '持仓监控已停止')
+      logger.info('💹持仓监控', '持仓监控已停止')
     }
   }
 
@@ -157,7 +157,7 @@ export class StrategyPositionMonitor {
       try {
         await this.monitorSinglePosition(position, exchangePositions, currentPrices.get(position.symbol))
       } catch (error: any) {
-        logger.error('持仓监控', `监控 ${position.symbol} 失败: ${error.message}`)
+        logger.error('💹持仓监控', `监控 ${position.symbol} 失败: ${error.message}`)
       }
     }
   }
@@ -172,7 +172,7 @@ export class StrategyPositionMonitor {
         const price = await priceCacheService.getPrice(this.binance, symbol)
         return [symbol, price] as const
       } catch (error: any) {
-        logger.error('持仓监控', `获取 ${symbol} 当前价失败: ${error.message}`)
+        logger.error('💹持仓监控', `获取 ${symbol} 当前价失败: ${error.message}`)
         return null
       }
     }))
@@ -188,7 +188,7 @@ export class StrategyPositionMonitor {
       return await this.binance.fetchPositions()
     } catch (error: any) {
       // 陈旧账户快照可能误判刚开仓的仓位；本轮失败时等待下一轮恢复更稳妥。
-      logger.error('持仓监控', `批量获取交易所持仓失败，跳过本轮: ${error.message}`)
+      logger.error('💹持仓监控', `批量获取交易所持仓失败，跳过本轮: ${error.message}`)
       return null
     }
   }
@@ -222,7 +222,7 @@ export class StrategyPositionMonitor {
         
       const directionText = position.direction === 'long' ? '做多' : '做空'
         
-      logger.info('持仓监控',
+      logger.info('💹持仓监控',
         `${position.symbol.padEnd(12)} ` +
         `${directionText.padEnd(6)} ` +
         `入场价:${position.entryPrice.toFixed(2).padStart(10)} ` +
@@ -248,12 +248,12 @@ export class StrategyPositionMonitor {
     // 1. 首先检查持仓一致性，防止本地状态与交易所不一致
     const isConsistent = await this.positionCloser.checkPositionConsistency(symbol, exchangePositions)
     if (!isConsistent) {
-      logger.info('持仓监控', `${symbol} 持仓已不一致，跳过本次监控`)
+      logger.info('💹持仓监控', `${symbol} 持仓已不一致，跳过本次监控`)
       return
     }
 
     if (currentPrice === undefined) {
-      logger.warn('持仓监控', `${symbol} 缺少本轮价格，跳过价格风控检查`)
+      logger.warn('💹持仓监控', `${symbol} 缺少本轮价格，跳过价格风控检查`)
       return
     }
 
@@ -263,7 +263,7 @@ export class StrategyPositionMonitor {
     // 获取策略配置
     const strategy = await this.strategyStore.getStrategy(position.strategyId)
     if (!strategy) {
-      logger.warn('持仓监控', `未找到策略配置: ${position.strategyId}`)
+      logger.warn('💹持仓监控', `未找到策略配置: ${position.strategyId}`)
       return
     }
 
