@@ -204,6 +204,11 @@
                 <span class="detail-label">最大浮亏%</span>
                 <span class="detail-value text-danger">{{ formatPrice(row.maxFloatingLossPercent) }}%</span>
               </div>
+              <!--K线完成进度%-->
+              <div class="detail-item">
+                <span class="detail-label">K 线完成进度</span>
+                <span class="detail-value">{{ formatPrice(row.candleProgressPercent) }}%</span>
+              </div>
             </div>
             <div v-if="row.entryIndicators" class="detail-section">
               <span class="detail-label">入场指标</span>
@@ -560,9 +565,9 @@ const COMMUNITY_SENTIMENT_LABELS: Record<string, string> = {
   dataUpdatedAt: '时间',
   heat: '广场热度',
   postCount: '帖子总数',
-  historyAveragePostCount: '历史平均帖子数',
-  heatChangePercent: '热度变化率',
-  heatTrend: '热度趋势',
+  historyAveragePostCount: '历史平均数',
+  heatChangePercent: '热度',
+  heatTrend: '趋势',
   bullishCount: '看涨数',
   bearishCount: '看跌数',
   neutralCount: '中立数',
@@ -887,7 +892,7 @@ onUnmounted(() => {
 
 .detail-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
   gap: 12px;
   margin-bottom: 12px;
 }
