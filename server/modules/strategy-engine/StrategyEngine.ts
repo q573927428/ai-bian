@@ -729,7 +729,7 @@ export class StrategyEngine {
 
     // 1. 检查是否已有仓位（同交易对互斥）
     if (await this.positionManager.hasConflict(symbol, strategy.id)) {
-      logger.info('扫描结果', ` ${symbol}，已有仓位`)
+      logger.info('🔍扫描结果', ` ${symbol}，已有仓位`)
       return
     }
 
@@ -766,7 +766,7 @@ export class StrategyEngine {
 
     // 8. 再次检查仓位冲突（防止并发问题）
     if (await this.positionManager.hasConflict(symbol, strategy.id)) {
-      logger.info('扫描结果', ` ${symbol} 已有仓位 [策略 ${strategy.id}] 信号被忽略 `)
+      logger.info('🔍扫描结果', ` ${symbol} 已有仓位 [策略 ${strategy.id}] 信号被忽略 `)
       return
     }
 
@@ -991,16 +991,16 @@ export class StrategyEngine {
       }
 
       if (signal.direction === 'idle') {
-        logger.info('扫描结果', `${signal.symbol} @${signal.price} IDLE ${entryThresholdMode}（${thresholdValue ?? '缺失'}，阈值 ${threshold}）置信度（${signal.confidence}）评分（${finalScore}） [${signal.strategyId}] ===详细AI日志=== ${enhancedLog}`)
+        logger.info('🔍扫描结果', `${signal.symbol} @${signal.price} IDLE ${entryThresholdMode}（${thresholdValue ?? '缺失'}，阈值 ${threshold}）置信度（${signal.confidence}）评分（${finalScore}） [${signal.strategyId}] ===详细AI日志=== ${enhancedLog}`)
         return null
       } else if (!isThresholdOK) {
-        logger.info('扫描结果', `${signal.symbol} @${signal.price} ${signal.direction.toUpperCase()} ${entryThresholdMode}（${thresholdValue ?? '缺失'} < ${threshold}）置信度（${signal.confidence}）评分（${finalScore}）[${signal.strategyId}] ===详细AI日志=== ${enhancedLog}`)
+        logger.info('🔍扫描结果', `${signal.symbol} @${signal.price} ${signal.direction.toUpperCase()} ${entryThresholdMode}（${thresholdValue ?? '缺失'} < ${threshold}）置信度（${signal.confidence}）评分（${finalScore}）[${signal.strategyId}] ===详细AI日志=== ${enhancedLog}`)
         return null
       } else if (!isRiskLevelOK) {
-        logger.info('扫描结果', `${signal.symbol} @${signal.price} ${signal.direction.toUpperCase()} ${entryThresholdMode}（${thresholdValue} >= ${threshold}）风险等级（${signal.riskLevel} > ${maxRiskLevel}）[${signal.strategyId}] ===详细AI日志=== ${enhancedLog}`)
+        logger.info('🔍扫描结果', `${signal.symbol} @${signal.price} ${signal.direction.toUpperCase()} ${entryThresholdMode}（${thresholdValue} >= ${threshold}）风险等级（${signal.riskLevel} > ${maxRiskLevel}）[${signal.strategyId}] ===详细AI日志=== ${enhancedLog}`)
         return null
       } else {
-        logger.success('扫描结果', `${signal.symbol} @${signal.price} ${signal.direction.toUpperCase()} ${entryThresholdMode}（${thresholdValue} >= ${threshold}）风险等级（${signal.riskLevel} <= ${maxRiskLevel}）[${signal.strategyId}] ===详细AI日志=== ${enhancedLog}`)
+        logger.success('🔍扫描结果', `${signal.symbol} @${signal.price} ${signal.direction.toUpperCase()} ${entryThresholdMode}（${thresholdValue} >= ${threshold}）风险等级（${signal.riskLevel} <= ${maxRiskLevel}）[${signal.strategyId}] ===详细AI日志=== ${enhancedLog}`)
       }
 
       // 信号中的止损价用于缓存和后续扩展展示，必须与正式下单使用同一套策略 ATR 口径。
