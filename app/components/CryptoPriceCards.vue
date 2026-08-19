@@ -379,6 +379,7 @@ interface WebSocketStatusResponse {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+  margin-bottom: -10px;
 }
 .horizontal-line{
   margin-bottom: 30px;
