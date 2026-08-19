@@ -1253,16 +1253,9 @@ export class StrategyEngine {
 
       logger.info('杠杆', `使用杠杆: ${finalLeverage} X`, leverageCalculationDetails)
 
-      // 4. 设置杠杆和持仓模式
+      // 4. 设置杠杆和保证金模式
       await this.binance.setLeverage(signal.symbol, finalLeverage)
       await this.binance.setMarginMode(signal.symbol, 'cross')
-      
-      try {
-        await this.binance.setPositionMode(false) // 单向持仓模式
-        logger.info('持仓模式', '已设置为单向持仓模式')
-      } catch (error: any) {
-        logger.warn('持仓模式', `设置持仓模式失败: ${error.message}`)
-      }
 
       // 5. 计算仓位大小
       const riskAmount = calculatePositionSize(
