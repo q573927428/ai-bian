@@ -682,7 +682,7 @@ export class StrategyEngine {
         try {
           indicatorsData.set(dataKey, await this.indicatorsHub.getIndicators(symbol, oiTimeframe, 'OI', {
             lookbackMinutes: Math.max(1, changePeriod) * this.timeframeToMinutes(oiTimeframe),
-            trendThresholdPercent: Number(oiStatConfig.params?.trendThresholdPercent ?? 0.003)
+            trendThresholdPercent: Number(oiStatConfig.params?.trendThresholdPercent ?? 0.4)
           }))
         } catch (error: any) {
           logger.warn('StrategyEngine', `获取OI失败 ${symbol} ${oiTimeframe}: ${error.message}`)

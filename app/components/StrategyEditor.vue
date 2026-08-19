@@ -126,10 +126,10 @@
                   <el-form-item label="判定阈值">
                     <el-input-number
                       v-model="oiParams.trendThresholdPercent"
-                      :min="0.001"
-                      :max="1.0"
-                      :step="0.001"
-                      :precision="3"
+                      :min="0.1"
+                      :max="100"
+                      :step="0.1"
+                      :precision="1"
                     /> <small class="unitf">%</small>
                   </el-form-item>
                 </el-col>
@@ -630,7 +630,7 @@ const selectedStatistics = ref<string[]>(['OI', 'Volume'])
 // OI参数
 const oiParams = reactive({
   changePeriod: 8,
-  trendThresholdPercent: 0.003
+  trendThresholdPercent: 0.4
 })
 
 // 初始化表单
@@ -889,7 +889,7 @@ watch(() => props.strategy, (newVal) => {
     const oiStat = newVal.statistics.find(s => s.type === 'OI' && s.enabled)
     if (oiStat && oiStat.params) {
       oiParams.changePeriod = oiStat.params.changePeriod ?? 12
-      oiParams.trendThresholdPercent = oiStat.params.trendThresholdPercent ?? 0.05
+      oiParams.trendThresholdPercent = oiStat.params.trendThresholdPercent ?? 0.4
     }
 
     const sr = (newVal as any).structuredRules

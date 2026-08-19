@@ -544,7 +544,8 @@ export class IndicatorsHub {
         throw new Error(`${symbol} OI数据未初始化`)
       }
 
-      const trendThresholdPercent = Math.max(0.001, Number(options?.trendThresholdPercent ?? 0.05))
+      // OI changePercent 已经是百分数口径，例如 0.4 表示 0.4%。
+      const trendThresholdPercent = Math.max(0.1, Number(options?.trendThresholdPercent ?? 0.4))
       const defaultLookbackMinutes = this.timeframeToMinutes(timeframe)
       const lookbackMinutes = Math.max(1, Math.floor(options?.lookbackMinutes ?? defaultLookbackMinutes))
       // 实际回看K线数：表示对比"多少根之前"的 OI（changePeriod=1 时即上一根已收盘K线）
