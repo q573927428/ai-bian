@@ -4,10 +4,10 @@
     v-if="mode === 'kline'"
     ref="tooltipRef" 
     class="kline-tooltip"
-    :class="{ 'tooltip-visible': visible }"
+    :class="{ 'tooltip-visible': visible || klineData.length > 0 }"
     :style="style"
   >
-    <div class="tooltip-content">
+    <div class="tooltip-content" :class="{ 'tooltip-content-hidden': !visible }">
       <span class="symbol">{{ symbol }}</span>
       <span class="symbol-info">永续 Binance</span>
       <span class="timeframe">{{ timeframe }}</span>
@@ -73,6 +73,13 @@
         </span>
       </span>
     </div>
+
+    <!-- 图表统计固定在行情数据下方，并与行情数据共用画布内的悬浮定位。 -->
+    <KLineChartInfo
+      floating
+      :kline-data="klineData"
+      :updated="updated"
+    />
   </div>
 
   <!-- 订单模式：竖排订单详情面板 -->
@@ -126,8 +133,10 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import type { TradeHistory } from '../../../types'
+import type { SimpleKLineData } from '../../../types/kline-simple'
 import { formatPrice, formatVolume, formatPercent } from './utils/kline-formatters'
 import { useBotStore } from '../../stores/bot'
+import KLineChartInfo from './KLineChartInfo.vue'
 
 // 获取策略名称映射
 const botStore = useBotStore()
@@ -206,6 +215,8 @@ interface Props {
   }
   klineTime?: number
   orders?: TradeHistory[]
+  klineData?: SimpleKLineData[]
+  updated?: number
   position?: {
     left: string
     top: string
@@ -228,6 +239,8 @@ const props = withDefaults(defineProps<Props>(), {
     emaDiffPercent: 0
   }),
   orders: () => [],
+  klineData: () => [],
+  updated: 0,
   position: () => ({
     left: '20px',
     top: '20px'
@@ -273,6 +286,10 @@ const style = computed(() => ({
   font-size: 13px;
   color: var(--text-primary);
   white-space: nowrap;
+}
+
+.tooltip-content-hidden {
+  visibility: hidden;
 }
 
 .tooltip-content .symbol {

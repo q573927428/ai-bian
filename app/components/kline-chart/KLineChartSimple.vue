@@ -74,6 +74,8 @@
         :time="tooltipTime"
         :data="tooltipData"
         :position="tooltipPosition"
+        :kline-data="klineData"
+        :updated="meta.updated"
       />
 
       <!-- 订单详情浮动面板 -->
@@ -90,13 +92,6 @@
       />
     </div>
 
-    <!-- 图表信息 -->
-    <div ref="infoWrapperRef" class="chart-info-wrapper">
-      <KLineChartInfo
-        :kline-data="klineData"
-        :updated="meta.updated"
-      />
-    </div>
   </div>
 </template>
 
@@ -110,7 +105,6 @@ import type { ScanResultApiResponse, StrategyScanResult } from '../../../types/s
 import KLineChartControls from './KLineChartControls.vue'
 import KLineChartCanvas from './KLineChartCanvas.vue'
 import KLineTooltip from './KLineTooltip.vue'
-import KLineChartInfo from './KLineChartInfo.vue'
 import KLineScanResultDialog from './KLineScanResultDialog.vue'
 
 // 导入bot store
@@ -122,7 +116,6 @@ import { useTheme } from '../../composables/useTheme'
 const chartCanvasRef = ref<InstanceType<typeof KLineChartCanvas> | null>(null)
 const simpleContainerRef = ref<HTMLElement | null>(null)
 const controlsWrapperRef = ref<HTMLElement | null>(null)
-const infoWrapperRef = ref<HTMLElement | null>(null)
 
 // 导入工具函数
 import { formatTime } from './utils/kline-formatters'
@@ -468,9 +461,8 @@ const updateChartHeight = () => {
   }
 
   const controlsHeight = controlsWrapperRef.value?.offsetHeight || 0
-  const infoHeight = infoWrapperRef.value?.offsetHeight || 0
   const reservedGap = 16
-  chartHeight.value = Math.max(300, window.innerHeight - controlsHeight - infoHeight - reservedGap)
+  chartHeight.value = Math.max(300, window.innerHeight - controlsHeight - reservedGap)
 }
 
 const handleFullscreenChange = () => {
