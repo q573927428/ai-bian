@@ -305,7 +305,13 @@
         </template>
       </el-table-column> -->
 
-      <el-table-column label="杠杆" width="50" align="center">
+      <el-table-column
+        label="杠杆"
+        width="50"
+        align="center"
+        prop="leverage"
+        sortable="custom"
+      >
         <template #default="{ row }">
           {{ row.leverage }}x
         </template>
@@ -371,7 +377,13 @@
         </template>
       </el-table-column> -->
 
-      <el-table-column label="OI" width="60" align="center">
+      <el-table-column
+        label="OI"
+        width="60"
+        align="center"
+        prop="oiChangePercent"
+        sortable="custom"
+      >
         <template #default="{ row }">
           <span
             v-if="row.entryIndicators?.OIChangePercent != null"
@@ -383,7 +395,13 @@
         </template>
       </el-table-column>
 
-      <el-table-column label="预计量" width="70" align="center">
+      <el-table-column
+        label="预计量"
+        width="70"
+        align="center"
+        prop="estimatedVolumeEmaRatioPercent"
+        sortable="custom"
+      >
         <template #default="{ row }">
           <span v-if="row.entryIndicators?.EstimatedVolumeEmaRatioPercent != null">
             {{ formatPercent2(row.entryIndicators.EstimatedVolumeEmaRatioPercent) }}
@@ -667,7 +685,10 @@ const handleResetFilter = () => {
 // 排序变更
 const handleSortChange = (data: { prop: string | null; order: 'ascending' | 'descending' | null }) => {
   if (data.prop && data.order) {
-    tradeHistoryStore.setSort(data.prop as any)
+    tradeHistoryStore.setSort(
+      data.prop as Parameters<typeof tradeHistoryStore.setSort>[0],
+      data.order === 'ascending' ? 'asc' : 'desc'
+    )
   }
   currentPage.value = 1
   loadHistory()

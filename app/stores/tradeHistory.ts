@@ -5,9 +5,19 @@ import type { TradeHistory } from '../../types'
 // 排序方向
 export type SortDirection = 'asc' | 'desc'
 
-// 排序字段配置
+// 历史订单支持的排序字段，包含从入场指标中读取的两个派生字段。
+export type SortField = keyof TradeHistory
+  | 'holdingMinutes'
+  | 'oiChangePercent'
+  | 'estimatedVolumeEmaRatioPercent'
+
+/**
+ * 历史订单排序配置
+ *
+ * field 表示业务排序字段，direction 表示升序或降序。
+ */
 export interface SortConfig {
-  field: keyof TradeHistory | 'holdingMinutes'
+  field: SortField
   direction: SortDirection
 }
 
@@ -29,7 +39,34 @@ export const SORT_FIELDS: { key: SortConfig['field']; label: string }[] = [
   { key: 'pnl', label: '盈亏' },
   { key: 'pnlPercentage', label: '盈亏%' },
   { key: 'quantity', label: '数量' },
+  { key: 'leverage', label: '杠杆' },
+  { key: 'oiChangePercent', label: 'OI' },
+  { key: 'estimatedVolumeEmaRatioPercent', label: '预计量' },
 ]
+
+/**
+ * 获取历史订单字段对应的可排序值，统一处理持仓时间和嵌套入场指标。
+ */
+function getSortValue(order: TradeHistory, field: SortField): number | string | undefined {
+  if (field === 'holdingMinutes') {
+    return order.closeTime && order.openTime
+      ? (order.closeTime - order.openTime) / 60000
+      : undefined
+  }
+
+  // OI 与预计量展示值保存在 entryIndicators 中，需要按页面展示口径读取。
+  if (field === 'oiChangePercent') {
+    return order.entryIndicators?.OIChangePercent
+  }
+  if (field === 'estimatedVolumeEmaRatioPercent') {
+    return order.entryIndicators?.EstimatedVolumeEmaRatioPercent
+  }
+
+  const rawValue = order[field]
+  return typeof rawValue === 'number' || typeof rawValue === 'string'
+    ? rawValue
+    : undefined
+}
 
 export const useTradeHistoryStore = defineStore('tradeHistory', () => {
   const allHistory = ref<TradeHistory[]>([])
@@ -102,24 +139,13 @@ export const useTradeHistoryStore = defineStore('tradeHistory', () => {
     // 排序
     const { field, direction } = sort.value
     result.sort((a, b) => {
-      let aVal: number | string | undefined
-      let bVal: number | string | undefined
+      const aVal = getSortValue(a, field)
+      const bVal = getSortValue(b, field)
 
-      if (field === 'holdingMinutes') {
-        // 持仓时间需要计算
-        aVal = a.closeTime && a.openTime ? (a.closeTime - a.openTime) / 60000 : 0
-        bVal = b.closeTime && b.openTime ? (b.closeTime - b.openTime) / 60000 : 0
-      } else {
-        // 只对 number 和 string 类型的字段进行排序
-        const aRaw = a[field]
-        const bRaw = b[field]
-        aVal = typeof aRaw === 'number' || typeof aRaw === 'string' ? aRaw : undefined
-        bVal = typeof bRaw === 'number' || typeof bRaw === 'string' ? bRaw : undefined
-      }
-
-      // 处理 undefined
-      if (aVal == null) aVal = 0
-      if (bVal == null) bVal = 0
+      // 缺少历史指标的数据始终置底，避免与真实的 0 值混淆。
+      if (aVal == null && bVal == null) return 0
+      if (aVal == null) return 1
+      if (bVal == null) return -1
 
       if (typeof aVal === 'string' && typeof bVal === 'string') {
         return direction === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal)
@@ -144,14 +170,9 @@ export const useTradeHistoryStore = defineStore('tradeHistory', () => {
   }
 
   // ========== 设置排序 ==========
-  const setSort = (field: SortConfig['field']) => {
-    if (sort.value.field === field) {
-      // 切换排序方向
-      sort.value.direction = sort.value.direction === 'asc' ? 'desc' : 'asc'
-    } else {
-      sort.value.field = field
-      sort.value.direction = 'desc'
-    }
+  const setSort = (field: SortConfig['field'], direction: SortDirection) => {
+    // 直接使用表格组件给出的方向，确保排序结果与列头箭头一致。
+    sort.value = { field, direction }
   }
 
   // 获取完整历史数据（最多1000条）
