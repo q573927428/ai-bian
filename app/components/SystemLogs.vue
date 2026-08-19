@@ -20,11 +20,12 @@
             </el-button>
           </div>
           <div class="filter-group">
-            <el-select v-model="activeTab" placeholder="扫描" class="filter-select">
-              <el-option label="全部" value="all" />
-              <el-option label="扫描" value="scan" />
-              <el-option label="持仓" value="position" />
-            </el-select>
+            <el-input
+              v-model="logKeyword"
+              placeholder="日志筛选"
+              clearable
+              class="filter-input"
+            />
             <el-select v-model="selectedStrategy" placeholder="策略" clearable class="filter-select">
               <el-option label="全部" value="" />
               <el-option 
@@ -80,8 +81,8 @@ import dayjs from 'dayjs'
 
 const botStore = useBotStore()
 
-// 当前选中的标签
-const activeTab = ref<string>('all')
+// 日志关键字，可自由匹配日志分类或正文内容
+const logKeyword = ref<string>('')
 // 当前选中的策略
 const selectedStrategy = ref<string>('')
 // 当前选中的交易对
@@ -99,23 +100,13 @@ const reversedLogs = computed(() => [...botStore.logs].reverse())
 const filteredLogs = computed(() => {
   let logs = reversedLogs.value
   
-  // 先按标签筛选
-  if (activeTab.value !== 'all') {
-    logs = logs.filter(log => {
-      if (activeTab.value === 'scan') {
-        return log.category.toLowerCase().includes('扫描') || 
-               log.category.toLowerCase().includes('信号') 
-      }
-      if (activeTab.value === 'position') {
-        return log.category.toLowerCase().includes('持仓') || 
-               log.category.toLowerCase().includes('监控') || 
-               log.category.toLowerCase().includes('极值') || 
-               log.category.toLowerCase().includes('移动') || 
-               log.category.toLowerCase().includes('止盈') || 
-               log.category.toLowerCase().includes('止损') 
-      }
-      return true
-    })
+  // 自由输入关键字筛选，分类和正文均支持不区分大小写的包含匹配。
+  const keyword = logKeyword.value.trim().toLowerCase()
+  if (keyword) {
+    logs = logs.filter(log =>
+      log.category.toLowerCase().includes(keyword) ||
+      log.message.toLowerCase().includes(keyword)
+    )
   }
   
   // 再按策略筛选
@@ -246,6 +237,10 @@ onUnmounted(() => {
   width: 100px;
 }
 
+.filter-input {
+  width: 100px;
+}
+
 .card-header span {
 
   font-weight: 600;
@@ -351,7 +346,8 @@ onUnmounted(() => {
     flex-wrap: wrap;
   }
 
-  .filter-select {
+  .filter-select,
+  .filter-input {
     flex: 1;
     min-width: 0;
   }
