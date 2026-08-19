@@ -2,6 +2,9 @@
   "name": "binance-futures-bot",
   "type": "module",
   "private": true,
+  "engines": {
+    "node": ">=22.13.0"
+  },
   "scripts": {
     "build": "nuxt build",
     "dev": "nuxt dev",
@@ -29,7 +32,6 @@
     "nuxt-echarts": "^1.0.1",
     "pinia": "^3.0.4",
     "socks-proxy-agent": "^10.0.0",
-    "sql.js": "^1.14.1",
     "technicalindicators": "^3.1.0",
     "vue": "^3.5.39",
     "vue-router": "^4.6.4",
@@ -37,7 +39,6 @@
   },
   "devDependencies": {
     "@types/node": "^22.10.5",
-    "@types/sql.js": "^1.4.11",
     "@types/ws": "^8.18.1",
     "ts-node": "^10.9.2",
     "typescript": "^6.0.3"

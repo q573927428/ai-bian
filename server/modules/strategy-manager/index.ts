@@ -33,7 +33,7 @@ export async function initStrategyManager(): Promise<StrategyManager> {
   // logger.info('StrategyManager', '开始初始化策略管理系统...')
 
   try {
-    // 确保K线数据库已初始化（sql.js）
+    // 确保 K 线数据库已初始化（node:sqlite）
     await initKLineDb()
     
     // 创建依赖实例

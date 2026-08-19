@@ -89,7 +89,7 @@ pnpm preview
 | **交易所 SDK** | CCXT | 币安 API 封装 |
 | **AI 模型** | DeepSeek / 豆包 / 千问 / OpenAI | 交易决策分析 |
 | **指标计算** | technicalindicators | RSI / MACD / ADX / ATR / EMA |
-| **数据库** | sql.js (SQLite) | K 线数据存储 |
+| **数据库** | Node.js `node:sqlite` | K 线数据存储 |
 | **数据持久化** | JSON 文件系统 | 配置 / 持仓 / 策略 |
 | **包管理** | pnpm | 依赖管理 |
 
@@ -203,7 +203,7 @@ Nitro 插件顺序执行 (3个插件)
         │
         ▼
 策略管理系统初始化链
-  ├── sql.js 数据库初始化
+  ├── node:sqlite 数据库初始化
   ├── StrategyStore 创建（从 JSON 文件加载）
   ├── BinanceService 初始化（公开/私有实例）
   ├── IndicatorsHub 单例初始化（事件驱动更新）
@@ -234,7 +234,7 @@ Nitro 插件顺序执行 (3个插件)
 │  ┌────────────┐  ┌──────────────┐  ┌────────────────────┐   │
 │  │ K 线同步   │  │  指标中心     │  │    AI 分析器        │   │
 │  │ Service    │─▶│IndicatorsHub │─▶│MultiStrategyAI     │   │
-│  │ (sql.js)   │  │  (缓存+计算) │  │Analyzer (并发池)    │   │
+│  │(node:sqlite)│  │  (缓存+计算) │  │Analyzer (并发池)    │   │
 │  └────────────┘  └──────────────┘  └─────────┬──────────┘   │
 │                                               │              │
 │  ┌────────────┐  ┌──────────────┐  ┌──────────▼──────────┐  │

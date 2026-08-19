@@ -1,12 +1,11 @@
-// ==================== K线 SQLite 双后端存储模块 ====================
+// ==================== K线 node:sqlite 存储模块 ====================
 
 /**
  * K线数据 SQLite 存储模块
  *
- * 默认优先使用 Node.js 内置 node:sqlite 直接访问磁盘数据库；运行环境不支持时，
- * 自动回退到原有 sql.js 内存数据库。两个后端共用同一份标准 SQLite 文件和导出 API。
+ * 使用 Node.js 内置 node:sqlite 直接访问磁盘数据库。
+ * 运行环境必须支持 node:sqlite，不再提供内存数据库回退路径。
  */
-import initSqlJs, { type Database as SqlJsDatabase, type SqlJsStatic } from 'sql.js'
 import type { DatabaseSync, StatementSync } from 'node:sqlite'
 import fs from 'fs'
 import path from 'path'
@@ -20,35 +19,11 @@ import type { OHLCV } from '../../types'
 
 // ==================== 数据库单例 ====================
 
-let SQL: SqlJsStatic | null = null
-type KLineDbBackend =
-  | { driver: 'node'; database: DatabaseSync }
-  | { driver: 'sqljs'; database: SqlJsDatabase }
-
-type KLineDbDriver = 'auto' | 'node' | 'sqljs'
-
-let db: KLineDbBackend | null = null
+let db: DatabaseSync | null = null
 let dbReady = false
 let dbInitPromise: Promise<void> | null = null
-let dirty = false
-let saveTimer: NodeJS.Timeout | null = null
 
 const MAX_BARS = 2233
-const SAVE_THROTTLE_MS = 60 * 60 * 1000 // 60分钟节流保存（不管写入多频繁，固定每60分钟保存一次）
-
-/**
- * 获取数据库驱动配置。
- *
- * auto: 优先 node:sqlite，失败后回退 sql.js（默认）
- * node: 强制 node:sqlite，初始化失败时直接报错
- * sqljs: 强制使用原有 sql.js
- */
-function getConfiguredDriver(): KLineDbDriver {
-  const value = String(process.env.KLINE_DB_DRIVER || 'auto').trim().toLowerCase()
-  if (value === 'node' || value === 'node:sqlite') return 'node'
-  if (value === 'sqljs' || value === 'sql.js') return 'sqljs'
-  return 'auto'
-}
 
 function getDbPath(): string {
   if (process.env.KLINE_DATA_DIR) {
@@ -72,22 +47,10 @@ export async function initKLineDb(): Promise<void> {
         fs.mkdirSync(dir, { recursive: true })
       }
 
-      const configuredDriver = getConfiguredDriver()
-      if (configuredDriver === 'node' || configuredDriver === 'auto') {
-        try {
-          db = await initNodeSqliteBackend(dbPath)
-        } catch (error: any) {
-          if (configuredDriver === 'node') throw error
-          console.warn(`⚠️ node:sqlite 初始化失败，自动回退 sql.js: ${error.message}`)
-        }
-      }
-
-      if (!db) {
-        db = await initSqlJsBackend(dbPath)
-      }
+      db = await initNodeSqliteBackend(dbPath)
 
       // 创建表结构
-      db.database.exec(`
+      db.exec(`
         CREATE TABLE IF NOT EXISTS kline_data (
           symbol TEXT NOT NULL,
           timeframe TEXT NOT NULL,
@@ -105,17 +68,16 @@ export async function initKLineDb(): Promise<void> {
       `)
 
       dbReady = true
-      console.log(`✅ K线数据库初始化完成，驱动: ${db.driver}`)
+      console.log('✅ K线数据库初始化完成，驱动: node:sqlite')
     } catch (error) {
       if (db) {
         try {
-          db.database.close()
+          db.close()
         } catch {
           // 初始化失败后的关闭异常不应覆盖原始错误。
         }
       }
       db = null
-      SQL = null
       console.error('❌ K线数据库初始化失败:', error)
       dbInitPromise = null
       throw error
@@ -128,12 +90,12 @@ export async function initKLineDb(): Promise<void> {
 /**
  * 初始化 Node.js 内置 SQLite 后端。
  */
-async function initNodeSqliteBackend(dbPath: string): Promise<KLineDbBackend> {
+async function initNodeSqliteBackend(dbPath: string): Promise<DatabaseSync> {
   const { DatabaseSync } = await import('node:sqlite')
   const database = new DatabaseSync(dbPath)
 
   try {
-    // 使用单文件 rollback journal，确保切换回 sql.js 时无需处理额外 WAL 文件。
+    // 使用单文件 rollback journal，避免部署和备份时遗漏 WAL 文件。
     database.exec('PRAGMA journal_mode = DELETE')
     database.exec('PRAGMA synchronous = NORMAL')
     database.exec('PRAGMA busy_timeout = 5000')
@@ -145,39 +107,13 @@ async function initNodeSqliteBackend(dbPath: string): Promise<KLineDbBackend> {
   }
 
   console.log(`✅ 使用 node:sqlite 磁盘数据库: ${dbPath}`)
-  return { driver: 'node', database }
-}
-
-/**
- * 初始化原有 sql.js 后端，作为显式选择或兼容性回退。
- */
-async function initSqlJsBackend(dbPath: string): Promise<KLineDbBackend> {
-  const possiblePaths = [
-    path.resolve(new URL('.', import.meta.url).pathname, '..', '..', '..', 'node_modules', 'sql.js', 'dist', 'sql-wasm.wasm'),
-    path.resolve(process.cwd(), 'node_modules', 'sql.js', 'dist', 'sql-wasm.wasm'),
-    path.resolve(process.cwd(), '.output', 'server', 'node_modules', 'sql.js', 'dist', 'sql-wasm.wasm'),
-  ]
-
-  const wasmPath = possiblePaths.find(candidate => fs.existsSync(candidate))
-  if (!wasmPath) {
-    throw new Error('无法找到 sql-wasm.wasm 文件，请确保 sql.js 依赖已正确安装')
-  }
-
-  SQL = await initSqlJs({ locateFile: () => wasmPath })
-  if (fs.existsSync(dbPath)) {
-    const buffer = fs.readFileSync(dbPath)
-    console.log(`✅ 使用 sql.js 加载数据库: ${dbPath} (${(buffer.length / 1024).toFixed(1)} KB)`)
-    return { driver: 'sqljs', database: new SQL.Database(buffer) }
-  }
-
-  console.log('🆕 使用 sql.js 创建新的内存数据库')
-  return { driver: 'sqljs', database: new SQL.Database() }
+  return database
 }
 
 /**
  * 获取数据库实例（同步，调用前必须确保 initKLineDb() 已完成）
  */
-function getDb(): KLineDbBackend {
+function getDb(): DatabaseSync {
   if (!db || !dbReady) {
     throw new Error('K线数据库未初始化，请先调用 initKLineDb()')
   }
@@ -185,64 +121,16 @@ function getDb(): KLineDbBackend {
 }
 
 /**
- * 标记数据已变更并触发保存（节流模式）
- * 
- * 节流 vs 防抖：
- * - 防抖：持续写入会不断重置定时器，导致永不保存
- * - 节流：不管写入多频繁，固定每 SAVE_THROTTLE_MS 保存一次
- * 
- * 因为所有读取都走内存，磁盘文件仅作为持久化备份，
- * 所以即使 10 分钟才保存一次也完全安全。
- */
-function markDirty(): void {
-  // node:sqlite 的事务直接持久化到磁盘，不需要整库导出和延迟保存。
-  if (db?.driver === 'node') return
-  dirty = true
-  // 节流：已有定时器在跑则跳过，确保固定间隔保存
-  if (saveTimer) return
-  saveTimer = setTimeout(() => {
-    saveTimer = null
-    saveDb().catch(err => {
-      console.error('自动保存数据库失败:', err)
-    })
-  }, SAVE_THROTTLE_MS)
-}
-
-/**
- * 立即保存数据库到磁盘
+ * 兼容原有调用接口。node:sqlite 的事务会直接持久化，无需额外保存。
  */
 export async function saveDb(): Promise<void> {
-  const backend = db
-  if (!backend || !dbReady) return
-
-  try {
-    if (backend.driver === 'node') {
-      // node:sqlite 的事务提交已直接持久化，无需整库导出。
-      return
-    }
-
-    const buffer = backend.database.export()
-    const dbPath = getDbPath()
-    const tmpPath = dbPath + '.tmp'
-
-    // 先写入临时文件，再原子重命名
-    fs.writeFileSync(tmpPath, Buffer.from(buffer))
-    fs.renameSync(tmpPath, dbPath)
-    dirty = false
-  } catch (error) {
-    console.error('保存数据库失败:', error)
-    throw error
-  }
+  return
 }
 
 /**
- * 强制立即保存（跳过防抖）
+ * 兼容原有强制保存接口。node:sqlite 下无需执行额外操作。
  */
 export async function flushDb(): Promise<void> {
-  if (saveTimer) {
-    clearTimeout(saveTimer)
-    saveTimer = null
-  }
   await saveDb()
 }
 
@@ -250,23 +138,11 @@ export async function flushDb(): Promise<void> {
  * 关闭数据库连接
  */
 export async function closeKLineDb(): Promise<void> {
-  if (saveTimer) {
-    clearTimeout(saveTimer)
-    saveTimer = null
-  }
-
-  // 关闭前先保存
-  if (dirty) {
-    await saveDb()
-  }
-
   if (db) {
-    db.database.close()
+    db.close()
     db = null
     dbReady = false
     dbInitPromise = null
-    dirty = false
-    SQL = null
   }
 }
 
@@ -276,39 +152,14 @@ export async function closeKLineDb(): Promise<void> {
  * 执行参数化查询并返回所有行（对象数组）
  */
 function queryAll<T = Record<string, unknown>>(sql: string, params: any[] = []): T[] {
-  const backend = getDb()
-  if (backend.driver === 'node') {
-    return backend.database.prepare(sql).all(...params) as T[]
-  }
-
-  const stmt = backend.database.prepare(sql)
-  if (params.length > 0) {
-    stmt.bind(params)
-  }
-  const rows: T[] = []
-  while (stmt.step()) {
-    rows.push(stmt.getAsObject() as unknown as T)
-  }
-  stmt.free()
-  return rows
+  return getDb().prepare(sql).all(...params) as T[]
 }
 
 /**
  * 执行参数化查询并返回第一行
  */
 function queryOne<T = Record<string, unknown>>(sql: string, params: any[] = []): T | undefined {
-  const backend = getDb()
-  if (backend.driver === 'node') {
-    return backend.database.prepare(sql).get(...params) as T | undefined
-  }
-
-  const stmt = backend.database.prepare(sql)
-  if (params.length > 0) {
-    stmt.bind(params)
-  }
-  const row = stmt.step() ? stmt.getAsObject() as unknown as T : undefined
-  stmt.free()
-  return row
+  return getDb().prepare(sql).get(...params) as T | undefined
 }
 
 /**
@@ -316,42 +167,23 @@ function queryOne<T = Record<string, unknown>>(sql: string, params: any[] = []):
  */
 function execute(sql: string, params: any[] = []): void {
   runSql(sql, params)
-  markDirty()
 }
 
 /**
- * 执行不返回结果的 SQL，统一两个后端的参数绑定差异。
+ * 执行不返回结果的 SQL。
  */
 function runSql(sql: string, params: any[] = []): void {
-  const backend = getDb()
-  if (backend.driver === 'node') {
-    if (params.length > 0) backend.database.prepare(sql).run(...params)
-    else backend.database.exec(sql)
-    return
-  }
-  backend.database.run(sql, params)
+  const database = getDb()
+  if (params.length > 0) database.prepare(sql).run(...params)
+  else database.exec(sql)
 }
 
 /**
  * 批量执行同一个写入语句，复用 prepared statement 降低 K 线同步开销。
  */
 function executePreparedBatch(sql: string, rows: any[][]): void {
-  const backend = getDb()
-  const statement = backend.database.prepare(sql)
-
-  if (backend.driver === 'node') {
-    const nodeStatement = statement as StatementSync
-    for (const params of rows) nodeStatement.run(...params)
-    return
-  }
-
-  const sqlJsStatement = statement as ReturnType<SqlJsDatabase['prepare']>
-  for (const params of rows) {
-    sqlJsStatement.bind(params)
-    sqlJsStatement.step()
-    sqlJsStatement.reset()
-  }
-  sqlJsStatement.free()
+  const statement: StatementSync = getDb().prepare(sql)
+  for (const params of rows) statement.run(...params)
 }
 
 function normalizeSymbol(symbol: string): string {
@@ -660,7 +492,6 @@ export function writeSimpleKLineFile(
       )
 
       runSql('COMMIT')
-      markDirty()
       return true
     } catch (innerError) {
       runSql('ROLLBACK')
@@ -710,7 +541,6 @@ export function appendSimpleKLineData(
       )
       
       runSql('COMMIT')
-      markDirty()
       return true
     } catch (innerError) {
       runSql('ROLLBACK')
@@ -774,7 +604,7 @@ export function deleteKLineFile(
   const normSymbol = normalizeSymbol(symbol)
   
   try {
-    // sql.js 的 run 不返回 changes 信息，我们用 COUNT 来确认
+    // 删除前统计记录数，以保持该接口原有的布尔返回语义。
     const before = queryOne<{ c: number }>(
       `SELECT COUNT(*) as c FROM kline_data WHERE symbol = ? AND timeframe = ?`,
       [normSymbol, timeframe]
@@ -802,7 +632,6 @@ export function cleanupAllData(): boolean {
     )
     
     runSql('DELETE FROM kline_data')
-    markDirty()
     
     return before != null && before.c > 0
   } catch (error) {

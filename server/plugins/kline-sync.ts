@@ -29,7 +29,7 @@ export default defineNitroPlugin(async (nitroApp: NitroApp) => {
   console.log('🚀 初始化K线数据同步服务插件...')
   
   try {
-    // 初始化K线数据库（sql.js）
+    // 初始化 K 线数据库（node:sqlite）
     await initKLineDb()
     
     // 从环境变量或配置文件中获取配置
