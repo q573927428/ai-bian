@@ -19,9 +19,6 @@ import { IndicatorPrecomputeService } from '../indicators/IndicatorPrecomputeSer
 
 let strategyManager: StrategyManager | null = null
 
-const POSITION_MONITOR_START_DELAY_MS = 5000
-const STRATEGY_FIRST_SCAN_DELAY_MS = 20000
-
 /**
  * 初始化策略管理系统
  */
@@ -53,7 +50,7 @@ export async function initStrategyManager(): Promise<StrategyManager> {
     })
     binanceApiGateway.updateConfig(config.binanceRateLimit)
 
-    logger.info('启动顺序', '阶段1/5：初始化基础服务、Binance、并发池和限流配置')
+    logger.info('🟡 启动顺序', '阶段1/6：初始化基础服务、Binance、并发池和限流配置')
 
     // 初始化指标中心
     const indicatorsHub = IndicatorsHub.getInstance(binanceService, config)
@@ -62,7 +59,7 @@ export async function initStrategyManager(): Promise<StrategyManager> {
     // 订阅 K线同步服务的更新事件
     const syncService = getSyncService()
     if (syncService) {
-      logger.info('启动顺序', '等待K线初始同步完成后再初始化策略系统')
+      logger.info('🟡 启动顺序', '阶段1.1/6：初等待K线初始同步完成后再初始化策略系统')
       await waitForSyncReady()
       const eventEmitter = syncService.getEventEmitter()
       indicatorsHub.subscribeToKLineUpdates(eventEmitter)
@@ -102,7 +99,8 @@ export async function initStrategyManager(): Promise<StrategyManager> {
       indicatorCombinationRegistry,
       indicatorPrecompute
     )
-    engine.delayInitialScans(STRATEGY_FIRST_SCAN_DELAY_MS)
+    // 策略必须先加载才能构建指标组合，但首轮预计算完成前禁止扫描。
+    engine.pauseStrategyScans()
 
     // 初始化策略管理器
     strategyManager = new StrategyManager(store)
@@ -112,23 +110,21 @@ export async function initStrategyManager(): Promise<StrategyManager> {
 
     // logger.success('StrategyManager', '策略管理系统初始化完成')
 
-    logger.info('启动顺序', '阶段2/5：加载K线缓存和指标基础数据')
+    logger.info('🟡 启动顺序', '阶段2/6：加载K线缓存和指标基础数据')
     await indicatorsHub.initializeAllData()
 
-    logger.info('启动顺序', '阶段3/5：加载激活策略并完成首轮指标预计算')
+    logger.info('🟡 启动顺序', '阶段3/6：加载激活策略并完成首轮指标预计算')
     await strategyManager.loadActiveStrategies()
-    engine.delayInitialScans(STRATEGY_FIRST_SCAN_DELAY_MS)
 
-    logger.info('启动顺序', '阶段4/5：启动指标刷新、指标预计算定时器和K线定时同步')
+    logger.info('🟡 启动顺序', '阶段4/6：启动指标刷新、指标预计算定时器和K线定时同步')
     indicatorsHub.startUpdateLoop(60 * 1000)
     indicatorPrecompute.start()
     startKLineAutoSync()
 
-    logger.info('启动顺序', `阶段5/5：${POSITION_MONITOR_START_DELAY_MS}ms 后启动持仓监控，${STRATEGY_FIRST_SCAN_DELAY_MS}ms 后允许策略首次扫描`)
-    engine.startPositionMonitor({
-      immediate: true,
-      initialDelayMs: POSITION_MONITOR_START_DELAY_MS
-    })
+    logger.info('🟡 启动顺序', '阶段5/6：执行首次持仓监控')
+    await engine.startPositionMonitor()
+    logger.info('🟡 启动顺序', '阶段6/6：首次持仓监控已完成，开放策略首次扫描')
+    engine.resumeStrategyScans(0)
 
     return strategyManager
   } catch (error: any) {

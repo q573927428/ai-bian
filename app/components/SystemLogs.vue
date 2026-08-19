@@ -3,7 +3,22 @@
     <template #header>
       <div class="card-header">
         <div class="header-top">
-          <span class="header-title">⚡ 运行日志</span>
+          <div class="header-title-group">
+            <span class="header-title">⚡ 运行日志</span>
+            <el-button
+              size="small"
+              text
+              type="primary"
+              :disabled="!hasDetailedLogs"
+              @click="toggleAllDetailedLogs"
+            >
+              <el-icon>
+                <ElIconArrowDown v-if="showDetailedLogs" />
+                <ElIconArrowRight v-else />
+              </el-icon>
+              {{ showDetailedLogs ? '收起' : '展开' }}
+            </el-button>
+          </div>
           <div class="filter-group">
             <el-select v-model="activeTab" placeholder="扫描" class="filter-select">
               <el-option label="全部" value="all" />
@@ -44,20 +59,8 @@
           <template v-if="hasDetailedLog(log.message)">
             <div class="log-summary-line">
               <span><b>[{{ log.category }}]</b> {{ getLogSummary(log.message) }}</span>
-              <el-link
-                type="primary"
-                underline="never"
-                class="toggle-btn"
-                @click="toggleLog(index)"
-              >
-                <el-icon>
-                  <ElIconArrowDown v-if="expandedLogs.has(index)" />
-                  <ElIconArrowRight v-else />
-                </el-icon>
-                {{ expandedLogs.has(index) ? '收起' : '展开' }}
-              </el-link>
             </div>
-            <div v-if="expandedLogs.has(index)" class="detailed-log">
+            <div v-if="showDetailedLogs" class="detailed-log">
               <!-- <div class="detailed-log-header">=== 详细AI日志 ===</div> -->
               <div class="detailed-log-content">{{ getDetailedLog(log.message) }}</div>
             </div>
@@ -71,7 +74,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useBotStore } from '../stores/bot'
 import dayjs from 'dayjs'
 
@@ -154,21 +157,15 @@ async function fetchStrategies() {
   }
 }
 
-// 记录展开状态的日志索引，默认展开所有有详细日志的条目
-const expandedLogs = ref<Set<number>>(new Set())
-
-// 当筛选日志变化时，自动展开所有有详细日志的条目
-watch(filteredLogs, (logs) => {
-  const newSet = new Set<number>()
-  logs.forEach((log, index) => {
-    if (hasDetailedLog(log.message)) {
-      newSet.add(index)
-    }
-  })
-  expandedLogs.value = newSet
-}, { immediate: true })
-
 const DETAILED_LOG_SEPARATOR = '===详细AI日志==='
+
+// 详细 AI 日志默认收起，并由标题栏按钮统一控制全部日志。
+const showDetailedLogs = ref(false)
+
+// 当前筛选结果中是否存在详细 AI 日志，用于控制全局切换按钮状态。
+const hasDetailedLogs = computed(() =>
+  filteredLogs.value.some(log => hasDetailedLog(log.message))
+)
 
 function formatTime(timestamp: number): string {
   return dayjs(timestamp).format('HH:mm:ss')
@@ -188,12 +185,11 @@ function getDetailedLog(message: string): string {
   return index > 0 ? message.substring(index + DETAILED_LOG_SEPARATOR.length).trim() : ''
 }
 
-function toggleLog(index: number): void {
-  if (expandedLogs.value.has(index)) {
-    expandedLogs.value.delete(index)
-  } else {
-    expandedLogs.value.add(index)
-  }
+/**
+ * 统一展开或收起当前日志列表中的全部详细 AI 日志。
+ */
+function toggleAllDetailedLogs(): void {
+  showDetailedLogs.value = !showDetailedLogs.value
 }
 
 // 获取交易对列表
@@ -260,6 +256,13 @@ onUnmounted(() => {
   font-weight: 600;
   font-size: 15px;
   white-space: nowrap;
+}
+
+.header-title-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
 }
 
 .logs-container {
@@ -387,15 +390,6 @@ onUnmounted(() => {
   flex: 1;
   min-width: 0;
   word-break: break-word;
-}
-
-.toggle-btn {
-  font-size: 12px;
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  flex-shrink: 0;
-  white-space: nowrap;
 }
 
 .detailed-log {

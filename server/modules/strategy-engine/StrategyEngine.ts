@@ -93,6 +93,8 @@ export class StrategyEngine {
   private globalTimer: NodeJS.Timeout | null = null
   private globalScanInterval: number = 300000 // 默认5分钟
   private immediateRunScheduled: boolean = false // 防抖：确保多个策略同时启动只触发一次立即运行
+  private immediateRunTimer: NodeJS.Timeout | null = null
+  private scansPaused = false
   private currentLoopAIRequests: number = 0
   private isGlobalLoopRunning = false
   private skippedLoopCount = 0
@@ -154,11 +156,29 @@ export class StrategyEngine {
     this.indicatorPrecompute = service
   }
 
-  startPositionMonitor(options: { immediate?: boolean; initialDelayMs?: number } = {}): void {
-    this.positionMonitor.start(options)
+  /**
+   * 等待首次持仓监控完成，再启动后续周期监控。
+   */
+  async startPositionMonitor(): Promise<void> {
+    await this.positionMonitor.runOnce()
+    this.positionMonitor.start()
   }
 
-  delayInitialScans(delayMs: number): void {
+  /**
+   * 暂停所有策略扫描。
+   *
+   * 启动阶段需要先加载策略以建立指标组合，但首轮预计算完成前不能执行扫描。
+   */
+  pauseStrategyScans(): void {
+    this.scansPaused = true
+    this.clearImmediateRunTimer()
+  }
+
+  /**
+   * 恢复策略扫描，并从恢复时刻开始计算首次扫描延迟。
+   */
+  resumeStrategyScans(delayMs: number): void {
+    this.scansPaused = false
     const targetTime = Date.now() + Math.max(0, Number(delayMs || 0))
     this.initialScanNotBefore = Math.max(this.initialScanNotBefore, targetTime)
 
@@ -170,14 +190,35 @@ export class StrategyEngine {
       }
     }
 
-    // 首次循环定时器可能已经按旧时间触发，补一次新的调度确保延迟窗口结束后
-    // 能立即开始扫描，而不必等待完整的全局扫描间隔。
+    // 只保留一个首次扫描定时器，避免多次调整启动时间产生空扫描。
     if (this.runningStrategies.size > 0) {
       const waitMs = Math.max(200, this.initialScanNotBefore - Date.now())
-      setTimeout(() => {
-        void this.globalStrategyLoop()
-      }, waitMs)
+      this.scheduleImmediateRun(waitMs)
     }
+  }
+
+  /**
+   * 安排唯一一次即时扫描；重新安排时取消旧回调。
+   */
+  private scheduleImmediateRun(delayMs: number): void {
+    this.clearImmediateRunTimer()
+    this.immediateRunScheduled = true
+    this.immediateRunTimer = setTimeout(async () => {
+      this.immediateRunTimer = null
+      this.immediateRunScheduled = false
+      await this.globalStrategyLoop()
+    }, Math.max(200, delayMs))
+  }
+
+  /**
+   * 清理尚未触发的即时扫描。
+   */
+  private clearImmediateRunTimer(): void {
+    if (this.immediateRunTimer) {
+      clearTimeout(this.immediateRunTimer)
+      this.immediateRunTimer = null
+    }
+    this.immediateRunScheduled = false
   }
 
   /**
@@ -191,7 +232,11 @@ export class StrategyEngine {
     this.indicatorPrecompute?.updateConfig(config)
     this.positionMonitor.stop()
     this.positionMonitor = new StrategyPositionMonitor(this.binance, this.positionManager, this.positionCloser, config, this.store)
-    this.positionMonitor.start({ immediate: true })
+    const updatedPositionMonitor = this.positionMonitor
+    // 配置热更新不阻塞接口响应，但仍保持“单次监控完成后再启动周期监控”的顺序。
+    void updatedPositionMonitor.runOnce().then(() => {
+      updatedPositionMonitor.start()
+    })
     logger.info('StrategyEngine', '配置已更新')
   }
 
@@ -344,14 +389,10 @@ export class StrategyEngine {
     this.updateGlobalScanInterval()
 
     // 防抖：多个策略同时启动时，只安排一次立即运行
-    if (!this.immediateRunScheduled) {
-      this.immediateRunScheduled = true
+    if (!this.scansPaused && !this.immediateRunScheduled) {
       const delayMs = Math.max(200, instance.nextScanTime - now)
       // 使用延迟确保所有策略的异步初始化（subscribeStrategy 等）全部完成后再执行全局循环
-      setTimeout(async () => {
-        this.immediateRunScheduled = false
-        await this.globalStrategyLoop()
-      }, delayMs)
+      this.scheduleImmediateRun(delayMs)
     }
 
     // 如果全局定时器未启动，则启动
@@ -372,9 +413,12 @@ export class StrategyEngine {
 
     // 如果所有策略都已停止，停止全局定时器
     const hasRunning = Array.from(this.runningStrategies.values()).some(i => i.isRunning)
-    if (!hasRunning && this.globalTimer) {
-      clearInterval(this.globalTimer)
-      this.globalTimer = null
+    if (!hasRunning) {
+      if (this.globalTimer) {
+        clearInterval(this.globalTimer)
+        this.globalTimer = null
+      }
+      this.clearImmediateRunTimer()
       logger.info('StrategyEngine', '全局策略循环已停止（无运行中的策略）')
     }
   }
@@ -417,6 +461,9 @@ export class StrategyEngine {
    * - 这样策略A(5min)和策略B(10min)都使用同一份5分钟级快照，但B每两次才执行一次
    */
   private async globalStrategyLoop(): Promise<void> {
+    // 启动阶段会先注册策略以构建指标组合；预计算完成前禁止任何定时入口开始扫描。
+    if (this.scansPaused) return
+
     if (this.isGlobalLoopRunning) {
       this.skippedLoopCount++
       this.loopStats.skippedLoops = this.skippedLoopCount
@@ -1660,6 +1707,7 @@ export class StrategyEngine {
   }
 
   async destroy(): Promise<void> {
+    this.clearImmediateRunTimer()
     await this.stopAll()
     this.runningStrategies.clear()
     logger.info('StrategyEngine', '引擎已销毁')

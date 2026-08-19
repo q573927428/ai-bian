@@ -69,48 +69,39 @@ export class StrategyPositionMonitor {
   }
 
   /**
-   * 启动监控
+   * 执行一次持仓监控并等待本轮结束。
+   *
+   * 启动阶段需要等待首次持仓核对完成，避免策略扫描与仓位状态检查产生竞态。
    */
-  start(options: { immediate?: boolean; initialDelayMs?: number } = {}): void {
+  async runOnce(): Promise<void> {
+    // 网络变慢时上一轮可能尚未结束；跳过重入，避免相同请求成倍进入限流队列。
+    if (this.isMonitoring) {
+      logger.warn('💹持仓监控', '上一轮监控尚未完成，跳过本轮')
+      return
+    }
+
+    this.isMonitoring = true
+    try {
+      await this.monitorPositions()
+    } catch (error: any) {
+      logger.error('💹持仓监控', '监控循环异常:', error.message)
+    } finally {
+      this.isMonitoring = false
+    }
+  }
+
+  /**
+   * 启动后续周期监控。
+   */
+  start(): void {
     if (this.monitorTimer) {
       logger.warn('💹持仓监控', '监控已在运行')
       return
     }
 
-    const immediate = options.immediate ?? true
-    const initialDelayMs = Math.max(0, Number(options.initialDelayMs ?? 0))
-    const runMonitor = async () => {
-      // 网络变慢时上一轮可能尚未结束；跳过重入，避免相同请求成倍进入限流队列。
-      if (this.isMonitoring) {
-        logger.warn('💹持仓监控', '上一轮监控尚未完成，跳过本轮')
-        return
-      }
-
-      this.isMonitoring = true
-      try {
-        await this.monitorPositions()
-      } catch (error: any) {
-        logger.error('💹持仓监控', '监控循环异常:', error.message)
-      } finally {
-        this.isMonitoring = false
-      }
-    }
-    const startInterval = () => {
-      if (immediate) {
-        runMonitor()
-      }
-
-      this.monitorTimer = setInterval(runMonitor, this.getMonitorInterval())
-    }
-
-    if (initialDelayMs > 0) {
-      this.monitorTimer = setTimeout(() => {
-        this.monitorTimer = null
-        startInterval()
-      }, initialDelayMs)
-    } else {
-      startInterval()
-    }
+    this.monitorTimer = setInterval(() => {
+      void this.runOnce()
+    }, this.getMonitorInterval())
 
     // logger.success('持仓监控', '持仓监控已启动')
   }
