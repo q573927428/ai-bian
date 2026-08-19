@@ -228,13 +228,13 @@
             <el-row :gutter="12" v-if="selectedStatistics.includes('OI') && preScreenEnabledFlags.includes('enableOi')">
               <el-col :xs="24" :span="12">
                 <el-form-item label="最小OI变化率">
-                  <el-input-number v-model="form.preScreenConfig.minOiChangePercent" :min="0" :max="100" :step="0.1" :precision="1" placeholder="0.2" />
+                  <el-input-number v-model="form.preScreenConfig.minOiChangePercent" :min="-100" :max="100" :step="0.1" :precision="1" placeholder="0.2" />
                   <small class="unitf">%</small>
                 </el-form-item>
               </el-col>
               <el-col :xs="24" :span="12">
                 <el-form-item label="最大OI变化率">
-                  <el-input-number v-model="form.preScreenConfig.maxOiChangePercent" :min="0" :max="100" :step="0.1" :precision="1" placeholder="10" />
+                  <el-input-number v-model="form.preScreenConfig.maxOiChangePercent" :min="-100" :max="100" :step="0.1" :precision="1" placeholder="10" />
                   <small class="unitf">%</small>
                 </el-form-item>
               </el-col>

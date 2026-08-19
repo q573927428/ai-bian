@@ -17,7 +17,7 @@ export interface PreScreenConfig {
   minAtrPercent?: number // 默认 0.0038 (0.38%)
   maxAtrPercent?: number // 默认 0.05 (5%)
 
-  // OI 变化率阈值（百分数，例如 0.2 表示 0.2%）
+  // OI 变化率带符号区间（百分数，例如 -0.1 表示 -0.1%）
   minOiChangePercent?: number // 默认 0.2%
   maxOiChangePercent?: number // 默认 50%
 
@@ -186,13 +186,13 @@ export class AIPreScreener {
       }
     }
 
-    // AI 尚未给出多空方向，因此按 OI 变化率绝对值筛选市场活跃度。
+    // 保留 OI 变化方向，按照策略配置的带符号区间进行预筛。
     if (passed && cfg.enableOi && input.oiChangePercent !== undefined) {
       const oiCheck = this.checkOi(input.oiChangePercent, cfg)
       checks.oi = oiCheck
       if (!oiCheck.passed) {
         passed = false
-        failReason = `OI不满足: 变化率绝对值 ${Math.abs(input.oiChangePercent).toFixed(2)}% 不在 [${cfg.minOiChangePercent}%, ${cfg.maxOiChangePercent}%] 范围内`
+        failReason = `OI不满足: 变化率 ${input.oiChangePercent.toFixed(2)}% 不在 [${cfg.minOiChangePercent}%, ${cfg.maxOiChangePercent}%] 范围内`
       }
     }
 
@@ -280,16 +280,15 @@ export class AIPreScreener {
   /**
    * OI 变化率检查
    *
-   * OI 增减都代表持仓活跃度变化；预筛阶段没有交易方向，因此使用绝对值判定。
+   * 直接使用带符号变化率判定，允许策略通过负数阈值控制可接受的 OI 降幅。
    */
   private checkOi(oiChangePercent: number, cfg: Required<PreScreenConfig>): { passed: boolean; value: number; threshold: string } {
-    const absoluteChangePercent = Math.abs(oiChangePercent)
     const minOiChangePercent = cfg.minOiChangePercent
     const maxOiChangePercent = cfg.maxOiChangePercent
-    const passed = absoluteChangePercent >= minOiChangePercent && absoluteChangePercent <= maxOiChangePercent
+    const passed = oiChangePercent >= minOiChangePercent && oiChangePercent <= maxOiChangePercent
     return {
       passed,
-      value: absoluteChangePercent,
+      value: oiChangePercent,
       threshold: `[${minOiChangePercent}%, ${maxOiChangePercent}%]`
     }
   }
