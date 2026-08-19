@@ -180,6 +180,7 @@
                 <el-checkbox value="enableAdx" label="ADX" />
                 <el-checkbox value="enableAdxSlope" label="ADX斜率" />
                 <el-checkbox value="enableAtr" label="ATR" />
+                <el-checkbox v-if="selectedStatistics.includes('OI')" value="enableOi" label="OI" />
                 <el-checkbox value="enableVolume" label="成交量" />
               </el-checkbox-group>
             </el-form-item>
@@ -219,6 +220,22 @@
                 <el-form-item label="最大ATR波率">
                   <el-input-number v-model="form.preScreenConfig.maxAtrPercent" :min="0" :max="0.5" :step="0.001" :precision="3" placeholder="0.05" />
                   <small class="unitf">(小数)</small>
+                </el-form-item>
+              </el-col>
+            </el-row>
+
+            <!-- OI 阈值（仅当策略启用 OI 且勾选 OI 预筛时显示） -->
+            <el-row :gutter="12" v-if="selectedStatistics.includes('OI') && preScreenEnabledFlags.includes('enableOi')">
+              <el-col :xs="24" :span="12">
+                <el-form-item label="最小OI变化率">
+                  <el-input-number v-model="form.preScreenConfig.minOiChangePercent" :min="0" :max="100" :step="0.1" :precision="1" placeholder="0.2" />
+                  <small class="unitf">%</small>
+                </el-form-item>
+              </el-col>
+              <el-col :xs="24" :span="12">
+                <el-form-item label="最大OI变化率">
+                  <el-input-number v-model="form.preScreenConfig.maxOiChangePercent" :min="0" :max="100" :step="0.1" :precision="1" placeholder="10" />
+                  <small class="unitf">%</small>
                 </el-form-item>
               </el-col>
             </el-row>
@@ -665,11 +682,14 @@ const form = reactive<CreateStrategyInput>({
     minAdxSlope: 0,
     minAtrPercent: 0.001,
     maxAtrPercent: 0.05,
+    minOiChangePercent: 0.2,
+    maxOiChangePercent: 30,
     minEstimatedVolumeRatio: 0.1,
     minCandleProgressForVolume: 0.1,
     enableAdx: false,
     enableAdxSlope: false,
     enableAtr: false,
+    enableOi: false,
     enableVolume: false
   },
   minConfidence: 70,
@@ -679,13 +699,14 @@ const form = reactive<CreateStrategyInput>({
 })
 
 // 预筛启用标记
-const preScreenEnabledFlags = ref<string[]>(['enableAdx', 'enableAdxSlope', 'enableAtr', 'enableVolume'])
+const preScreenEnabledFlags = ref<string[]>(['enableAdx', 'enableAdxSlope', 'enableAtr', 'enableOi', 'enableVolume'])
 
 // 同步 preScreenEnabledFlags 到 form.preScreenConfig
 watch(preScreenEnabledFlags, (flags) => {
   form.preScreenConfig.enableAdx = flags.includes('enableAdx')
   form.preScreenConfig.enableAdxSlope = flags.includes('enableAdxSlope')
   form.preScreenConfig.enableAtr = flags.includes('enableAtr')
+  form.preScreenConfig.enableOi = flags.includes('enableOi')
   form.preScreenConfig.enableVolume = flags.includes('enableVolume')
 }, { immediate: true })
 
@@ -817,11 +838,23 @@ watch(() => props.strategy, (newVal) => {
       minFinalScore: newVal.minFinalScore,
       entryThresholdMode: newVal.entryThresholdMode || 'confidence',
       maxRiskLevel: newVal.maxRiskLevel,
-      preScreenConfig: newVal.preScreenConfig || {
+      // 合并默认值，确保旧策略在没有 OI 预筛字段时也能获得完整配置。
+      preScreenConfig: {
+        minAdx: 10,
+        maxAdx: 60,
+        minAdxSlope: 0,
+        minAtrPercent: 0.001,
+        maxAtrPercent: 0.05,
+        minOiChangePercent: 0.2,
+        maxOiChangePercent: 50,
+        minEstimatedVolumeRatio: 0.1,
+        minCandleProgressForVolume: 0.1,
         enableAdx: true,
         enableAdxSlope: true,
         enableAtr: true,
-        enableVolume: true
+        enableOi: true,
+        enableVolume: true,
+        ...newVal.preScreenConfig
       }
     })
 
@@ -831,6 +864,7 @@ watch(() => props.strategy, (newVal) => {
     if (psc?.enableAdx !== false) flags.push('enableAdx')
     if (psc?.enableAdxSlope !== false) flags.push('enableAdxSlope')
     if (psc?.enableAtr !== false) flags.push('enableAtr')
+    if (psc?.enableOi !== false) flags.push('enableOi')
     if (psc?.enableVolume !== false) flags.push('enableVolume')
     preScreenEnabledFlags.value = flags
 

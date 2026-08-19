@@ -886,6 +886,7 @@ export class StrategyEngine {
         adxTimeframe: enabledADX ? mainTimeframe : undefined,
         atr: enabledATR ? indicatorsData.get(`${mainTimeframe}_ATR`)?.values?.atr : undefined,
         currentPrice: price,
+        oiChangePercent: enabledOI ? indicatorsData.get(`${oiTimeframe}_OI`)?.values?.changePercent : undefined,
         currentVolume: volumeData.current,
         prevVolume: volumeData.prev,
         volumeAverage: volumeData.average,

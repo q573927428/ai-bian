@@ -17,6 +17,10 @@ export interface PreScreenConfig {
   minAtrPercent?: number // 默认 0.0038 (0.38%)
   maxAtrPercent?: number // 默认 0.05 (5%)
 
+  // OI 变化率阈值（百分数，例如 0.2 表示 0.2%）
+  minOiChangePercent?: number // 默认 0.2%
+  maxOiChangePercent?: number // 默认 50%
+
   // 成交量预估模式：基于K线完成进度预估整根K线成交量后与历史均值比较
   // 解决未收盘K线成交量偏低的问题
   minEstimatedVolumeRatio?: number // 默认 0.3 (预估成交量至少是历史均值的30%)
@@ -28,6 +32,7 @@ export interface PreScreenConfig {
   enableAdx?: boolean
   enableAdxSlope?: boolean
   enableAtr?: boolean
+  enableOi?: boolean
   enableVolume?: boolean
 }
 
@@ -48,6 +53,9 @@ export interface PreScreenInput {
   atr?: number
   currentPrice?: number
 
+  // OI相关
+  oiChangePercent?: number
+
   // 成交量相关
   currentVolume?: number
   prevVolume?: number
@@ -65,6 +73,7 @@ export interface PreScreenResult {
     adx?: { passed: boolean; value?: number; threshold?: string }
     adxSlope?: { passed: boolean; value?: number; threshold?: string }
     atr?: { passed: boolean; value?: number; threshold?: string }
+    oi?: { passed: boolean; value?: number; threshold?: string }
     volume?: { passed: boolean; value?: number; threshold?: string }
   }
 }
@@ -78,11 +87,14 @@ export const PRESCREEN_DEFAULTS: Required<PreScreenConfig> = {
   minAdxSlope: 0,
   minAtrPercent: 0.002,
   maxAtrPercent: 0.05,
+  minOiChangePercent: 0.2,
+  maxOiChangePercent: 50,
   minEstimatedVolumeRatio: 0.3,
   minCandleProgressForVolume: 0.1,
   enableAdx: true,
   enableAdxSlope: true,
   enableAtr: true,
+  enableOi: true,
   enableVolume: true
 }
 
@@ -174,6 +186,16 @@ export class AIPreScreener {
       }
     }
 
+    // AI 尚未给出多空方向，因此按 OI 变化率绝对值筛选市场活跃度。
+    if (passed && cfg.enableOi && input.oiChangePercent !== undefined) {
+      const oiCheck = this.checkOi(input.oiChangePercent, cfg)
+      checks.oi = oiCheck
+      if (!oiCheck.passed) {
+        passed = false
+        failReason = `OI不满足: 变化率绝对值 ${Math.abs(input.oiChangePercent).toFixed(2)}% 不在 [${cfg.minOiChangePercent}%, ${cfg.maxOiChangePercent}%] 范围内`
+      }
+    }
+
     // 成交量检查（支持预估模式，解决未收盘K线成交量偏低的问题）
     if (passed && cfg.enableVolume && input.currentVolume !== undefined && input.prevVolume !== undefined) {
       const volumeCheck = this.checkVolume(
@@ -252,6 +274,23 @@ export class AIPreScreener {
       passed,
       value: atrPercent,
       threshold: `[${(minAtrPercent * 100).toFixed(2)}%, ${(maxAtrPercent * 100).toFixed(2)}%]`
+    }
+  }
+
+  /**
+   * OI 变化率检查
+   *
+   * OI 增减都代表持仓活跃度变化；预筛阶段没有交易方向，因此使用绝对值判定。
+   */
+  private checkOi(oiChangePercent: number, cfg: Required<PreScreenConfig>): { passed: boolean; value: number; threshold: string } {
+    const absoluteChangePercent = Math.abs(oiChangePercent)
+    const minOiChangePercent = cfg.minOiChangePercent
+    const maxOiChangePercent = cfg.maxOiChangePercent
+    const passed = absoluteChangePercent >= minOiChangePercent && absoluteChangePercent <= maxOiChangePercent
+    return {
+      passed,
+      value: absoluteChangePercent,
+      threshold: `[${minOiChangePercent}%, ${maxOiChangePercent}%]`
     }
   }
 

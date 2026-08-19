@@ -166,6 +166,10 @@ export interface PreScreenConfig {
   minAtrPercent?: number // 默认 0.002 (0.2%)
   maxAtrPercent?: number // 默认 0.05 (5%)
 
+  // OI 变化率阈值（百分数，例如 0.2 表示 0.2%）
+  minOiChangePercent?: number // 默认 0.2%
+  maxOiChangePercent?: number // 默认 10%
+
   // 成交量预估模式：基于K线完成进度预估整根K线成交量后与历史均值比较
   // 解决未收盘K线成交量偏低的问题
   minEstimatedVolumeRatio?: number // 默认 0.3 (预估成交量至少是历史均值的30%)
@@ -177,6 +181,7 @@ export interface PreScreenConfig {
   enableAdx?: boolean
   enableAdxSlope?: boolean
   enableAtr?: boolean
+  enableOi?: boolean
   enableVolume?: boolean
 }
 
