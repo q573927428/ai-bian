@@ -683,7 +683,7 @@ const form = reactive<CreateStrategyInput>({
     minAtrPercent: 0.001,
     maxAtrPercent: 0.05,
     minOiChangePercent: 0.2,
-    maxOiChangePercent: 30,
+    maxOiChangePercent: 50,
     minEstimatedVolumeRatio: 0.1,
     minCandleProgressForVolume: 0.1,
     enableAdx: false,
