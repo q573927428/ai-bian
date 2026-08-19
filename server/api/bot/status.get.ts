@@ -10,7 +10,8 @@ export default defineEventHandler(async (event) => {
     const binance = engine.getBinanceService()
 
     const allStrategies = await manager.getAllStrategies()
-    const logs = logger.getRecentLogs(300)
+    // 状态页需要展示较长的运行记录，但仍受内存日志上限约束，避免响应无限增长。
+    const logs = logger.getRecentLogs(1000)
 
     let cryptoBalances: CryptoBalance[] = []
     try {
