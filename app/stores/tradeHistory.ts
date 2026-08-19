@@ -21,12 +21,26 @@ export interface SortConfig {
   direction: SortDirection
 }
 
-// 筛选条件
+/**
+ * 历史订单筛选条件
+ *
+ * 字符串字段用于精确匹配；数值字段分别表示各业务指标的最小值和最大值。
+ */
 export interface FilterConfig {
   symbol: string
   direction: string
   strategyId: string
   closeCategory: string
+  pnlMin?: number
+  pnlMax?: number
+  scoreMin?: number
+  scoreMax?: number
+  confidenceMin?: number
+  confidenceMax?: number
+  oiMin?: number
+  oiMax?: number
+  estimatedVolumeMin?: number
+  estimatedVolumeMax?: number
 }
 
 // 排序字段标签映射
@@ -68,6 +82,17 @@ function getSortValue(order: TradeHistory, field: SortField): number | string | 
     : undefined
 }
 
+/**
+ * 判断数值是否处于闭区间内；启用区间后，缺少该指标的历史订单不参与结果。
+ */
+function matchesRange(value: number | undefined, min?: number, max?: number): boolean {
+  if (min == null && max == null) return true
+  if (value == null || !Number.isFinite(value)) return false
+  if (min != null && value < min) return false
+  if (max != null && value > max) return false
+  return true
+}
+
 export const useTradeHistoryStore = defineStore('tradeHistory', () => {
   const allHistory = ref<TradeHistory[]>([])
   const loading = ref(false)
@@ -81,6 +106,16 @@ export const useTradeHistoryStore = defineStore('tradeHistory', () => {
     direction: '',
     strategyId: '',
     closeCategory: '',
+    pnlMin: undefined,
+    pnlMax: undefined,
+    scoreMin: undefined,
+    scoreMax: undefined,
+    confidenceMin: undefined,
+    confidenceMax: undefined,
+    oiMin: undefined,
+    oiMax: undefined,
+    estimatedVolumeMin: undefined,
+    estimatedVolumeMax: undefined,
   })
 
   // ========== 排序状态 ==========
@@ -136,6 +171,29 @@ export const useTradeHistoryStore = defineStore('tradeHistory', () => {
       result = result.filter(order => order.closeCategory === filter.value.closeCategory)
     }
 
+    // 数值区间使用与表格展示一致的数据口径，边界值包含在筛选结果中。
+    result = result.filter(order => matchesRange(order.pnl, filter.value.pnlMin, filter.value.pnlMax))
+    result = result.filter(order => matchesRange(
+      order.entryScoreBreakdown?.finalScore ?? order.entryScore,
+      filter.value.scoreMin,
+      filter.value.scoreMax
+    ))
+    result = result.filter(order => matchesRange(
+      order.entryConfidence,
+      filter.value.confidenceMin,
+      filter.value.confidenceMax
+    ))
+    result = result.filter(order => matchesRange(
+      order.entryIndicators?.OIChangePercent,
+      filter.value.oiMin,
+      filter.value.oiMax
+    ))
+    result = result.filter(order => matchesRange(
+      order.entryIndicators?.EstimatedVolumeEmaRatioPercent,
+      filter.value.estimatedVolumeMin,
+      filter.value.estimatedVolumeMax
+    ))
+
     // 排序
     const { field, direction } = sort.value
     result.sort((a, b) => {
@@ -159,6 +217,22 @@ export const useTradeHistoryStore = defineStore('tradeHistory', () => {
     return result
   })
 
+  // 汇总基于完整筛选结果计算，不受当前分页影响。
+  const filteredSummary = computed(() => {
+    const orderCount = filteredHistory.value.length
+    const winCount = filteredHistory.value.filter(order => order.pnl > 0).length
+    const totalPnl = filteredHistory.value.reduce((sum, order) => {
+      return Number.isFinite(order.pnl) ? sum + order.pnl : sum
+    }, 0)
+
+    return {
+      orderCount,
+      winCount,
+      totalPnl,
+      winRate: orderCount > 0 ? (winCount / orderCount) * 100 : 0,
+    }
+  })
+
   // ========== 设置筛选条件 ==========
   const setFilter = (partial: Partial<FilterConfig>) => {
     Object.assign(filter.value, partial)
@@ -166,7 +240,22 @@ export const useTradeHistoryStore = defineStore('tradeHistory', () => {
 
   // ========== 重置筛选 ==========
   const resetFilter = () => {
-    filter.value = { symbol: '', direction: '', strategyId: '', closeCategory: '' }
+    filter.value = {
+      symbol: '',
+      direction: '',
+      strategyId: '',
+      closeCategory: '',
+      pnlMin: undefined,
+      pnlMax: undefined,
+      scoreMin: undefined,
+      scoreMax: undefined,
+      confidenceMin: undefined,
+      confidenceMax: undefined,
+      oiMin: undefined,
+      oiMax: undefined,
+      estimatedVolumeMin: undefined,
+      estimatedVolumeMax: undefined,
+    }
   }
 
   // ========== 设置排序 ==========
@@ -250,6 +339,7 @@ export const useTradeHistoryStore = defineStore('tradeHistory', () => {
     availableStrategies,
     availableCloseCategories,
     filteredHistory,
+    filteredSummary,
     setFilter,
     resetFilter,
     setSort,

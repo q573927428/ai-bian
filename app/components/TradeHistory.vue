@@ -87,10 +87,137 @@
             />
           </el-select>
         </div>
+      </div>
+
+      <div class="filter-row range-filter-row">
+        <div class="filter-item">
+          <span class="filter-label">盈亏区间</span>
+          <el-input-number
+            v-model="filter.pnlMin"
+            class="range-input"
+            placeholder="最小"
+            size="small"
+            :controls="false"
+            @change="handleFilterChange"
+          />
+          <span class="range-separator">至</span>
+          <el-input-number
+            v-model="filter.pnlMax"
+            class="range-input"
+            placeholder="最大"
+            size="small"
+            :controls="false"
+            @change="handleFilterChange"
+          />
+        </div>
+
+        <div class="filter-item">
+          <span class="filter-label">评分区间</span>
+          <el-input-number
+            v-model="filter.scoreMin"
+            class="range-input"
+            placeholder="最小"
+            size="small"
+            :controls="false"
+            @change="handleFilterChange"
+          />
+          <span class="range-separator">至</span>
+          <el-input-number
+            v-model="filter.scoreMax"
+            class="range-input"
+            placeholder="最大"
+            size="small"
+            :controls="false"
+            @change="handleFilterChange"
+          />
+        </div>
+
+        <div class="filter-item">
+          <span class="filter-label">置信度区间</span>
+          <el-input-number
+            v-model="filter.confidenceMin"
+            class="range-input"
+            placeholder="最小"
+            size="small"
+            :controls="false"
+            @change="handleFilterChange"
+          />
+          <span class="range-separator">至</span>
+          <el-input-number
+            v-model="filter.confidenceMax"
+            class="range-input"
+            placeholder="最大"
+            size="small"
+            :controls="false"
+            @change="handleFilterChange"
+          />
+        </div>
+
+        <div class="filter-item">
+          <span class="filter-label">OI区间</span>
+          <el-input-number
+            v-model="filter.oiMin"
+            class="range-input"
+            placeholder="最小"
+            size="small"
+            :controls="false"
+            @change="handleFilterChange"
+          />
+          <span class="range-separator">至</span>
+          <el-input-number
+            v-model="filter.oiMax"
+            class="range-input"
+            placeholder="最大"
+            size="small"
+            :controls="false"
+            @change="handleFilterChange"
+          />
+          <span class="range-unit">%</span>
+        </div>
+
+        <div class="filter-item">
+          <span class="filter-label">预计量区间</span>
+          <el-input-number
+            v-model="filter.estimatedVolumeMin"
+            class="range-input"
+            placeholder="最小"
+            size="small"
+            :controls="false"
+            @change="handleFilterChange"
+          />
+          <span class="range-separator">至</span>
+          <el-input-number
+            v-model="filter.estimatedVolumeMax"
+            class="range-input"
+            placeholder="最大"
+            size="small"
+            :controls="false"
+            @change="handleFilterChange"
+          />
+          <span class="range-unit">%</span>
+        </div>
 
         <el-button size="small" type="primary" @click="handleResetFilter">
           重置
         </el-button>
+      </div>
+
+      <!-- 筛选汇总基于全部匹配订单计算，不受分页影响。 -->
+      <div class="history-summary">
+        <div class="summary-item">
+          <span class="summary-label">总盈亏</span>
+          <span :class="tradeHistoryStore.filteredSummary.totalPnl >= 0 ? 'text-success' : 'text-danger'">
+            ${{ tradeHistoryStore.filteredSummary.totalPnl >= 0 ? '+' : '' }}{{ formatSummaryNumber(tradeHistoryStore.filteredSummary.totalPnl) }}
+          </span>
+        </div>
+        <div class="summary-divider"></div>
+        <div class="summary-item">
+          <span class="summary-label">总胜率</span>
+          <span class="summary-value">
+            {{ tradeHistoryStore.filteredSummary.winRate.toFixed(2) }}%
+            <small>({{ tradeHistoryStore.filteredSummary.winCount }}/{{ tradeHistoryStore.filteredSummary.orderCount }})</small>
+          </span>
+        </div>
       </div>
     </div>
 
@@ -307,7 +434,7 @@
 
       <el-table-column
         label="杠杆"
-        width="50"
+        width="65"
         align="center"
         prop="leverage"
         sortable="custom"
@@ -397,7 +524,7 @@
 
       <el-table-column
         label="预计量"
-        width="70"
+        width="80"
         align="center"
         prop="estimatedVolumeEmaRatioPercent"
         sortable="custom"
@@ -630,6 +757,16 @@ const filter = reactive<FilterConfig>({
   direction: '',
   strategyId: '',
   closeCategory: '',
+  pnlMin: undefined,
+  pnlMax: undefined,
+  scoreMin: undefined,
+  scoreMax: undefined,
+  confidenceMin: undefined,
+  confidenceMax: undefined,
+  oiMin: undefined,
+  oiMax: undefined,
+  estimatedVolumeMin: undefined,
+  estimatedVolumeMax: undefined,
 })
 
 // 加载历史订单
@@ -677,6 +814,16 @@ const handleResetFilter = () => {
   filter.direction = ''
   filter.strategyId = ''
   filter.closeCategory = ''
+  filter.pnlMin = undefined
+  filter.pnlMax = undefined
+  filter.scoreMin = undefined
+  filter.scoreMax = undefined
+  filter.confidenceMin = undefined
+  filter.confidenceMax = undefined
+  filter.oiMin = undefined
+  filter.oiMax = undefined
+  filter.estimatedVolumeMin = undefined
+  filter.estimatedVolumeMax = undefined
   tradeHistoryStore.resetFilter()
   currentPage.value = 1
   loadHistory()
@@ -760,6 +907,16 @@ function getOiChangeClass(value: number | undefined): string {
   return ''
 }
 
+/**
+ * 格式化筛选汇总数值，统一保留两位小数并添加千位分隔符。
+ */
+function formatSummaryNumber(value: number): string {
+  return value.toLocaleString('en-US', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })
+}
+
 // 获取平仓分类类型
 function getCloseCategoryType(category?: string): 'danger' | 'success' | 'warning' | 'info' {
   const types: Record<string, 'danger' | 'success' | 'warning' | 'info'> = {
@@ -823,19 +980,89 @@ onUnmounted(() => {
 .filter-row {
   display: flex;
   flex-wrap: wrap;
-  gap: 12px;
+  column-gap: 16px;
+  row-gap: 10px;
   align-items: center;
+}
+
+.range-filter-row {
+  margin-top: 10px;
+  column-gap: 28px;
+  row-gap: 14px;
+}
+
+.range-input {
+  width: 78px;
+}
+
+:deep(.range-input .el-input__inner) {
+  text-align: center;
+}
+
+.range-separator,
+.range-unit {
+  flex: 0 0 auto;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.history-summary {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  min-height: 38px;
+  padding: 0 12px;
+  margin-top: 10px;
+  border: 1px solid var(--border-color);
+  background: var(--table-header-bg);
+  font-size: 14px;
+}
+
+.summary-item {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.summary-label {
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.summary-value {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.summary-value small {
+  color: var(--text-secondary);
+  font-weight: 400;
+}
+
+.summary-divider {
+  width: 1px;
+  height: 18px;
+  background: var(--border-color);
 }
 
 .filter-item {
   display: flex;
   align-items: center;
+  justify-content: flex-start;
   gap: 6px;
+  min-height: 28px;
 }
 
 .filter-label {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  align-self: stretch;
+  flex: 0 0 auto;
   font-size: 13px;
   color: var(--text-regular);
+  line-height: 1;
+  text-align: right;
   white-space: nowrap;
 }
 
