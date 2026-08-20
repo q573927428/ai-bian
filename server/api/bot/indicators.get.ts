@@ -44,6 +44,13 @@ function toDiagnosticResult(data: IndicatorData, requestedAt: number): Indicator
   }
 }
 
+/**
+ * 将带斜杠和不带斜杠的交易对统一为比较键，兼容配置中的 BTC/USDT 与接口中的 BTCUSDT。
+ */
+function normalizeSymbol(symbol: string): string {
+  return symbol.trim().toUpperCase().replace('/', '')
+}
+
 export default defineEventHandler(async (event) => {
   const requestedAt = Date.now()
   const query = getQuery(event)
@@ -51,19 +58,21 @@ export default defineEventHandler(async (event) => {
   const timeframe = String(query.timeframe || '1h') as Timeframe
 
   if (!symbol) {
-    throw createError({ statusCode: 400, statusMessage: '缺少必需参数: symbol' })
+    throw createError({ statusCode: 400, message: '缺少必需参数: symbol' })
   }
   if (!VALID_TIMEFRAMES.includes(timeframe)) {
-    throw createError({ statusCode: 400, statusMessage: `无效的 timeframe: ${timeframe}` })
+    throw createError({ statusCode: 400, message: `无效的 timeframe: ${timeframe}` })
   }
 
   const manager = getStrategyManager()
   const indicatorsHub = manager.getIndicatorsHub()
   const configuredSymbols = indicatorsHub.getCacheStatus().symbols
-  if (!configuredSymbols.includes(symbol)) {
+  // 指标中心沿用配置文件中的交易对格式，后续读取必须使用匹配到的真实缓存键。
+  const indicatorSymbol = configuredSymbols.find(item => normalizeSymbol(item) === normalizeSymbol(symbol))
+  if (!indicatorSymbol) {
     throw createError({
       statusCode: 400,
-      statusMessage: `交易对未配置或指标中心尚未初始化: ${symbol}`
+      message: `交易对未配置或指标中心尚未初始化: ${symbol}`
     })
   }
 
@@ -94,30 +103,30 @@ export default defineEventHandler(async (event) => {
   }
 
   await Promise.all([
-    collect('ema', () => indicatorsHub.getEMAByPeriods(symbol, timeframe, effectiveEmaPeriods)),
-    collect('rsi', () => indicatorsHub.getIndicators(symbol, timeframe, 'RSI', { rsiPeriod: 14 })),
-    collect('adx', () => indicatorsHub.getIndicators(symbol, timeframe, 'ADX', { adxPeriod: 14 })),
-    collect('atr', () => indicatorsHub.getIndicators(symbol, timeframe, 'ATR', { atrPeriod: 14 })),
-    collect('macd', () => indicatorsHub.getIndicators(symbol, timeframe, 'MACD', {
+    collect('ema', () => indicatorsHub.getEMAByPeriods(indicatorSymbol, timeframe, effectiveEmaPeriods)),
+    collect('rsi', () => indicatorsHub.getIndicators(indicatorSymbol, timeframe, 'RSI', { rsiPeriod: 14 })),
+    collect('adx', () => indicatorsHub.getIndicators(indicatorSymbol, timeframe, 'ADX', { adxPeriod: 14 })),
+    collect('atr', () => indicatorsHub.getIndicators(indicatorSymbol, timeframe, 'ATR', { atrPeriod: 14 })),
+    collect('macd', () => indicatorsHub.getIndicators(indicatorSymbol, timeframe, 'MACD', {
       macdFastPeriod: 12,
       macdSlowPeriod: 26,
       macdSignalPeriod: 9
     })),
-    collect('oi', () => indicatorsHub.getIndicators(symbol, timeframe, 'OI', {
+    collect('oi', () => indicatorsHub.getIndicators(indicatorSymbol, timeframe, 'OI', {
       lookbackMinutes,
       trendThresholdPercent: 0.4
     })),
-    collect('volume', () => indicatorsHub.getIndicators(symbol, timeframe, 'Volume')),
-    collect('squareHeat', () => indicatorsHub.getIndicators(symbol, timeframe, 'SquareHeat', {
+    collect('volume', () => indicatorsHub.getIndicators(indicatorSymbol, timeframe, 'Volume')),
+    collect('squareHeat', () => indicatorsHub.getIndicators(indicatorSymbol, timeframe, 'SquareHeat', {
       lookbackMinutes: squareHeatWindowMinutes
     }))
   ])
 
-  const klines = indicatorsHub.getKlines(symbol, timeframe) || []
+  const klines = indicatorsHub.getKlines(indicatorSymbol, timeframe) || []
   const latestKline = klines[klines.length - 1]
   const previousKline = klines[klines.length - 2]
   const oldestKline = klines[0]
-  const oiDiagnostics = indicatorsHub.getOIDiagnostics(symbol, lookbackMinutes)
+  const oiDiagnostics = indicatorsHub.getOIDiagnostics(indicatorSymbol, lookbackMinutes)
   const completedAt = Date.now()
   const availableIndicators = Object.keys(indicators)
   const failedIndicators = Object.keys(errors)

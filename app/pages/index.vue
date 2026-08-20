@@ -35,6 +35,10 @@
                 <div class="card-header">
                   <span>🎛️ 状态面板</span>
                   <div class="card-header-actions">
+                    <el-button type="primary" size="small" text @click="showIndicatorsDrawer = true">
+                      <el-icon><ElIconDataAnalysis /></el-icon>
+                      指标
+                    </el-button>
                     <el-button v-if="!passwordVerified" type="primary" size="small" text @click="handleUnlock">
                       <el-icon><ElIconUnlock /></el-icon>
                       解锁
@@ -119,6 +123,11 @@
               <CryptoPriceCards />
             </ClientOnly>
 
+            <!-- 技术指标抽屉由状态面板标题栏按钮打开 -->
+            <ClientOnly>
+              <IndicatorsList v-model="showIndicatorsDrawer" />
+            </ClientOnly>
+
             <!-- 密码验证对话框 -->
             <ClientOnly>
               <PasswordDialog v-model="showPasswordDialog" @success="handlePasswordSuccess" />
@@ -196,6 +205,7 @@ const handleUnlock = () => {
 import PasswordDialog from '../components/PasswordDialog.vue'
 import SystemLogs from '../components/SystemLogs.vue'
 import CryptoPriceCards from '../components/CryptoPriceCards.vue'
+import IndicatorsList from '../components/IndicatorsList.vue'
 import ActivePositions from '../components/ActivePositions.vue'
 import Strategies from '../components/Strategies.vue'
 import TradeHistory from '../components/TradeHistory.vue'
@@ -211,6 +221,7 @@ const { theme: currentTheme, toggleTheme } = useTheme()
 // 配置对话框
 const showConfigDialog = ref(false)
 const showPerformanceDialog = ref(false)
+const showIndicatorsDrawer = ref(false)
 
 const handleConfigSuccess = () => {
   // 配置保存成功后的处理
