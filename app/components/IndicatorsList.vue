@@ -195,5 +195,15 @@ watch(visible, value => {
   color: var(--text-secondary);
 }
 
-@media (max-width: 768px) { .toolbar { align-items: flex-start; flex-direction: column; } }
+@media (max-width: 768px) {
+  .toolbar {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  /* 手机端占满屏幕，保持与日志抽屉一致的操作体验。 */
+  :global(.indicators-drawer) {
+    width: 100% !important;
+  }
+}
 </style>
