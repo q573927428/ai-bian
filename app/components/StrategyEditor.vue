@@ -117,7 +117,7 @@
                     <el-input-number
                       v-model="oiParams.changePeriod"
                       :min="1"
-                      :max="60"
+                      :max="oiMaxChangePeriod"
                       :step="1"
                     />
                   </el-form-item>
@@ -618,6 +618,15 @@ const timeframePriority: Record<string, number> = {
   '1d': 5
 }
 
+const timeframeMinutes: Record<string, number> = {
+  '5m': 5,
+  '15m': 15,
+  '1h': 60,
+  '4h': 240,
+  '1d': 1440
+}
+const OI_MAX_LOOKBACK_MINUTES = 24 * 60
+
 // 从 bot store 读取交易对列表
 const botStore = useBotStore()
 const symbolOptions = computed(() => botStore.botConfig?.symbols || [])
@@ -697,6 +706,23 @@ const form = reactive<CreateStrategyInput>({
   entryThresholdMode: 'confidence',
   maxRiskLevel: 'MEDIUM'
 })
+
+/**
+ * 根据策略最小周期计算 OI 最大回看周期数，确保总窗口不超过 24 小时。
+ */
+const oiMaxChangePeriod = computed(() => {
+  const sortedTimeframes = [...form.marketData.timeframes].sort((a, b) =>
+    (timeframePriority[a] || 99) - (timeframePriority[b] || 99)
+  )
+  const timeframe = sortedTimeframes[0] || '1h'
+  const minutes = timeframeMinutes[timeframe] || 60
+  return Math.max(1, Math.min(60, Math.floor(OI_MAX_LOOKBACK_MINUTES / minutes)))
+})
+
+watch(oiMaxChangePeriod, (maxPeriod) => {
+  // 周期变长或加载旧策略时自动收敛，避免保存出内存历史无法覆盖的 OI 窗口。
+  oiParams.changePeriod = Math.max(1, Math.min(maxPeriod, Math.floor(Number(oiParams.changePeriod) || 1)))
+}, { immediate: true })
 
 // 预筛启用标记
 const preScreenEnabledFlags = ref<string[]>(['enableAdx', 'enableAdxSlope', 'enableAtr', 'enableOi', 'enableVolume'])

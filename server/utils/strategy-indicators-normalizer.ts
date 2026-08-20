@@ -1,7 +1,26 @@
-import type { IndicatorConfig, StatisticsConfig, Strategy } from '../../types/strategy'
+import type { IndicatorConfig, StatisticsConfig, Strategy, Timeframe } from '../../types/strategy'
 
 const ALLOWED_EMA_PERIODS = [7, 14, 20, 30, 50, 60, 120, 200]
 const DEFAULT_EMA_PERIODS = [14, 50]
+const OI_MAX_LOOKBACK_MINUTES = 24 * 60
+const OI_UI_MAX_CHANGE_PERIOD = 60
+const TIMEFRAME_MINUTES: Record<Timeframe, number> = {
+  '5m': 5,
+  '15m': 15,
+  '1h': 60,
+  '4h': 240,
+  '1d': 1440
+}
+
+/**
+ * 获取指定 OI 周期在 24 小时历史覆盖内允许的最大回看周期数。
+ */
+export function getMaxOIChangePeriod(timeframe: Timeframe = '1h'): number {
+  return Math.max(
+    1,
+    Math.min(OI_UI_MAX_CHANGE_PERIOD, Math.floor(OI_MAX_LOOKBACK_MINUTES / TIMEFRAME_MINUTES[timeframe]))
+  )
+}
 
 function normalizeEmaPeriods(periods: unknown): number[] {
   const raw = Array.isArray(periods) ? periods : DEFAULT_EMA_PERIODS
@@ -47,11 +66,18 @@ export function normalizeIndicatorConfig(indicators: IndicatorConfig[] = []): In
 export function normalizeStatisticsConfig(statistics: StatisticsConfig[] = []): StatisticsConfig[] {
   return statistics.map((stat) => {
     if (stat.type === 'OI') {
+      const timeframe = stat.timeframes?.[0] || '1h'
+      const maxChangePeriod = getMaxOIChangePeriod(timeframe)
+      const rawChangePeriod = Number(stat.params?.changePeriod ?? 8)
+      const changePeriod = Number.isFinite(rawChangePeriod)
+        ? Math.max(1, Math.min(maxChangePeriod, Math.floor(rawChangePeriod)))
+        : Math.min(8, maxChangePeriod)
       return {
         ...stat,
         params: {
           ...stat.params,
-          changePeriod: stat.params?.changePeriod ?? 8,
+          // 后端再次限制总回看窗口，防止 API 请求绕过前端动态上限。
+          changePeriod,
           trendThresholdPercent: stat.params?.trendThresholdPercent ?? 0.4
         }
       }
