@@ -847,6 +847,13 @@ export class IndicatorsHub {
   }
 
   /**
+   * 获取单个交易对的 OI 内存诊断信息，不返回内部历史数组的可变引用。
+   */
+  getOIDiagnostics(symbol: string, lookbackMinutes: number) {
+    return this.oiSnapshotService.getSymbolDiagnostics(symbol, lookbackMinutes)
+  }
+
+  /**
    * 停止后台刷新并清空 OI 内存状态。
    */
   shutdown(): void {

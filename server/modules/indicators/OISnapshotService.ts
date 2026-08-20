@@ -36,6 +36,21 @@ export interface OIChangeResult {
 }
 
 /**
+ * 单个交易对的 OI 内存诊断快照
+ *
+ * 仅暴露历史覆盖范围和指定回看窗口的基准点，不复制完整历史数组，避免诊断请求放大内存占用。
+ */
+export interface OISymbolDiagnostics {
+  historyReady: boolean
+  current?: CurrentOISnapshot
+  historyPoints: number
+  oldestHistoryTimestamp?: number
+  newestHistoryTimestamp?: number
+  baseline?: OISeriesPoint
+  calculatedChangePercent?: number
+}
+
+/**
  * OI 统一内存快照服务
  *
  * 核心职责：
@@ -174,6 +189,24 @@ export class OISnapshotService {
       current,
       baseline,
       changePercent: ((current.value - baseline.openInterest) / baseline.openInterest) * 100
+    }
+  }
+
+  /**
+   * 获取单个交易对当前 OI、历史覆盖范围及指定窗口所用基准点。
+   */
+  getSymbolDiagnostics(symbol: string, lookbackMinutes: number): OISymbolDiagnostics {
+    const points = this.historyBySymbol.get(symbol) || []
+    const change = this.calculateChange(symbol, lookbackMinutes)
+
+    return {
+      historyReady: this.historyReadySymbols.has(symbol),
+      current: this.currentBySymbol.get(symbol),
+      historyPoints: points.length,
+      oldestHistoryTimestamp: points[0]?.timestamp,
+      newestHistoryTimestamp: points[points.length - 1]?.timestamp,
+      baseline: change?.baseline,
+      calculatedChangePercent: change?.changePercent
     }
   }
 
