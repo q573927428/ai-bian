@@ -9,6 +9,8 @@ export default defineNuxtConfig({
     'nuxt-echarts',
   ],
 
+  css: ['~/assets/css/common.css'],
+
   runtimeConfig: {
     // 私有配置（仅服务端可用）
     binanceApiKey: process.env.BINANCE_API_KEY || '',

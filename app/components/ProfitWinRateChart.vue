@@ -323,9 +323,6 @@ onUnmounted(() => {
 }
 
 .card-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
   font-weight: 600;
 }
 
@@ -414,11 +411,4 @@ onUnmounted(() => {
   }
 }
 
-.text-success {
-  color: var(--color-success);
-}
-
-.text-danger {
-  color: var(--color-danger);
-}
 </style>

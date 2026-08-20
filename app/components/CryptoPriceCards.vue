@@ -359,16 +359,11 @@ interface WebSocketStatusResponse {
 }
 
 .card-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
   font-weight: 600;
 }
 
 .header-actions {
-  display: flex;
   gap: 8px;
-  align-items: center;
 }
 
 .connection-warning {

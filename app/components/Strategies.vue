@@ -700,12 +700,6 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.card-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
 .page-header {
   display: flex;
   justify-content: space-between;
@@ -719,7 +713,6 @@ onMounted(() => {
 }
 
 .header-actions {
-  display: flex;
   gap: 10px;
 }
 
@@ -741,22 +734,6 @@ onMounted(() => {
 .stat-value {
   font-size: 24px;
   font-weight: bold;
-}
-
-.text-success {
-  color: var(--color-success) !important;
-}
-
-.text-danger {
-  color: var(--color-danger) !important;
-}
-
-.text-warning {
-  color: var(--color-warning) !important;
-}
-
-.text-secondary {
-  color: var(--text-secondary) !important;
 }
 
 </style>

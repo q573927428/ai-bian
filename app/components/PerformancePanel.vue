@@ -261,18 +261,6 @@ onMounted(() => {
   margin-top: 2px;
 }
 
-.text-success {
-  color: var(--color-success);
-}
-
-.text-warning {
-  color: var(--color-warning);
-}
-
-.text-danger {
-  color: var(--color-danger);
-}
-
 .loading-text {
   color: var(--text-secondary);
   font-size: 13px;

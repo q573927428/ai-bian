@@ -954,17 +954,12 @@ onUnmounted(() => {
 }
 
 .card-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
   font-size: 18px;
   font-weight: 600;
 }
 
 .header-actions {
-  display: flex;
   gap: 8px;
-  align-items: center;
 }
 
 .filter-bar {
@@ -1098,28 +1093,11 @@ onUnmounted(() => {
   font-size: 13px;
 }
 
-.text-success {
-  color: var(--color-success);
-  font-weight: 600;
-}
-
-.text-warning {
-  color: var(--color-warning);
-  font-weight: 600;
-}
-
-.text-danger {
-  color: var(--color-danger);
-  font-weight: 600;
-}
-
+.text-success,
+.text-warning,
+.text-danger,
 .text-info {
-  color: var(--color-info);
   font-weight: 600;
-}
-
-.text-muted {
-  color: var(--text-placeholder);
 }
 
 .pagination-wrapper {

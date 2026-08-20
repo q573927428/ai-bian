@@ -435,9 +435,6 @@ onMounted(async () => {
 }
 
 .card-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
   font-weight: 600;
 }
 
@@ -527,22 +524,6 @@ onMounted(async () => {
   font-weight: 500;
   color: var(--text-regular);
   white-space: nowrap;
-}
-
-.text-success {
-  color: var(--color-success);
-}
-
-.text-danger {
-  color: var(--color-danger);
-}
-
-.stat-card-value.text-success {
-  color: var(--color-success);
-}
-
-.stat-card-value.text-danger {
-  color: var(--color-danger);
 }
 
 /* 紧凑统计卡片网格 */

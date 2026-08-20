@@ -586,18 +586,6 @@ onUnmounted(() => {
 }
 
 
-.text-success {
-  color: var(--color-success);
-}
-
-.text-danger {
-  color: var(--color-danger);
-}
-
-.text-warning {
-  color: var(--color-warning);
-}
-
 @media (max-width: 768px) {
   .position-item {
     padding: 12px;
