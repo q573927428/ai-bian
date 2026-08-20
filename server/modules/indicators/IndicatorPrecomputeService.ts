@@ -78,7 +78,8 @@ export class IndicatorPrecomputeService {
 
     this.isRunning = true
     const startedAt = Date.now()
-    const combinations = this.registry.getCombinations()
+    // OI 依赖每分钟更新的当前值，扫描时直接从内存 5m 序列计算，避免复用最长 5 分钟前的预计算结果。
+    const combinations = this.registry.getCombinations().filter(combo => combo.type !== 'OI')
     const activeKeys = new Set(combinations.map(combo => combo.key))
     let succeeded = 0
     let failed = 0

@@ -21,6 +21,7 @@ import { EventEmitter } from 'node:events'
 import { getSquareHeat, SQUARE_HEAT_CACHE_TTL_MS } from '../../utils/square-heat'
 import { shortHash } from '../../utils/stable-hash'
 import { binanceApiGateway } from '../../utils/binance-api-gateway'
+import { OISnapshotService } from './OISnapshotService'
 
 /**
  * 统一数据缓存条目
@@ -28,7 +29,6 @@ import { binanceApiGateway } from '../../utils/binance-api-gateway'
 interface SymbolData {
   symbol: string
   klineData: Map<Timeframe, OHLCV[]>
-  oiData?: { value: number; timestamp: number }
   volumeData?: Map<Timeframe, { current: number; prev: number; average: number; emaAverage: number; emaPeriod: number; ratio: number; timestamp: number }>
   indicators: Map<string, IndicatorData>
 }
@@ -48,6 +48,7 @@ export class IndicatorsHub {
   // 依赖
   private binance: BinanceService
   private config: BotConfig
+  private oiSnapshotService: OISnapshotService
 
   // 统一数据缓存: symbol -> SymbolData
   private symbolDataCache: Map<string, SymbolData> = new Map()
@@ -76,7 +77,6 @@ export class IndicatorsHub {
 
   // 进行中的请求
   private pendingRequests: Map<string, Promise<any>> = new Map()
-  private oiHistoryCache: Map<string, { data: Array<{ timestamp: number; openInterest: number }>; timestamp: number }> = new Map()
 
   // 定时更新定时器
   private updateTimer: NodeJS.Timeout | null = null
@@ -131,55 +131,13 @@ export class IndicatorsHub {
     }
   }
 
-  private getOiHistoryTtl(timeframe: Timeframe): number {
-    switch (timeframe) {
-      case '5m': return 120 * 1000
-      case '15m': return 300 * 1000
-      case '1h': return 600 * 1000
-      case '4h': return 30 * 60 * 1000
-      case '1d': return 60 * 60 * 1000
-      default: return 300 * 1000
-    }
-  }
-
-  private async getCachedOIHistory(
-    symbol: string,
-    timeframe: Timeframe,
-    limitCandles: number
-  ): Promise<Array<{ timestamp: number; openInterest: number }>> {
-    const cacheKey = `${symbol}_${timeframe}_${limitCandles}`
-    const now = Date.now()
-    const cached = this.oiHistoryCache.get(cacheKey)
-    if (cached && now - cached.timestamp < this.getOiHistoryTtl(timeframe)) {
-      return cached.data
-    }
-
-    const pendingKey = `${cacheKey}_OI_HISTORY`
-    const pending = this.pendingRequests.get(pendingKey)
-    if (pending) {
-      return await pending
-    }
-
-    const requestPromise = this.binance
-      .fetchOpenInterestHistory(symbol, timeframe, undefined, limitCandles)
-      .then((data) => {
-        this.oiHistoryCache.set(cacheKey, { data, timestamp: Date.now() })
-        return data
-      })
-      .finally(() => {
-        this.pendingRequests.delete(pendingKey)
-      })
-
-    this.pendingRequests.set(pendingKey, requestPromise)
-    return await requestPromise
-  }
-
   /**
    * 私有构造函数（单例模式）
    */
   private constructor(binance: BinanceService, config: BotConfig) {
     this.binance = binance
     this.config = config
+    this.oiSnapshotService = new OISnapshotService(binance)
     // logger.info('IndicatorsHub', '指标统一获取中心已初始化（重构版）')
   }
 
@@ -199,6 +157,7 @@ export class IndicatorsHub {
   static resetInstance(): void {
     if (IndicatorsHub.instance) {
       IndicatorsHub.instance.stopUpdateLoop()
+      IndicatorsHub.instance.oiSnapshotService.close()
       IndicatorsHub.instance.symbolDataCache.clear()
       IndicatorsHub.instance = null
       logger.info('IndicatorsHub', '指标统一获取中心已重置')
@@ -217,6 +176,7 @@ export class IndicatorsHub {
    */
   updateBinance(binance: BinanceService): void {
     this.binance = binance
+    this.oiSnapshotService.updateBinance(binance)
   }
 
   /**
@@ -249,7 +209,6 @@ export class IndicatorsHub {
 
     // logger.info('IndicatorsHub', `开始初始化 ${symbols.length} 个交易对的数据...`)
     const startTime = Date.now()
-
     // 分批初始化，控制并发
     for (let i = 0; i < symbols.length; i += this.MAX_CONCURRENT) {
       const batch = symbols.slice(i, i + this.MAX_CONCURRENT)
@@ -272,8 +231,8 @@ export class IndicatorsHub {
       // 1. 从文件加载所有时间周期的K线
       await this.loadKlinesFromFile(symbol)
 
-      // 2. 获取持仓量
-      await this.fetchAndCacheOI(symbol)
+      // 2. 保持原有行为：全局列表只初始化当前 OI，历史 OI 由启用 OI 的策略按需预热。
+      await this.oiSnapshotService.refreshCurrent(symbol)
 
       // logger.success('IndicatorsHub', `${symbol} 数据初始化完成`)
     } catch (error: any) {
@@ -379,39 +338,28 @@ export class IndicatorsHub {
    * 获取并缓存持仓量
    */
   private async fetchAndCacheOI(symbol: string): Promise<void> {
-    const symbolData = this.getOrCreateSymbolData(symbol)
-    const cacheKey = `${symbol}_OI`
-    const pending = this.pendingRequests.get(cacheKey)
-    if (pending) {
-      await pending
-      return
-    }
-
-    const requestPromise = (async () => {
-      try {
-        const oiData = await this.binance.fetchOpenInterest(symbol)
-        const currentValue = oiData.openInterest
-        const currentTimestamp = Date.now()
-        
-        // 更新当前持仓量
-        symbolData.oiData = {
-          value: currentValue,
-          timestamp: currentTimestamp
-        }
-      } finally {
-        this.pendingRequests.delete(cacheKey)
-      }
-    })()
-
-    this.pendingRequests.set(cacheKey, requestPromise)
-    await requestPromise
+    await this.oiSnapshotService.refreshCurrent(symbol)
   }
 
   /**
    * 从缓存获取持仓量
    */
   getOI(symbol: string): { value: number; timestamp: number } | undefined {
-    return this.symbolDataCache.get(symbol)?.oiData
+    const current = this.oiSnapshotService.getCurrent(symbol)
+    return current ? { value: current.value, timestamp: current.timestamp } : undefined
+  }
+
+  /**
+   * 为启用 OI 的策略预热历史序列。
+   *
+   * 交易对会先去重，并沿用指标中心并发上限；服务内部保证同一交易对成功后只请求一次历史。
+   */
+  async initializeOIHistory(symbols: string[]): Promise<void> {
+    const uniqueSymbols = Array.from(new Set(symbols.filter(Boolean)))
+    for (let i = 0; i < uniqueSymbols.length; i += this.MAX_CONCURRENT) {
+      const batch = uniqueSymbols.slice(i, i + this.MAX_CONCURRENT)
+      await Promise.allSettled(batch.map(symbol => this.oiSnapshotService.bootstrapSymbol(symbol)))
+    }
   }
 
   // ==================== 指标计算与缓存 ====================
@@ -539,54 +487,32 @@ export class IndicatorsHub {
     }
 
     if (type === 'OI') {
-      const oi = symbolData.oiData
+      // 热重载新增的交易对可能未经过全量初始化；幂等启动确保首次使用前只回填一次历史。
+      await this.oiSnapshotService.bootstrapSymbol(symbol)
+      const defaultLookbackMinutes = this.timeframeToMinutes(timeframe)
+      const lookbackMinutes = Math.max(1, Math.floor(options?.lookbackMinutes ?? defaultLookbackMinutes))
+      const oi = this.oiSnapshotService.calculateChange(symbol, lookbackMinutes)
       if (!oi) {
         throw new Error(`${symbol} OI数据未初始化`)
       }
 
       // OI changePercent 已经是百分数口径，例如 0.4 表示 0.4%。
       const trendThresholdPercent = Math.max(0.1, Number(options?.trendThresholdPercent ?? 0.4))
-      const defaultLookbackMinutes = this.timeframeToMinutes(timeframe)
-      const lookbackMinutes = Math.max(1, Math.floor(options?.lookbackMinutes ?? defaultLookbackMinutes))
-      // 实际回看K线数：表示对比"多少根之前"的 OI（changePeriod=1 时即上一根已收盘K线）
-      const effectiveLookbackCandles = Math.max(1, Math.ceil(lookbackMinutes / this.timeframeToMinutes(timeframe)))
-      // 拉取K线数：保证至少 2 根，确保有足够历史数据做对比
-      const limitCandles = Math.max(2, effectiveLookbackCandles)
-
-      let changePercent = 0
+      const changePercent = oi.changePercent
       let trend: 'increasing' | 'decreasing' | 'flat' = 'flat'
 
-      // 获取历史 OI 序列（用于计算变化率）
-      const oiHistory = await this.getCachedOIHistory(symbol, timeframe, limitCandles)
-
-      if (oiHistory && oiHistory.length >= 2) {
-        // 基准取"倒数第 effectiveLookbackCandles 根已收盘K线"的 OI：
-        // oiHistory 为升序，最后一个元素是最近已收盘K线，
-        // changePeriod=1 时取最后一位（上一根），而非被 Math.max(2) 钳制后的最旧值
-        const baseIndex = Math.max(0, oiHistory.length - effectiveLookbackCandles)
-        const oldestOI = oiHistory[baseIndex]?.openInterest ?? 0
-        // 使用 fetchOpenInterest 缓存的最新 OI 值作为 newestOI
-        const newestOI = oi.value
-
-        if (oldestOI > 0) {
-          changePercent = ((newestOI - oldestOI) / oldestOI) * 100
-
-          if (changePercent > trendThresholdPercent) {
-            trend = 'increasing'
-          } else if (changePercent < -trendThresholdPercent) {
-            trend = 'decreasing'
-          } else {
-            trend = 'flat'
-          }
-        }
+      if (changePercent > trendThresholdPercent) {
+        trend = 'increasing'
+      } else if (changePercent < -trendThresholdPercent) {
+        trend = 'decreasing'
       }
 
       return {
         symbol,
         timeframe,
-        timestamp: oi.timestamp,
+        timestamp: oi.current.timestamp,
         values: {
-          value: oi.value,
+          value: oi.current.value,
           trend: trend,
           changePercent: changePercent
         }
@@ -864,6 +790,7 @@ export class IndicatorsHub {
 
     this.isRefreshingAllData = true
     try {
+      this.oiSnapshotService.pruneExpiredHistory()
       // logger.info('IndicatorsHub', `开始刷新 ${symbols.length} 个交易对的数据...`)
       const startTime = Date.now()
 
@@ -910,11 +837,21 @@ export class IndicatorsHub {
   getCacheStatus(): {
     size: number
     symbols: string[]
+    oi: ReturnType<OISnapshotService['getStatus']>
   } {
     return {
       size: this.symbolDataCache.size,
-      symbols: Array.from(this.symbolDataCache.keys())
+      symbols: Array.from(this.symbolDataCache.keys()),
+      oi: this.oiSnapshotService.getStatus()
     }
+  }
+
+  /**
+   * 停止后台刷新并清空 OI 内存状态。
+   */
+  shutdown(): void {
+    this.stopUpdateLoop()
+    this.oiSnapshotService.close()
   }
 
   // ==================== 周期角色分配（用于止盈止损）====================

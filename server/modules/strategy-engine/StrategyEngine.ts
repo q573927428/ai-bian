@@ -318,6 +318,12 @@ export class StrategyEngine {
       return
     }
 
+    const requiresOI = strategy.statistics.some(stat => stat.type === 'OI' && stat.enabled)
+    if (requiresOI) {
+      // 仅启用 OI 的策略需要历史序列；必须在订阅和首轮扫描前完成按交易对去重预热。
+      await this.indicatorsHub.initializeOIHistory(strategy.marketData.symbols)
+    }
+
     // logger.info('StrategyEngine', `启动策略: ${strategy.name} (${strategyId})`)
 
     // 订阅策略到调度器
@@ -723,17 +729,17 @@ export class StrategyEngine {
 
     if (oiStatConfig) {
       const dataKey = `${oiTimeframe}_OI`
-      if (!this.setPrecomputedIndicator(indicatorsData, precomputed, bindKeys.oi, dataKey)) {
-        missing.push(bindKeys.oi || `${symbol}:${oiTimeframe}:OI`)
-        const changePeriod = Number(oiStatConfig.params?.changePeriod ?? 8)
-        try {
-          indicatorsData.set(dataKey, await this.indicatorsHub.getIndicators(symbol, oiTimeframe, 'OI', {
-            lookbackMinutes: Math.max(1, changePeriod) * this.timeframeToMinutes(oiTimeframe),
-            trendThresholdPercent: Number(oiStatConfig.params?.trendThresholdPercent ?? 0.4)
-          }))
-        } catch (error: any) {
-          logger.warn('StrategyEngine', `获取OI失败 ${symbol} ${oiTimeframe}: ${error.message}`)
-        }
+      const changePeriod = Number(oiStatConfig.params?.changePeriod ?? 8)
+      try {
+        // OI 使用每分钟刷新的当前值和内存 5m 序列即时计算，不能复用 5 分钟预计算缓存。
+        indicatorsData.set(dataKey, await this.indicatorsHub.getIndicators(symbol, oiTimeframe, 'OI', {
+          lookbackMinutes: Math.max(1, changePeriod) * this.timeframeToMinutes(oiTimeframe),
+          trendThresholdPercent: Number(oiStatConfig.params?.trendThresholdPercent ?? 0.4)
+        }))
+      } catch (error: any) {
+        logger.warn('StrategyEngine', `获取OI失败 ${symbol} ${oiTimeframe}: ${error.message}`)
+        // OI 是该策略启用的预筛和 AI 输入，缺失历史基准时必须跳过本轮分析，不能静默绕过。
+        throw error
       }
     }
 

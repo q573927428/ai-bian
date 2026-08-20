@@ -156,6 +156,9 @@ export async function destroyStrategyManager(): Promise<void> {
       await engine.destroy()
     }
 
+    // 统一关闭指标刷新循环并清空 OI 内存，避免开发热重载残留旧快照。
+    strategyManager.getIndicatorsHub().shutdown()
+
     strategyManager = null
     logger.success('StrategyManager', '策略管理系统已销毁')
   }
