@@ -182,6 +182,8 @@ watch(visible, value => {
 }
 
 :global(.indicators-drawer .indicators-table) {
+  /* 加载遮罩沿用表格卡片背景，避免暗色主题下出现 Element Plus 默认白底。 */
+  --el-mask-color: var(--bg-card);
   --el-table-header-bg-color: var(--bg-table-header);
   --el-table-header-text-color: var(--text-primary);
   --el-table-border-color: var(--border-color);
