@@ -17,7 +17,7 @@
     </div>
 
     <el-alert v-if="errorMessage" type="warning" :closable="false" show-icon>{{ errorMessage }}</el-alert>
-    <el-table v-loading="loading" class="indicators-table" :data="rows" stripe size="small" style="width: 100%">
+    <el-table v-loading="loading" class="indicators-table" :data="rows" stripe size="small" style="width: 100%" @sort-change="handleSortChange">
       <el-table-column prop="symbol" label="交易对" fixed min-width="105" />
       <el-table-column label="价格 / K线" min-width="120">
         <template #default="{ row }">
@@ -38,13 +38,13 @@
       <el-table-column label="MACD" min-width="90" sortable="custom" prop="macdHistogram">
         <template #default="{ row }"><span :class="directionClass(row.macdHistogram)">{{ signed(row.macdHistogram) }}</span></template>
       </el-table-column>
-      <el-table-column label="ATR%" min-width="80" prop="atrPercent">
+      <el-table-column label="ATR%" min-width="80" prop="atrPercent" sortable="custom">
         <template #default="{ row }">{{ format(row.atrPercent) }}%</template>
       </el-table-column>
-      <el-table-column label="OI变化" min-width="80" prop="oiChangePercent">
+      <el-table-column label="OI变化" min-width="80" prop="oiChangePercent" sortable="custom">
         <template #default="{ row }"><span :class="directionClass(row.oiChangePercent)">{{ signed(row.oiChangePercent) }}%</span></template>
       </el-table-column>
-      <el-table-column label="预量比" min-width="80" prop="volumeRatio">
+      <el-table-column label="预量比" min-width="80" prop="volumeRatio" sortable="custom">
         <template #default="{ row }">{{ format(row.volumeRatio) }}x</template>
       </el-table-column>
       <el-table-column label="情绪" min-width="70">
@@ -92,6 +92,10 @@ const timeframes = ['5m', '15m', '1h', '4h', '1d']
 const rows = ref<IndicatorRow[]>([])
 const loading = ref(false)
 const errorMessage = ref('')
+type SortOrder = 'ascending' | 'descending' | null
+type SortProp = 'rsi' | 'macdHistogram' | 'atrPercent' | 'oiChangePercent' | 'volumeRatio' | null
+const sortProp = ref<SortProp>(null)
+const sortOrder = ref<SortOrder>(null)
 const symbols = computed<string[]>(() => {
   const configuredSymbols = botStore.config?.symbols
   if (!Array.isArray(configuredSymbols)) return []
@@ -109,8 +113,33 @@ async function fetchData() {
     } catch { return null }
   }))
   rows.value = results.filter(Boolean) as IndicatorRow[]
+  applySort()
   if (rows.value.length === 0) errorMessage.value = '指标暂不可用，请确认指标中心已完成初始化'
   loading.value = false
+}
+
+/** 按表格当前排序条件排列指标；缺失值始终置底，避免 -- 干扰数值排序。 */
+function applySort() {
+  if (!sortProp.value || !sortOrder.value) return
+  const direction = sortOrder.value === 'ascending' ? 1 : -1
+  const prop = sortProp.value
+  rows.value.sort((left, right) => {
+    const leftValue = left[prop]
+    const rightValue = right[prop]
+    const leftValid = typeof leftValue === 'number' && Number.isFinite(leftValue)
+    const rightValid = typeof rightValue === 'number' && Number.isFinite(rightValue)
+    if (!leftValid || !rightValid) return leftValid === rightValid ? 0 : leftValid ? -1 : 1
+    return (leftValue - rightValue) * direction
+  })
+}
+
+/** 接收 Element Plus 的自定义排序事件，并在当前已加载数据上即时排序。 */
+function handleSortChange({ prop, order }: { prop?: string | null; order?: string | null }) {
+  sortProp.value = (['rsi', 'macdHistogram', 'atrPercent', 'oiChangePercent', 'volumeRatio'] as string[]).includes(prop || '')
+    ? prop as SortProp
+    : null
+  sortOrder.value = order === 'ascending' || order === 'descending' ? order : null
+  applySort()
 }
 
 /** 将完整诊断结果转换为适合横向比较的列表字段。 */
@@ -127,6 +156,7 @@ function toRow(data: any): IndicatorRow {
     adx: Number(values('adx').adx), rsi: Number(values('rsi').rsi), macdHistogram: Number(values('macd').histogram),
     atrPercent: price > 0 ? atr / price * 100 : undefined, oiChangePercent: Number(values('oi').changePercent),
     volumeRatio: Number(values('volume').ratio), sentiment, sentimentLabel: Number.isFinite(sentiment) ? (sentiment > 0 ? '偏多' : sentiment < 0 ? '偏空' : '中性') : '--',
+    // dataAgeMs 由服务端按最近一次成功写入时间计算，不再使用 K 线开盘时间。
     emaBullish: Number(ema.EMA14) >= Number(ema.EMA50), stale: Number(data?.kline?.dataAgeMs) > 2 * 60 * 60 * 1000
   }
 }

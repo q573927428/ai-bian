@@ -3,6 +3,7 @@
 import type { IndicatorData, Timeframe } from '../../../types/strategy'
 import { getStrategyManager } from '../../modules/strategy-manager'
 import { getMaxOIChangePeriod } from '../../utils/strategy-indicators-normalizer'
+import { getSimpleKLineLastUpdatedAt } from '../../utils/kline-simple-storage'
 
 const VALID_TIMEFRAMES: Timeframe[] = ['5m', '15m', '1h', '4h', '1d']
 const TIMEFRAME_MINUTES: Record<Timeframe, number> = {
@@ -128,6 +129,8 @@ export default defineEventHandler(async (event) => {
   const oldestKline = klines[0]
   const oiDiagnostics = indicatorsHub.getOIDiagnostics(indicatorSymbol, lookbackMinutes)
   const completedAt = Date.now()
+  // 使用本地 K 线最近写入时间，而不是 K 线开盘时间；未收盘的 4H K 线也会被高频更新。
+  const lastUpdatedAt = getSimpleKLineLastUpdatedAt(indicatorSymbol, timeframe)
   const availableIndicators = Object.keys(indicators)
   const failedIndicators = Object.keys(errors)
   const closeChangePercent = latestKline && previousKline && previousKline.close !== 0
@@ -164,7 +167,12 @@ export default defineEventHandler(async (event) => {
         coverageMs: oldestKline && latestKline
           ? latestKline.timestamp - oldestKline.timestamp
           : 0,
-        dataAgeMs: latestKline ? Math.max(0, requestedAt - latestKline.timestamp) : undefined,
+        dataAgeMs: lastUpdatedAt
+          ? Math.max(0, requestedAt - lastUpdatedAt)
+          : latestKline
+            ? Math.max(0, requestedAt - latestKline.timestamp)
+            : undefined,
+        lastUpdatedAt,
         candleDirection: latestKline
           ? latestKline.close > latestKline.open
             ? 'bullish'

@@ -22,6 +22,8 @@ import type { OHLCV } from '../../types'
 let db: DatabaseSync | null = null
 let dbReady = false
 let dbInitPromise: Promise<void> | null = null
+// 进程内记录最近一次成功写入时间，避免为新鲜度诊断改动现有数据库结构。
+const klineWriteTimes = new Map<string, number>()
 
 const MAX_BARS = 2233
 
@@ -65,6 +67,7 @@ export async function initKLineDb(): Promise<void> {
 
         CREATE INDEX IF NOT EXISTS idx_kline_lookup 
           ON kline_data(symbol, timeframe, timestamp DESC);
+
       `)
 
       dbReady = true
@@ -176,6 +179,16 @@ function runSql(sql: string, params: any[] = []): void {
   const database = getDb()
   if (params.length > 0) database.prepare(sql).run(...params)
   else database.exec(sql)
+}
+
+/** 记录某交易对/周期最近一次成功写入 K 线的本地时间。 */
+function markKLineUpdated(symbol: string, timeframe: KLineTimeframe): void {
+  klineWriteTimes.set(`${normalizeSymbol(symbol)}_${timeframe}`, Date.now())
+}
+
+/** 获取最近一次成功写入 K 线的时间，用于判断同步是否真正停滞。 */
+export function getSimpleKLineLastUpdatedAt(symbol: string, timeframe: KLineTimeframe): number | null {
+  return klineWriteTimes.get(`${normalizeSymbol(symbol)}_${timeframe}`) ?? null
 }
 
 /**
@@ -492,6 +505,7 @@ export function writeSimpleKLineFile(
       )
 
       runSql('COMMIT')
+      if (limitedData.length > 0) markKLineUpdated(normSymbol, timeframe)
       return true
     } catch (innerError) {
       runSql('ROLLBACK')
@@ -541,6 +555,7 @@ export function appendSimpleKLineData(
       )
       
       runSql('COMMIT')
+      if (sortedNewData.length > 0) markKLineUpdated(normSymbol, timeframe)
       return true
     } catch (innerError) {
       runSql('ROLLBACK')
@@ -581,12 +596,13 @@ export function updateLastKLine(
   }
   
   try {
-    execute(
+      execute(
       `UPDATE kline_data 
        SET open = ?, high = ?, low = ?, close = ?, volume = ?
        WHERE symbol = ? AND timeframe = ? AND timestamp = ?`,
       [bar.open, bar.high, bar.low, bar.close, bar.volume, normSymbol, timeframe, bar.timestamp]
-    )
+      )
+    markKLineUpdated(normSymbol, timeframe)
     return true
   } catch (error) {
     console.error(`SQLite 更新最后一根K线失败: ${normSymbol}/${timeframe}`, error)
