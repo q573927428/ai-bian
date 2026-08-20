@@ -35,10 +35,6 @@
                 <div class="card-header">
                   <span>🎛️ 状态面板</span>
                   <div class="card-header-actions">
-                    <el-button type="primary" size="small" text @click="showIndicatorsDrawer = true">
-                      <el-icon><ElIconDataAnalysis /></el-icon>
-                      指标
-                    </el-button>
                     <el-button v-if="!passwordVerified" type="primary" size="small" text @click="handleUnlock">
                       <el-icon><ElIconUnlock /></el-icon>
                       解锁
@@ -47,15 +43,26 @@
                       <el-icon><ElIconLock /></el-icon>
                       锁定
                     </el-button>
-                    <el-button type="primary" size="small" text @click="showConfigDialog = true">
-                      <el-icon><ElIconSetting /></el-icon>
-                      配置
-                    </el-button>
                   </div>
                 </div>
               </template>
               
               <div class="control-panel">
+                <!-- 将常用入口放在控制面板正文内，避免标题栏操作过于拥挤。 -->
+                <div class="control-panel-actions">
+                  <el-button class="control-panel-action" type="primary" size="small" text @click="showIndicatorsDrawer = true">
+                    <el-icon><ElIconDataAnalysis /></el-icon>
+                    指标
+                  </el-button>
+                  <el-button class="control-panel-action" type="primary" size="small" text @click="showLogsDrawer = true">
+                    <el-icon><ElIconDocument /></el-icon>
+                    日志
+                  </el-button>
+                  <el-button class="control-panel-action" type="primary" size="small" text @click="showConfigDialog = true">
+                    <el-icon><ElIconSetting /></el-icon>
+                    配置
+                  </el-button>
+                </div>
                 <!-- 余额信息 -->
                 <div class="balance-card-large">
                   <!-- 紧凑统计卡片 -->
@@ -123,9 +130,14 @@
               <CryptoPriceCards />
             </ClientOnly>
 
-            <!-- 技术指标抽屉由状态面板标题栏按钮打开 -->
+            <!-- 技术指标抽屉由状态面板卡片内按钮打开 -->
             <ClientOnly>
               <IndicatorsList v-model="showIndicatorsDrawer" />
+            </ClientOnly>
+
+            <!-- 系统日志抽屉由状态面板卡片内按钮打开 -->
+            <ClientOnly>
+              <SystemLogs v-model="showLogsDrawer" />
             </ClientOnly>
 
             <!-- 密码验证对话框 -->
@@ -142,12 +154,6 @@
             <ClientOnly v-if="passwordVerified">
               <TradeHistory />
             </ClientOnly>
-
-             <!-- 系统日志组件 -->
-             <ClientOnly v-if="passwordVerified">
-              <SystemLogs />
-            </ClientOnly>
-
 
           </el-col>
           
@@ -222,6 +228,7 @@ const { theme: currentTheme, toggleTheme } = useTheme()
 const showConfigDialog = ref(false)
 const showPerformanceDialog = ref(false)
 const showIndicatorsDrawer = ref(false)
+const showLogsDrawer = ref(false)
 
 const handleConfigSuccess = () => {
   // 配置保存成功后的处理
@@ -444,6 +451,39 @@ onMounted(async () => {
   padding: 4px 0;
 }
 
+.control-panel-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+  margin-top: -15px;
+  background: var(--stat-card-bg);
+  border-radius: 8px;
+}
+
+.control-panel-action {
+  flex: 1;
+  min-width: 0;
+  height: 32px;
+  margin: 0 !important;
+  padding: 0 8px !important;
+  border: 1px solid var(--el-border-color-lighter) !important;
+  border-radius: 6px !important;
+  background: var(--bg-card) !important;
+  color: var(--text-regular) !important;
+  transition: color 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+}
+
+.control-panel-action:hover {
+  border-color: var(--el-color-primary) !important;
+  background: var(--el-color-primary-light-9) !important;
+  color: var(--el-color-primary) !important;
+}
+
+.control-panel-action :deep(.el-icon) {
+  margin-right: 5px;
+}
+
 /* 头部运行状态指示器 */
 .header-status {
   display: flex;
@@ -658,6 +698,15 @@ onMounted(async () => {
   
   .balance-card-large {
     padding: 10px;
+  }
+
+  .control-panel-actions {
+    gap: 4px;
+    padding: 5px;
+  }
+
+  .control-panel-action {
+    padding: 0 5px !important;
   }
   
   

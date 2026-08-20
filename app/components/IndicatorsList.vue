@@ -4,7 +4,7 @@
     class="indicators-drawer"
     title="指标看板"
     direction="rtl"
-    size="60%"
+    size="50%"
     destroy-on-close
   >
     <div class="toolbar">
@@ -19,14 +19,14 @@
     <el-alert v-if="errorMessage" type="warning" :closable="false" show-icon>{{ errorMessage }}</el-alert>
     <el-table v-loading="loading" class="indicators-table" :data="rows" stripe size="small" style="width: 100%">
       <el-table-column prop="symbol" label="交易对" fixed min-width="105" />
-      <el-table-column label="价格 / K线" min-width="145">
+      <el-table-column label="价格 / K线" min-width="120">
         <template #default="{ row }">
           <div>{{ formatPrice(row.price) }}</div>
           <span :class="directionClass(row.closeChangePercent)">{{ signed(row.closeChangePercent) }}%</span>
           <span class="muted"> · {{ row.candleDirectionLabel }}</span>
         </template>
       </el-table-column>
-      <el-table-column label="趋势" min-width="125">
+      <el-table-column label="趋势" min-width="110">
         <template #default="{ row }">
           <div>ADX {{ format(row.adx) }}</div>
           <span :class="row.emaBullish ? 'up' : 'down'">EMA {{ row.emaBullish ? '多头' : '空头' }}</span>
@@ -35,22 +35,22 @@
       <el-table-column label="RSI" min-width="80" sortable="custom" prop="rsi">
         <template #default="{ row }"><span :class="rsiClass(row.rsi)">{{ format(row.rsi) }}</span></template>
       </el-table-column>
-      <el-table-column label="MACD柱" min-width="95" sortable="custom" prop="macdHistogram">
+      <el-table-column label="MACD" min-width="90" sortable="custom" prop="macdHistogram">
         <template #default="{ row }"><span :class="directionClass(row.macdHistogram)">{{ signed(row.macdHistogram) }}</span></template>
       </el-table-column>
-      <el-table-column label="波动 ATR%" min-width="105" prop="atrPercent">
+      <el-table-column label="ATR%" min-width="80" prop="atrPercent">
         <template #default="{ row }">{{ format(row.atrPercent) }}%</template>
       </el-table-column>
-      <el-table-column label="OI变化" min-width="100" prop="oiChangePercent">
+      <el-table-column label="OI变化" min-width="80" prop="oiChangePercent">
         <template #default="{ row }"><span :class="directionClass(row.oiChangePercent)">{{ signed(row.oiChangePercent) }}%</span></template>
       </el-table-column>
-      <el-table-column label="成交量" min-width="90" prop="volumeRatio">
+      <el-table-column label="预量比" min-width="80" prop="volumeRatio">
         <template #default="{ row }">{{ format(row.volumeRatio) }}x</template>
       </el-table-column>
-      <el-table-column label="情绪" min-width="110">
+      <el-table-column label="情绪" min-width="70">
         <template #default="{ row }"><span :class="directionClass(row.sentiment)">{{ row.sentimentLabel }}</span></template>
       </el-table-column>
-      <el-table-column label="数据" min-width="80">
+      <el-table-column label="数据" min-width="70">
         <template #default="{ row }"><span :class="row.stale ? 'down' : 'up'">{{ row.stale ? '偏旧' : '正常' }}</span></template>
       </el-table-column>
     </el-table>

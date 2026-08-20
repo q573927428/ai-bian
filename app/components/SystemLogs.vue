@@ -1,10 +1,7 @@
 <template>
-  <el-card class="card" shadow="hover" style="margin-top: 20px">
-    <template #header>
-      <div class="card-header">
-        <div class="header-top">
+  <el-drawer v-model="visible" class="logs-drawer" title="运行日志" direction="rtl" size="50%" destroy-on-close>
+    <div class="logs-toolbar">
           <div class="header-title-group">
-            <span class="header-title">⚡ 运行日志</span>
             <el-button
               size="small"
               text
@@ -16,7 +13,7 @@
                 <ElIconArrowDown v-if="showDetailedLogs" />
                 <ElIconArrowRight v-else />
               </el-icon>
-              {{ showDetailedLogs ? '收起' : '展开' }}
+              {{ showDetailedLogs ? '收起详细日志' : '展开详细日志' }}
             </el-button>
           </div>
           <div class="filter-group">
@@ -45,9 +42,7 @@
               />
             </el-select>
           </div>
-        </div>
-      </div>
-    </template>
+    </div>
 
     <div class="logs-container">
       <div
@@ -71,13 +66,29 @@
       </div>
       <el-empty v-if="filteredLogs.length === 0" description="暂无日志" />
     </div>
-  </el-card>
+  </el-drawer>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useBotStore } from '../stores/bot'
 import dayjs from 'dayjs'
+
+interface Props {
+  /** 控制日志抽屉的显示状态。 */
+  modelValue: boolean
+}
+
+interface Emits {
+  (event: 'update:modelValue', value: boolean): void
+}
+
+const props = defineProps<Props>()
+const emit = defineEmits<Emits>()
+const visible = computed({
+  get: () => props.modelValue,
+  set: (value: boolean) => emit('update:modelValue', value)
+})
 
 const botStore = useBotStore()
 
@@ -208,23 +219,13 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-.card {
-  margin-bottom: 20px;
-}
-
-.card-header {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  align-items: flex-start;
-}
-
-.header-top {
+.logs-toolbar {
   display: flex;
   justify-content: space-between;
   align-items: center;
   width: 100%;
   gap: 16px;
+  padding-bottom: 10px;
 }
 
 .filter-group {
@@ -261,7 +262,9 @@ onUnmounted(() => {
 }
 
 .logs-container {
-  max-height: 576px;
+  /* 抽屉正文扣除标题和筛选栏后占满可视高度，日志过多时仅列表内部滚动。 */
+  height: calc(100vh - 170px);
+  min-height: 0;
   overflow-y: auto;
   padding: 10px;
   background: var(--bg-log);
@@ -336,7 +339,7 @@ onUnmounted(() => {
 }
 
 @media (max-width: 768px) {
-  .header-top {
+  .logs-toolbar {
     flex-wrap: wrap;
     gap: 8px;
   }
@@ -366,6 +369,36 @@ onUnmounted(() => {
     flex-basis: auto;
     margin-top: 2px;
   }
+
+  .logs-container {
+    height: calc(100vh - 210px);
+  }
+}
+
+:global(.logs-drawer) {
+  --el-drawer-bg-color: var(--bg-card);
+  background: var(--bg-card);
+  color: var(--text-regular);
+  border-left: 1px solid var(--border-color);
+}
+
+:global(.logs-drawer .el-drawer__header) {
+  margin-bottom: 0;
+  padding-bottom: 16px;
+  color: var(--text-primary);
+  border-bottom: 1px solid var(--border-color);
+}
+
+:global(.logs-drawer .el-drawer__title) {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+:global(.logs-drawer .el-drawer__close-btn) { color: var(--text-secondary); }
+:global(.logs-drawer .el-drawer__body) { background: var(--bg-card); color: var(--text-regular); }
+
+@media (max-width: 768px) {
+  :global(.logs-drawer) { width: 100% !important; }
 }
 
 

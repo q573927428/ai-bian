@@ -374,7 +374,6 @@ onUnmounted(() => {
   background: var(--balance-card-bg);
   border: 1px solid var(--balance-card-border);
   border-radius: 8px;
-  margin-top: 25px;
 }
 
 .stat-item {
