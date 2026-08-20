@@ -1,10 +1,11 @@
 <template>
-  <el-card v-if="positions.length > 0" class="positions-card">
-    <template #header>
-      <div class="card-header">
-        <span>📊 当前持仓 ({{ positions.length }})</span>
-      </div>
-    </template>
+  <el-drawer
+    v-model="visible"
+    class="positions-drawer"
+    :title="`当前持仓 (${positions.length})`"
+    direction="rtl"
+    size="30%"
+  >
     <div class="positions-list">
       <div
         v-for="position in positions"
@@ -35,15 +36,16 @@
                     <el-tag>
                       {{ position.quantity }}
                     </el-tag>
-                    <el-tag
-                      type="warning"
+                    <el-button
+                      type="danger"
                       size="small"
                       :loading="closingSymbols.includes(position.symbol)"
-                      @click="handleClosePosition(position.symbol)"
+                      @click="requestClosePosition(position.symbol)"
                       class="close-btn"
+                      plain
                     >
                       平仓
-                    </el-tag>
+                    </el-button>
                   </div>
                 </div>
                 <!-- 盈亏和平仓按钮 -->
@@ -147,18 +149,43 @@
 
       </div>
     </div>
-  </el-card>
+    <el-empty v-if="positions.length === 0" description="暂无当前持仓" />
+
+    <!-- 密码只保护平仓操作，不影响持仓信息的查看。 -->
+    <PasswordDialog v-model="showClosePasswordDialog" @success="handlePasswordSuccess" />
+  </el-drawer>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+// ==================== 当前持仓抽屉 ====================
+import { computed, ref, onMounted, onUnmounted, watch } from 'vue'
 import { useBotStore } from '../stores/bot'
 import { formatPrice } from './kline-chart/utils/kline-formatters'
+import PasswordDialog from './PasswordDialog.vue'
+
+/** 当前持仓抽屉的外部控制参数。 */
+interface Props {
+  modelValue: boolean
+}
+
+/** 当前持仓抽屉向父组件同步开关状态的事件。 */
+interface Emits {
+  (event: 'update:modelValue', value: boolean): void
+}
+
+const props = defineProps<Props>()
+const emit = defineEmits<Emits>()
+const visible = computed({
+  get: () => props.modelValue,
+  set: (value: boolean) => emit('update:modelValue', value)
+})
 
 const botStore = useBotStore()
 const positions = ref<any[]>([])
 const closingSymbols = ref<string[]>([])
 const expandedAISections = ref<string[]>([])
+const showClosePasswordDialog = ref(false)
+const pendingCloseSymbol = ref('')
 
 // 加载持仓信息
 const loadPositions = async () => {
@@ -244,8 +271,22 @@ const toggleAISection = (symbol: string) => {
   }
 }
 
-// 手动平仓
-const handleClosePosition = async (symbol: string) => {
+/**
+ * 请求手动平仓；先记录目标交易对，再要求完成本次操作的密码验证。
+ */
+const requestClosePosition = (symbol: string) => {
+  pendingCloseSymbol.value = symbol
+  showClosePasswordDialog.value = true
+}
+
+/**
+ * 密码验证成功后执行二次确认，并将密码交给服务端再次校验。
+ */
+const handlePasswordSuccess = async (password: string) => {
+  const symbol = pendingCloseSymbol.value
+  pendingCloseSymbol.value = ''
+  if (!symbol) return
+
   try {
     await ElMessageBox.confirm(
       `确定要平仓 ${symbol} 吗？`,
@@ -261,7 +302,7 @@ const handleClosePosition = async (symbol: string) => {
 
     const response = await $fetch('/api/positions/close', {
       method: 'POST',
-      body: { symbol }
+      body: { symbol, password }
     } as any) as any
 
     if (response.success) {
@@ -280,6 +321,10 @@ const handleClosePosition = async (symbol: string) => {
     }
   }
 }
+
+watch(visible, value => {
+  if (value) loadPositions()
+})
 
 onMounted(() => {
   loadPositions()
@@ -302,15 +347,6 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-.positions-card {
-  margin-bottom: 20px;
-}
-
-.card-header {
-  font-size: 18px;
-  font-weight: 600;
-}
-
 .positions-list {
   display: flex;
   flex-direction: column;
@@ -432,7 +468,7 @@ onUnmounted(() => {
 }
 
 .close-btn {
-  cursor: pointer;
+  margin-left: 0;
 }
 
 .info-section {
@@ -613,6 +649,32 @@ onUnmounted(() => {
 
   .scores-grid {
     grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* 抽屉会 Teleport 到 body，使用全局选择器继承应用的亮暗主题。 */
+:global(.positions-drawer) {
+  --el-drawer-bg-color: var(--bg-card);
+  background: var(--bg-card);
+  color: var(--text-regular);
+  border-left: 1px solid var(--border-color);
+}
+
+:global(.positions-drawer .el-drawer__header) {
+  margin-bottom: 0;
+  padding-bottom: 16px;
+  color: var(--text-primary);
+  border-bottom: 1px solid var(--border-color);
+}
+
+:global(.positions-drawer .el-drawer__title) {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+@media (max-width: 768px) {
+  :global(.positions-drawer) {
+    width: 100% !important;
   }
 }
 </style>

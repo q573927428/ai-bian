@@ -30,13 +30,15 @@
 <script setup lang="ts">
 import { ref, watch, nextTick, computed } from 'vue'
 
+/** 密码验证对话框的外部控制参数。 */
 interface Props {
   modelValue: boolean
 }
 
+/** 密码验证结果事件；成功时携带本次已验证密码，供高风险接口二次校验。 */
 interface Emits {
   (e: 'update:modelValue', value: boolean): void
-  (e: 'success'): void
+  (e: 'success', password: string): void
 }
 
 const props = defineProps<Props>()
@@ -55,6 +57,7 @@ const passwordInput = ref()
 
 // 待关闭后触发的成功回调
 let pendingSuccess = false
+let verifiedPassword = ''
 
 // 检查是否需要密码
 const checkRequiresPassword = async (): Promise<boolean> => {
@@ -86,6 +89,7 @@ const handleConfirm = async () => {
     if (res.success) {
       ElMessage.success('验证成功')
       // 先关闭对话框，emit('success') 延迟到 @closed 中执行
+      verifiedPassword = form.value.password
       pendingSuccess = true
       visible.value = false
     } else {
@@ -107,7 +111,8 @@ const handleClosed = () => {
   // 对话框完全关闭后，再触发 success 事件
   if (pendingSuccess) {
     pendingSuccess = false
-    emit('success')
+    emit('success', verifiedPassword)
+    verifiedPassword = ''
   }
 }
 
@@ -116,6 +121,7 @@ watch(visible, async (newVal) => {
     const requiresPassword = await checkRequiresPassword()
     if (!requiresPassword) {
       // 不需要密码，直接关闭，成功事件会在 @closed 中触发
+      verifiedPassword = ''
       pendingSuccess = true
       visible.value = false
       return

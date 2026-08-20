@@ -54,6 +54,10 @@
                     <el-icon><ElIconDataAnalysis /></el-icon>
                     指标
                   </el-button>
+                  <el-button class="control-panel-action" type="primary" size="small" text @click="showPositionsDrawer = true">
+                    <el-icon><ElIconWallet /></el-icon>
+                    持仓
+                  </el-button>
                   <el-button class="control-panel-action" type="primary" size="small" text @click="showLogsDrawer = true">
                     <el-icon><ElIconDocument /></el-icon>
                     日志
@@ -110,11 +114,6 @@
               </div>
             </el-card>
 
-            <!-- 当前持仓组件 -->
-            <ClientOnly v-if="passwordVerified">
-              <ActivePositions />
-            </ClientOnly>
-
             <!-- 盈亏胜率走势图表 -->
             <ClientOnly>
               <ProfitWinRateChart />
@@ -133,6 +132,11 @@
             <!-- 技术指标抽屉由状态面板卡片内按钮打开 -->
             <ClientOnly>
               <IndicatorsList v-model="showIndicatorsDrawer" />
+            </ClientOnly>
+
+            <!-- 当前持仓无需解锁页面，可由状态面板内的持仓按钮直接打开。 -->
+            <ClientOnly>
+              <ActivePositions v-model="showPositionsDrawer" />
             </ClientOnly>
 
             <!-- 系统日志抽屉由状态面板卡片内按钮打开 -->
@@ -228,6 +232,7 @@ const { theme: currentTheme, toggleTheme } = useTheme()
 const showConfigDialog = ref(false)
 const showPerformanceDialog = ref(false)
 const showIndicatorsDrawer = ref(false)
+const showPositionsDrawer = ref(false)
 const showLogsDrawer = ref(false)
 
 const handleConfigSuccess = () => {
