@@ -125,7 +125,7 @@ export async function initStrategyManager(): Promise<StrategyManager> {
     await engine.startPositionMonitor()
     logger.info('🟡 启动顺序', '阶段6/6：首次持仓监控已完成，开放策略首次扫描')
     const initialScanDelayMs = getInitialScanDelayMs()
-    logger.info('StrategyManager', `首次策略扫描将在 ${Math.ceil(initialScanDelayMs / 1000)} 秒后执行（对齐到 5 分钟倍数 + 30 秒）`)
+    logger.info('StrategyManager', `首次策略扫描将在 ${Math.ceil(initialScanDelayMs / 1000)} 秒后执行（对齐到 5 分钟倍数 + 90 秒）`)
     engine.resumeStrategyScans(initialScanDelayMs)
 
     return strategyManager
