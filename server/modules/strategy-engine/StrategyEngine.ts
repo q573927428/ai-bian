@@ -29,7 +29,7 @@ import { DailyTradeLimiter } from '../risk-control/DailyTradeLimiter'
  */
 export function getInitialScanDelayMs(nowMs: number = Date.now()): number {
   const target = new Date(nowMs)
-  target.setSeconds(30, 0)
+  target.setSeconds(90, 0)
   target.setMinutes(Math.ceil(target.getMinutes() / 5) * 5)
 
   // 恰好处于目标时刻允许立即执行；超过目标时刻则顺延到下一个 5 分钟窗口。
