@@ -24,6 +24,23 @@ import type { IndicatorPrecomputeService } from '../indicators/IndicatorPrecompu
 import { DailyTradeLimiter } from '../risk-control/DailyTradeLimiter'
 
 /**
+ * 计算首次策略扫描距离当前时间的等待毫秒数。
+ * 首次扫描统一对齐到下一个“5 分钟倍数 + 30 秒”，避免启动时刻不一致导致扫描窗口错位。
+ */
+export function getInitialScanDelayMs(nowMs: number = Date.now()): number {
+  const target = new Date(nowMs)
+  target.setSeconds(30, 0)
+  target.setMinutes(Math.ceil(target.getMinutes() / 5) * 5)
+
+  // 恰好处于目标时刻允许立即执行；超过目标时刻则顺延到下一个 5 分钟窗口。
+  if (target.getTime() < nowMs) {
+    target.setMinutes(target.getMinutes() + 5)
+  }
+
+  return Math.max(0, target.getTime() - nowMs)
+}
+
+/**
  * 策略运行时状态
  */
 export interface StrategyRuntimeStatus {

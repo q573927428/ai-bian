@@ -2,7 +2,7 @@
 
 import { StrategyManager } from './StrategyManager'
 import { StrategyStore } from '../strategy-store/StrategyStore'
-import { StrategyEngine } from '../strategy-engine/StrategyEngine'
+import { StrategyEngine, getInitialScanDelayMs } from '../strategy-engine/StrategyEngine'
 import { IndicatorsHub } from '../indicators/IndicatorsHub'
 import { PositionManager, positionManager } from '../position-manager/PositionManager'
 import { BinanceService } from '../../utils/binance'
@@ -124,7 +124,9 @@ export async function initStrategyManager(): Promise<StrategyManager> {
     logger.info('🟡 启动顺序', '阶段5/6：执行首次持仓监控')
     await engine.startPositionMonitor()
     logger.info('🟡 启动顺序', '阶段6/6：首次持仓监控已完成，开放策略首次扫描')
-    engine.resumeStrategyScans(0)
+    const initialScanDelayMs = getInitialScanDelayMs()
+    logger.info('StrategyManager', `首次策略扫描将在 ${Math.ceil(initialScanDelayMs / 1000)} 秒后执行（对齐到 5 分钟倍数 + 30 秒）`)
+    engine.resumeStrategyScans(initialScanDelayMs)
 
     return strategyManager
   } catch (error: any) {
