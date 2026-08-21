@@ -252,6 +252,7 @@ export class MultiStrategyAIAnalyzer {
             slow: indicators.emaList[indicators.emaList.length - 1]?.value ?? 0
           },
           rsi: aiResult.technicalData.rsi ?? 0,
+          macd: indicators.enabledIndicators?.macd ? indicators.macd : undefined,
           atr: indicators.atr,
           candleProgressPercent,
           atrVolatilityPercent,
@@ -393,7 +394,9 @@ export class MultiStrategyAIAnalyzer {
 
     // MACD
     if (indicators.enabledIndicators?.macd && indicators.macd) {
-      technicalIndicatorLines.push(`- MACD(12,26,9): MACD=${indicators.macd.macd.toFixed(4)}, Signal=${indicators.macd.signal.toFixed(4)}, Histogram=${indicators.macd.histogram.toFixed(4)}`)
+      technicalIndicatorLines.push(
+        `- MACD(12,26,9，实时未收盘): 当前 MACD=${indicators.macd.macd.toFixed(4)}, Signal=${indicators.macd.signal.toFixed(4)}, Histogram=${indicators.macd.histogram.toFixed(4)}；上一组 MACD=${indicators.macd.previousMacd.toFixed(4)}, Signal=${indicators.macd.previousSignal.toFixed(4)}, Histogram=${indicators.macd.previousHistogram.toFixed(4)}；Crossover=${indicators.macd.crossover}；HistogramTrend=${indicators.macd.histogramTrend}`
+      )
     }
 
     // ATR
@@ -860,6 +863,11 @@ ${historySection}
             macd: indicators.macd?.macd,
             macdSignal: indicators.macd?.signal,
             macdHistogram: indicators.macd?.histogram,
+            previousMacd: indicators.macd?.previousMacd,
+            previousMacdSignal: indicators.macd?.previousSignal,
+            previousMacdHistogram: indicators.macd?.previousHistogram,
+            macdCrossover: indicators.macd?.crossover,
+            macdHistogramTrend: indicators.macd?.histogramTrend,
             volume,
             openInterest: indicators.enabledIndicators?.oi ? indicators.openInterest : undefined,
             openInterestChangePercent: indicators.enabledIndicators?.oi ? indicators.openInterestChangePercent : undefined,

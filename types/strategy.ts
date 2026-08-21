@@ -31,6 +31,11 @@ export interface TimeframeData {
     macd: number;
     signal: number;
     histogram: number;
+    previousMacd: number;
+    previousSignal: number;
+    previousHistogram: number;
+    crossover: 'golden' | 'dead' | 'none';
+    histogramTrend: 'rising' | 'falling' | 'flat';
   };
   adx?: number;
   adxSlope?: number;

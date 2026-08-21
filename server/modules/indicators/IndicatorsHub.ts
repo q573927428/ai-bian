@@ -648,10 +648,35 @@ export class IndicatorsHub {
             SimpleMASignal: false
           })
           const lastMACD = macdValues[macdValues.length - 1]
+          const previousMACD = macdValues[macdValues.length - 2] ?? lastMACD
+          const currentMacd = lastMACD?.MACD ?? 0
+          const currentSignal = lastMACD?.signal ?? 0
+          const currentHistogram = lastMACD?.histogram ?? 0
+          const previousMacd = previousMACD?.MACD ?? currentMacd
+          const previousSignal = previousMACD?.signal ?? currentSignal
+          const previousHistogram = previousMACD?.histogram ?? currentHistogram
+
+          // 最新 K 线包含盘中价格，因此这里的交叉会随未收盘 K 线实时出现或消失。
+          const crossover = previousMacd <= previousSignal && currentMacd > currentSignal
+            ? 'golden'
+            : previousMacd >= previousSignal && currentMacd < currentSignal
+              ? 'dead'
+              : 'none'
+          const histogramTrend = currentHistogram > previousHistogram
+            ? 'rising'
+            : currentHistogram < previousHistogram
+              ? 'falling'
+              : 'flat'
+
           indicatorData.values = {
-            macd: lastMACD?.MACD ?? 0,
-            signal: lastMACD?.signal ?? 0,
-            histogram: lastMACD?.histogram ?? 0
+            macd: currentMacd,
+            signal: currentSignal,
+            histogram: currentHistogram,
+            previousMacd,
+            previousSignal,
+            previousHistogram,
+            crossover,
+            histogramTrend
           }
           break
 

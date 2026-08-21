@@ -81,6 +81,16 @@ export interface TechnicalIndicators {
     macd: number
     signal: number
     histogram: number
+    /** 上一根 K 线对应的 MACD 线，用于识别实时交叉 */
+    previousMacd: number
+    /** 上一根 K 线对应的信号线 */
+    previousSignal: number
+    /** 上一根 K 线对应的柱体值 */
+    previousHistogram: number
+    /** 当前未收盘 K 线相对上一根 K 线产生的交叉状态 */
+    crossover: 'golden' | 'dead' | 'none'
+    /** 当前柱体相对上一根柱体的变化方向 */
+    histogramTrend: 'rising' | 'falling' | 'flat'
   }
   atr?: number
   openInterest?: number
@@ -139,6 +149,11 @@ export interface AIAnalysis {
     macd?: number
     macdSignal?: number
     macdHistogram?: number
+    previousMacd?: number
+    previousMacdSignal?: number
+    previousMacdHistogram?: number
+    macdCrossover?: 'golden' | 'dead' | 'none'
+    macdHistogramTrend?: 'rising' | 'falling' | 'flat'
     openInterest?: number
     openInterestChangePercent?: number
     openInterestTrend?: 'increasing' | 'decreasing' | 'flat'

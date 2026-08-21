@@ -58,6 +58,11 @@ export interface MACDValues {
   macd: number;                        // MACD 线
   signal: number;                      // 信号线
   histogram: number;                   // 柱状图
+  previousMacd: number;                // 上一根 K 线对应的 MACD 线
+  previousSignal: number;              // 上一根 K 线对应的信号线
+  previousHistogram: number;           // 上一根 K 线对应的柱状图
+  crossover: 'golden' | 'dead' | 'none'; // 当前未收盘 K 线形成的金叉、死叉或无交叉
+  histogramTrend: 'rising' | 'falling' | 'flat'; // 柱体相对上一根的变化方向
   trend?: 'bullish' | 'bearish';       // 趋势方向
 }
 

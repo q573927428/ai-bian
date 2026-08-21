@@ -957,7 +957,12 @@ export class StrategyEngine {
         macd: enabledMACD && macdData.macd !== undefined ? {
           macd: macdData.macd,
           signal: macdData.signal,
-          histogram: macdData.histogram
+          histogram: macdData.histogram,
+          previousMacd: macdData.previousMacd ?? macdData.macd,
+          previousSignal: macdData.previousSignal ?? macdData.signal,
+          previousHistogram: macdData.previousHistogram ?? macdData.histogram,
+          crossover: macdData.crossover ?? 'none',
+          histogramTrend: macdData.histogramTrend ?? 'flat'
         } : undefined,
         adx: enabledADX ? adxData.adx : undefined,
         adxSlope: enabledADX ? adxData.adxSlope : undefined,
@@ -1387,7 +1392,14 @@ export class StrategyEngine {
       
       // 收集其他指标
       if (rsiData.rsi !== undefined) entryIndicators['RSI'] = rsiData.rsi
-      if (macdData.macd !== undefined) entryIndicators['MACD'] = macdData.macd
+      if (macdData.macd !== undefined) {
+        entryIndicators['MACD'] = macdData.macd
+        entryIndicators['MACDSignal'] = macdData.signal
+        entryIndicators['MACDHistogram'] = macdData.histogram
+        entryIndicators['PreviousMACD'] = macdData.previousMacd ?? macdData.macd
+        entryIndicators['PreviousMACDSignal'] = macdData.previousSignal ?? macdData.signal
+        entryIndicators['PreviousMACDHistogram'] = macdData.previousHistogram ?? macdData.histogram
+      }
       if (adxData.adx !== undefined) entryIndicators['ADX'] = adxData.adx
       if (atrData.atr !== undefined) entryIndicators['ATR'] = atrData.atr
       if (signal.indicators?.atrVolatilityPercent !== undefined) {
