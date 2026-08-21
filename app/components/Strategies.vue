@@ -1,12 +1,15 @@
-<!-- 策略管理页面 -->
+<!-- ==================== 策略配置抽屉 ==================== -->
 <template>
-  <div class="strategies-page">
-
-    <!-- 策略列表 -->
-    <el-card>
+  <el-drawer
+    v-model="visible"
+    class="strategies-drawer"
+    direction="rtl"
+    size="75%"
+    destroy-on-close
+  >
     <template #header>
       <div class="card-header">
-        <span>⚙️ 系统配置</span>
+        <span>策略配置</span>
           <div class="header-actions">
             <el-button size="small" text type="primary" @click="createStrategy">
               <el-icon><ElIconPlus /></el-icon>
@@ -24,6 +27,7 @@
       </div>
     </template>
 
+      <!-- 策略列表 -->
       <el-table :data="strategies" v-loading="loading" stripe>
         <el-table-column prop="name" label="策略" width="90" />
         <el-table-column label="交易对" width="230" >
@@ -102,7 +106,6 @@
           </template>
         </el-table-column>
       </el-table>
-    </el-card>
 
     <!-- 创建/编辑策略对话框 -->
     <el-dialog
@@ -316,7 +319,7 @@
             </el-row>
       </div>
     </el-dialog>
-  </div>
+  </el-drawer>
 </template>
 
 <script setup lang="ts">
@@ -326,6 +329,25 @@ import StrategyEditor from '../components/StrategyEditor.vue'
 import StrategyVersionHistory from '../components/StrategyVersionHistory.vue'
 import PasswordDialog from '../components/PasswordDialog.vue'
 import { useBotStore } from '../stores/bot'
+
+/** 策略配置抽屉的显隐状态。 */
+interface Props {
+  modelValue: boolean
+}
+
+/** 策略配置抽屉向父组件同步显隐状态。 */
+interface Emits {
+  (event: 'update:modelValue', value: boolean): void
+}
+
+const props = defineProps<Props>()
+const emit = defineEmits<Emits>()
+
+// 首页按钮与抽屉关闭操作共享同一显隐状态。
+const visible = computed({
+  get: () => props.modelValue,
+  set: (value: boolean) => emit('update:modelValue', value),
+})
 
 const strategies = ref<Strategy[]>([])
 const loading = ref(false)
@@ -700,6 +722,29 @@ onMounted(() => {
 </script>
 
 <style scoped>
+:global(.strategies-drawer) {
+  --el-drawer-bg-color: var(--bg-card);
+}
+
+:global(.strategies-drawer .el-drawer__header) {
+  margin-bottom: 0;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+:global(.strategies-drawer .el-drawer__body) {
+  color: var(--text-regular);
+}
+
+.card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  font-size: 18px;
+  font-weight: 600;
+}
+
 .page-header {
   display: flex;
   justify-content: space-between;
@@ -734,6 +779,16 @@ onMounted(() => {
 .stat-value {
   font-size: 24px;
   font-weight: bold;
+}
+
+@media (max-width: 768px) {
+  :global(.strategies-drawer) {
+    width: 100% !important;
+  }
+
+  .card-header {
+    font-size: 16px;
+  }
 }
 
 </style>

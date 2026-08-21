@@ -35,7 +35,7 @@
                 <div class="card-header">
                   <span>🎛️ 状态面板</span>
                   <div class="card-header-actions">
-                    <el-button type="primary" size="small" text @click="showConfigDialog = true">
+                    <el-button v-if="passwordVerified" type="primary" size="small" text @click="showConfigDialog = true">
                       <el-icon><ElIconSetting /></el-icon>
                       配置
                     </el-button>
@@ -46,6 +46,10 @@
                     <el-button v-if="passwordVerified && hasPassword" type="primary" size="small" text @click="clearPassword">
                       <el-icon><ElIconLock /></el-icon>
                       锁定
+                    </el-button>
+                    <el-button v-if="passwordVerified" type="primary" size="small" text @click="showStrategiesDrawer = true">
+                      <el-icon><ElIconOperation /></el-icon>
+                      策略
                     </el-button>
                   </div>
                 </div>
@@ -161,7 +165,7 @@
 
             <!-- 策略组件 -->
             <ClientOnly v-if="passwordVerified">
-              <Strategies />
+              <Strategies v-model="showStrategiesDrawer" />
             </ClientOnly>
 
             <!-- 历史订单抽屉由状态面板内的订单按钮打开。 -->
@@ -220,6 +224,8 @@ const handlePasswordSuccess = () => {
 
 const clearPassword = () => {
   passwordVerified.value = false
+  showConfigDialog.value = false
+  showStrategiesDrawer.value = false
   showOrdersDrawer.value = false
   openOrdersAfterUnlock.value = false
   localStorage.removeItem(PASSWORD_STORAGE_KEY)
@@ -267,6 +273,7 @@ const showIndicatorsDrawer = ref(false)
 const showPositionsDrawer = ref(false)
 const showLogsDrawer = ref(false)
 const showOrdersDrawer = ref(false)
+const showStrategiesDrawer = ref(false)
 
 const handleConfigSuccess = () => {
   // 配置保存成功后的处理

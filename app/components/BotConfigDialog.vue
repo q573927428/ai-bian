@@ -1,21 +1,19 @@
-<!-- 机器人配置对话框 -->
+<!-- ==================== 机器人配置抽屉 ==================== -->
 <template>
   <div>
-    <!-- 密码验证对话框 -->
-    <PasswordDialog v-model="showPasswordDialog" @success="handlePasswordSuccess" />
-    
     <!-- 热门交易对对话框 -->
     <TopSymbolsTable v-model="showTopSymbolsDialog" @select="handleTopSymbolSelect" />
     
-    <!-- 配置编辑对话框 -->
-    <el-dialog
+    <!-- 机器人配置抽屉 -->
+    <el-drawer
       v-model="showConfigDialog"
-      title="⚙️ 机器人配置"
-      width="70%"
-      :fullscreen="isMobile"
+      class="bot-config-drawer"
+      title="机器人配置"
+      direction="rtl"
+      size="75%"
       :close-on-click-modal="false"
+      destroy-on-close
       @closed="handleClosed"
-      draggable
     >
       <div v-loading="loading" class="config-container">
         <el-form v-if="form" :model="form" :label-width="isMobile ? '120px' : '130px'" label-position="left">
@@ -251,7 +249,7 @@
         <el-button @click="handleCancel">取消</el-button>
         <el-button type="primary" @click="handleSave" :loading="saving" :disabled="!form">保存配置</el-button>
       </template>
-    </el-dialog>
+    </el-drawer>
   </div>
 </template>
 
@@ -259,13 +257,14 @@
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import type { BotConfig } from '../../types'
 import { useBotStore } from '../stores/bot'
-import PasswordDialog from './PasswordDialog.vue'
 import TopSymbolsTable from './TopSymbolsTable.vue'
 
+/** 机器人配置抽屉的显隐状态。 */
 interface Props {
   modelValue: boolean
 }
 
+/** 机器人配置抽屉向父组件同步状态及保存结果。 */
 interface Emits {
   (e: 'update:modelValue', value: boolean): void
   (e: 'success'): void
@@ -279,12 +278,10 @@ const visible = computed({
   set: (val) => emit('update:modelValue', val)
 })
 
-const showPasswordDialog = ref(false)
 const showConfigDialog = ref(false)
 const showTopSymbolsDialog = ref(false)
 const loading = ref(false)
 const saving = ref(false)
-const authenticated = ref(false)
 const windowWidth = ref(typeof window !== 'undefined' ? window.innerWidth : 1200)
 
 const isMobile = computed(() => windowWidth.value < 768)
@@ -319,13 +316,6 @@ const loadConfig = async () => {
   } finally {
     loading.value = false
   }
-}
-
-// 密码验证成功
-const handlePasswordSuccess = async () => {
-  authenticated.value = true
-  await loadConfig()
-  showConfigDialog.value = true
 }
 
 // 保存配置
@@ -440,27 +430,15 @@ const handleCancel = () => {
 }
 
 const handleClosed = () => {
-  authenticated.value = false
   showConfigDialog.value = false
   visible.value = false
 }
 
 watch(visible, (newVal) => {
   if (newVal) {
-    if (!authenticated.value) {
-      // 先显示密码对话框
-      showPasswordDialog.value = true
-    } else {
-      loadConfig()
-      showConfigDialog.value = true
-    }
-  }
-})
-
-watch(showPasswordDialog, (newVal) => {
-  // 如果密码对话框关闭且未认证，则关闭配置对话框
-  if (!newVal && !authenticated.value) {
-    visible.value = false
+    // 页面本身已经完成解锁，配置组件不再重复要求密码验证。
+    loadConfig()
+    showConfigDialog.value = true
   }
 })
 
@@ -484,23 +462,28 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+:global(.bot-config-drawer) {
+  --el-drawer-bg-color: var(--bg-card);
+}
+
+:global(.bot-config-drawer .el-drawer__header) {
+  margin-bottom: 0;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+:global(.bot-config-drawer .el-drawer__title) {
+  color: var(--text-primary);
+  font-size: 18px;
+  font-weight: 600;
+}
+
+:global(.bot-config-drawer .el-drawer__body) {
+  color: var(--text-regular);
+}
+
 .config-container {
-  max-height: 65vh;
-  overflow-y: auto;
   padding-right: 10px;
-}
-
-.config-container::-webkit-scrollbar {
-  width: 6px;
-}
-
-.config-container::-webkit-scrollbar-thumb {
-  background: var(--text-placeholder);
-  border-radius: 3px;
-}
-
-.config-container::-webkit-scrollbar-track {
-  background: var(--bg-main);
 }
 
 /* 配置区块容器 */
@@ -556,8 +539,11 @@ onUnmounted(() => {
 
 /* 移动端：单列 */
 @media (max-width: 768px) {
+  :global(.bot-config-drawer) {
+    width: 100% !important;
+  }
+
   .config-container {
-    max-height: 80vh;
     padding-right: 5px;
   }
 
