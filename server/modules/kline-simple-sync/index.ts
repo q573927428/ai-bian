@@ -158,7 +158,7 @@ export class KLineSimpleSyncService {
   }
 
   // 获取下一次同步的延迟时间（毫秒）
-  private getNextSyncDelay(timeframe: KLineTimeframe, delaySeconds = 20): number {
+  private getNextSyncDelay(timeframe: KLineTimeframe, delaySeconds = 3): number {
     const now = Math.floor(Date.now() / 1000) // 当前时间戳（秒）
     
     const timeframeSecondsMap: Record<KLineTimeframe, number> = {

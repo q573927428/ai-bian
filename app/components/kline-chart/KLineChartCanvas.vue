@@ -252,6 +252,12 @@ let volumeSeries: any = null
 let emaSeries: any[] = []
 let resizeObserver: ResizeObserver | null = null
 let markersApi: any = null
+// 标记图表是否已经完成过首次数据渲染，后续任何数据校正都不能重新套用默认视图。
+let hasRenderedKlineData = false
+// 记录图表当前最后一根K线时间，区分“追加新柱”和“校正同一根柱”。
+let renderedLastKlineTime: number | null = null
+// 临时K线已通过 series.update 直接写入，跳过随后响应式变更触发的一次全量 setData。
+let skipNextChartDataSync = false
 
 // 使用props.timeframe，如果为空则使用默认值1h
 const computedTimeframe = computed(() => {
@@ -825,9 +831,13 @@ const emitTooltipUpdate = (kline: SimpleKLineData) => {
 
 // 更新最后一根K线数据
 const updateLastKline = (updatedKline: SimpleKLineData) => {
-  if (!candlestickSeries || !volumeSeries || emaSeries.length === 0) return
-  
+  if (!candlestickSeries || !volumeSeries) return
+
   try {
+    const timeScale = chart?.timeScale()
+    const previousLogicalRange = timeScale?.getVisibleLogicalRange?.() ?? null
+    const wasFollowingLatest = (timeScale?.scrollPosition?.() ?? 0) <= 1
+
     // 更新K线数据
     const candlestickData = {
       time: updatedKline.t,
@@ -847,6 +857,12 @@ const updateLastKline = (updatedKline: SimpleKLineData) => {
       color: updatedKline.c >= updatedKline.o ? '#26a69a' : '#ef5350'
     }
     volumeSeries.update(volumeData)
+
+    // 用户查看历史位置时，禁止 update() 自动把时间轴推到最新K线。
+    if (previousLogicalRange && !wasFollowingLatest) {
+      timeScale.setVisibleLogicalRange(previousLogicalRange)
+    }
+    renderedLastKlineTime = updatedKline.t
     
     // 重新计算整个EMA序列并更新最后一根K线的EMA值
     // 注意：这里我们只更新最后一根K线的EMA值，而不是重新计算整个序列
@@ -891,9 +907,13 @@ const updateLastKline = (updatedKline: SimpleKLineData) => {
 
 // 追加新K线数据
 const appendNewKline = (newKline: SimpleKLineData) => {
-  if (!candlestickSeries || !volumeSeries || emaSeries.length === 0) return
-  
+  if (!candlestickSeries || !volumeSeries) return
+
   try {
+    const timeScale = chart?.timeScale()
+    const previousLogicalRange = timeScale?.getVisibleLogicalRange?.() ?? null
+    const wasFollowingLatest = (timeScale?.scrollPosition?.() ?? 0) <= 1
+
     // 准备新K线数据
     const candlestickData = {
       time: newKline.t,
@@ -913,6 +933,13 @@ const appendNewKline = (newKline: SimpleKLineData) => {
       color: newKline.c >= newKline.o ? '#26a69a' : '#ef5350'
     }
     volumeSeries.update(volumeData)
+
+    // 仅跟随最新行情时自动右移；用户拖动到历史位置时保持原位置。
+    if (previousLogicalRange && !wasFollowingLatest) {
+      timeScale.setVisibleLogicalRange(previousLogicalRange)
+    }
+    renderedLastKlineTime = newKline.t
+    skipNextChartDataSync = true
     
     // 重新计算整个EMA序列并追加新K线的EMA值
     // 获取当前props.klineData的副本并追加新K线
@@ -950,7 +977,11 @@ const appendNewKline = (newKline: SimpleKLineData) => {
 }
 
 // 更新图表数据
-const updateChart = () => {
+/**
+ * 更新图表数据。
+ * @param preserveViewport 是否保留当前可视范围；后台同步新K线时必须开启，避免视图跳动。
+ */
+const updateChart = (preserveViewport = false) => {
   if (!chart || !candlestickSeries || !volumeSeries) {
     initChart()
     return
@@ -961,6 +992,12 @@ const updateChart = () => {
   // 过滤无效数据：close <= 0 的 K 线视为无效（价格尚未就绪或旧 symbol 数据残留）
   const validData = props.klineData.filter(k => k.c > 0 && k.o > 0 && k.h > 0 && k.l > 0)
   if (validData.length === 0) return
+
+  if (skipNextChartDataSync) {
+    skipNextChartDataSync = false
+    updateMarkers()
+    return
+  }
   
   // 更新价格精度（切换交易对时数据到达后需更新 Y 轴精度，避免沿用旧交易对的 precision）
   const currentPriceFormat = priceFormat.value
@@ -969,6 +1006,17 @@ const updateChart = () => {
     ema.applyOptions({ priceFormat: currentPriceFormat })
   }
   
+  // 后台同步时记录可视范围，setData 后恢复，避免周期结束换柱时出现整图跳动。
+  const shouldPreserveViewport = preserveViewport || hasRenderedKlineData
+  const timeScale = chart.timeScale()
+  const previousVisibleRange = shouldPreserveViewport ? timeScale.getVisibleRange() : null
+  const previousLogicalRange = shouldPreserveViewport
+    ? timeScale.getVisibleLogicalRange?.()
+    : null
+  const wasFollowingLatest = (timeScale.scrollPosition?.() ?? 0) <= 1
+  const latestKlineTime = validData[validData.length - 1]?.t ?? null
+  const isSameLastKline = renderedLastKlineTime !== null && renderedLastKlineTime === latestKlineTime
+
   // 准备数据（使用过滤后的有效数据）
   const candlestickData = prepareCandlestickData(validData)
   const volumeData = prepareVolumeData(validData)
@@ -992,8 +1040,8 @@ const updateChart = () => {
     }
   }
   
-  // 设置默认显示200根K线
-  if (candlestickData.length > 0) {
+  // 初次加载时设置默认显示200根K线；增量同步只恢复原视口，不重新 fitContent。
+  if (candlestickData.length > 0 && !shouldPreserveViewport) {
     const visibleBarCount = 200
     const totalBars = candlestickData.length
     
@@ -1022,7 +1070,22 @@ const updateChart = () => {
         chart.timeScale().fitContent()
       }
     }
+  } else if (previousVisibleRange && (!wasFollowingLatest || isSameLastKline)) {
+    const restoreViewport = () => {
+      if (!chart) return
+      if (previousLogicalRange) {
+        chart.timeScale().setVisibleLogicalRange(previousLogicalRange)
+      } else {
+        chart.timeScale().setVisibleRange(previousVisibleRange)
+      }
+    }
+    restoreViewport()
+    // setData 后图表库可能在当前帧末尾重新计算时间范围，再补一次恢复以抵御该异步调整。
+    if (import.meta.client) requestAnimationFrame(restoreViewport)
   }
+
+  hasRenderedKlineData = true
+  renderedLastKlineTime = latestKlineTime
   
   // 更新订单标记
   updateMarkers()
@@ -1054,13 +1117,13 @@ watch(() => props.klineData, (newData, oldData) => {
   
   // 如果旧数据为空，说明是初始加载，刷新图表
   if (!oldData || oldData.length === 0) {
-    updateChart()
+    updateChart(false)
     return
   }
   
   // 如果数据长度变化，刷新图表
   if (newData.length !== oldData.length) {
-    updateChart()
+    updateChart(true)
     return
   }
 
@@ -1074,7 +1137,7 @@ watch(() => props.klineData, (newData, oldData) => {
   // 任一关键时间戳变化都需要整图刷新
   if ((newFirst && oldFirst && newFirst.t !== oldFirst.t) ||
       (newLast && oldLast && newLast.t !== oldLast.t)) {
-    updateChart()
+    updateChart(true)
     return
   }
 
@@ -1203,6 +1266,9 @@ const cleanupChart = () => {
   
   // 重置标记API
   markersApi = null
+  hasRenderedKlineData = false
+  renderedLastKlineTime = null
+  skipNextChartDataSync = false
   
 }
 

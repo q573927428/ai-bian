@@ -366,7 +366,11 @@ const loadTradeHistory = async () => {
 }
 
 // 加载K线数据
-const loadKLineData = async () => {
+/**
+ * 加载K线数据。
+ * @param silent 后台周期轮询使用静默模式，避免加载遮罩覆盖现有图表。
+ */
+const loadKLineData = async (silent = false) => {
   const symbolToUse = props.symbol || 'BTCUSDT'
   const timeframeToUse = selectedTimeframe.value
 
@@ -378,7 +382,7 @@ const loadKLineData = async () => {
   // 递增请求代次（不中止旧请求，只让旧请求的响应被丢弃）
   const generation = ++requestGeneration
   
-  loading.value = true
+  if (!silent) loading.value = true
   error.value = ''
   
   try {
@@ -415,19 +419,21 @@ const loadKLineData = async () => {
       
       // 显示最新K线数据
       showLatestKline()
-    } else {
+    } else if (!silent) {
       error.value = result.message || '获取数据失败'
       klineData.value = []
       hideTooltip()
     }
   } catch (err: any) {
     console.error('加载K线数据失败:', err)
-    error.value = `加载失败: ${err.message}`
-    klineData.value = []
-    hideTooltip()
+    if (!silent) {
+      error.value = `加载失败: ${err.message}`
+      klineData.value = []
+      hideTooltip()
+    }
   } finally {
     // 仅当当前请求代次匹配时才清除loading状态
-    if (generation === requestGeneration) {
+    if (!silent && generation === requestGeneration) {
       loading.value = false
     }
   }
@@ -859,6 +865,36 @@ watch(() => botStore.prices[(props.symbol || 'BTCUSDT')], (newPrice) => {
 
 // 新K线检测相关 - 复用bot store的共享轮询
 const klineCheckSubscriberId = 'kline-chart-new-kline-check'
+let newKlineCheckTimer: ReturnType<typeof setInterval> | null = null
+// 记录前端临时追加的K线，等待后端权威数据完成校正。
+let provisionalKlineTimestamp: number | null = null
+
+/**
+ * 在周期边界立即追加临时K线，消除等待后端同步的空窗期。
+ * 后续后台同步会用权威 OHLC 和成交量替换这根临时柱。
+ */
+const appendProvisionalKline = (timestamp: number) => {
+  if (provisionalKlineTimestamp === timestamp || klineData.value.length === 0) return
+
+  const previousKline = klineData.value[klineData.value.length - 1]
+  if (!previousKline) return
+
+  const price = botStore.getPrice(props.symbol || 'BTCUSDT')?.price || previousKline.c
+  if (!Number.isFinite(price) || price <= 0) return
+
+  const provisionalKline: SimpleKLineData = {
+    t: timestamp,
+    o: previousKline.c,
+    h: Math.max(previousKline.c, price),
+    l: Math.min(previousKline.c, price),
+    c: price,
+    v: 0
+  }
+
+  provisionalKlineTimestamp = timestamp
+  klineData.value = [...klineData.value, provisionalKline]
+  chartCanvasRef.value?.appendNewKline(provisionalKline)
+}
 
 // 获取最后一根K线数据（含成交量），用于更新图表
 const fetchLastBar = async () => {
@@ -889,7 +925,7 @@ const fetchLastBar = async () => {
 }
 
 // 检查是否需要加载新K线
-const checkForNewKline = () => {
+const checkForNewKline = (syncLastBar = true) => {
   if (klineData.value.length === 0 || !selectedTimeframe.value) return
   
   const lastKline = klineData.value[klineData.value.length - 1]
@@ -901,22 +937,31 @@ const checkForNewKline = () => {
   // 计算当前K线周期的时间戳
   const currentKlineTimestamp = Math.floor(now / timeframeSeconds) * timeframeSeconds
   
-  // 后端会在周期结束后延迟20秒才去拉取数据
-  // 所以前端也需要等待20秒后再检查新K线
-  const backendDelaySeconds = 20
+  // 后端在周期结束后延迟3秒拉取权威数据，前端临时柱先即时显示。
+  const backendDelaySeconds = 3
   
-  // 如果当前时间已经超过了最后一根K线的时间周期 + 后端延迟时间，说明后端应该已经拉取到新K线了
-  if (currentKlineTimestamp > lastKline.t && (now - currentKlineTimestamp) >= backendDelaySeconds) {
-    loadKLineData()
-  } 
+  // 周期边界一到立即补出临时新柱，不再等待后端延迟。
+  if (currentKlineTimestamp > lastKline.t) {
+    appendProvisionalKline(currentKlineTimestamp)
+  }
+
+  // 临时柱等待后端权威数据，延迟结束后静默重载并校正。
+  if (provisionalKlineTimestamp === currentKlineTimestamp &&
+      (now - currentKlineTimestamp) >= backendDelaySeconds) {
+    provisionalKlineTimestamp = null
+    loadKLineData(true)
+  }
   // 每次轮询都尝试获取最后一根K线的最新数据（含成交量），更新图表
-  fetchLastBar()
+  if (syncLastBar) fetchLastBar()
 }
 
 // 启动新K线检测（复用共享轮询）
 const startNewKlineCheck = () => {
   // 订阅共享轮询，传递回调函数，每次轮询时检查新K线
   botStore.subscribeToPolling(klineCheckSubscriberId, checkForNewKline)
+
+  // 共享轮询间隔为60秒，无法及时感知周期边界；本地只做时间判断，每秒执行一次。
+  newKlineCheckTimer = setInterval(() => checkForNewKline(false), 1000)
   
   // 立即检查一次
   checkForNewKline()
@@ -926,6 +971,10 @@ const startNewKlineCheck = () => {
 const stopNewKlineCheck = () => {
   // 取消订阅共享轮询
   botStore.unsubscribeFromPolling(klineCheckSubscriberId)
+  if (newKlineCheckTimer) {
+    clearInterval(newKlineCheckTimer)
+    newKlineCheckTimer = null
+  }
 }
 
 // symbol变化处理函数
