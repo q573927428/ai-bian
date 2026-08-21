@@ -251,7 +251,7 @@ const props = withDefaults(defineProps<Props>(), {
   loading: false,
   showEMAMarkers: false,
   showOrderMarkers: false,
-  filterOrderMarkersByTimeframe: true,
+  filterOrderMarkersByTimeframe: false,
   showEMALines: true,
   showScanMarkers: false,
   scanLoading: false,

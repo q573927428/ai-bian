@@ -13,97 +13,14 @@
         class="position-item"
         :class="getPositionItemClass(position)"
       >
-        <!-- 顶部信息栏 -->
+        <!-- 紧凑持仓卡片：价格来自共享行情订阅，会随行情实时刷新。 -->
         <div class="position-header">
-          <el-row :gutter="16">
-            <!-- 左侧：交易对/标签、盈亏/平仓按钮 -->
-            <el-col :xs="24" :md="24">
-              <div class="left-section">
-                <!-- 交易对和标签 -->
-                <div class="symbol-info">
-                  <div class="symbol-row">
-                    <span class="symbol">{{ position.symbol }}</span>
-                    <span class="leverage" >{{ position.leverage }}x</span>
-                    <span class="open-time">{{ formatOpenTime(position.openTime) }}</span>
-                  </div>
-                  <div class="tag-row">
-                    <el-tag :type="position.direction === 'long' ? 'success' : 'danger'" effect="dark">
-                      {{ position.direction === 'long' ? '做多' : '做空' }}
-                    </el-tag>
-                    <el-tag :type="position.direction === 'long' ? 'success' : 'danger'">
-                      {{ position.strategyId }}
-                    </el-tag>
-                    <el-tag>
-                      {{ position.quantity }}
-                    </el-tag>
-                    <el-button
-                      type="danger"
-                      size="small"
-                      :loading="closingSymbols.includes(position.symbol)"
-                      @click="requestClosePosition(position.symbol)"
-                      class="close-btn"
-                      plain
-                    >
-                      平仓
-                    </el-button>
-                  </div>
-                </div>
-                <!-- 盈亏和平仓按钮 -->
-                <div class="pnl-close-section">
-                  <div class="pnl-info">
-                    <div class="pnl-amount" :class="{ 'text-success': calculateUnrealizedPnl(position) > 0, 'text-danger': calculateUnrealizedPnl(position) < 0 }">
-                      ${{ calculateUnrealizedPnl(position) >= 0 ? '+' : '' }}{{ calculateUnrealizedPnl(position).toFixed(2) }}
-                    </div>
-                    <div class="pnl-percent" :class="{ 'text-success': calculateUnrealizedPnlPercentage(position) > 0, 'text-danger': calculateUnrealizedPnlPercentage(position) < 0 }">
-                      {{ calculateUnrealizedPnlPercentage(position) >= 0 ? '+' : '' }}{{ calculateUnrealizedPnlPercentage(position).toFixed(1) }}%
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </el-col>
-            <!-- 右侧：详细信息 -->
-            <el-col :xs="24" :md="24">
-              <div class="info-section">
-                <div class="info-row">
-                  <div class="info-item">
-                    <span class="info-label">入场价</span>
-                    <span class="info-value">${{ formatPrice(position.entryPrice) }}</span>
-                  </div>
-                  <div class="info-item">
-                    <span class="info-label">当前价</span>
-                    <span class="info-value">${{ getCurrentPrice(position.symbol) > 0 ? formatPrice(getCurrentPrice(position.symbol)) : '--' }}</span>
-                  </div>
-                  <!-- <div class="info-item">
-                    <span class="info-label">数量</span>
-                    <span class="info-value">{{ position.quantity }}</span>
-                  </div> -->
-                  <div class="info-item">
-                    <span class="info-label">TP1</span>
-                    <span class="info-value">${{ position.takeProfit1 ? formatPrice(position.takeProfit1) : '--' }}</span>
-                  </div>
-                  <div class="info-item">
-                    <span class="info-label">TP2</span>
-                    <span class="info-value">${{ position.takeProfit2 ? formatPrice(position.takeProfit2) : '--' }}</span>
-                  </div>
-                  <div class="info-item" v-if="isTrailingStopLoss(position)">
-                    <span class="info-label">移动</span>
-                    <span class="info-value">${{ position.stopLoss ? formatPrice(position.stopLoss) : '--' }}</span>
-                  </div>
-                  <div class="info-item" v-else>
-                    <span class="info-label">初始</span>
-                    <span class="info-value">${{ position.initialStopLoss ? formatPrice(position.initialStopLoss) : '--' }}</span>
-                  </div>
-                  <div class="info-item">
-                    <div v-if="position.reasoning" class="ai-toggle-btn-inline" @click="toggleAISection(position.symbol)">
-                      <el-icon class="toggle-icon" :class="{ 'rotated': expandedAISections.includes(position.symbol) }">
-                        <ElIconArrowDown />
-                      </el-icon>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </el-col>
-          </el-row>
+          <div class="position-topline">
+            <div class="symbol-row"><span class="symbol">{{ position.symbol }}</span><span class="leverage">{{ position.leverage }}x</span><span class="open-time">{{ formatOpenTime(position.openTime) }}</span></div>
+            <div class="pnl-info"><strong class="pnl-amount" :class="{ 'text-success': calculateUnrealizedPnl(position) >= 0, 'text-danger': calculateUnrealizedPnl(position) < 0 }">${{ calculateUnrealizedPnl(position) >= 0 ? '+' : '' }}{{ calculateUnrealizedPnl(position).toFixed(2) }}</strong><span class="pnl-percent">{{ calculateUnrealizedPnlPercentage(position) >= 0 ? '+' : '' }}{{ calculateUnrealizedPnlPercentage(position).toFixed(1) }}%</span></div>
+          </div>
+          <div class="tag-row"><el-tag :type="position.direction === 'long' ? 'success' : 'danger'" effect="dark">{{ position.direction === 'long' ? '做多' : '做空' }}</el-tag><el-tag effect="plain">{{ position.strategyId }}</el-tag><el-tag effect="plain">{{ position.quantity }}</el-tag><el-button type="danger" size="small" :loading="closingSymbols.includes(position.symbol)" @click="requestClosePosition(position.symbol)" class="close-btn" plain>平仓</el-button><div v-if="position.reasoning" class="ai-toggle-btn-inline" @click="toggleAISection(position.symbol)"><el-icon class="toggle-icon" :class="{ rotated: expandedAISections.includes(position.symbol) }"><ElIconArrowDown /></el-icon></div></div>
+          <div v-if="hasPriceTrack(position)" class="price-track" aria-label="持仓价格水平"><span class="track-line" /><span v-for="marker in priceMarkers(position)" :key="marker.label" :class="['price-marker', { 'marker-current': marker.label === '当前', 'marker-trailing': marker.label === '移动', 'marker-stop': marker.label === '止损' }]" :style="{ left: `${marker.position}%` }"><b>{{ marker.label }}</b><small>{{ marker.displayValue }}</small><i /></span></div>
         </div>
 
 
@@ -255,10 +172,40 @@ function getPositionItemClass(position: any): string {
   return 'position-neutral'
 }
 
-// 判断是否为移动止损（移动止损与初始止损不同）
-function isTrailingStopLoss(position: any): boolean {
-  if (!position.stopLoss || !position.initialStopLoss) return false
-  return position.stopLoss !== position.initialStopLoss
+function hasPriceTrack(position: any) {
+  return [position.takeProfit1, position.takeProfit2, position.entryPrice, position.stopLoss || position.initialStopLoss, getCurrentPrice(position.symbol)].every(value => Number(value) > 0)
+}
+
+/** 移动止损生效后，轨道标签使用“移动”区分初始止损价。 */
+function getStopLabel(position: any): string {
+  return Number(position.stopLoss) > 0 && Number(position.initialStopLoss) > 0 && Number(position.stopLoss) !== Number(position.initialStopLoss)
+    ? '移动'
+    : '止损'
+}
+
+/**
+ * 按价格从小到大排列关键价位，并根据真实价差映射到横轴。
+ * 相邻价格差越大，显示距离越大；当前价变化时所有位置会重新计算。
+ */
+function priceMarkers(position: any) {
+  const markers = [
+    { label: 'TP2', value: Number(position.takeProfit2) },
+    { label: 'TP1', value: Number(position.takeProfit1) },
+    { label: '当前', value: Number(getCurrentPrice(position.symbol)) },
+    { label: '入场', value: Number(position.entryPrice) },
+    { label: getStopLabel(position), value: Number(position.stopLoss || position.initialStopLoss) }
+  ].sort((left, right) => left.value - right.value)
+
+  const min = markers[0]?.value ?? 0
+  const max = markers[markers.length - 1]?.value ?? min
+  const range = max - min || 1
+
+  // 标记两端保留 10% 空间，避免标签贴近卡片边界；轴线本身继续延伸到两侧。
+  return markers.map(item => ({
+    ...item,
+    displayValue: `$${formatPrice(item.value)}`,
+    position: 15 + ((item.value - min) / range) * 70
+  }))
 }
 
 // 切换 AI 折叠区域
@@ -359,6 +306,64 @@ onUnmounted(() => {
   padding: 12px;
   transition: all 0.3s ease;
 }
+
+.position-item {
+  padding: 14px 14px 12px;
+  border-radius: 12px;
+  --position-surface: #dcf8ec;
+  --position-surface-muted: rgba(168, 224, 199, .42);
+  --position-border: #10b981;
+  --position-text: #123c2b;
+  --position-muted: #39705a;
+  background: var(--position-surface);
+  border: 1px solid var(--position-border);
+  box-shadow: inset 4px 0 0 #08a873;
+  color: var(--position-text);
+}
+:global(html.dark) .position-item {
+  --position-surface: #082d1b;
+  --position-surface-muted: rgba(4, 22, 14, .65);
+  --position-border: #16a66a;
+  --position-text: #f1f5f9;
+  --position-muted: #cbd5e1;
+}
+.position-header { display: flex; flex-direction: column; gap: 8px; }
+.position-topline { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.position-item .symbol { color: var(--position-text); }
+.position-item .leverage, .position-item .open-time { color: var(--position-muted); font-size: 12px; }
+.position-item .symbol { font-size: 17px; }
+.position-item .tag-row { gap: 6px; align-items: center; }
+.position-item :deep(.el-tag) { --el-tag-font-size: 11px; --el-tag-height: 24px; }
+.position-item :deep(.el-button) { margin-left: auto; }
+.pnl-info { align-items: flex-end; gap: 0; }
+.pnl-amount { font-size: 18px; color: #62d83d; }
+.pnl-percent { color: #62d83d; font-size: 14px; font-weight: 700; }
+.price-track { position: relative; height: 92px; margin-top: 1px; padding: 22px 5px; border-radius: 18px; background: var(--position-surface-muted); }
+.track-line { position: absolute; z-index: 0; top: 46px; left: 2%; right: 2%; height: 2px; background: linear-gradient(90deg, rgba(110, 231, 183, .55), rgba(226, 232, 240, .9), rgba(110, 231, 183, .55)); box-shadow: 0 0 5px rgba(167, 243, 208, .28); }
+.price-marker { position: absolute; z-index: 1; top: 13px; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; color: var(--position-muted); font-size: 10px; line-height: 1.05; white-space: nowrap; }
+.price-marker b { order: 0; font-weight: 600; }
+.price-marker small { order: 1; margin-top: 2px; color: var(--position-text); font-size: 9px; font-weight: 600; }
+.price-marker i { order: 2; width: 11px; height: 11px; margin-top: 6px; border: 0; border-radius: 50%; background: #9ad4b7; box-shadow: 0 0 0 2px rgba(154, 212, 183, .16); }
+:global(html:not(.dark)) .position-item .price-marker i { background: #29946d; box-shadow: 0 0 0 2px rgba(41, 148, 109, .18); }
+.price-marker.marker-current { top: 41px; color: #9a6700; }
+.price-marker.marker-current i { order: 0; margin: 0 0 7px; background: #facc15; box-shadow: 0 0 0 3px rgba(250, 204, 21, .18); }
+.price-marker.marker-current b { order: 1; }
+.price-marker.marker-current small { order: 2; }
+.price-marker.marker-current small { color: #8a5a00; }
+.price-marker.marker-stop { color: #b42318; }
+.price-marker.marker-stop small { color: #b42318; }
+.price-marker.marker-stop i { background: #f87171; box-shadow: 0 0 0 2px rgba(248, 113, 113, .18); }
+.price-marker.marker-trailing { color: #b45309; }
+.price-marker.marker-trailing small { color: #b45309; }
+.price-marker.marker-trailing i { background: #fb923c; box-shadow: 0 0 0 2px rgba(251, 146, 60, .2); }
+:global(html.dark) .position-item .price-marker.marker-current { color: #fde68a; }
+:global(html.dark) .position-item .price-marker.marker-current small { color: #fef3c7; }
+:global(html.dark) .position-item .price-marker.marker-stop { color: #fca5a5; }
+:global(html.dark) .position-item .price-marker.marker-stop small { color: #fecaca; }
+:global(html.dark) .position-item .price-marker.marker-trailing { color: #fdba74; }
+:global(html.dark) .position-item .price-marker.marker-trailing small { color: #fed7aa; }
+:global(html.dark) .position-item .price-marker:not(.marker-current):not(.marker-stop):not(.marker-trailing) { color: #cbd5e1; }
+:global(html.dark) .position-item .price-marker:not(.marker-current):not(.marker-stop):not(.marker-trailing) small { color: #f1f5f9; }
 
 .position-profit {
   background: var(--position-profit-bg);
@@ -470,43 +475,6 @@ onUnmounted(() => {
 .close-btn {
   margin-left: 0;
 }
-
-.info-section {
-  border-radius: 16px;
-  padding: 12px;
-  background: var(--position-scores-bg);
-}
-
-.info-row {
-  display: grid;
-  grid-template-columns: repeat(6, 1fr);
-  gap: 16px;
-  justify-content: center;
-  align-items: center;
-}
-
-.info-item {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  align-items: center;
-  text-align: center;
-}
-
-.info-label {
-  color: var(--text-secondary);
-  font-size: 12px;
-  font-weight: 500;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.info-value {
-  color: var(--text-primary);
-  font-size: 12px;
-  font-weight: 600;
-}
-
 
 .ai-section {
   display: flex;
@@ -639,14 +607,6 @@ onUnmounted(() => {
     font-size: 16px;
   }
 
-  .info-row {
-    grid-template-columns: repeat(3, 1fr);
-    gap: 12px;
-  }
-  .info-value {
-    font-size: 14px;
-  }
-
   .scores-grid {
     grid-template-columns: repeat(2, 1fr);
   }
@@ -670,6 +630,23 @@ onUnmounted(() => {
 :global(.positions-drawer .el-drawer__title) {
   color: var(--text-primary);
   font-weight: 600;
+}
+
+/* 暗色主题最终覆盖：避免旧状态样式或组件默认色把文字压成绿色。 */
+:global(html.dark) .position-item .symbol,
+:global(html.dark) .position-item .leverage,
+:global(html.dark) .position-item .open-time,
+:global(html.dark) .position-item .price-marker:not(.marker-current):not(.marker-stop):not(.marker-trailing),
+:global(html.dark) .position-item .price-marker:not(.marker-current):not(.marker-stop):not(.marker-trailing) small {
+  color: #f1f5f9 !important;
+}
+:global(html.dark) .position-item .leverage,
+:global(html.dark) .position-item .open-time,
+:global(html.dark) .position-item .price-marker:not(.marker-current):not(.marker-stop):not(.marker-trailing) {
+  color: #cbd5e1 !important;
+}
+:global(html.dark) .position-item .price-track {
+  background: rgba(4, 22, 14, .82) !important;
 }
 
 @media (max-width: 768px) {

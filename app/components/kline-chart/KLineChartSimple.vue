@@ -189,8 +189,8 @@ const selectedTimeframe = ref(computedTimeframe.value)
 const chartMarkerConfig = computed(() => botStore.config?.chartMarkerConfig || {})
 const showEMAMarkers = ref(chartMarkerConfig.value.showEMAMarkers ?? false)
 const showOrderMarkers = ref(chartMarkerConfig.value.showOrderMarkers ?? false)
-// 默认隔离不同策略主周期的订单，用户可在订单开关旁关闭过滤。
-const filterOrderMarkersByTimeframe = ref(true)
+// 默认不过滤不同策略主周期的订单，用户可在订单开关旁开启过滤。
+const filterOrderMarkersByTimeframe = ref(false)
 const showEMALines = ref(chartMarkerConfig.value.showEMALines ?? true)
 const showScanMarkers = ref(false)
 const scanLoading = ref(false)
