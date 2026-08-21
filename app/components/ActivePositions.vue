@@ -20,7 +20,7 @@
             <div class="pnl-info"><strong class="pnl-amount" :class="{ 'text-success': calculateUnrealizedPnl(position) >= 0, 'text-danger': calculateUnrealizedPnl(position) < 0 }">${{ calculateUnrealizedPnl(position) >= 0 ? '+' : '' }}{{ calculateUnrealizedPnl(position).toFixed(2) }}</strong></div>
           </div>
           <div class="tag-row"><el-tag :type="position.direction === 'long' ? 'success' : 'danger'" effect="dark">{{ position.direction === 'long' ? '做多' : '做空' }}</el-tag><el-tag effect="plain">{{ position.strategyId }}</el-tag><el-tag effect="plain">{{ position.quantity }}</el-tag><el-tag type="danger" size="small" :loading="closingSymbols.includes(position.symbol)" @click="requestClosePosition(position.symbol)" class="close-btn" plain>平仓</el-tag><div v-if="position.reasoning" class="ai-toggle-btn-inline" @click="toggleAISection(position.symbol)"><el-icon class="toggle-icon" :class="{ rotated: expandedAISections.includes(position.symbol) }"><ElIconArrowDown /></el-icon></div><span class="pnl-percent" :class="{ 'text-success': calculateUnrealizedPnlPercentage(position) >= 0, 'text-danger': calculateUnrealizedPnlPercentage(position) < 0 }">{{ calculateUnrealizedPnlPercentage(position) >= 0 ? '+' : '' }}{{ calculateUnrealizedPnlPercentage(position).toFixed(1) }}%</span></div>
-          <div v-if="hasPriceTrack(position)" class="price-track" aria-label="持仓价格水平"><span class="track-line" /><span v-for="marker in priceMarkers(position)" :key="marker.label" :class="['price-marker', { 'marker-current': marker.label === '当前', 'marker-trailing': marker.label === '移动', 'marker-stop': marker.label === '止损' }]" :style="{ left: `${marker.position}%` }"><b>{{ marker.label }}</b><small>{{ marker.displayValue }}</small><i /></span></div>
+          <div v-if="hasPriceTrack(position)" class="price-track" aria-label="持仓价格水平"><span class="track-line" /><span v-for="marker in priceMarkers(position)" :key="marker.label" :class="['price-marker', { 'marker-current': marker.label === '当前', 'marker-trailing': marker.label === '移动', 'marker-stop': marker.label === '止损' }]" :style="{ left: `${marker.position}%` }"><b v-if="marker.label !== '当前'">{{ marker.label }}</b><small>{{ marker.displayValue }}</small><i /></span></div>
         </div>
 
 
@@ -328,15 +328,39 @@ onUnmounted(() => {
 .pnl-info { align-items: flex-end; gap: 0; }
 .pnl-amount { font-size: 18px; color: #62d83d; }
 .pnl-percent { font-size: 14px; font-weight: 700; }
-.price-track { position: relative; height: 92px; margin-top: 1px; padding: 22px 5px; border-radius: 18px; background: var(--position-surface-muted); }
+.price-track { position: relative; height: 82px; margin-top: 1px; padding: 22px 5px; border-radius: 18px; background: var(--position-surface-muted); }
 .track-line { position: absolute; z-index: 0; top: 46px; left: 2%; right: 2%; height: 2px; background: linear-gradient(90deg, rgb(80 80 80 / 55%), rgb(129 129 129 / 90%), rgb(118 118 118 / 55%)); box-shadow: 0 0 5px rgba(167, 243, 208, .28); }
 .price-marker { position: absolute; z-index: 1; top: 13px; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; color: var(--position-muted); font-size: 10px; line-height: 1.05; white-space: nowrap; }
 .price-marker b { order: 0; font-weight: 600; }
 .price-marker small { order: 1; margin-top: 2px; color: var(--position-text); font-size: 12px; font-weight: 600; }
-.price-marker i { order: 2; width: 11px; height: 11px; margin-top: 5px; border: 0; border-radius: 50%; background: #ffffff; box-shadow: 0 0 0 2px rgba(154, 212, 183, .16); }
+.price-marker i { order: 2; width: 11px; height: 11px; margin-top: 4px; border: 0; border-radius: 50%; background: #ffffff; box-shadow: 0 0 0 2px rgba(154, 212, 183, .16); }
 .price-marker.marker-current { top: 41px; color: #facc15; }
-.price-marker.marker-current i { order: 0; margin: 0 0 7px; background: #facc15; box-shadow: 0 0 0 3px rgba(250, 204, 21, .18); }
-.price-marker.marker-current b { order: 1; }
+.price-marker.marker-current i {
+  order: 0;
+  margin: 0 0 7px;
+  background: #facc15;
+  box-shadow: 0 0 0 3px rgba(250, 204, 21, .18);
+  animation: current-price-pulse 1.6s ease-out infinite;
+}
+
+/* 当前价圆点用阴影向外扩散，避免缩放元素造成价格标记抖动。 */
+@keyframes current-price-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(250, 204, 21, .72), 0 0 8px rgba(250, 204, 21, .8);
+  }
+  70% {
+    box-shadow: 0 0 0 10px rgba(250, 204, 21, 0), 0 0 14px rgba(250, 204, 21, .3);
+  }
+  100% {
+    box-shadow: 0 0 0 12px rgba(250, 204, 21, 0), 0 0 4px rgba(250, 204, 21, .12);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .price-marker.marker-current i {
+    animation: none;
+  }
+}
 .price-marker.marker-current small { order: 2; }
 .price-marker.marker-current small { color: #facc15; }
 .price-marker.marker-stop { color: #f87171; }
