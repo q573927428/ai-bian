@@ -11,6 +11,7 @@
     "dev:with-sync": "nuxt dev --port 3002",
     "generate": "nuxt generate",
     "preview": "nuxt preview",
+    "typecheck": "nuxi typecheck",
     "postinstall": "nuxt prepare",
     "start": "PORT=3002 NITRO_HOST=0.0.0.0 node .output/server/index.mjs",
     "start:with-sync": "PORT=3002 NITRO_HOST=0.0.0.0 node .output/server/index.mjs",
@@ -38,6 +39,7 @@
     "ws": "^8.19.0"
   },
   "devDependencies": {
+    "@nuxt/cli": "3.37.0",
     "@types/node": "^22.10.5",
     "@types/ws": "^8.18.1",
     "ts-node": "^10.9.2",

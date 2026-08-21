@@ -21,6 +21,7 @@ import { getSyncService } from '../../utils/kline-sync-service'
 import { getBotConfig, saveBotConfig } from '../../utils/storage'
 import { positionManager } from '../../modules/position-manager/PositionManager'
 import { getStrategyManager } from '../../modules/strategy-manager'
+import { marketPriceHub } from '../../utils/market-price-hub'
 
 export default defineEventHandler(async (event) => {
   try {
@@ -146,6 +147,14 @@ export default defineEventHandler(async (event) => {
     if (added.length > 0 && syncService) {
       console.log(`🔄 热重载: 已为 K线同步服务注册新交易对: ${added.join(', ')}`)
       syncService.enqueueInitialSync(syncAdded)
+    }
+
+    try {
+      // 行情订阅由服务端统一维护，配置变化后立即向所有 SSE 客户端发布新快照。
+      await marketPriceHub.syncSymbols(syncFinalSymbols)
+    } catch (priceSyncError: any) {
+      // 行情网络故障不能回滚已经落盘的交易对配置；后续 SSE 初始化会按配置再次收敛。
+      console.warn(`实时价格交易对同步失败，将在下次连接时重试: ${priceSyncError.message}`)
     }
 
     // ========== 同步所有策略的交易对 ==========

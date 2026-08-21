@@ -1,4 +1,4 @@
-import { webSocketManager } from '../../../server/utils/websocket-manager'
+import { marketPriceHub } from '../../../server/utils/market-price-hub'
 import { binanceApiGateway } from '../../../server/utils/binance-api-gateway'
 import type { ApiResponse } from '../../../types'
 
@@ -40,14 +40,10 @@ export default defineEventHandler(async (event) => {
       }
     }
 
-    // 确保WebSocket已连接
-    await webSocketManager.initialize()
-
-    // 注意：不要在这里添加订阅！订阅应该由专门的 subscribe 接口处理
-    // 这里只获取已订阅的价格数据
-
-    const allPrices = webSocketManager.getAllPrices()
-    const state = webSocketManager.getWebSocketState()
+    // 快照与 SSE 必须读取同一个行情中心，避免断线兜底拿到不同的数据源。
+    await marketPriceHub.initialize()
+    const allPrices = marketPriceHub.getSnapshot()
+    const state = marketPriceHub.getStatus()
 
     let filteredPrices: Record<string, any> = {}
     
@@ -56,7 +52,7 @@ export default defineEventHandler(async (event) => {
 
       // 返回指定交易对的价格
       symbolList.forEach(symbol => {
-        const wsPrice = allPrices.get(symbol)
+        const wsPrice = allPrices[symbol]
         
         if (wsPrice) {
           filteredPrices[symbol] = {
@@ -94,7 +90,7 @@ export default defineEventHandler(async (event) => {
       // }
     } else {
       // 返回所有价格
-      allPrices.forEach((price, symbol) => {
+      Object.entries(allPrices).forEach(([symbol, price]) => {
         filteredPrices[symbol] = price
       })
     }

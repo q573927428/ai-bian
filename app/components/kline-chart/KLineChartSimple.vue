@@ -96,7 +96,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch, computed, onBeforeUnmount } from 'vue'
+import { ref, onMounted, onUnmounted, watch, computed, onBeforeUnmount, getCurrentInstance } from 'vue'
 import type { SimpleKLineData, KLineApiResponse } from '../../../types/kline-simple'
 import type { TradeHistory } from '../../../types'
 import type { ScanResultApiResponse, StrategyScanResult } from '../../../types/scan-result'
@@ -828,8 +828,8 @@ const handleScanClick = (results: StrategyScanResult[], klineTime: number) => {
 
 // ========== 价格订阅（使用 botStore 共享价格）==========
 
-// 价格订阅者ID
-const priceSubscriberId = computed(() => `kline-chart-${props.symbol || 'BTCUSDT'}`)
+// 订阅ID必须绑定组件实例而不是交易对，否则切换交易对后卸载会遗留旧订阅者。
+const priceSubscriberId = `kline-chart-${getCurrentInstance()?.uid ?? 'default'}`
 
 // 从 botStore 共享价格中获取当前 symbol 的价格，更新最后一根K线
 const checkAndUpdatePrice = () => {
@@ -996,7 +996,7 @@ onMounted(() => {
     // 注意：不要在这里 loadKLineData()，避免重复请求
   }
   // 订阅共享价格更新
-  botStore.subscribeToPrices(priceSubscriberId.value)
+  botStore.subscribeToPrices(priceSubscriberId)
   // 启动新K线检测
   startNewKlineCheck()
   document.addEventListener('fullscreenchange', handleFullscreenChange)
@@ -1012,7 +1012,7 @@ onBeforeUnmount(() => {
 
 // 组件卸载时异步清理
 onUnmounted(() => {
-  botStore.unsubscribeFromPrices(priceSubscriberId.value)
+  botStore.unsubscribeFromPrices(priceSubscriberId)
 })
 </script>
 

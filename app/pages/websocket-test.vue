@@ -11,6 +11,38 @@
   
   <script setup>
   const results = ref(null)
+
+  /**
+   * 收集实时价格流的首批事件，验证快照、连接状态和增量价格是否都能到达。
+   */
+  function collectPriceStreamEvents() {
+    return new Promise((resolve, reject) => {
+      const stream = new EventSource('/api/market/prices/stream')
+      const events = {}
+      const timeout = setTimeout(() => {
+        stream.close()
+        reject(new Error('等待 SSE 价格事件超时'))
+      }, 8000)
+
+      const receive = (eventName) => (event) => {
+        events[eventName] = JSON.parse(event.data)
+        if (events.snapshot && events.status && events.prices) {
+          clearTimeout(timeout)
+          stream.close()
+          resolve(events)
+        }
+      }
+
+      stream.addEventListener('snapshot', receive('snapshot'))
+      stream.addEventListener('status', receive('status'))
+      stream.addEventListener('prices', receive('prices'))
+      stream.onerror = () => {
+        clearTimeout(timeout)
+        stream.close()
+        reject(new Error('SSE 价格连接失败'))
+      }
+    })
+  }
   
   async function runAllTests() {
     try {
@@ -18,28 +50,17 @@
       const statusRes = await $fetch('/api/websocket/status')
       console.log('状态测试:', statusRes)
       
-      // 测试2: 连接API
-      const connectRes = await $fetch('/api/websocket/connect', { method: 'POST' })
-      console.log('连接测试:', connectRes)
-      
-      // 测试3: 订阅API
-      const subscribeRes = await $fetch('/api/websocket/subscribe', {
-        method: 'POST',
-        body: { symbols: ['BTCUSDT', 'ETHUSDT'] }
-      })
-      console.log('订阅测试:', subscribeRes)
-      
-      // 等待数据
-      await new Promise(resolve => setTimeout(resolve, 5000))
-      
-      // 测试4: 价格API
+      // 测试2: SSE 实时价格流
+      const streamEvents = await collectPriceStreamEvents()
+      console.log('SSE测试:', streamEvents)
+
+      // 测试3: 价格快照API
       const pricesRes = await $fetch('/api/websocket/prices?symbols=BTCUSDT,ETHUSDT')
       console.log('价格测试:', pricesRes)
       
       results.value = {
         status: statusRes,
-        connect: connectRes,
-        subscribe: subscribeRes,
+        streamEvents,
         prices: pricesRes,
         timestamp: new Date().toISOString()
       }

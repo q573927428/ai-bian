@@ -311,16 +311,17 @@ StrategyEngine.analyzeSymbol() — 对每个策略+交易对
         ▼
 server/utils/websocket.ts
         │
-        ├── WebSocket 长连接
-        │       │
-        │       ▼
-        │   Bot Store (Pinia) ← 5秒轮询 HTTP 回退
-        │       │
-        │       ├── CryptoPriceCards (实时价格)
-        │       ├── ActivePositions (持仓盈亏)
-        │       └── Strategies (策略指标)
+        ▼
+MarketPriceHub（内存快照 + 200ms 增量合并）
         │
-        └── 双重保障：WebSocket 断线时自动切换 HTTP 轮询
+        ▼ SSE /api/market/prices/stream
+Bot Store (Pinia，每个标签页一条连接)
+        │
+        ├── CryptoPriceCards (实时价格)
+        ├── ActivePositions (持仓盈亏)
+        └── KLineChartSimple (当前 K 线)
+
+断线或行情陈旧超过 10 秒时，使用 HTTP 内存快照低频兜底。
 ```
 
 ---
@@ -503,7 +504,7 @@ ScoreBreakdown = {
 
 - **明暗双主题**：完善的 CSS 变量体系，Element Plus 暗色适配
 - **密码保护**：配置修改和敏感操作需验证，24 小时免登录
-- **共享轮询**：多个组件共享同一价格流，引用计数自动启停
+- **共享实时价格流**：多个组件共享一条 SSE，引用计数自动启停
 - **响应式布局**：桌面/移动端自适应
 
 ---
@@ -544,8 +545,7 @@ ScoreBreakdown = {
 
 | 方法 | 路径 | 功能 |
 |------|------|------|
-| `POST` | `/api/websocket/subscribe` | 订阅价格推送 |
-| `POST` | `/api/websocket/unsubscribe` | 取消订阅 |
+| `GET` | `/api/market/prices/stream` | SSE 实时价格快照与增量推送 |
 | `GET` | `/api/websocket/prices` | 获取当前价格 |
 | `GET` | `/api/kline-simple/:symbol` | 获取 K 线数据 |
 

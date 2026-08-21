@@ -7,6 +7,7 @@ export class WebSocketManager {
   private static instance: WebSocketManager
   private wsService: BinanceWebSocketService
   private subscribers: Map<string, ((data: PriceData) => void)[]> = new Map()
+  private statusSubscribers = new Set<(state: WebSocketClientState) => void>()
   private priceCache: Map<string, PriceData> = new Map()
   private isInitialized = false
   private initializePromise: Promise<void> | null = null
@@ -95,23 +96,6 @@ export class WebSocketManager {
   }
 
   /**
-   * 重置指定交易对的所有订阅者（用于前端刷新后清理旧订阅）
-   */
-  resetSymbolSubscriptions(symbols: string[]): void {
-    symbols.forEach(symbol => {
-      const callbacks = this.subscribers.get(symbol)
-      if (callbacks) {
-        // 清除所有订阅者
-        callbacks.length = 0
-        this.subscribers.delete(symbol)
-        // 取消WebSocket订阅
-        this.wsService.unsubscribe([symbol])
-        console.log(`🔄 重置订阅: ${symbol}`)
-      }
-    })
-  }
-
-  /**
    * 取消订阅价格数据
    */
   unsubscribePrice(symbol: string, callback: (data: PriceData) => void): void {
@@ -166,6 +150,17 @@ export class WebSocketManager {
   }
 
   /**
+   * 订阅 Binance WebSocket 状态变化
+   *
+   * 返回取消函数，供 SSE 行情中心在销毁时释放监听器。
+   */
+  subscribeStatus(callback: (state: WebSocketClientState) => void): () => void {
+    this.statusSubscribers.add(callback)
+    callback(this.getWebSocketState())
+    return () => this.statusSubscribers.delete(callback)
+  }
+
+  /**
    * 断开连接
    */
   disconnect(): void {
@@ -191,6 +186,14 @@ export class WebSocketManager {
     // 状态变化事件
     this.wsService.on('status', (event: WebSocketEvent) => {
       console.log(`📊 WebSocket状态变化: ${event.data}`)
+      const state = this.getWebSocketState()
+      this.statusSubscribers.forEach(callback => {
+        try {
+          callback(state)
+        } catch (error) {
+          console.error('❌ WebSocket状态回调执行错误:', error)
+        }
+      })
     })
 
     // 错误事件

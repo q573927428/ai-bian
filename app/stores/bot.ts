@@ -1,4 +1,5 @@
 import { defineStore } from 'pinia'
+import { markRaw } from 'vue'
 import type { 
   BotState,
   BotConfig, 
@@ -41,10 +42,12 @@ export const useBotStore = defineStore('bot', {
     // 共享价格管理
     prices: {} as Record<string, any>, // 存储所有交易对的价格数据
     priceSubscribers: new Set<string>(), // 价格订阅者
-    priceTimer: null as NodeJS.Timeout | null,
+    priceStream: null as EventSource | null,
+    priceFallbackTimer: null as ReturnType<typeof setInterval> | null,
+    priceConnectionStatus: 'disconnected' as 'connecting' | 'connected' | 'disconnected',
+    priceStreamError: null as string | null,
     lastPriceUpdate: 0,
-    priceClientId: null as string | null, // WebSocket 客户端 ID（页面刷新时从sessionStorage恢复）
-    subscribedSymbols: [] as string[], // 已订阅的交易对列表
+    lastPriceEventAt: 0,
 
   }),
 
@@ -83,6 +86,9 @@ export const useBotStore = defineStore('bot', {
 
     // 获取价格数据
     async fetchPrices() {
+      if (!this.botConfig) {
+        await this.fetchBotConfig()
+      }
       const symbols = this.getPriceSymbols()
       if (symbols.length === 0) return
 
@@ -104,11 +110,10 @@ export const useBotStore = defineStore('bot', {
     async subscribeToPrices(subscriberId: string) {
       this.priceSubscribers.add(subscriberId)
 
-      if (this.priceSubscribers.size === 1 && !this.priceTimer) {
-        this.startPricePolling()
+      if (this.priceSubscribers.size === 1 && !this.priceStream) {
+        await this.startPriceStream()
       } else if (Object.keys(this.prices).length === 0) {
-        // 仅当价格数据为空且轮询未启动时才立即获取一次
-        this.fetchPrices()
+        void this.fetchPrices()
       }
 
       console.log(`[Price] 订阅者 ${subscriberId} 加入，当前订阅者: ${this.priceSubscribers.size}`)
@@ -118,145 +123,110 @@ export const useBotStore = defineStore('bot', {
     async unsubscribeFromPrices(subscriberId: string) {
       this.priceSubscribers.delete(subscriberId)
 
-      if (this.priceSubscribers.size === 0 && this.priceTimer) {
-        await this.stopPricePolling()
+      if (this.priceSubscribers.size === 0) {
+        this.stopPriceStream()
       }
 
       console.log(`[Price] 订阅者 ${subscriberId} 离开，当前订阅者: ${this.priceSubscribers.size}`)
     },
 
-    // 订阅 WebSocket 交易对
-    async subscribeWebSocketSymbols() {
-      // 如果没有配置，先获取配置
-      if (!this.botConfig) {
-        await this.fetchBotConfig()
+    /**
+     * 启动当前标签页唯一的 SSE 实时价格连接。
+     */
+    async startPriceStream() {
+      if (!import.meta.client || this.priceStream) return
+      if (!this.botConfig) await this.fetchBotConfig()
+      // 配置请求返回前页面可能已经卸载，避免在没有消费者时补建一条孤立连接。
+      if (this.priceSubscribers.size === 0 || this.priceStream) return
+
+      this.priceConnectionStatus = 'connecting'
+      this.priceStreamError = null
+      const stream = markRaw(new EventSource('/api/market/prices/stream'))
+      this.priceStream = stream
+
+      stream.onopen = () => {
+        this.priceConnectionStatus = 'connected'
+        this.priceStreamError = null
+        this.lastPriceEventAt = Date.now()
       }
 
-      const symbols = this.getPriceSymbols()
-      if (symbols.length === 0) return
+      stream.addEventListener('snapshot', (event) => {
+        this.handlePriceStreamEvent('snapshot', event as MessageEvent<string>)
+      })
+      stream.addEventListener('prices', (event) => {
+        this.handlePriceStreamEvent('prices', event as MessageEvent<string>)
+      })
+      stream.addEventListener('status', (event) => {
+        this.handlePriceStreamEvent('status', event as MessageEvent<string>)
+      })
+      stream.addEventListener('ping', (event) => {
+        this.handlePriceStreamEvent('ping', event as MessageEvent<string>)
+      })
 
-      // 尝试从 sessionStorage 恢复 clientId（页面刷新后保持同一客户端身份）
-      if (!this.priceClientId && typeof sessionStorage !== 'undefined') {
-        const savedClientId = sessionStorage.getItem('ws_price_client_id')
-        if (savedClientId) {
-          this.priceClientId = savedClientId
-        }
+      stream.onerror = () => {
+        // EventSource 会自动重连；Store 只标记状态并让快照兜底监控接管陈旧数据。
+        this.priceConnectionStatus = 'disconnected'
+        this.priceStreamError = '实时价格连接中断，正在自动重连'
       }
 
-      // 检查是否需要重新订阅（交易对列表变化）
-      const needsResubscribe = 
-        symbols.length !== this.subscribedSymbols.length ||
-        symbols.some(s => !this.subscribedSymbols.includes(s))
+      this.startPriceFallbackMonitor()
+    },
 
-      if (!needsResubscribe && this.priceClientId) {
-        return // 已经订阅过相同的交易对
-      }
-
+    /** 解析 SSE 事件并按事件类型更新共享价格状态。 */
+    handlePriceStreamEvent(eventName: 'snapshot' | 'prices' | 'status' | 'ping', event: MessageEvent<string>) {
       try {
-        console.log('[Price] 订阅 WebSocket 交易对:', symbols)
-        
-        const response = await $fetch<any>('/api/websocket/subscribe', {
-          method: 'POST',
-          body: {
-            symbols,
-            clientId: this.priceClientId || undefined
-          }
-        })
+        const payload = JSON.parse(event.data || '{}')
+        this.lastPriceEventAt = Date.now()
 
-        if (response.success && response.data) {
-          this.priceClientId = response.data.clientId
-          this.subscribedSymbols = symbols
-          
-          // 持久化 clientId 到 sessionStorage（页面刷新后恢复）
-          if (typeof sessionStorage !== 'undefined' && this.priceClientId) {
-            sessionStorage.setItem('ws_price_client_id', this.priceClientId)
-          }
-          
-          // 立即获取一次价格
-          if (response.data.currentPrices) {
-            this.prices = response.data.currentPrices
-            this.lastPriceUpdate = Date.now()
-          }
-          
-          console.log('[Price] WebSocket 订阅成功, clientId:', this.priceClientId)
+        if (eventName === 'snapshot' && payload.prices) {
+          this.prices = { ...payload.prices }
+          if (Object.keys(payload.prices).length > 0) this.lastPriceUpdate = Date.now()
+          return
+        }
+
+        if (eventName === 'prices' && payload.prices) {
+          this.prices = { ...this.prices, ...payload.prices }
+          this.lastPriceUpdate = Date.now()
+          return
+        }
+
+        if (eventName === 'status' && payload.status?.status) {
+          this.priceConnectionStatus = payload.status.status === 'CONNECTED'
+            ? 'connected'
+            : 'connecting'
         }
       } catch (error) {
-        console.error('[Price] WebSocket 订阅失败:', error)
+        console.error(`[Price] 解析 SSE ${eventName} 事件失败:`, error)
       }
     },
 
-
-    // 取消订阅 WebSocket 交易对
-    async unsubscribeWebSocketSymbols() {
-      if (!this.priceClientId || this.subscribedSymbols.length === 0) {
-        return
-      }
-
-      try {
-        console.log('[Price] 取消订阅 WebSocket 交易对:', this.subscribedSymbols)
-        
-        await $fetch<any>('/api/websocket/unsubscribe', {
-          method: 'POST',
-          body: {
-            symbols: this.subscribedSymbols,
-            clientId: this.priceClientId
-          }
-        })
-
-        this.subscribedSymbols = []
-        console.log('[Price] WebSocket 取消订阅成功')
-      } catch (error) {
-        console.error('[Price] WebSocket 取消订阅失败:', error)
-      }
+    /**
+     * SSE 长时间没有价格时低频拉取一次内存快照，避免网络半开导致页面永久陈旧。
+     */
+    startPriceFallbackMonitor() {
+      if (this.priceFallbackTimer) return
+      this.priceFallbackTimer = setInterval(() => {
+        const priceIsStale = !this.lastPriceUpdate || Date.now() - this.lastPriceUpdate > 10_000
+        if (priceIsStale) void this.fetchPrices()
+      }, 10_000)
     },
 
-    // 启动价格轮询
-    async startPricePolling() {
-      if (this.priceTimer) {
-        return
+    /** 关闭当前标签页的 SSE 与断线兜底监控。 */
+    stopPriceStream() {
+      if (this.priceStream) {
+        this.priceStream.close()
+        this.priceStream = null
       }
-
-      console.log('[Price] 启动共享价格轮询，间隔: 5000ms')
-
-      // 先订阅 WebSocket 交易对
-      await this.subscribeWebSocketSymbols()
-
-      this.priceTimer = setInterval(async () => {
-        // 检查是否需要重新订阅
-        await this.subscribeWebSocketSymbols()
-        await this.fetchPrices()
-      }, 5000)
-
-      // 立即执行一次
-      await this.fetchPrices()
+      if (this.priceFallbackTimer) {
+        clearInterval(this.priceFallbackTimer)
+        this.priceFallbackTimer = null
+      }
+      this.priceConnectionStatus = 'disconnected'
     },
 
-    // 停止价格轮询
-    async stopPricePolling() {
-      if (this.priceTimer) {
-        clearInterval(this.priceTimer)
-        this.priceTimer = null
-        console.log('[Price] 停止共享价格轮询')
-      }
-
-      // 取消 WebSocket 订阅
-      await this.unsubscribeWebSocketSymbols()
-    },
-
-    // 页面卸载时清理 WebSocket 订阅
+    // 页面关闭/刷新时同步关闭 SSE，服务端会通过连接关闭事件释放客户端引用。
     cleanupOnUnload() {
-      if (!this.priceClientId || this.subscribedSymbols.length === 0) return
-      try {
-        $fetch('/api/websocket/unsubscribe', {
-          method: 'POST',
-          body: {
-            symbols: this.subscribedSymbols,
-            clientId: this.priceClientId
-          }
-        })
-      } catch (error) {
-        console.error('[Price] 页面卸载取消订阅失败:', error)
-      }
+      this.stopPriceStream()
     },
 
 
