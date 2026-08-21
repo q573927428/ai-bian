@@ -3,8 +3,7 @@
     <div class="controls-left">
       <div class="symbol-badge">{{ displaySymbol }}</div>
 
-      <div class="timeframe-selector">
-        <div class="timeframe-buttons">
+      <el-button-group size="small" class="timeframe-buttons">
           <el-button
             size="small"
             :type="selectedTimeframe === '5m' ? 'primary' : 'default'"
@@ -53,12 +52,10 @@
           >
             1w
           </el-button>
-        </div>
-      </div>
+      </el-button-group>
 
       <!-- EMA周期选择器 -->
-      <div class="ema-period-selector">
-        <div class="ema-period-buttons">
+      <el-button-group size="small" class="ema-period-buttons">
           <el-button
             v-for="period in availableEmaPeriods"
             :key="period"
@@ -67,11 +64,10 @@
             @click="toggleEmaPeriod(period)"
             :disabled="!selectedEmaPeriods.includes(period) && selectedEmaPeriods.length >= 3"
             class="ema-period-btn"
-          >
+          > 
             {{ period }}
           </el-button>
-        </div>
-      </div>
+      </el-button-group>
     </div>
 
     <div class="controls-right">
@@ -511,7 +507,8 @@ watch(() => props.scanTimeRange, (newRange) => {
 .scan-range-btn {
   flex-shrink: 0;
   width: 32px;
-  padding: 5px;
+  padding: 1px;
+  border-radius: 12px;
 }
 
 .scan-range-panel {
@@ -565,88 +562,32 @@ watch(() => props.scanTimeRange, (newRange) => {
   box-shadow: 0 2px 4px rgba(64, 158, 255, 0.2);
 }
 
-/* 周期选择器 */
-.timeframe-selector {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  background: var(--bg-hover);
-  border: 1px solid var(--border-color);
-  border-radius: 15px;
+.timeframe-buttons,
+.ema-period-buttons {
+  display: inline-flex;
+  border-radius: 12px;
+  overflow: hidden;
 }
 
-.timeframe-buttons {
-  display: flex;
-  gap: 2px;
-  padding: 3px 10px;
+.timeframe-buttons :deep(.el-button:first-child),
+.ema-period-buttons :deep(.el-button:first-child) {
+  border-radius: 12px 0 0 12px;
+}
+
+.timeframe-buttons :deep(.el-button:last-child),
+.ema-period-buttons :deep(.el-button:last-child) {
+  border-radius: 0 12px 12px 0;
 }
 
 .timeframe-btn {
-  padding: 2px 5px;
+  padding: 12px 8px;
   font-size: 13px;
-  border-radius: 15px;
-  transition: all 0.2s ease;
-}
-
-.timeframe-btn:deep(.el-button--default) {
-  border: none;
-  background: transparent;
-  box-shadow: none;
-  color: var(--text-regular);
-}
-
-.timeframe-btn:deep(.el-button--primary) {
-  border-radius: 6px;
-  box-shadow: none;
-}
-
-.timeframe-btn:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 /* EMA周期选择器 */
-.ema-period-selector {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  background: var(--bg-hover);
-  border: 1px solid var(--color-primary);
-  border-radius: 12px;
-}
-
-.ema-label {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text-secondary);
-  padding: 2px 8px;
-  background: var(--bg-card);
-  border-radius: 4px;
-}
-
-.ema-period-buttons {
-  display: flex;
-  gap: 2px;
-  padding: 2px 8px;
-}
-
 .ema-period-btn {
-  padding: 2px 5px;
+  padding: 12px 8px;
   font-size: 12px;
-  border-radius: 10px;
-  transition: all 0.2s ease;
-}
-
-.ema-period-btn:deep(.el-button--default) {
-  border: none;
-  background: transparent;
-  box-shadow: none;
-  color: var(--color-primary);
-}
-
-.ema-period-btn:deep(.el-button--primary) {
-  border-radius: 6px;
-  box-shadow: none;
 }
 
 .ema-period-btn:deep(.el-button.is-disabled) {
@@ -682,25 +623,14 @@ watch(() => props.scanTimeRange, (newRange) => {
     border-radius: 12px;
   }
   
-  .timeframe-selector {
+  .timeframe-buttons {
     width: 100%;
     justify-content: center;
-    background: var(--bg-hover);
-    border: 1px solid var(--border-color);
-    border-radius: 15px;
-}
-  
-  .timeframe-buttons {
-    display: flex;
-    gap: 2px;
   }
 
-  .ema-period-selector {
+  .ema-period-buttons {
     width: 100%;
     justify-content: center;
-    background: var(--bg-hover);
-    border: 1px solid var(--color-primary);
-    border-radius: 15px
   }
   
   .controls-right {

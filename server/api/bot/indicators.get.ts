@@ -136,6 +136,10 @@ export default defineEventHandler(async (event) => {
   const closeChangePercent = latestKline && previousKline && previousKline.close !== 0
     ? ((latestKline.close - previousKline.close) / previousKline.close) * 100
     : undefined
+  // K线时间戳是开盘时间，进度按当前请求时刻计算并限制在 0-100% 内。
+  const candleProgressPercent = latestKline
+    ? Math.min(100, Math.max(0, (requestedAt - latestKline.timestamp) / (TIMEFRAME_MINUTES[timeframe] * 60 * 1000) * 100))
+    : undefined
   const rangePercent = latestKline && latestKline.open !== 0
     ? ((latestKline.high - latestKline.low) / latestKline.open) * 100
     : undefined
@@ -180,6 +184,7 @@ export default defineEventHandler(async (event) => {
               ? 'bearish'
               : 'flat'
           : undefined,
+        candleProgressPercent,
         closeChangePercent,
         rangePercent,
         latest: latestKline,

@@ -26,19 +26,19 @@
           <span class="muted"> · {{ row.candleDirectionLabel }}</span>
         </template>
       </el-table-column>
-      <el-table-column label="趋势" min-width="110">
+      <el-table-column label="趋势" min-width="100">
         <template #default="{ row }">
           <div>ADX {{ format(row.adx) }}</div>
           <span :class="row.emaBullish ? 'up' : 'down'">EMA {{ row.emaBullish ? '多头' : '空头' }}</span>
         </template>
       </el-table-column>
-      <el-table-column label="RSI" min-width="80" sortable="custom" prop="rsi">
+      <el-table-column label="RSI" min-width="75" sortable="custom" prop="rsi">
         <template #default="{ row }"><span :class="rsiClass(row.rsi)">{{ format(row.rsi) }}</span></template>
       </el-table-column>
-      <el-table-column label="MACD" min-width="90" sortable="custom" prop="macdHistogram">
+      <el-table-column label="MACD" min-width="80" sortable="custom" prop="macdHistogram">
         <template #default="{ row }"><span :class="directionClass(row.macdHistogram)">{{ signed(row.macdHistogram) }}</span></template>
       </el-table-column>
-      <el-table-column label="ATR%" min-width="80" prop="atrPercent" sortable="custom">
+      <el-table-column label="ATR%" min-width="75" prop="atrPercent" sortable="custom">
         <template #default="{ row }">{{ format(row.atrPercent) }}%</template>
       </el-table-column>
       <el-table-column label="OI变化" min-width="80" prop="oiChangePercent" sortable="custom">
@@ -47,10 +47,13 @@
       <el-table-column label="预量比" min-width="80" prop="volumeRatio" sortable="custom">
         <template #default="{ row }">{{ format(row.volumeRatio) }}x</template>
       </el-table-column>
-      <el-table-column label="情绪" min-width="70">
+      <el-table-column label="进度%" min-width="80" prop="candleProgressPercent" sortable="custom">
+        <template #default="{ row }">{{ format(row.candleProgressPercent) }}%</template>
+      </el-table-column>
+      <el-table-column label="情绪" min-width="50">
         <template #default="{ row }"><span :class="directionClass(row.sentiment)">{{ row.sentimentLabel }}</span></template>
       </el-table-column>
-      <el-table-column label="数据" min-width="70">
+      <el-table-column label="数据" min-width="50">
         <template #default="{ row }"><span :class="row.stale ? 'down' : 'up'">{{ row.stale ? '偏旧' : '正常' }}</span></template>
       </el-table-column>
     </el-table>
@@ -66,6 +69,7 @@ import { useBotStore } from '../stores/bot'
 /** 指标列表中的单个交易对展示数据。 */
 interface IndicatorRow {
   symbol: string; price?: number; closeChangePercent?: number; candleDirectionLabel: string
+  candleProgressPercent?: number
   adx?: number; rsi?: number; macdHistogram?: number; atrPercent?: number; oiChangePercent?: number
   volumeRatio?: number; sentiment?: number; sentimentLabel: string; emaBullish: boolean; stale: boolean
 }
@@ -93,7 +97,7 @@ const rows = ref<IndicatorRow[]>([])
 const loading = ref(false)
 const errorMessage = ref('')
 type SortOrder = 'ascending' | 'descending' | null
-type SortProp = 'rsi' | 'macdHistogram' | 'atrPercent' | 'oiChangePercent' | 'volumeRatio' | null
+type SortProp = 'candleProgressPercent' | 'rsi' | 'macdHistogram' | 'atrPercent' | 'oiChangePercent' | 'volumeRatio' | null
 const sortProp = ref<SortProp>(null)
 const sortOrder = ref<SortOrder>(null)
 const symbols = computed<string[]>(() => {
@@ -135,7 +139,7 @@ function applySort() {
 
 /** 接收 Element Plus 的自定义排序事件，并在当前已加载数据上即时排序。 */
 function handleSortChange({ prop, order }: { prop?: string | null; order?: string | null }) {
-  sortProp.value = (['rsi', 'macdHistogram', 'atrPercent', 'oiChangePercent', 'volumeRatio'] as string[]).includes(prop || '')
+  sortProp.value = (['candleProgressPercent', 'rsi', 'macdHistogram', 'atrPercent', 'oiChangePercent', 'volumeRatio'] as string[]).includes(prop || '')
     ? prop as SortProp
     : null
   sortOrder.value = order === 'ascending' || order === 'descending' ? order : null
@@ -152,6 +156,7 @@ function toRow(data: any): IndicatorRow {
   const sentiment = Number(heat.netDirectionalSentimentPercent ?? heat.changePercent)
   return {
     symbol: data.symbol, price, closeChangePercent: Number(data.kline?.closeChangePercent),
+    candleProgressPercent: Number(data.kline?.candleProgressPercent),
     candleDirectionLabel: data.kline?.candleDirection === 'bullish' ? '阳线' : data.kline?.candleDirection === 'bearish' ? '阴线' : '平',
     adx: Number(values('adx').adx), rsi: Number(values('rsi').rsi), macdHistogram: Number(values('macd').histogram),
     atrPercent: price > 0 ? atr / price * 100 : undefined, oiChangePercent: Number(values('oi').changePercent),
