@@ -2,6 +2,15 @@
 export default defineNuxtConfig({
   compatibilityDate: '2026-01-01',
   devtools: { enabled: true },
+
+  hooks: {
+    'app:resolve'(app) {
+      // Nuxt 4.5.0 无法识别该内置插件的组合导出语法并会将其忽略；提前移除以避免 NUXT_B2005 误报。
+      app.plugins = app.plugins.filter(
+        plugin => !plugin.src.replaceAll('\\', '/').endsWith('/pages/runtime/plugins/check-if-page-unused.js'),
+      )
+    },
+  },
   
   modules: [
     '@element-plus/nuxt',

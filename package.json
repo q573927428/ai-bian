@@ -29,6 +29,7 @@
     "element-plus": "^2.9.1",
     "http-proxy-agent": "^9.0.0",
     "lightweight-charts": "~5.1.0",
+    "lodash-unified": "1.0.3",
     "nuxt": "^4.4.8",
     "nuxt-echarts": "^1.0.1",
     "pinia": "^3.0.4",
