@@ -334,7 +334,7 @@ onUnmounted(() => {
 .price-marker b { order: 0; font-weight: 600; }
 .price-marker small { order: 1; margin-top: 2px; color: var(--position-text); font-size: 12px; font-weight: 600; }
 .price-marker i { order: 2; width: 11px; height: 11px; margin-top: 4px; border: 0; border-radius: 50%; background: #ffffff; box-shadow: 0 0 0 2px rgba(154, 212, 183, .16); }
-.price-marker.marker-current { top: 41px; color: #facc15; }
+.price-marker.marker-current { top: 42px; color: #facc15; }
 .price-marker.marker-current i {
   order: 0;
   margin: 0 0 7px;
