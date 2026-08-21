@@ -52,13 +52,16 @@ export default defineNuxtConfig({
         target: 'esnext',
       },
     },
+    rollupConfig: {
+      // node:sqlite 是 Node.js 内置模块，应由运行时提供，不能作为 npm 包参与打包解析。
+      external: ['node:sqlite'],
+    },
   },
   vite: {
     optimizeDeps: {
       include: [
         'dayjs', // CJS
         'dayjs/plugin/*.js',
-        'lodash-unified',
         'lightweight-charts',
         'pinia',
       ]
