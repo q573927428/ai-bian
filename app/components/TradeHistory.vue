@@ -1,5 +1,11 @@
 <template>
-  <el-card class="history-card">
+  <el-drawer
+    v-model="visible"
+    class="history-drawer"
+    direction="rtl"
+    size="75%"
+    destroy-on-close
+  >
     <template #header>
       <div class="card-header">
         <span>📋 历史订单 ({{ total }})</span>
@@ -604,19 +610,33 @@
         @current-change="handlePageChange"
       />
     </div>
-  </el-card>
+  </el-drawer>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, onUnmounted } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import type { TradeHistory } from '../../types'
 import { useTradeHistoryStore, type FilterConfig } from '../stores/tradeHistory'
 
 const tradeHistoryStore = useTradeHistoryStore()
 
+const props = defineProps<{
+  modelValue: boolean
+}>()
+
+const emit = defineEmits<{
+  (event: 'update:modelValue', value: boolean): void
+}>()
+
+// 由首页订单按钮统一控制抽屉显隐，组件内部关闭时同步回父组件。
+const visible = computed({
+  get: () => props.modelValue,
+  set: (value: boolean) => emit('update:modelValue', value),
+})
+
 const orders = ref<TradeHistory[]>([])
 const currentPage = ref(1)
-const pageSize = ref(10)
+const pageSize = ref(16)
 const total = ref(0)
 const totalPages = ref(0)
 const loading = ref(false)
@@ -948,12 +968,25 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-.history-card {
-  margin-top: 20px;
-  margin-bottom: 20px;
+:global(.history-drawer) {
+  --el-drawer-bg-color: var(--bg-card);
+}
+
+:global(.history-drawer .el-drawer__header) {
+  margin-bottom: 0;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+:global(.history-drawer .el-drawer__body) {
+  color: var(--text-regular);
 }
 
 .card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
   font-size: 18px;
   font-weight: 600;
 }
@@ -1178,5 +1211,15 @@ onUnmounted(() => {
   display: inline-flex;
   align-items: center;
   margin-left: 1px;
+}
+
+@media (max-width: 768px) {
+  :global(.history-drawer) {
+    width: 100% !important;
+  }
+
+  .card-header {
+    font-size: 16px;
+  }
 }
 </style>

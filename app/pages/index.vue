@@ -35,6 +35,10 @@
                 <div class="card-header">
                   <span>🎛️ 状态面板</span>
                   <div class="card-header-actions">
+                    <el-button type="primary" size="small" text @click="showConfigDialog = true">
+                      <el-icon><ElIconSetting /></el-icon>
+                      配置
+                    </el-button>
                     <el-button v-if="!passwordVerified" type="primary" size="small" text @click="handleUnlock">
                       <el-icon><ElIconUnlock /></el-icon>
                       解锁
@@ -62,9 +66,15 @@
                     <el-icon><ElIconDocument /></el-icon>
                     日志
                   </el-button>
-                  <el-button class="control-panel-action" type="primary" size="small" text @click="showConfigDialog = true">
-                    <el-icon><ElIconSetting /></el-icon>
-                    配置
+                  <el-button
+                    class="control-panel-action"
+                    type="primary"
+                    size="small"
+                    text
+                    @click="handleOpenOrders"
+                  >
+                    <el-icon><ElIconTickets /></el-icon>
+                    订单
                   </el-button>
                 </div>
                 <!-- 余额信息 -->
@@ -154,9 +164,9 @@
               <Strategies />
             </ClientOnly>
 
-            <!-- 历史订单组件 -->
+            <!-- 历史订单抽屉由状态面板内的订单按钮打开。 -->
             <ClientOnly v-if="passwordVerified">
-              <TradeHistory />
+              <TradeHistory v-model="showOrdersDrawer" />
             </ClientOnly>
 
           </el-col>
@@ -191,6 +201,7 @@ const PASSWORD_STORAGE_KEY = 'page_password_verified'
 const passwordVerified = ref(false)
 const showPasswordDialog = ref(false)
 const hasPassword = ref(false)
+const openOrdersAfterUnlock = ref(false)
 
 const handlePasswordSuccess = () => {
   passwordVerified.value = true
@@ -199,16 +210,37 @@ const handlePasswordSuccess = () => {
     verified: true,
     timestamp: Date.now()
   }))
+
+  // 从订单入口发起解锁时，验证成功后继续完成用户原本的打开操作。
+  if (openOrdersAfterUnlock.value) {
+    showOrdersDrawer.value = true
+    openOrdersAfterUnlock.value = false
+  }
 }
 
 const clearPassword = () => {
   passwordVerified.value = false
+  showOrdersDrawer.value = false
+  openOrdersAfterUnlock.value = false
   localStorage.removeItem(PASSWORD_STORAGE_KEY)
   hasPassword.value = false
 }
 
 const handleUnlock = () => {
   showPasswordDialog.value = true
+}
+
+/**
+ * 打开历史订单；锁定状态下先完成密码验证，避免绕过原有访问限制。
+ */
+const handleOpenOrders = () => {
+  if (passwordVerified.value) {
+    showOrdersDrawer.value = true
+    return
+  }
+
+  openOrdersAfterUnlock.value = true
+  handleUnlock()
 }
 
 // 导入组件
@@ -234,6 +266,7 @@ const showPerformanceDialog = ref(false)
 const showIndicatorsDrawer = ref(false)
 const showPositionsDrawer = ref(false)
 const showLogsDrawer = ref(false)
+const showOrdersDrawer = ref(false)
 
 const handleConfigSuccess = () => {
   // 配置保存成功后的处理
