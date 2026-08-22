@@ -106,7 +106,8 @@ function readScanResultsForDate(date: string, filter: ScanFileFilter): StrategyS
   const lines = readFileSync(logFile, 'utf8').split(/\r?\n/)
 
   for (const line of lines) {
-    if (!line.includes('[扫描结果]') || !line.includes(`[${filter.strategyId}]`)) continue
+    // 兼容旧日志 `[扫描结果]` 和当前日志 `[🔍扫描结果]` 两种标签格式。
+    if (!/\[(?:🔍)?扫描结果\]/u.test(line) || !line.includes(`[${filter.strategyId}]`)) continue
 
     const parsed = parseScanLine(date, line, filter)
     if (parsed) results.push(parsed)
@@ -119,7 +120,8 @@ function readScanResultsForDate(date: string, filter: ScanFileFilter): StrategyS
  * 将一行扫描日志拆解为可展示的结构化数据。
  */
 function parseScanLine(date: string, line: string, filter: ScanFileFilter): StrategyScanResult | null {
-  const lineMatch = line.match(/^\[(\d{2}:\d{2}:\d{2})\] \[([^\]]+)\] \[扫描结果\]\s*(.*)$/)
+  // 日志标签可能带有用于区分扫描事件的 🔍 前缀，前缀不影响结果解析。
+  const lineMatch = line.match(/^\[(\d{2}:\d{2}:\d{2})\] \[([^\]]+)\] \[(?:🔍)?扫描结果\]\s*(.*)$/u)
   if (!lineMatch?.[1] || !lineMatch[2] || !lineMatch[3]) return null
 
   const timestamp = Math.floor(dayjs(`${date} ${lineMatch[1]}`).valueOf() / 1000)
