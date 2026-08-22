@@ -752,6 +752,12 @@ export class KLineSimpleSyncService {
   
   // 高频同步：仅更新最后一根未收盘K线
   private async highFrequencySync(): Promise<void> {
+    const startedAt = Date.now()
+    const highFreqTimeframes: KLineTimeframe[] = ['5m', '15m', '1h', '4h']
+    let processedTimeframes = 0
+    let processedSymbols = 0
+    let completed = false
+
     if (binanceApiGateway.shouldPauseBackgroundWork()) {
       return
     }
@@ -768,8 +774,6 @@ export class KLineSimpleSyncService {
       this.isHighFrequencySyncing = true
       
       // 只对较短周期进行高频同步
-      const highFreqTimeframes: KLineTimeframe[] = ['5m', '15m', '1h', '4h']
-      
       for (const timeframe of highFreqTimeframes) {
         if (binanceApiGateway.shouldPauseBackgroundWork()) {
           return
@@ -777,11 +781,14 @@ export class KLineSimpleSyncService {
         if (!this.timeframeConfigs.get(timeframe)?.enabled) {
           continue
         }
+
+        processedTimeframes += 1
         
         for (const symbol of this.config.symbols) {
           if (binanceApiGateway.shouldPauseBackgroundWork()) {
             return
           }
+          processedSymbols += 1
           try {
             await this.syncLastBarOnly(symbol, timeframe)
           } catch (error) {
@@ -791,7 +798,13 @@ export class KLineSimpleSyncService {
           await new Promise(resolve => nodeSetTimeout(resolve, 50))
         }
       }
+      completed = true
     } finally {
+      // 记录整轮耗时，便于判断交易对数量增长后是否超过120秒调度周期。
+      const durationMs = Date.now() - startedAt
+      console.log(
+        `⏱️ 高频K线同步结束: ${durationMs}ms，周期 ${processedTimeframes}/${highFreqTimeframes.length}，交易对 ${this.config.symbols.length}/${this.config.symbols.length}，交易对-周期处理 ${processedSymbols}/${this.config.symbols.length * highFreqTimeframes.length}，${completed ? '完成' : '中止/跳过'}`
+      )
       this.isHighFrequencySyncing = false
     }
   }
@@ -803,32 +816,41 @@ export class KLineSimpleSyncService {
       return // 没有数据，跳过
     }
     
-    // 只获取最后1根K线
+    // 获取旧K线与可能已经开启的新K线，避免周期切换后只更新旧K线而遗漏追加。
     const klineData = await this.fetchKLineFromBinance(
       symbol,
       timeframe,
       lastTimestamp * 1000,
       undefined,
-      1
+      3
     )
     
     if (klineData.length === 0) {
       return
     }
     
-    const lastBar = klineData[klineData.length - 1]
-    if (lastBar && lastBar.timestamp === lastTimestamp) {
-      // 更新最后一根K线
-      const updateSuccess = updateLastKLine(symbol, timeframe, lastBar)
-      if (updateSuccess) {
-        // 触发数据更新事件
-        this.eventEmitter.emit('klineUpdated', {
-          symbol,
-          timeframe,
-          type: 'update',
-          timestamp: lastBar.timestamp
-        })
-      }
+    const updateBar = klineData.find(item => item.timestamp === lastTimestamp)
+    const newBars = klineData.filter(item => item.timestamp > lastTimestamp)
+    let updated = false
+    let appended = false
+
+    // 当前未收盘K线仍需原地更新，保持成交量和收盘价实时变化。
+    if (updateBar) {
+      updated = updateLastKLine(symbol, timeframe, updateBar)
+    }
+
+    // 周期已切换时追加新K线；append 函数负责去重和保留最新数据。
+    if (newBars.length > 0) {
+      appended = appendSimpleKLineData(symbol, timeframe, newBars)
+    }
+
+    if (updated || appended) {
+      this.eventEmitter.emit('klineUpdated', {
+        symbol,
+        timeframe,
+        type: appended ? 'append' : 'update',
+        timestamp: newBars.at(-1)?.timestamp ?? updateBar?.timestamp ?? lastTimestamp
+      })
     }
   }
   
