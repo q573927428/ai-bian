@@ -959,7 +959,7 @@ const checkForNewKline = (syncLastBar = true) => {
   // 计算当前K线周期的时间戳
   const currentKlineTimestamp = Math.floor(now / timeframeSeconds) * timeframeSeconds
   
-  // 后端在周期结束后约3秒开始按交易对串行同步，前端等待30秒再整批校正，尽量避开批量同步窗口。
+  // 后端在周期结束后延迟约12秒开始按交易对串行同步，前端等待30秒再整批校正，尽量避开批量同步窗口。
   const backendDelaySeconds = 30
   
   // 周期边界一到立即补出临时新柱，不再等待后端延迟。
