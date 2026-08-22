@@ -332,6 +332,8 @@ const selectTimeframe = (timeframe: string) => {
   
   // 清空当前K线数据，避免显示旧周期的数据
   klineData.value = []
+  provisionalKlineTimestamp = null
+  provisionalReloadRequestedAt = 0
   tradeHistory.value = []
   scanResults.value = []
   scanDialogVisible.value = false
@@ -406,7 +408,24 @@ const loadKLineData = async (silent = false) => {
     }
     
     if (result.success && result.data) {
-      klineData.value = result.data.data
+      let nextKlineData = result.data.data
+
+      // 周期边界后，后端同步和前端临时柱可能存在几秒竞态。
+      // 后端若仍返回上一根已收盘柱，不能用旧快照覆盖临时新柱，否则时间范围会在两个边界间反复跳动。
+      const responseLastKline = nextKlineData[nextKlineData.length - 1]
+      const provisionalTimestamp = provisionalKlineTimestamp
+      if (provisionalTimestamp && responseLastKline && responseLastKline.t < provisionalTimestamp) {
+        const currentProvisional = klineData.value[klineData.value.length - 1]
+        if (currentProvisional?.t === provisionalTimestamp) {
+          nextKlineData = [...nextKlineData, currentProvisional]
+        }
+      } else if (provisionalTimestamp && responseLastKline && responseLastKline.t >= provisionalTimestamp) {
+        // 只有后端已经返回临时柱（或更新的柱）时，才认为权威数据完成校正。
+        provisionalKlineTimestamp = null
+        provisionalReloadRequestedAt = 0
+      }
+
+      klineData.value = nextKlineData
       meta.value = result.data.meta
       
       // 加载历史订单数据（等待完成）
@@ -868,6 +887,8 @@ const klineCheckSubscriberId = 'kline-chart-new-kline-check'
 let newKlineCheckTimer: ReturnType<typeof setInterval> | null = null
 // 记录前端临时追加的K线，等待后端权威数据完成校正。
 let provisionalKlineTimestamp: number | null = null
+// 避免后端尚未完成同步时每秒重复发起整批重载请求。
+let provisionalReloadRequestedAt = 0
 
 /**
  * 在周期边界立即追加临时K线，消除等待后端同步的空窗期。
@@ -892,6 +913,7 @@ const appendProvisionalKline = (timestamp: number) => {
   }
 
   provisionalKlineTimestamp = timestamp
+  provisionalReloadRequestedAt = 0
   klineData.value = [...klineData.value, provisionalKline]
   chartCanvasRef.value?.appendNewKline(provisionalKline)
 }
@@ -937,8 +959,8 @@ const checkForNewKline = (syncLastBar = true) => {
   // 计算当前K线周期的时间戳
   const currentKlineTimestamp = Math.floor(now / timeframeSeconds) * timeframeSeconds
   
-  // 后端在周期结束后延迟3秒拉取权威数据，前端临时柱先即时显示。
-  const backendDelaySeconds = 3
+  // 后端在周期结束后约3秒开始按交易对串行同步，前端等待30秒再整批校正，尽量避开批量同步窗口。
+  const backendDelaySeconds = 30
   
   // 周期边界一到立即补出临时新柱，不再等待后端延迟。
   if (currentKlineTimestamp > lastKline.t) {
@@ -947,8 +969,10 @@ const checkForNewKline = (syncLastBar = true) => {
 
   // 临时柱等待后端权威数据，延迟结束后静默重载并校正。
   if (provisionalKlineTimestamp === currentKlineTimestamp &&
-      (now - currentKlineTimestamp) >= backendDelaySeconds) {
-    provisionalKlineTimestamp = null
+      (now - currentKlineTimestamp) >= backendDelaySeconds &&
+      (now * 1000 - provisionalReloadRequestedAt) >= backendDelaySeconds * 1000) {
+    // 保留临时柱标记，直到 loadKLineData 确认后端已返回同一时间戳，避免竞态下反复追加。
+    provisionalReloadRequestedAt = now * 1000
     loadKLineData(true)
   }
   // 每次轮询都尝试获取最后一根K线的最新数据（含成交量），更新图表
@@ -985,6 +1009,8 @@ const handleSymbolChange = async (newSymbol: string, oldSymbol: string) => {
     
     // 2. 立即清空当前显示的K线数据，避免显示旧数据
     klineData.value = []
+    provisionalKlineTimestamp = null
+    provisionalReloadRequestedAt = 0
     tradeHistory.value = []
     scanResults.value = []
     scanDialogVisible.value = false
