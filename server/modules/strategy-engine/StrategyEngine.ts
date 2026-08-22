@@ -118,6 +118,8 @@ export class StrategyEngine {
   private initialScanNotBefore = 0
   private loopStats = {
     isRunning: false,
+    // 实际开始执行的扫描轮次；并发触发但被跳过的调用不计入此值。
+    scanCount: 0,
     lastStartedAt: 0,
     lastFinishedAt: 0,
     lastDurationMs: 0,
@@ -496,6 +498,8 @@ export class StrategyEngine {
 
     this.isGlobalLoopRunning = true
     const loopStartTime = Date.now()
+    // 只有通过并发保护并真正进入扫描的调用才计为一轮。
+    this.loopStats.scanCount++
     this.loopStats.isRunning = true
     this.loopStats.lastStartedAt = loopStartTime
     this.loopStats.lastSymbols = 0
@@ -621,7 +625,7 @@ export class StrategyEngine {
       this.loopStats.lastDurationMs = duration
       this.loopStats.lastAIRequests = this.currentLoopAIRequests
       this.loopStats.skippedLoops = this.skippedLoopCount
-      logger.info('StrategyEngine', `本轮扫描结束，耗时 ${duration}ms，跳过计数 ${this.skippedLoopCount}`)
+      logger.info('StrategyEngine', `第 ${this.loopStats.scanCount} 轮扫描结束，耗时 ${duration}ms，跳过计数 ${this.skippedLoopCount}`)
       if (duration > this.globalScanInterval * 0.8) {
         this.loopStats.exceededDurationCount++
         logger.warn('StrategyEngine', `本轮扫描耗时接近全局间隔: ${duration}ms / ${this.globalScanInterval}ms`)
