@@ -2,6 +2,19 @@
   <div class="chart-controls">
     <div class="controls-left">
       <el-button class="symbol-badge" @click="emit('open-price-drawer')">
+        <img
+          v-if="!iconFailed[displaySymbol] && coinIconUrl(displaySymbol)"
+          :src="coinIconUrl(displaySymbol)"
+          :alt="displaySymbol"
+          class="symbol-icon"
+          @error="onIconError(displaySymbol)"
+        > 
+        <span
+          v-else
+          class="symbol-icon-placeholder"
+          :style="{ backgroundColor: placeholderColor(displaySymbol) }"
+          aria-hidden="true"
+        >{{ baseAsset(displaySymbol).slice(0, 1) }}</span>
         {{ displaySymbol }}
         <el-icon><ElIconArrowDown /></el-icon>
       </el-button>
@@ -224,6 +237,7 @@
 
 <script setup lang="ts">
 import { ref, watch, computed } from 'vue'
+import { useCoinIcon } from '../../composables/useCoinIcon'
 
 /**
  * K线控制栏属性，包含图表状态、标记开关和周期过滤配置。
@@ -296,11 +310,35 @@ const showEMALines = ref(props.showEMALines)
 const showScanMarkers = ref(props.showScanMarkers)
 const scanRangePopoverVisible = ref(false)
 const scanDateRange = ref<[number, number] | null>(props.scanTimeRange ? [...props.scanTimeRange] : null)
+const iconFailed = ref<Record<string, boolean>>({})
+const { getCoinIconUrl } = useCoinIcon()
 
 // 计算显示的symbol
 const displaySymbol = computed(() => {
   return props.symbol || 'BTCUSDT'
 })
+
+/** 将交易对统一为图标清单格式，并在缺少官方图标时提供稳定占位信息。 */
+function coinIconUrl(symbol: string) {
+  return getCoinIconUrl(symbol.replace('/', '')) || ''
+}
+
+function onIconError(symbol: string) {
+  iconFailed.value[symbol] = true
+}
+
+function baseAsset(symbol: string) {
+  return symbol.replace('/', '').replace(/(USDT|USDC|FDUSD|BUSD)$/, '').toUpperCase()
+}
+
+/** 使用基础资产生成固定颜色，避免图标缺失时按钮布局跳动。 */
+function placeholderColor(symbol: string) {
+  let hash = 0
+  for (const character of baseAsset(symbol)) {
+    hash = character.charCodeAt(0) + ((hash << 5) - hash)
+  }
+  return `hsl(${Math.abs(hash) % 360} 48% 42%)`
+}
 
 // 选择周期
 const selectTimeframe = (timeframe: string) => {
@@ -568,6 +606,30 @@ watch(() => props.scanTimeRange, (newRange) => {
   display: inline-flex;
   align-items: center;
   gap: 4px;
+}
+
+.symbol-icon,
+.symbol-icon-placeholder {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 18px;
+  border-radius: 50%;
+}
+
+.symbol-icon {
+  display: block;
+  object-fit: cover;
+  margin-right: 5px;
+}
+
+.symbol-icon-placeholder {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
 }
 
 .timeframe-buttons,
