@@ -274,7 +274,7 @@ GET /api/kline-simple/flow-oi?symbol=BTCUSDT&timeframe=4h&limit=2233
 
 1. 标题：资金流与 OI
 2. 当前 K 线摘要：成交额、主动净流、OI 变化、收盘价、联合状态
-3. 资金流副图：主动成交额差柱状图
+3. 资金流副图：主动净流比例相对 12 周期 EMA 的偏离柱状图（单位：百分点）
 4. OI 副图：使用 `oiChangePercent`（当前 OI 相对上一根有效 OI）绘制变化率柱状图。
 
 颜色建议：

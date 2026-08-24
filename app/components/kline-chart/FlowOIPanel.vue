@@ -67,7 +67,6 @@ const visibleRows = computed(() => {
 })
 const hoveredRow = computed(() => activeCrosshairTime.value == null ? null : rows.value.find(row => row.t === activeCrosshairTime.value) || null)
 const latest = computed(() => hoveredRow.value || visibleRows.value.at(-1) || rows.value.at(-1))
-const flowMax = computed(() => Math.max(1, ...visibleRows.value.map(row => Math.abs(row.activeDelta || 0))))
 const oiMax = computed(() => Math.max(1, ...visibleRows.value.map(row => Math.abs(row.oiChangePercent || 0))))
 const stateLabels: Record<string, string> = { 'long-build': '多头增仓', 'short-build': '空头增仓', 'short-cover': '空头回补', 'long-liquidation': '多头平仓', neutral: '中性', unavailable: '数据不足' }
 const stateClass = computed(() => {
@@ -84,6 +83,8 @@ const formatTooltipTime = (time: number) => new Date(time * 1000).toLocaleString
 // OI 接口返回的数值单位是“百分点”（例如 0.6 表示 0.6%），不能使用
 // lightweight-charts 的 percent 格式（该格式会把数值再乘以 100）。
 const oiPriceFormat = { type: 'custom' as const, minMove: 0.001, formatter: (value: number) => `${value >= 0 ? '+' : ''}${value.toFixed(3)}%` }
+// 顶部资金流柱使用与“偏离”摘要相同的百分点口径，避免金额量纲掩盖偏离幅度。
+const flowPriceFormat = { type: 'custom' as const, minMove: 0.001, formatter: (value: number) => `${value >= 0 ? '+' : ''}${value.toFixed(3)}%` }
 const chartOptions = () => ({ layout: { background: { type: ColorType.Solid, color: props.theme === 'dark' ? '#131722' : '#ffffff' }, textColor: props.theme === 'dark' ? '#d9d9d9' : '#333333' }, grid: { vertLines: { color: props.theme === 'dark' ? '#2b2b43' : '#f0f3fa' }, horzLines: { color: props.theme === 'dark' ? '#2b2b43' : '#f0f3fa' } }, rightPriceScale: { borderColor: props.theme === 'dark' ? '#2b2b43' : '#cccccc', scaleMargins: { top: 0.1, bottom: 0.1 } }, timeScale: { visible: true, timeVisible: true, secondsVisible: false, rightOffset: props.rightOffset, borderColor: props.theme === 'dark' ? '#2b2b43' : '#cccccc', tickMarkFormatter: formatChartTime }, localization: { timeFormatter: formatTooltipTime }, crosshair: { vertLine: { color: props.theme === 'dark' ? '#94a3b8' : '#64748b' }, horzLine: { color: 'transparent' } }, handleScroll: false, handleScale: false })
 
 /**
@@ -138,9 +139,9 @@ const updateCharts = () => {
   syncLatestKline()
   // 保留完整时间序列，避免副图因重新设置数据而产生独立的时间轴索引。
   // 缺失值使用 whitespace 点，不把 0 纳入自动缩放范围，避免 OI 轴长期显示固定的极小刻度。
-  flowSeries.setData(rows.value.map(row => row.activeDelta == null
+  flowSeries.setData(rows.value.map(row => row.activeFlowDeviation == null
     ? { time: row.t }
-    : { time: row.t, value: row.activeDelta, color: row.activeDelta >= 0 ? '#22c55e' : '#ef4444' }))
+    : { time: row.t, value: row.activeFlowDeviation, color: row.activeFlowDeviation >= 0 ? '#22c55e' : '#ef4444' }))
   oiSeries.setData(rows.value.map(row => row.oiChangePercent == null
     ? { time: row.t }
     : { time: row.t, value: row.oiChangePercent, color: row.oiChangePercent >= 0 ? '#3b82f6' : '#a16207' }))
@@ -153,14 +154,14 @@ const updateCrosshair = () => {
   if (!props.crosshairTime || !chart) { chart?.clearCrosshairPosition(); return }
   const row = rows.value.find(item => item.t === props.crosshairTime)
   if (!row) return
-  chart.setCrosshairPosition(row.activeDelta ?? 0, row.t, flowSeries)
+  chart.setCrosshairPosition(row.activeFlowDeviation ?? 0, row.t, flowSeries)
   // 以 OI 序列再次定位，使 OI pane 的价格标签同步显示当前 K 线值。
   chart.setCrosshairPosition(row.oiChangePercent ?? 0, row.t, oiSeries)
 }
 const initCharts = () => {
   if (chart || !chartRef.value) return
   chart = createChart(chartRef.value, { ...chartOptions(), width: chartRef.value.clientWidth, height: 188 })
-  flowSeries = chart.addSeries(HistogramSeries, { title: '资金流', priceFormat: { type: 'volume' }, base: 0 }, 0)
+  flowSeries = chart.addSeries(HistogramSeries, { title: '资金流偏离', priceFormat: flowPriceFormat, base: 0 }, 0)
   chart.addPane()
   oiSeries = chart.addSeries(HistogramSeries, { title: 'OI', priceFormat: oiPriceFormat, base: 0 }, 1)
   // 两个副图 pane 默认等高，各占副图总高度的一半。
