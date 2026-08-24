@@ -150,6 +150,17 @@ async function startInitialSync(): Promise<void> {
     const totalBars = results.reduce((sum, r) => sum + r.count, 0)
     
     console.log(`✅ 增量同步完成: ${successCount}/${results.length} 成功，共获取 ${totalBars} 条数据`)
+
+    // 服务停机期间可能已经追平 K 线，但历史 OI 仍为空；启动期按缺口检查并回补近 30 天数据。
+    let oiBackfillCount = 0
+    for (const symbol of config.symbols) {
+      for (const timeframe of config.timeframes) {
+        if (await syncService.backfillMissingHistoricalOI(symbol, timeframe)) oiBackfillCount += 1
+      }
+    }
+    if (oiBackfillCount > 0) {
+      console.log(`✅ 启动期历史OI回补完成: ${oiBackfillCount} 个交易对/周期`)
+    }
     await flushDb()
     
     // 显示当前状态

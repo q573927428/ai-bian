@@ -1,7 +1,10 @@
 <template>
   <div class="chart-controls">
     <div class="controls-left">
-      <div class="symbol-badge">{{ displaySymbol }}</div>
+      <el-button class="symbol-badge" @click="emit('open-price-drawer')">
+        {{ displaySymbol }}
+        <el-icon><ElIconArrowDown /></el-icon>
+      </el-button>
 
       <el-button-group size="small" class="timeframe-buttons">
           <el-button
@@ -277,6 +280,7 @@ const emit = defineEmits<{
   'scan-range-change': [range: [number, number] | null]
   'ema-periods-change': [periods: number[]]
   'switch-engine': [engine: 'native' | 'tradingview']
+  'open-price-drawer': []
 }>()
 
 // 可用的EMA周期选项
@@ -560,6 +564,10 @@ watch(() => props.scanTimeRange, (newRange) => {
   font-weight: 500;
   white-space: nowrap;
   box-shadow: 0 2px 4px rgba(64, 158, 255, 0.2);
+  border: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .timeframe-buttons,
@@ -635,12 +643,17 @@ watch(() => props.scanTimeRange, (newRange) => {
   
   .controls-right {
     width: 100%;
-    justify-content: space-between;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
     gap: 8px;
   }
   
   .marker-controls {
-    flex: 1;
+    width: 100%;
+    box-sizing: border-box;
+    flex: none;
+    justify-content: space-between;
     gap: 8px;
     padding: 2px 8px;
     border-radius: 6px;
@@ -656,6 +669,7 @@ watch(() => props.scanTimeRange, (newRange) => {
   }
   
   .action-buttons {
+    align-self: flex-end;
     gap: 4px;
   }
   

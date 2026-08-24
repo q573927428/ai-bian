@@ -29,7 +29,10 @@
 
     <!-- K线图表（引擎可切换：自研K线 / TradingView） -->
     <ClientOnly>
-      <ChartEngineSwitcher :symbol="selectedSymbol || 'BTCUSDT'" />
+      <ChartEngineSwitcher
+        :symbol="selectedSymbol || 'BTCUSDT'"
+        @open-price-drawer="showPriceDrawer = true"
+      />
     </ClientOnly>
     
     <!-- 水平线 -->
@@ -49,8 +52,16 @@
       </el-alert>
     </div> -->
 
-    <!-- 价格卡片网格 -->
-    <div class="cards-grid">
+    <!-- 价格列表抽屉：由 K 线控制栏中的交易对按钮打开 -->
+    <el-drawer
+      v-model="showPriceDrawer"
+      title="选择交易对"
+      direction="ltr"
+      size="min(460px, 88vw)"
+      append-to-body
+      class="price-drawer"
+    >
+      <div class="cards-list">
       <div 
         v-for="crypto in cryptoPrices" 
         :key="crypto.symbol"
@@ -95,7 +106,8 @@
         </div>
 
       </div>
-    </div>
+      </div>
+    </el-drawer>
 
     <!-- 加载状态 -->
     <div v-if="isLoading && cryptoPrices.length === 0" class="loading-state">
@@ -133,6 +145,7 @@ const cryptoPrices = ref<CryptoPrice[]>([])
 const isLoading = ref(false)
 const isWebSocketConnected = ref(false)
 const showChartModal = ref(false)
+const showPriceDrawer = ref(false)
 const selectedSymbol = ref('')
 // 价格变动动画状态
 const priceChangeAnimations = ref<Record<string, 'up' | 'down' | null>>({})
@@ -251,6 +264,7 @@ function showWebSocketStatus() {
 // 打开图表弹窗
 function openChartModal(crypto: CryptoPrice) {
   selectedSymbol.value = crypto.symbol
+  showPriceDrawer.value = false
   showChartModal.value = true
 }
 
@@ -370,11 +384,10 @@ interface WebSocketStatusResponse {
   margin-bottom: 16px;
 }
 
-.cards-grid {
-  display: flex;
-  flex-wrap: wrap;
+.cards-list {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
-  margin-bottom: -10px;
 }
 .horizontal-line{
   margin-bottom: 30px;
@@ -390,9 +403,7 @@ interface WebSocketStatusResponse {
   position: relative;
   overflow: hidden;
   min-height: 60px;
-  min-width: 120px;
-  flex-shrink: 0;
-  flex: 1 0 calc(10% - 8px);
+  min-width: 0;
 }
 
 .price-card:hover {
@@ -591,15 +602,74 @@ interface WebSocketStatusResponse {
   text-align: center;
 }
 
+/* 抽屉挂载到 body 后不再受 scoped 样式影响，使用全局选择器同步明暗主题。 */
+:global(.price-drawer.el-drawer) {
+  --el-drawer-bg-color: var(--bg-card);
+  background: var(--bg-card);
+  color: var(--text-primary);
+}
+
+:global(.price-drawer .el-drawer__header) {
+  margin-bottom: 0;
+  padding: 16px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+:global(.price-drawer .el-drawer__title) {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+:global(.price-drawer .el-drawer__close-btn) {
+  color: var(--text-secondary);
+}
+
+:global(.price-drawer .el-drawer__body) {
+  padding: 16px;
+  background: var(--bg-card);
+  color: var(--text-primary);
+  scrollbar-width: thin;
+  scrollbar-color: var(--price-drawer-scrollbar-thumb) transparent;
+}
+
+/* 抽屉滚动条保持窄尺寸，避免占用价格列表的可视宽度。 */
+:global(.price-drawer .el-drawer__body::-webkit-scrollbar) {
+  width: 6px;
+  height: 6px;
+}
+
+:global(.price-drawer .el-drawer__body::-webkit-scrollbar-track) {
+  background: transparent;
+}
+
+:global(.price-drawer .el-drawer__body::-webkit-scrollbar-thumb) {
+  background: var(--price-drawer-scrollbar-thumb);
+  border-radius: 3px;
+}
+
+:global(.price-drawer .el-drawer__body::-webkit-scrollbar-thumb:hover) {
+  background: var(--price-drawer-scrollbar-thumb-hover);
+}
+
+:global(:root) {
+  --price-drawer-scrollbar-thumb: #d4d7de;
+  --price-drawer-scrollbar-thumb-hover: #b8bcc6;
+}
+
+:global(:root.dark) {
+  --price-drawer-scrollbar-thumb: #292a2c;
+  --price-drawer-scrollbar-thumb-hover: #3a3b3e;
+}
+
 @media (max-width: 480px) {
-  .cards-grid {
+  .cards-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 6px;
   }
   
   .price-card {
     padding: 6px;
     min-height: 55px;
-    flex: 1 0 calc(50% - 6px);
     min-width: 0;
   }
   

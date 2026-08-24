@@ -7,6 +7,7 @@
       :timeframe="timeframe"
       :active-engine="activeEngine"
       @switch-engine="handleEngineChange"
+      @open-price-drawer="emit('open-price-drawer')"
     />
 
     <!-- TradingView引擎 -->
@@ -29,6 +30,10 @@ import TradingViewKLinePanel from './TradingViewKLinePanel.vue'
 const props = defineProps<{
   symbol: string
   timeframe?: string
+}>()
+
+const emit = defineEmits<{
+  'open-price-drawer': []
 }>()
 
 // ==================== 引擎切换 ====================

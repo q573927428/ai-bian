@@ -241,6 +241,18 @@ const emit = defineEmits<{
   }, time: string]
   'order-click': [orders: TradeHistory[], klineTime: number]
   'scan-click': [results: StrategyScanResult[], klineTime: number]
+  /** 时间轴可视范围和右侧留白同步给副图。 */
+  'viewport-change': [viewport: {
+    from: number
+    to: number
+    logicalFrom: number
+    logicalTo: number
+    rightOffset: number
+    barSpacing: number
+    timeScaleWidth: number
+  }]
+  /** 十字光标所在的 K 线时间（秒），移出图表时为空。 */
+  'crosshair-time': [time: number | null]
   'retry': []
 }>()
 
@@ -248,6 +260,31 @@ const emit = defineEmits<{
 const chartContainer = ref<HTMLElement | null>(null)
 let chart: any = null
 let candlestickSeries: any = null
+const chartRightOffset = 12
+
+/** 发布主图时间轴状态，保证资金流副图与主图横向位置一致。 */
+const emitViewportChange = () => {
+  const timeScale = chart?.timeScale()
+  const visibleRange = timeScale?.getVisibleRange?.()
+  const logicalRange = timeScale?.getVisibleLogicalRange?.()
+  if (!visibleRange || !logicalRange || typeof visibleRange.from !== 'number' || typeof visibleRange.to !== 'number') return
+
+  const barSpacing = Number(timeScale.options().barSpacing)
+  const rightOffset = Number(timeScale.scrollPosition())
+  const timeScaleWidth = Number(timeScale.width())
+  if (![barSpacing, rightOffset, timeScaleWidth].every(Number.isFinite) || barSpacing <= 0 || timeScaleWidth <= 0) return
+
+  // 逻辑范围只能描述数据索引；柱间距、实时滚动位置和绘图区宽度共同决定最终像素坐标。
+  emit('viewport-change', {
+    from: visibleRange.from,
+    to: visibleRange.to,
+    logicalFrom: logicalRange.from,
+    logicalTo: logicalRange.to,
+    rightOffset,
+    barSpacing,
+    timeScaleWidth
+  })
+}
 let volumeSeries: any = null
 let emaSeries: any[] = []
 let resizeObserver: ResizeObserver | null = null
@@ -647,6 +684,10 @@ const initChart = () => {
   }
   
   chart = createChart(chartContainer.value, chartOptions)
+  // 时间轴的拖动、缩放会改变副图应展示的数据范围。
+  chart.timeScale().subscribeVisibleLogicalRangeChange(emitViewportChange)
+  chart.timeScale().subscribeVisibleTimeRangeChange?.(emitViewportChange)
+  setTimeout(emitViewportChange, 0)
   
   // 获取当前价格格式
   const currentPriceFormat = priceFormat.value
@@ -699,6 +740,7 @@ const initChart = () => {
         width: chartContainer.value.clientWidth,
         height: chartHeight.value
       })
+      requestAnimationFrame(emitViewportChange)
     }
   })
   
@@ -706,6 +748,7 @@ const initChart = () => {
   
   // 监听鼠标移动事件
   chart.subscribeCrosshairMove((param: any) => {
+    emit('crosshair-time', typeof param.time === 'number' ? param.time : null)
     if (param.time) {
       // 找到对应的K线数据
       const kline = findKlineByTime(props.klineData, param.time)
@@ -1061,7 +1104,7 @@ const updateChart = (preserveViewport = false) => {
           setTimeout(() => {
             if (chart) {
               chart.timeScale().applyOptions({
-                rightOffset: 12
+                rightOffset: chartRightOffset
               })
             }
           }, 0)
@@ -1335,7 +1378,13 @@ defineExpose({
   updateLastKline,
   appendNewKline,
   clearMarkers,
-  getVisibleTimeRange
+  getVisibleTimeRange,
+  getViewport: () => {
+    const range = chart?.timeScale().getVisibleRange?.()
+    return range && typeof range.from === 'number' && typeof range.to === 'number'
+      ? { from: range.from, to: range.to, rightOffset: chartRightOffset }
+      : null
+  }
 })
 </script>
 
@@ -1397,8 +1446,6 @@ defineExpose({
 @media (max-width: 480px) {
   .chart-wrapper {
     min-height: 250px;
-    margin: 8px;
-    border-radius: 6px;
   }
   
   .kline-chart {
