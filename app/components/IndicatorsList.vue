@@ -155,7 +155,7 @@ async function fetchData() {
   loading.value = true; errorMessage.value = ''
   const results = await Promise.all(symbols.value.map(async (symbol: string) => {
     try {
-      const response: any = await $fetch('/api/bot/indicators', { query: { symbol, timeframe: timeframe.value } })
+      const response: any = await $fetch('/api/bot/indicators', { query: { symbol, timeframe: timeframe.value, includeSlowStats: 'false' } })
       return toRow(response.data)
     } catch { return null }
   }))
@@ -163,6 +163,34 @@ async function fetchData() {
   applySort()
   if (rows.value.length === 0) errorMessage.value = '指标暂不可用，请确认指标中心已完成初始化'
   loading.value = false
+
+  // 首屏不再等待 OI 历史和币安广场分页请求；慢字段在表格显示后后台补齐。
+  void enrichSlowStats()
+}
+
+/** 后台补齐 OI 与广场情绪，避免慢外部请求阻塞首屏表格。 */
+async function enrichSlowStats() {
+  const pendingRows = [...rows.value]
+  await Promise.all(pendingRows.map(async (row) => {
+    try {
+      const response: any = await $fetch('/api/bot/indicators', {
+        query: { symbol: row.symbol, timeframe: timeframe.value, includeSlowStats: 'true' }
+      })
+      const next = toRow(response.data)
+      const index = rows.value.findIndex(item => item.symbol === row.symbol)
+      const current = index >= 0 ? rows.value[index] : undefined
+      if (current) {
+        rows.value[index] = {
+          ...current,
+          oiChangePercent: next.oiChangePercent,
+          sentiment: next.sentiment,
+          sentimentLabel: next.sentimentLabel
+        }
+      }
+    } catch {
+      // 慢统计失败不影响技术指标首屏展示。
+    }
+  }))
 }
 
 /** 按表格当前排序条件排列指标；缺失值始终置底，避免 -- 干扰数值排序。 */

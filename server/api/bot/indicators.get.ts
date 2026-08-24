@@ -57,6 +57,8 @@ export default defineEventHandler(async (event) => {
   const query = getQuery(event)
   const symbol = String(query.symbol || '').trim().toUpperCase()
   const timeframe = String(query.timeframe || '1h') as Timeframe
+  // 看板首屏先跳过外部慢统计，等表格可见后再单独补齐。
+  const includeSlowStats = String(query.includeSlowStats ?? 'true') !== 'false'
 
   if (!symbol) {
     throw createError({ statusCode: 400, message: '缺少必需参数: symbol' })
@@ -113,14 +115,14 @@ export default defineEventHandler(async (event) => {
       macdSlowPeriod: 26,
       macdSignalPeriod: 9
     })),
-    collect('oi', () => indicatorsHub.getIndicators(indicatorSymbol, timeframe, 'OI', {
+    ...(includeSlowStats ? [collect('oi', () => indicatorsHub.getIndicators(indicatorSymbol, timeframe, 'OI', {
       lookbackMinutes,
       trendThresholdPercent: 0.4
-    })),
+    }))] : []),
     collect('volume', () => indicatorsHub.getIndicators(indicatorSymbol, timeframe, 'Volume')),
-    collect('squareHeat', () => indicatorsHub.getIndicators(indicatorSymbol, timeframe, 'SquareHeat', {
+    ...(includeSlowStats ? [collect('squareHeat', () => indicatorsHub.getIndicators(indicatorSymbol, timeframe, 'SquareHeat', {
       lookbackMinutes: squareHeatWindowMinutes
-    }))
+    }))] : [])
   ])
 
   const klines = indicatorsHub.getKlines(indicatorSymbol, timeframe) || []
