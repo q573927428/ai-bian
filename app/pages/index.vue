@@ -43,13 +43,13 @@
                       <el-icon><ElIconUnlock /></el-icon>
                       解锁
                     </el-button>
-                    <el-button v-if="passwordVerified && hasPassword" type="primary" size="small" text @click="clearPassword">
-                      <el-icon><ElIconLock /></el-icon>
-                      锁定
-                    </el-button>
                     <el-button v-if="passwordVerified" type="primary" size="small" text @click="showStrategiesDrawer = true">
                       <el-icon><ElIconOperation /></el-icon>
                       策略
+                    </el-button>
+                    <el-button v-if="passwordVerified && hasPassword" type="primary" size="small" text @click="clearPassword">
+                      <el-icon><ElIconLock /></el-icon>
+                      锁定
                     </el-button>
                   </div>
                 </div>

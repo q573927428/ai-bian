@@ -1098,6 +1098,7 @@ onUnmounted(() => {
   background: var(--bg-card);
   border-color: var(--border-color);
   transition: all 0.3s ease;
+  margin-bottom: -50px;
 }
 
 .kline-chart-simple-container:fullscreen {

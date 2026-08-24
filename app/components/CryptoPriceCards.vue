@@ -1,32 +1,5 @@
 <template>
-  <el-card class="price-cards-container" shadow="hover">
-    <!-- <template #header>
-      <div class="card-header">
-        <span>📊 价格看板</span>
-        <div class="header-actions">
-          <el-button 
-            text 
-            type="primary" 
-            size="small" 
-            @click="refreshPrices"
-            :loading="isLoading"
-          >
-            <el-icon><ElIconRefresh /></el-icon>
-            刷新
-          </el-button>
-          <el-button 
-            text 
-            type="info" 
-            size="small" 
-            @click="showWebSocketStatus"
-          >
-            <el-icon><ElIconConnection /></el-icon>
-            连接状态
-          </el-button>
-        </div>
-      </div>
-    </template> -->
-
+  <el-card class="chart-card" shadow="hover">
     <!-- K线图表（引擎可切换：自研K线 / TradingView） -->
     <ClientOnly>
       <ChartEngineSwitcher :symbol="selectedSymbol || 'BTCUSDT'" />
@@ -34,25 +7,42 @@
     
     <!-- 水平线 -->
     <div class="horizontal-line"></div>
+  </el-card>
 
-    <!-- WebSocket状态提示 -->
-    <!-- <div v-if="!isWebSocketConnected" class="connection-warning">
-      <el-alert
-        title="WebSocket未连接"
-        type="warning"
-        :closable="false"
-        show-icon
-      >
-        <template #default>
-          <span>价格数据可能不是实时的，正在尝试重新连接...</span>
-        </template>
-      </el-alert>
-    </div> -->
+  <el-card class="price-grid-card" shadow="hover">
+    <div class="price-cards-header">
+      <h3 class="price-cards-title">📊 价格看板</h3>
+      <div class="pagination-actions" v-if="totalPages > 1">
+        <el-button
+          circle
+          text
+          size="small"
+          :disabled="currentPage === 0"
+          aria-label="上一页价格"
+          title="上一页"
+          @click="previousPage"
+        >
+          <el-icon><ElIconArrowLeft /></el-icon>
+        </el-button>
+        <span class="page-indicator">{{ currentPage + 1 }} / {{ totalPages }}</span>
+        <el-button
+          circle
+          text
+          size="small"
+          :disabled="currentPage >= totalPages - 1"
+          aria-label="下一页价格"
+          title="下一页"
+          @click="nextPage"
+        >
+          <el-icon><ElIconArrowRight /></el-icon>
+        </el-button>
+      </div>
+    </div>
 
     <!-- 价格卡片网格 -->
     <div class="cards-grid">
       <div 
-        v-for="crypto in cryptoPrices" 
+        v-for="crypto in visibleCryptoPrices"
         :key="crypto.symbol"
         class="price-card"
         :class="{ 'price-up': crypto.change24hPercent > 0, 'price-down': crypto.change24hPercent < 0 }"
@@ -131,25 +121,36 @@ const DEFAULT_CRYPTOS = computed<string[]>(() => {
 // 响应式数据
 const cryptoPrices = ref<CryptoPrice[]>([])
 const isLoading = ref(false)
-const isWebSocketConnected = ref(false)
 const showChartModal = ref(false)
 const selectedSymbol = ref('')
+const currentPage = ref(0)
+const pageSize = ref(20)
 // 价格变动动画状态
 const priceChangeAnimations = ref<Record<string, 'up' | 'down' | null>>({})
 
 // 计算属性
 const hasPrices = computed(() => cryptoPrices.value.length > 0)
+const totalPages = computed(() => Math.max(1, Math.ceil(cryptoPrices.value.length / pageSize.value)))
+const visibleCryptoPrices = computed(() => {
+  const start = currentPage.value * pageSize.value
+  return cryptoPrices.value.slice(start, start + pageSize.value)
+})
 
-// 获取WebSocket连接状态
-async function fetchWebSocketStatus() {
-  try {
-    const response = await $fetch<WebSocketStatusResponse>('/api/websocket/status')
-    if (response.success && response.data?.isConnected !== undefined) {
-      isWebSocketConnected.value = response.data.isConnected
-    }
-  } catch (error) {
-    console.error('获取WebSocket状态失败:', error)
-  }
+/** 根据视口宽度设置每页数量，确保卡片区域始终最多显示两行。 */
+function updatePageSize() {
+  if (!import.meta.client) return
+  pageSize.value = window.innerWidth <= 480 ? 4 : 20
+  currentPage.value = Math.min(currentPage.value, totalPages.value - 1)
+}
+
+/** 切换到上一页价格卡片。 */
+function previousPage() {
+  currentPage.value = Math.max(0, currentPage.value - 1)
+}
+
+/** 切换到下一页价格卡片。 */
+function nextPage() {
+  currentPage.value = Math.min(totalPages.value - 1, currentPage.value + 1)
 }
 
 // 从 botStore 共享价格获取数据（自动更新）
@@ -164,13 +165,6 @@ function syncPricesFromStore() {
 watch(() => botStore.prices, () => {
   syncPricesFromStore()
 }, { deep: true })
-
-// 手动刷新价格（触发 botStore 重新拉取）
-function fetchPrices() {
-  isLoading.value = true
-  syncPricesFromStore()
-  isLoading.value = false
-}
 
 // 更新加密货币价格
 function updateCryptoPrices(prices: Record<string, any>) {
@@ -215,6 +209,7 @@ function updateCryptoPrices(prices: Record<string, any>) {
   })
   
   cryptoPrices.value = updatedPrices
+  currentPage.value = Math.min(currentPage.value, totalPages.value - 1)
 }
 
 // 触发价格变动动画
@@ -228,24 +223,6 @@ function triggerPriceAnimation(symbol: string, direction: 'up' | 'down') {
       priceChangeAnimations.value[symbol] = null
     }, 1500)
   }
-}
-
-// 刷新价格（触发 botStore 重新拉取）
-function refreshPrices() {
-  botStore.fetchPrices()
-  ElMessage.success('正在刷新价格数据...')
-}
-
-// 显示WebSocket状态
-function showWebSocketStatus() {
-  ElMessageBox.alert(
-    `WebSocket连接状态: ${isWebSocketConnected.value ? '已连接' : '未连接'}`,
-    '连接状态',
-    {
-      confirmButtonText: '确定',
-      type: isWebSocketConnected.value ? 'success' : 'warning'
-    }
-  )
 }
 
 // 打开图表弹窗
@@ -308,15 +285,19 @@ function getRandomColor(symbol: string) {
 
 // 组件生命周期
 onMounted(() => {
-  fetchWebSocketStatus()
   // 订阅 botStore 共享价格更新，自动同步价格
   botStore.subscribeToPrices('crypto-price-cards')
+  updatePageSize()
+  window.addEventListener('resize', updatePageSize)
   // 首次加载
   syncPricesFromStore()
 })
 
 onUnmounted(() => {
   botStore.unsubscribeFromPrices('crypto-price-cards')
+  if (import.meta.client) {
+    window.removeEventListener('resize', updatePageSize)
+  }
 })
 
 // 类型定义
@@ -328,46 +309,41 @@ interface CryptoPrice {
   lastUpdate: number
 }
 
-interface ApiResponse {
-  success: boolean
-  message?: string
-  data?: {
-    prices: Record<string, any>
-    timestamp: number
-    webSocketState?: {
-      connected: boolean
-    }
-  }
-}
-
-interface WebSocketStatusResponse {
-  success: boolean
-  message?: string
-  data?: {
-    isConnected: boolean
-    webSocketState?: any
-    subscribedSymbols?: string[]
-    priceCount?: number
-    lastUpdate?: number
-  }
-}
 </script>
 
 <style scoped>
-.price-cards-container {
+.chart-card,
+.price-grid-card {
   margin-bottom: 20px;
 }
 
-.card-header {
+.price-cards-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 32px;
+  margin-bottom: 10px;
+}
+
+.price-cards-title {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 16px;
   font-weight: 600;
+  line-height: 1.5;
 }
 
-.header-actions {
-  gap: 8px;
+.pagination-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 
-.connection-warning {
-  margin-bottom: 16px;
+.page-indicator {
+  min-width: 38px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  text-align: center;
 }
 
 .cards-grid {
