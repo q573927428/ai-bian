@@ -385,6 +385,7 @@ function clampInteger(value: unknown, min: number, max: number, fallback: number
 function getDefaultBotConfig(): BotConfig {
   return {
     symbols: [], // 默认监控交易对列表（从 bot-config.json 读取）
+    syncSymbolsToStrategies: false, // 默认只更新 bot-config，不自动同步到所有策略
     monitorInterval: 60, // 持仓监控间隔（秒）
     indicatorsConfig: {
       requiredCandles: 500, // 指标计算所需最少K线数量

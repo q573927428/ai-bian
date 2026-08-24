@@ -272,6 +272,8 @@ export interface ChartMarkerConfig {
 // 机器人系统配置
 export interface BotConfig {
   symbols: string[]
+  /** 保存交易对列表时是否同步更新所有策略的交易对。 */
+  syncSymbolsToStrategies?: boolean
   monitorInterval: number
   indicatorsConfig: IndicatorsConfig
   emaPeriods: number[]

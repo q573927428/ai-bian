@@ -6,6 +6,7 @@
  *   - symbols?: string[] - 最终的交易对列表（直接覆盖写入配置文件）
  *   - added?: string[] - 仅新增的交易对
  *   - removed?: string[] - 仅删除的交易对
+ *   - syncStrategies?: boolean - 是否同步更新所有策略，默认 true
  * 
  * 三种调用方式:
  *   1. 只传 symbols: 用新的完整列表替换配置文件，根据差异处理增删
@@ -29,6 +30,7 @@ export default defineEventHandler(async (event) => {
     const fullSymbols: string[] | undefined = body?.symbols
     const addedOnly: string[] | undefined = body?.added
     const removedOnly: string[] | undefined = body?.removed
+    const syncStrategies = body?.syncStrategies !== false
 
     const syncService = getSyncService()
     const currentConfig = await getBotConfig()
@@ -158,7 +160,8 @@ export default defineEventHandler(async (event) => {
     }
 
     // ========== 同步所有策略的交易对 ==========
-    if (added.length > 0 || removed.length > 0) {
+    // K 线和行情订阅在上方始终热重载；开关关闭时只跳过策略文件更新。
+    if (syncStrategies && (added.length > 0 || removed.length > 0)) {
       try {
         const strategyManager = getStrategyManager()
         const allStrategies = await strategyManager.getAllStrategies()
@@ -211,6 +214,8 @@ export default defineEventHandler(async (event) => {
     if (blockedByPosition.length > 0) parts.push(`因持仓阻止删除 ${blockedByPosition.length} 个: ${blockedByPosition.join(', ')}`)
     if (strategiesUpdated > 0) parts.push(`同步策略 ${strategiesUpdated} 个`)
     if (activeStrategiesReloaded > 0) parts.push(`重载运行中策略 ${activeStrategiesReloaded} 个`)
+    const strategiesSkipped = !syncStrategies && (added.length > 0 || removed.length > 0)
+    if (strategiesSkipped) parts.push('未同步策略')
 
     console.log(`✅ 热重载完成: ${parts.join('，')}`)
 
@@ -222,6 +227,7 @@ export default defineEventHandler(async (event) => {
       blockedByPosition,
       strategiesUpdated,
       activeStrategiesReloaded,
+      strategiesSkipped,
       total: finalSymbols.length
     }
   } catch (error: any) {

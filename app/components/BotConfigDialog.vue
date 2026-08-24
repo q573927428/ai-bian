@@ -43,6 +43,10 @@
                     🔥 添加热门交易对
                   </el-button>
               </el-form-item>
+              <el-form-item label="同步到所有策略" class="grid-full">
+                <el-switch v-model="form.syncSymbolsToStrategies" />
+                <span class="config-hint">开启后，保存交易对列表会同步更新所有策略；关闭后仅保存到 bot-config.json</span>
+              </el-form-item>
             </div>
           </div>
 
@@ -353,12 +357,13 @@ const handleSave = async () => {
 
       if (addedSymbols.length > 0 || removedSymbols.length > 0) {
         try {
-          // 配置已先保存，服务端再读取配置会拿到新列表；这里直接传递本次增删量。
+          // 配置已先保存，热重载仍负责 K 线和行情订阅；开关只控制是否改写策略文件。
           const reloadRes = await $fetch<any>('/api/bot/reload-symbols', {
             method: 'POST',
             body: {
               added: addedSymbols,
-              removed: removedSymbols
+              removed: removedSymbols,
+              syncStrategies: form.value.syncSymbolsToStrategies !== false
             }
           })
           if (reloadRes.success) {
@@ -370,7 +375,8 @@ const handleSave = async () => {
             }
             if (reloadRes.strategiesUpdated > 0) parts.push(`同步策略 ${reloadRes.strategiesUpdated} 个`)
             if (reloadRes.activeStrategiesReloaded > 0) parts.push(`重载运行中策略 ${reloadRes.activeStrategiesReloaded} 个`)
-            
+            if (reloadRes.strategiesSkipped) parts.push('未同步策略')
+
             const message = parts.length > 0
               ? `${parts.join('，')}，无需重启服务`
               : '配置已保存，交易对列表已是最新，无需重启服务'
@@ -518,6 +524,12 @@ onUnmounted(() => {
 .hot-btn {
   flex-shrink: 0;
   margin-top: 10px;
+}
+
+.config-hint {
+  margin-left: 8px;
+  font-size: 12px;
+  color: #909399;
 }
 
 /* 数字输入框自适应宽度，不拉伸 */
