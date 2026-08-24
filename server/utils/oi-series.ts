@@ -11,6 +11,17 @@ export interface OISeriesPoint {
 }
 
 /**
+ * 将历史 OI 时间点归属到其刚结束的 K 线开始时间。
+ *
+ * Binance openInterestHist 的 07:05 快照描述 07:00~07:05 这段结束时的 OI，
+ * 而 K 线 timestamp 使用区间开始时间，因此需要映射到 07:00，而不是 07:05。
+ */
+export function mapOIHistoryTimestampToKlineBucket(timestamp: number, intervalSeconds: number): number {
+  if (!Number.isFinite(timestamp) || !Number.isFinite(intervalSeconds) || intervalSeconds <= 0) return NaN
+  return Math.floor((timestamp - 1) / intervalSeconds) * intervalSeconds
+}
+
+/**
  * 按时间戳去重并升序整理 OI 序列。
  */
 export function normalizeOISeries(points: OISeriesPoint[]): OISeriesPoint[] {

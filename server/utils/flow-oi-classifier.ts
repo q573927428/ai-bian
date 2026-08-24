@@ -2,12 +2,12 @@
 import type { FlowOIDirection, FlowOIState, KLineTimeframe, SimpleKLineData } from '../../types/kline-simple'
 
 export const FLOW_OI_THRESHOLDS: Record<KLineTimeframe, { activeFlowDeviationThreshold: number; oiChangePercentThreshold: number }> = {
-  '5m': { activeFlowDeviationThreshold: 25, oiChangePercentThreshold: 0.3 },
-  '15m': { activeFlowDeviationThreshold: 20, oiChangePercentThreshold: 0.5 },
+  '5m': { activeFlowDeviationThreshold: 20, oiChangePercentThreshold: 0.3 },
+  '15m': { activeFlowDeviationThreshold: 15, oiChangePercentThreshold: 0.5 },
   '1h': { activeFlowDeviationThreshold: 10, oiChangePercentThreshold: 0.6 },
   '4h': { activeFlowDeviationThreshold: 8, oiChangePercentThreshold: 0.8 },
-  '1d': { activeFlowDeviationThreshold: 5, oiChangePercentThreshold: 1.2 },
-  '1w': { activeFlowDeviationThreshold: 2, oiChangePercentThreshold: 1.2 }
+  '1d': { activeFlowDeviationThreshold: 5, oiChangePercentThreshold: 2 },
+  '1w': { activeFlowDeviationThreshold: 2, oiChangePercentThreshold: 2 }
 }
 
 function direction(value: number | undefined, threshold: number): FlowOIDirection {
@@ -55,6 +55,6 @@ export function classifyFlowOI(data: SimpleKLineData[], timeframe: KLineTimefram
     else if (flowDirection === 'negative' && oiDirection === 'positive') state = 'short-build'
     else if (flowDirection === 'positive' && oiDirection === 'negative') state = 'short-cover'
     else if (flowDirection === 'negative' && oiDirection === 'negative') state = 'long-liquidation'
-    return { ...bar, oiChange, oiChangePercent, state }
+    return { ...bar, activeFlowDeviation: flowDeviation, oiChange, oiChangePercent, state }
   })
 }

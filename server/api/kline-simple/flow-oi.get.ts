@@ -21,6 +21,7 @@ export default defineEventHandler((event) => {
       t: item.t, c: item.c, quoteVolume: item.quoteVolume ?? null,
       activeBuyAmount: item.activeBuyAmount ?? null, activeSellAmount: item.activeSellAmount ?? null,
       activeDelta: item.activeDelta ?? null, activeDeltaRatio: item.activeDeltaRatio ?? null,
+      activeFlowDeviation: item.activeFlowDeviation ?? null,
       oiValue: item.oiValue ?? null, oiChange: item.oiChange ?? null,
       oiChangePercent: item.oiChangePercent ?? null, state: item.state ?? 'unavailable',
       provisional: item.oiProvisional ?? false

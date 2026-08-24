@@ -4,9 +4,14 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
   findOIInSeriesAtOrBefore,
+  mapOIHistoryTimestampToKlineBucket,
   normalizeOISeries,
   upsertOISeriesPoint
 } from '../server/utils/oi-series.ts'
+
+test('历史 OI 时间点归属刚结束的 K 线', () => {
+  assert.equal(mapOIHistoryTimestampToKlineBucket(7 * 60, 5 * 60), 5 * 60)
+})
 
 test('历史 OI 按 5m 时间桶去重并升序整理', () => {
   const points = normalizeOISeries([

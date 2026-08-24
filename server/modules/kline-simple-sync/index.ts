@@ -8,6 +8,7 @@ import {
 import { EventEmitter } from 'node:events'
 import { binanceApiGateway } from '../../utils/binance-api-gateway'
 import { classifyFlowOI } from '../../utils/flow-oi-classifier'
+import { mapOIHistoryTimestampToKlineBucket } from '../../utils/oi-series'
 
 // Binance K线数据接口
 interface BinanceKLine {
@@ -347,7 +348,7 @@ export class KLineSimpleSyncService {
         const history = await this.fetchHistoricalOI(symbol, timeframe, bars[0]!.t * 1000, (bars.at(-1)!.t + intervalSeconds) * 1000)
         const byBucket = new Map<number, number>()
         for (const point of history) {
-          const bucket = Math.floor(point.timestamp / intervalSeconds) * intervalSeconds
+          const bucket = mapOIHistoryTimestampToKlineBucket(point.timestamp, intervalSeconds)
           byBucket.set(bucket, point.openInterest)
         }
         const matched = bars

@@ -17,6 +17,8 @@ export interface SimpleKLineData {
   activeSellAmount?: number
   activeDelta?: number
   activeDeltaRatio?: number
+  /** 主动净流比例相对 12 周期 EMA 的偏离，单位为百分点。 */
+  activeFlowDeviation?: number
   oiValue?: number
   oiChange?: number
   oiChangePercent?: number
@@ -41,6 +43,8 @@ export interface KLineData {
   activeSellAmount?: number
   activeDelta?: number
   activeDeltaRatio?: number
+  /** 主动净流比例相对 12 周期 EMA 的偏离，单位为百分点。 */
+  activeFlowDeviation?: number
   oiValue?: number
   oiChange?: number
   oiChangePercent?: number

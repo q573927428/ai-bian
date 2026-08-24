@@ -3,7 +3,7 @@
     <div class="panel-meta">
       <strong>资金流与 OI</strong>
       <template v-if="latest">
-      <span>成交额 {{ format(latest.quoteVolume) }}</span><span>主动净流 {{ format(latest.activeDelta) }} ({{ formatRatioPercent(latest.activeDeltaRatio) }})</span>
+      <span>成交额 {{ format(latest.quoteVolume) }}</span><span>主动净流 {{ format(latest.activeDelta) }} ({{ formatRatioPercent(latest.activeDeltaRatio) }})</span> <span>偏离 {{ formatPercent(latest.activeFlowDeviation) }}</span>
       <span>OI变化 {{ formatPercent(latest.oiChangePercent) }}</span>
       <el-tag size="small" effect="plain" :class="['state-tag', stateClass]">{{ stateLabel }}</el-tag>
       </template>
@@ -19,7 +19,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { createChart, HistogramSeries, ColorType } from 'lightweight-charts'
 import type { KLineTimeframe } from '../../../types/kline-simple'
 /** 副图接口返回的单根资金流与 OI 摘要。 */
-interface FlowRow { t: number; c: number; quoteVolume: number | null; activeDelta: number | null; activeDeltaRatio: number | null; oiChangePercent: number | null; state: string }
+interface FlowRow { t: number; c: number; quoteVolume: number | null; activeDelta: number | null; activeDeltaRatio: number | null; activeFlowDeviation: number | null; oiChangePercent: number | null; state: string }
 /** 副图输入参数，负责复用主图的主题和时间轴视口配置。 */
 interface Props {
   symbol: string
@@ -127,6 +127,7 @@ const syncLatestKline = () => {
     quoteVolume: null,
     activeDelta: null,
     activeDeltaRatio: null,
+    activeFlowDeviation: null,
     oiChangePercent: null,
     state: 'unavailable'
   }].sort((a, b) => a.t - b.t)
@@ -223,7 +224,16 @@ onBeforeUnmount(() => { resizeObserver?.disconnect(); chart?.remove() })
 .flow-oi-panel { border-top: 1px solid var(--el-border-color, #2d3748); padding: 8px 0 10px; color: var(--el-text-color-primary, #d7dee9); font-size: 12px; background: var(--el-bg-color, #111827); }
 .flow-oi-panel.dark { color: #d9d9d9; background: #131722; border-top-color: #2b2b43; }
 .flow-oi-panel.light { color: #191919; background: #fff; border-top-color: #cccccc; }
-.panel-meta { display: flex; gap: 14px; align-items: center; min-width: 0; margin-bottom: 6px; padding: 0 12px; color: #9ca9bb; white-space: nowrap; overflow: hidden; }.panel-meta strong, .panel-meta span, .panel-meta .state-tag { flex: none; }.panel-meta strong { color: var(--el-text-color-primary, #d7dee9); }.state-tag { font-weight: 500; }.state-tag.long-build { color: #22c55e; border-color: #22c55e66; background: #22c55e1a; }.state-tag.short-build { color: #ef4444; border-color: #ef444466; background: #ef44441a; }.state-tag.short-cover { color: #f59e0b; border-color: #f59e0b66; background: #f59e0b1a; }.state-tag.long-liquidation { color: #a855f7; border-color: #a855f766; background: #a855f71a; }.state-tag.neutral { color: #94a3b8; border-color: #94a3b866; background: #94a3b81a; }.state-tag.unavailable { color: #64748b; border-color: #64748b66; background: #64748b1a; }.plots { width: 100%; height: 188px; }
+.panel-meta { display: flex; gap: 14px; align-items: center; min-width: 0; margin-bottom: 6px; padding: 0 12px; color: #9ca9bb; white-space: nowrap; overflow: hidden; }.panel-meta strong, .panel-meta span, .panel-meta .state-tag { flex: none; }.panel-meta strong { color: var(--el-text-color-primary, #d7dee9); }
+/* 状态标签使用自身的 Element Plus 变量，避免暗色主题的全局标签规则覆盖状态色。 */
+.flow-oi-panel :deep(.state-tag) { font-weight: 500; }
+.flow-oi-panel :deep(.state-tag.long-build) { color: #22c55e !important; border-color: #22c55e66 !important; background-color: #22c55e1a !important; }
+.flow-oi-panel :deep(.state-tag.short-build) { color: #ef4444 !important; border-color: #ef444466 !important; background-color: #ef44441a !important; }
+.flow-oi-panel :deep(.state-tag.short-cover) { color: #f59e0b !important; border-color: #f59e0b66 !important; background-color: #f59e0b1a !important; }
+.flow-oi-panel :deep(.state-tag.long-liquidation) { color: #a855f7 !important; border-color: #a855f766 !important; background-color: #a855f71a !important; }
+.flow-oi-panel :deep(.state-tag.neutral) { color: #94a3b8 !important; border-color: #94a3b866 !important; background-color: #94a3b81a !important; }
+.flow-oi-panel :deep(.state-tag.unavailable) { color: #64748b !important; border-color: #64748b66 !important; background-color: #64748b1a !important; }
+.plots { width: 100%; height: 188px; }
 @media (max-width: 640px) {
   .panel-meta {
     gap: 6px 12px;
