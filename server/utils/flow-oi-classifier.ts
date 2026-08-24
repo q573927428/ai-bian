@@ -2,12 +2,12 @@
 import type { FlowOIDirection, FlowOIState, KLineTimeframe, SimpleKLineData } from '../../types/kline-simple'
 
 export const FLOW_OI_THRESHOLDS: Record<KLineTimeframe, { activeFlowDeviationThreshold: number; oiChangePercentThreshold: number }> = {
-  '5m': { activeFlowDeviationThreshold: 3, oiChangePercentThreshold: 0.4 },
-  '15m': { activeFlowDeviationThreshold: 4, oiChangePercentThreshold: 0.5 },
-  '1h': { activeFlowDeviationThreshold: 5, oiChangePercentThreshold: 0.6 },
-  '4h': { activeFlowDeviationThreshold: 7, oiChangePercentThreshold: 0.8 },
+  '5m': { activeFlowDeviationThreshold: 25, oiChangePercentThreshold: 0.3 },
+  '15m': { activeFlowDeviationThreshold: 20, oiChangePercentThreshold: 0.5 },
+  '1h': { activeFlowDeviationThreshold: 10, oiChangePercentThreshold: 0.6 },
+  '4h': { activeFlowDeviationThreshold: 8, oiChangePercentThreshold: 0.8 },
   '1d': { activeFlowDeviationThreshold: 5, oiChangePercentThreshold: 1.2 },
-  '1w': { activeFlowDeviationThreshold: 1.8, oiChangePercentThreshold: 1.2 }
+  '1w': { activeFlowDeviationThreshold: 2, oiChangePercentThreshold: 1.2 }
 }
 
 function direction(value: number | undefined, threshold: number): FlowOIDirection {
