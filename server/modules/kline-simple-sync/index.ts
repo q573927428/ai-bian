@@ -1,4 +1,4 @@
-import { appendSimpleKLineData, getSimpleKLineData, getSimpleLastKLineTimestamp, updateKLineDerivedData, updateKLineOIValues, updateLastKLine, deleteKLineFile } from '../../utils/kline-simple-storage'
+import { appendSimpleKLineData, getSimpleLastKLineTimestamp, updateLastKLine, deleteKLineFile } from '../../utils/kline-simple-storage'
 import type { KLineData, KLineTimeframe, KLineSyncConfig, TimeframeSyncConfig } from '../../../types/kline-simple'
 import { DEFAULT_CONFIG } from '../../../types/kline-simple'
 import {
@@ -7,8 +7,6 @@ import {
 } from 'node:timers'
 import { EventEmitter } from 'node:events'
 import { binanceApiGateway } from '../../utils/binance-api-gateway'
-import { classifyFlowOI } from '../../utils/flow-oi-classifier'
-import { mapOIHistoryTimestampToKlineBucket } from '../../utils/oi-series'
 
 // Binance K线数据接口
 interface BinanceKLine {
@@ -18,8 +16,6 @@ interface BinanceKLine {
   low: string
   close: string
   volume: string
-  quoteVolume?: string
-  takerBuyQuoteVolume?: string
 }
 
 // 同步状态
@@ -267,129 +263,19 @@ export class KLineSimpleSyncService {
       )
       
       // 解析数据
-      return data.map((item: any[]): KLineData => {
-        const quoteVolume = Number(item[7])
-        const takerBuyQuoteVolume = Number(item[10])
-        const activeBuyAmount = Number.isFinite(takerBuyQuoteVolume) ? takerBuyQuoteVolume : undefined
-        const activeSellAmount = Number.isFinite(quoteVolume) && activeBuyAmount !== undefined ? Math.max(0, quoteVolume - activeBuyAmount) : undefined
-        const activeDelta = activeBuyAmount !== undefined && activeSellAmount !== undefined ? activeBuyAmount - activeSellAmount : undefined
-        return {
+      return data.map((item: any[]): KLineData => ({
         timestamp: Math.floor(item[0] / 1000), // 转换为秒
         open: parseFloat(item[1]),
         high: parseFloat(item[2]),
         low: parseFloat(item[3]),
         close: parseFloat(item[4]),
-        volume: parseFloat(item[5]),
-        quoteVolume: Number.isFinite(quoteVolume) ? quoteVolume : undefined,
-        takerBuyQuoteVolume: activeBuyAmount,
-        activeBuyAmount,
-        activeSellAmount,
-        activeDelta,
-        activeDeltaRatio: activeDelta !== undefined && quoteVolume > 0 ? activeDelta / quoteVolume : undefined
-        }
-      })
+        volume: parseFloat(item[5])
+      }))
       
     } catch (error) {
       console.error(`从Binance获取K线数据失败: ${symbol}/${timeframe}`, error)
       throw error
     }
-  }
-
-  /** 获取当前 OI，并标记为临时快照；失败时不阻塞 K 线同步。 */
-  private async fetchCurrentOI(symbol: string): Promise<number | undefined> {
-    try {
-      const data = await binanceApiGateway.fetchJson<any>('marketData', `openInterest:${symbol}`, `https://fapi.binance.com/fapi/v1/openInterest?symbol=${symbol.replace('/', '')}`)
-      const value = Number(data?.openInterest)
-      return Number.isFinite(value) && value > 0 ? value : undefined
-    } catch (error: any) {
-      console.warn(`获取当前 OI 失败（不影响K线）: ${symbol}`, error?.message || error)
-      return undefined
-    }
-  }
-
-  /**
-   * 获取 Binance 当前可提供的历史 OI。1w 没有可用接口，按方案明确跳过。
-   */
-  private async fetchHistoricalOI(symbol: string, timeframe: KLineTimeframe, startTime: number, endTime: number): Promise<Array<{ timestamp: number; openInterest: number }>> {
-    if (timeframe === '1w') return []
-    const result: Array<{ timestamp: number; openInterest: number }> = []
-    // Binance openInterestHist 只保留最近 1 个月，不能把 2233 根 K 线的完整范围直接传入。
-    const availableFrom = Date.now() - 30 * 24 * 60 * 60 * 1000
-    let cursor = Math.max(startTime, availableFrom)
-    const end = Math.min(endTime, Date.now())
-    if (cursor >= end) return result
-    const binanceSymbol = symbol.replace('/', '')
-    while (cursor < end) {
-      const url = `https://fapi.binance.com/futures/data/openInterestHist?symbol=${binanceSymbol}&period=${timeframe}&startTime=${cursor}&endTime=${end}&limit=500`
-      const rows = await binanceApiGateway.fetchJson<any[]>('marketData', `openInterestHistory:${binanceSymbol}:${timeframe}:${cursor}:${end}`, url)
-      if (!Array.isArray(rows) || rows.length === 0) break
-      let lastTimestamp = cursor
-      for (const row of rows) {
-        const timestamp = Number(row.timestamp)
-        const openInterest = Number(row.sumOpenInterest ?? row.openInterest ?? row.contracts)
-        if (Number.isFinite(timestamp) && Number.isFinite(openInterest) && openInterest > 0) {
-          result.push({ timestamp: Math.floor(timestamp / 1000), openInterest })
-          lastTimestamp = Math.max(lastTimestamp, timestamp)
-        }
-      }
-      if (lastTimestamp <= cursor || rows.length < 500) break
-      cursor = lastTimestamp + 1
-    }
-    return result
-  }
-
-  /** 将 OI 对齐到 K 线窗口，并持久化派生字段。 */
-  private async refreshFlowOI(symbol: string, timeframe: KLineTimeframe, includeHistorical = false): Promise<void> {
-    let bars = getSimpleKLineData(symbol, timeframe, { limit: this.config.maxBars })
-    if (bars.length === 0) return
-    if (includeHistorical && timeframe !== '1w') {
-      try {
-        const intervalSeconds = this.getIntervalSeconds(timeframe)
-        const history = await this.fetchHistoricalOI(symbol, timeframe, bars[0]!.t * 1000, (bars.at(-1)!.t + intervalSeconds) * 1000)
-        const byBucket = new Map<number, number>()
-        for (const point of history) {
-          const bucket = mapOIHistoryTimestampToKlineBucket(point.timestamp, intervalSeconds)
-          byBucket.set(bucket, point.openInterest)
-        }
-        const matched = bars
-          .map(bar => ({ t: bar.t, oiValue: byBucket.get(bar.t), oiProvisional: false }))
-          .filter(item => item.oiValue !== undefined)
-        updateKLineOIValues(symbol, timeframe, matched)
-        bars = getSimpleKLineData(symbol, timeframe, { limit: this.config.maxBars })
-      } catch (error: any) {
-        console.warn(`历史OI回补失败（不影响K线）: ${symbol}/${timeframe}`, error?.message || error)
-      }
-    }
-    const classified = classifyFlowOI(bars, timeframe)
-    const latestTimestamp = bars.at(-1)!.t
-    updateKLineDerivedData(symbol, timeframe, classified.map(bar => ({
-      t: bar.t,
-      oiValue: bar.oiValue,
-      oiChange: bar.oiChange,
-      oiChangePercent: bar.oiChangePercent,
-      // 只有当前最新柱允许 provisional；新柱出现后上一柱必须固定为最终值。
-      oiProvisional: bar.t === latestTimestamp ? bar.oiProvisional : (bar.oiValue === undefined ? undefined : false),
-      state: bar.state
-    })))
-  }
-
-  /**
-   * 启动期补齐近 30 天内缺失的历史 OI；已完整覆盖时不发起 Binance 历史请求。
-   */
-  async backfillMissingHistoricalOI(symbol: string, timeframe: KLineTimeframe): Promise<boolean> {
-    if (timeframe === '1w') return false
-    const bars = getSimpleKLineData(symbol, timeframe, { limit: this.config.maxBars })
-    const cutoff = Math.floor((Date.now() - 30 * 24 * 60 * 60 * 1000) / 1000)
-    const hasMissing = bars.some(bar => bar.t >= cutoff && bar.oiValue === undefined)
-    if (!hasMissing) return false
-    await this.refreshFlowOI(symbol, timeframe, true)
-    const currentOI = await this.fetchCurrentOI(symbol)
-    const latest = getSimpleKLineData(symbol, timeframe, { limit: 1 }).at(-1)
-    if (currentOI !== undefined && latest) {
-      updateKLineOIValues(symbol, timeframe, [{ t: latest.t, oiValue: currentOI, oiProvisional: true }])
-      await this.refreshFlowOI(symbol, timeframe)
-    }
-    return true
   }
 
   // 同步单个交易对的K线数据
@@ -440,16 +326,6 @@ export class KLineSimpleSyncService {
         })
         
         if (historyResult.success) {
-          // 首次同步完成后只回补 Binance 当前可提供的 OI；1w 按接口能力明确跳过。
-          await this.refreshFlowOI(symbol, timeframe, true)
-          if (timeframe !== '1w') {
-            const currentOI = await this.fetchCurrentOI(symbol)
-            const latest = getSimpleKLineData(symbol, timeframe, { limit: 1 }).at(-1)
-            if (currentOI !== undefined && latest) {
-              updateKLineOIValues(symbol, timeframe, [{ t: latest.t, oiValue: currentOI, oiProvisional: true }])
-              await this.refreshFlowOI(symbol, timeframe)
-            }
-          }
           this.updateStatus(symbol, timeframe, { 
             status: 'idle', 
             lastSyncTime: Math.floor(Date.now() / 1000),
@@ -482,14 +358,6 @@ export class KLineSimpleSyncService {
           undefined, // endTime
           initialBars // limit
         )
-
-        const currentOI = timeframe === '1w' ? undefined : await this.fetchCurrentOI(symbol)
-        if (currentOI !== undefined && klineData.length > 0) {
-          // 当前快照只写入最新时间桶，未收盘柱保留 provisional 标记。
-          const latest = klineData[klineData.length - 1]!
-          latest.oiValue = currentOI
-          latest.oiProvisional = true
-        }
         
         if (klineData.length === 0) {
           this.updateStatus(symbol, timeframe, { 
@@ -539,21 +407,6 @@ export class KLineSimpleSyncService {
             throw new Error('保存新K线数据失败')
           }
           appendedCount = newBars.length
-        }
-
-        if (updatedCount > 0 || appendedCount > 0) {
-          // 停机后一次性追加多根K线时，常规增量流程只有最新柱带当前OI快照；
-          // 必须补拉 Binance 历史 OI，否则停机窗口内的柱会长期保持空值。
-          const requiresHistoricalOIBackfill = timeframe !== '1w' && newBars.length > 1
-          await this.refreshFlowOI(symbol, timeframe, requiresHistoricalOIBackfill)
-          if (requiresHistoricalOIBackfill && currentOI !== undefined) {
-            // 历史接口返回的是已采样快照，不能替代最新柱的实时 OI。
-            const latestBar = getSimpleKLineData(symbol, timeframe, { limit: 1 }).at(-1)
-            if (latestBar) {
-              updateKLineOIValues(symbol, timeframe, [{ t: latestBar.t, oiValue: currentOI, oiProvisional: true }])
-              await this.refreshFlowOI(symbol, timeframe)
-            }
-          }
         }
         
         const totalCount = updatedCount + appendedCount
@@ -975,15 +828,6 @@ export class KLineSimpleSyncService {
     if (klineData.length === 0) {
       return
     }
-
-    const currentOI = timeframe === '1w' ? undefined : await this.fetchCurrentOI(symbol)
-    if (currentOI !== undefined) {
-      const latest = klineData.at(-1)
-      if (latest) {
-        latest.oiValue = currentOI
-        latest.oiProvisional = true
-      }
-    }
     
     const updateBar = klineData.find(item => item.timestamp === lastTimestamp)
     const newBars = klineData.filter(item => item.timestamp > lastTimestamp)
@@ -998,10 +842,6 @@ export class KLineSimpleSyncService {
     // 周期已切换时追加新K线；append 函数负责去重和保留最新数据。
     if (newBars.length > 0) {
       appended = appendSimpleKLineData(symbol, timeframe, newBars)
-    }
-
-    if (updated || appended) {
-      await this.refreshFlowOI(symbol, timeframe)
     }
 
     if (updated || appended) {

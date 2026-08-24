@@ -27,27 +27,6 @@ const klineWriteTimes = new Map<string, number>()
 
 const MAX_BARS = 2233
 
-/** SQLite 中一条 K 线记录的行类型；新增指标列对旧数据允许为 NULL。 */
-interface KLineDbRow {
-  timestamp: number
-  open: number
-  high: number
-  low: number
-  close: number
-  volume: number
-  quote_volume: number | null
-  taker_buy_quote_volume: number | null
-  active_buy_amount: number | null
-  active_sell_amount: number | null
-  active_delta: number | null
-  active_delta_ratio: number | null
-  oi_value: number | null
-  oi_change: number | null
-  oi_change_percent: number | null
-  oi_provisional: number | null
-  state: string | null
-}
-
 function getDbPath(): string {
   if (process.env.KLINE_DATA_DIR) {
     return path.join(process.env.KLINE_DATA_DIR, 'kline.db')
@@ -83,17 +62,6 @@ export async function initKLineDb(): Promise<void> {
           low REAL NOT NULL,
           close REAL NOT NULL,
           volume REAL NOT NULL,
-          quote_volume REAL,
-          taker_buy_quote_volume REAL,
-          active_buy_amount REAL,
-          active_sell_amount REAL,
-          active_delta REAL,
-          active_delta_ratio REAL,
-          oi_value REAL,
-          oi_change REAL,
-          oi_change_percent REAL,
-          oi_provisional INTEGER,
-          state TEXT,
           PRIMARY KEY (symbol, timeframe, timestamp)
         );
 
@@ -101,14 +69,6 @@ export async function initKLineDb(): Promise<void> {
           ON kline_data(symbol, timeframe, timestamp DESC);
 
       `)
-      // 兼容已存在的旧数据库：新增指标列均允许 NULL，历史数据保持缺失语义。
-      const columns = db.prepare('PRAGMA table_info(kline_data)').all() as Array<{ name: string }>
-      const additions: Array<[string, string]> = [
-        ['quote_volume', 'REAL'], ['taker_buy_quote_volume', 'REAL'], ['active_buy_amount', 'REAL'],
-        ['active_sell_amount', 'REAL'], ['active_delta', 'REAL'], ['active_delta_ratio', 'REAL'],
-        ['oi_value', 'REAL'], ['oi_change', 'REAL'], ['oi_change_percent', 'REAL'], ['oi_provisional', 'INTEGER'], ['state', 'TEXT']
-      ]
-      for (const [name, type] of additions) if (!columns.some(column => column.name === name)) db.exec(`ALTER TABLE kline_data ADD COLUMN ${name} ${type}`)
 
       dbReady = true
       console.log('✅ K线数据库初始化完成，驱动: node:sqlite')
@@ -254,8 +214,10 @@ export function readSimpleKLineFile(
 ): KLineSingleFile | null {
   const normSymbol = normalizeSymbol(symbol)
   
-  const rows = queryAll<KLineDbRow>(
-    `SELECT *
+  const rows = queryAll<{
+    timestamp: number; open: number; high: number; low: number; close: number; volume: number
+  }>(
+    `SELECT timestamp, open, high, low, close, volume 
      FROM kline_data 
      WHERE symbol = ? AND timeframe = ?
      ORDER BY timestamp ASC`,
@@ -265,18 +227,12 @@ export function readSimpleKLineFile(
   if (rows.length === 0) return null
   
   const data: SimpleKLineData[] = rows.map(r => ({
-    t: r.timestamp, o: r.open, h: r.high, l: r.low, c: r.close, v: r.volume,
-    quoteVolume: r.quote_volume ?? undefined,
-    takerBuyQuoteVolume: r.taker_buy_quote_volume ?? undefined,
-    activeBuyAmount: r.active_buy_amount ?? undefined,
-    activeSellAmount: r.active_sell_amount ?? undefined,
-    activeDelta: r.active_delta ?? undefined,
-    activeDeltaRatio: r.active_delta_ratio ?? undefined,
-    oiValue: r.oi_value ?? undefined,
-    oiChange: r.oi_change ?? undefined,
-    oiChangePercent: r.oi_change_percent ?? undefined,
-    oiProvisional: r.oi_provisional == null ? undefined : Boolean(r.oi_provisional),
-    state: (r.state as SimpleKLineData['state']) ?? undefined
+    t: r.timestamp,
+    o: r.open,
+    h: r.high,
+    l: r.low,
+    c: r.close,
+    v: r.volume
   }))
   
   return {
@@ -308,7 +264,7 @@ export function getSimpleKLineData(
   const normSymbol = normalizeSymbol(symbol)
   const { limit, from, to } = options
   
-  let sql = 'SELECT * FROM kline_data WHERE symbol = ? AND timeframe = ?'
+  let sql = 'SELECT timestamp, open, high, low, close, volume FROM kline_data WHERE symbol = ? AND timeframe = ?'
   const params: (string | number)[] = [normSymbol, timeframe]
   
   if (from !== undefined) {
@@ -325,7 +281,9 @@ export function getSimpleKLineData(
     sql += ' ORDER BY timestamp DESC LIMIT ?'
     params.push(limit)
     
-    const rows = queryAll<KLineDbRow>(sql, params)
+    const rows = queryAll<{
+      timestamp: number; open: number; high: number; low: number; close: number; volume: number
+    }>(sql, params)
     
     // 反转回正序
     return rows.reverse().map(r => ({
@@ -334,16 +292,15 @@ export function getSimpleKLineData(
       h: r.high,
       l: r.low,
       c: r.close,
-      v: r.volume, quoteVolume: r.quote_volume ?? undefined, takerBuyQuoteVolume: r.taker_buy_quote_volume ?? undefined,
-      activeBuyAmount: r.active_buy_amount ?? undefined, activeSellAmount: r.active_sell_amount ?? undefined, activeDelta: r.active_delta ?? undefined,
-      activeDeltaRatio: r.active_delta_ratio ?? undefined, oiValue: r.oi_value ?? undefined, oiChange: r.oi_change ?? undefined,
-      oiChangePercent: r.oi_change_percent ?? undefined, oiProvisional: r.oi_provisional == null ? undefined : Boolean(r.oi_provisional), state: (r.state as SimpleKLineData['state']) ?? undefined
+      v: r.volume
     }))
   }
   
   sql += ' ORDER BY timestamp ASC'
   
-  const rows = queryAll<KLineDbRow>(sql, params)
+  const rows = queryAll<{
+    timestamp: number; open: number; high: number; low: number; close: number; volume: number
+  }>(sql, params)
   
   return rows.map(r => ({
     t: r.timestamp,
@@ -351,10 +308,7 @@ export function getSimpleKLineData(
     h: r.high,
     l: r.low,
     c: r.close,
-    v: r.volume, quoteVolume: r.quote_volume ?? undefined, takerBuyQuoteVolume: r.taker_buy_quote_volume ?? undefined,
-    activeBuyAmount: r.active_buy_amount ?? undefined, activeSellAmount: r.active_sell_amount ?? undefined, activeDelta: r.active_delta ?? undefined,
-    activeDeltaRatio: r.active_delta_ratio ?? undefined, oiValue: r.oi_value ?? undefined, oiChange: r.oi_change ?? undefined,
-    oiChangePercent: r.oi_change_percent ?? undefined, oiProvisional: r.oi_provisional == null ? undefined : Boolean(r.oi_provisional), state: (r.state as SimpleKLineData['state']) ?? undefined
+    v: r.volume
   }))
 }
 
@@ -545,22 +499,9 @@ export function writeSimpleKLineFile(
       
       // 插入所有数据
       executePreparedBatch(
-        `INSERT INTO kline_data (symbol, timeframe, timestamp, open, high, low, close, volume, quote_volume, taker_buy_quote_volume, active_buy_amount, active_sell_amount, active_delta, active_delta_ratio, oi_value, oi_change, oi_change_percent, oi_provisional, state)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-         ON CONFLICT(symbol, timeframe, timestamp) DO UPDATE SET
-           open = excluded.open, high = excluded.high, low = excluded.low, close = excluded.close, volume = excluded.volume,
-           quote_volume = COALESCE(excluded.quote_volume, kline_data.quote_volume),
-           taker_buy_quote_volume = COALESCE(excluded.taker_buy_quote_volume, kline_data.taker_buy_quote_volume),
-           active_buy_amount = COALESCE(excluded.active_buy_amount, kline_data.active_buy_amount),
-           active_sell_amount = COALESCE(excluded.active_sell_amount, kline_data.active_sell_amount),
-           active_delta = COALESCE(excluded.active_delta, kline_data.active_delta),
-           active_delta_ratio = COALESCE(excluded.active_delta_ratio, kline_data.active_delta_ratio),
-           oi_value = COALESCE(excluded.oi_value, kline_data.oi_value),
-           oi_change = COALESCE(excluded.oi_change, kline_data.oi_change),
-           oi_change_percent = COALESCE(excluded.oi_change_percent, kline_data.oi_change_percent),
-           oi_provisional = COALESCE(excluded.oi_provisional, kline_data.oi_provisional),
-           state = COALESCE(excluded.state, kline_data.state)`,
-        limitedData.map(item => [normSymbol, timeframe, item.timestamp, item.open, item.high, item.low, item.close, item.volume, item.quoteVolume ?? null, item.takerBuyQuoteVolume ?? null, item.activeBuyAmount ?? null, item.activeSellAmount ?? null, item.activeDelta ?? null, item.activeDeltaRatio ?? null, item.oiValue ?? null, item.oiChange ?? null, item.oiChangePercent ?? null, item.oiProvisional == null ? null : (item.oiProvisional ? 1 : 0), item.state ?? null])
+        `INSERT OR REPLACE INTO kline_data (symbol, timeframe, timestamp, open, high, low, close, volume)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        limitedData.map(item => [normSymbol, timeframe, item.timestamp, item.open, item.high, item.low, item.close, item.volume])
       )
 
       runSql('COMMIT')
@@ -593,24 +534,11 @@ export function appendSimpleKLineData(
       // 排序新数据
       const sortedNewData = [...newData].sort((a, b) => a.timestamp - b.timestamp)
       
-      // 插入新数据；冲突时保留数据库中已有的非空指标字段，避免普通/高频刷新擦除 OI。
+      // 插入新数据（INSERT OR REPLACE 自动去重）
       executePreparedBatch(
-        `INSERT INTO kline_data (symbol, timeframe, timestamp, open, high, low, close, volume, quote_volume, taker_buy_quote_volume, active_buy_amount, active_sell_amount, active_delta, active_delta_ratio, oi_value, oi_change, oi_change_percent, oi_provisional, state)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-         ON CONFLICT(symbol, timeframe, timestamp) DO UPDATE SET
-           open = excluded.open, high = excluded.high, low = excluded.low, close = excluded.close, volume = excluded.volume,
-           quote_volume = COALESCE(excluded.quote_volume, kline_data.quote_volume),
-           taker_buy_quote_volume = COALESCE(excluded.taker_buy_quote_volume, kline_data.taker_buy_quote_volume),
-           active_buy_amount = COALESCE(excluded.active_buy_amount, kline_data.active_buy_amount),
-           active_sell_amount = COALESCE(excluded.active_sell_amount, kline_data.active_sell_amount),
-           active_delta = COALESCE(excluded.active_delta, kline_data.active_delta),
-           active_delta_ratio = COALESCE(excluded.active_delta_ratio, kline_data.active_delta_ratio),
-           oi_value = COALESCE(excluded.oi_value, kline_data.oi_value),
-           oi_change = COALESCE(excluded.oi_change, kline_data.oi_change),
-           oi_change_percent = COALESCE(excluded.oi_change_percent, kline_data.oi_change_percent),
-           oi_provisional = COALESCE(excluded.oi_provisional, kline_data.oi_provisional),
-           state = COALESCE(excluded.state, kline_data.state)`,
-        sortedNewData.map(item => [normSymbol, timeframe, item.timestamp, item.open, item.high, item.low, item.close, item.volume, item.quoteVolume ?? null, item.takerBuyQuoteVolume ?? null, item.activeBuyAmount ?? null, item.activeSellAmount ?? null, item.activeDelta ?? null, item.activeDeltaRatio ?? null, item.oiValue ?? null, item.oiChange ?? null, item.oiChangePercent ?? null, item.oiProvisional == null ? null : (item.oiProvisional ? 1 : 0), item.state ?? null])
+        `INSERT OR REPLACE INTO kline_data (symbol, timeframe, timestamp, open, high, low, close, volume)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        sortedNewData.map(item => [normSymbol, timeframe, item.timestamp, item.open, item.high, item.low, item.close, item.volume])
       )
 
       // 删除超出 MAX_BARS 的旧数据
@@ -670,89 +598,14 @@ export function updateLastKLine(
   try {
       execute(
       `UPDATE kline_data 
-       SET open = ?, high = ?, low = ?, close = ?, volume = ?, quote_volume = COALESCE(?, quote_volume), taker_buy_quote_volume = COALESCE(?, taker_buy_quote_volume), active_buy_amount = COALESCE(?, active_buy_amount), active_sell_amount = COALESCE(?, active_sell_amount), active_delta = COALESCE(?, active_delta), active_delta_ratio = COALESCE(?, active_delta_ratio), oi_value = COALESCE(?, oi_value), oi_change = COALESCE(?, oi_change), oi_change_percent = COALESCE(?, oi_change_percent), oi_provisional = COALESCE(?, oi_provisional), state = COALESCE(?, state)
+       SET open = ?, high = ?, low = ?, close = ?, volume = ?
        WHERE symbol = ? AND timeframe = ? AND timestamp = ?`,
-      [bar.open, bar.high, bar.low, bar.close, bar.volume, bar.quoteVolume ?? null, bar.takerBuyQuoteVolume ?? null, bar.activeBuyAmount ?? null, bar.activeSellAmount ?? null, bar.activeDelta ?? null, bar.activeDeltaRatio ?? null, bar.oiValue ?? null, bar.oiChange ?? null, bar.oiChangePercent ?? null, bar.oiProvisional == null ? null : (bar.oiProvisional ? 1 : 0), bar.state ?? null, normSymbol, timeframe, bar.timestamp]
+      [bar.open, bar.high, bar.low, bar.close, bar.volume, normSymbol, timeframe, bar.timestamp]
       )
     markKLineUpdated(normSymbol, timeframe)
     return true
   } catch (error) {
     console.error(`SQLite 更新最后一根K线失败: ${normSymbol}/${timeframe}`, error)
-    return false
-  }
-}
-
-/**
- * 批量写入 OI 派生字段。该函数只更新传入的时间戳，适合同步后重算最近窗口和历史回补。
- */
-export function updateKLineDerivedData(
-  symbol: string,
-  timeframe: KLineTimeframe,
-  bars: Array<Pick<SimpleKLineData, 't' | 'oiValue' | 'oiChange' | 'oiChangePercent' | 'oiProvisional' | 'state'>>
-): boolean {
-  if (bars.length === 0) return true
-  const normSymbol = normalizeSymbol(symbol)
-  try {
-    runSql('BEGIN')
-    try {
-      const statement = getDb().prepare(`
-        UPDATE kline_data
-        SET oi_value = ?, oi_change = ?, oi_change_percent = ?, oi_provisional = ?, state = ?
-        WHERE symbol = ? AND timeframe = ? AND timestamp = ?
-      `)
-      for (const bar of bars) {
-        statement.run(
-          bar.oiValue ?? null,
-          bar.oiChange ?? null,
-          bar.oiChangePercent ?? null,
-          bar.oiProvisional == null ? null : (bar.oiProvisional ? 1 : 0),
-          bar.state ?? null,
-          normSymbol,
-          timeframe,
-          bar.t
-        )
-      }
-      runSql('COMMIT')
-      markKLineUpdated(normSymbol, timeframe)
-      return true
-    } catch (innerError) {
-      runSql('ROLLBACK')
-      throw innerError
-    }
-  } catch (error) {
-    console.error(`SQLite 写入OI派生字段失败: ${normSymbol}/${timeframe}`, error)
-    return false
-  }
-}
-
-/** 仅更新 OI 原始快照，不触碰资金流和已有派生字段。 */
-export function updateKLineOIValues(
-  symbol: string,
-  timeframe: KLineTimeframe,
-  bars: Array<Pick<SimpleKLineData, 't' | 'oiValue' | 'oiProvisional'>>
-): boolean {
-  if (bars.length === 0) return true
-  const normSymbol = normalizeSymbol(symbol)
-  try {
-    runSql('BEGIN')
-    try {
-      const statement = getDb().prepare(`
-        UPDATE kline_data
-        SET oi_value = ?, oi_provisional = ?
-        WHERE symbol = ? AND timeframe = ? AND timestamp = ?
-      `)
-      for (const bar of bars) {
-        statement.run(bar.oiValue ?? null, bar.oiProvisional ? 1 : 0, normSymbol, timeframe, bar.t)
-      }
-      runSql('COMMIT')
-      markKLineUpdated(normSymbol, timeframe)
-      return true
-    } catch (innerError) {
-      runSql('ROLLBACK')
-      throw innerError
-    }
-  } catch (error) {
-    console.error(`SQLite 写入OI快照失败: ${normSymbol}/${timeframe}`, error)
     return false
   }
 }

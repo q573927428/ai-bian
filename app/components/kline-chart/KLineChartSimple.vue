@@ -30,8 +30,7 @@
         @scan-markers-change="handleScanMarkersChange"
         @scan-range-change="handleScanRangeChange"
         @ema-periods-change="handleEmaPeriodsChange"
-        @switch-engine="(engine: any) => emit('switch-engine', engine)"
-        @open-price-drawer="emit('open-price-drawer')"
+        @switch-engine="(engine: any) => $emit('switch-engine', engine)"
       />
     </div>
 
@@ -56,23 +55,7 @@
         @tooltip-update="handleTooltipUpdate"
         @order-click="handleOrderClick"
         @scan-click="handleScanClick"
-        @viewport-change="handleViewportChange"
-        @crosshair-time="handleCrosshairTime"
         @retry="loadKLineData"
-      />
-
-      <FlowOIPanel
-        :symbol="displaySymbol"
-        :timeframe="selectedTimeframe as any"
-        :latest-kline-time="klineData[klineData.length - 1]?.t ?? null"
-        :latest-kline-revision="flowDataRevision"
-        :theme="theme"
-        :visible-range="flowViewport ? [flowViewport.from, flowViewport.to] : null"
-        :visible-logical-range="flowViewport ? [flowViewport.logicalFrom, flowViewport.logicalTo] : null"
-        :right-offset="flowViewport?.rightOffset ?? 12"
-        :bar-spacing="flowViewport?.barSpacing ?? 6"
-        :time-scale-width="flowViewport?.timeScaleWidth ?? 0"
-        :crosshair-time="flowCrosshairTime"
       />
 
       <KLineScanResultDialog
@@ -123,7 +106,6 @@ import KLineChartControls from './KLineChartControls.vue'
 import KLineChartCanvas from './KLineChartCanvas.vue'
 import KLineTooltip from './KLineTooltip.vue'
 import KLineScanResultDialog from './KLineScanResultDialog.vue'
-import FlowOIPanel from './FlowOIPanel.vue'
 
 // 导入bot store
 import { useBotStore } from '../../stores/bot'
@@ -182,9 +164,8 @@ const props = withDefaults(defineProps<Props>(), {
 })
 
 // 定义emits
-const emit = defineEmits<{
+defineEmits<{
   'switch-engine': [engine: 'native' | 'tradingview']
-  'open-price-drawer': []
 }>()
 
 // 计算显示的symbol
@@ -271,33 +252,12 @@ const meta = ref({
   max: 2233,
   updated: 0
 })
-// 仅在 K 线 OHLC/成交量/资金流等权威字段更新时递增，避免价格高频刷新触发副图重复请求。
-const flowDataRevision = ref(0)
 const loading = ref(false)
 const error = ref('')
 const theme = ref<'light' | 'dark'>(globalTheme.value)
 const normalChartHeight = 500
 const chartHeight = ref(normalChartHeight)
 const isFullscreen = ref(false)
-
-/** 主图时间轴状态，用于让资金流副图复用相同的时间范围和像素缩放参数。 */
-interface FlowViewport {
-  from: number
-  to: number
-  logicalFrom: number
-  logicalTo: number
-  rightOffset: number
-  barSpacing: number
-  timeScaleWidth: number
-}
-const flowViewport = ref<FlowViewport | null>(null)
-const flowCrosshairTime = ref<number | null>(null)
-const handleViewportChange = (viewport: FlowViewport) => {
-  flowViewport.value = viewport
-}
-const handleCrosshairTime = (time: number | null) => {
-  flowCrosshairTime.value = time
-}
 
 // 监听全局主题变化，同步本地 ref
 watch(globalTheme, (newTheme) => {
@@ -376,8 +336,6 @@ const selectTimeframe = (timeframe: string) => {
   provisionalReloadRequestedAt = 0
   tradeHistory.value = []
   scanResults.value = []
-  flowViewport.value = null
-  flowCrosshairTime.value = null
   scanDialogVisible.value = false
   scanRequestGeneration++
   hideTooltip()
@@ -469,7 +427,6 @@ const loadKLineData = async (silent = false) => {
 
       klineData.value = nextKlineData
       meta.value = result.data.meta
-      flowDataRevision.value++
       
       // 加载历史订单数据（等待完成）
       await loadTradeHistory()
@@ -980,8 +937,6 @@ const fetchLastBar = async () => {
       if (lastKline && lastKline.t === lastBar.t) {
         // 同步更新响应式数据，确保后续价格更新不会覆盖成交量
         klineData.value[lastIndex] = lastBar
-        // 时间戳不变时仍需递增修订号，通知副图同步成交量、资金流和 OI 字段。
-        flowDataRevision.value++
         // 更新图表显示
         chartCanvasRef.value.updateLastKline(lastBar)
       }
@@ -1143,7 +1098,6 @@ onUnmounted(() => {
   background: var(--bg-card);
   border-color: var(--border-color);
   transition: all 0.3s ease;
-  margin-bottom: -50px;
 }
 
 .kline-chart-simple-container:fullscreen {

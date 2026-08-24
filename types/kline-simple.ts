@@ -11,23 +11,7 @@ export interface SimpleKLineData {
   l: number      // low 最低价
   c: number      // close 收盘价
   v: number      // volume 成交量
-  quoteVolume?: number
-  takerBuyQuoteVolume?: number
-  activeBuyAmount?: number
-  activeSellAmount?: number
-  activeDelta?: number
-  activeDeltaRatio?: number
-  /** 主动净流比例相对 12 周期 EMA 的偏离，单位为百分点。 */
-  activeFlowDeviation?: number
-  oiValue?: number
-  oiChange?: number
-  oiChangePercent?: number
-  oiProvisional?: boolean
-  state?: FlowOIState
 }
-
-export type FlowOIDirection = 'positive' | 'negative' | 'neutral' | 'unavailable'
-export type FlowOIState = 'long-build' | 'short-build' | 'short-cover' | 'long-liquidation' | 'neutral' | 'unavailable'
 
 // 完整的K线数据条目（用于内部处理）
 export interface KLineData {
@@ -37,19 +21,6 @@ export interface KLineData {
   low: number
   close: number
   volume: number
-  quoteVolume?: number
-  takerBuyQuoteVolume?: number
-  activeBuyAmount?: number
-  activeSellAmount?: number
-  activeDelta?: number
-  activeDeltaRatio?: number
-  /** 主动净流比例相对 12 周期 EMA 的偏离，单位为百分点。 */
-  activeFlowDeviation?: number
-  oiValue?: number
-  oiChange?: number
-  oiChangePercent?: number
-  oiProvisional?: boolean
-  state?: FlowOIState
 }
 
 // 单文件K线数据格式
@@ -133,8 +104,7 @@ export function toSimpleKLineData(data: KLineData): SimpleKLineData {
     h: data.high,
     l: data.low,
     c: data.close,
-    v: data.volume,
-    ...Object.fromEntries(Object.entries(data).filter(([key, value]) => key !== 'timestamp' && key !== 'open' && key !== 'high' && key !== 'low' && key !== 'close' && key !== 'volume' && value !== undefined))
+    v: data.volume
   }
 }
 
@@ -146,8 +116,7 @@ export function fromSimpleKLineData(data: SimpleKLineData): KLineData {
     high: data.h,
     low: data.l,
     close: data.c,
-    volume: data.v,
-    ...Object.fromEntries(Object.entries(data).filter(([key, value]) => !['t', 'o', 'h', 'l', 'c', 'v'].includes(key) && value !== undefined))
+    volume: data.v
   }
 }
 
