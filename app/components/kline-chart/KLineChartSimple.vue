@@ -357,9 +357,16 @@ const loadTradeHistory = async () => {
   loadingHistory.value = true
   
   try {
-    await tradeHistoryStore.fetchAllHistory(false)
-    const filteredOrders = tradeHistoryStore.getHistoryBySymbol(symbolToUse)
-    tradeHistory.value = filteredOrders
+    const first = klineData.value[0]
+    const last = klineData.value[klineData.value.length - 1]
+    const response = await $fetch('/api/bot/history-markers', {
+      params: {
+        symbol: symbolToUse,
+        from: first ? first.t * 1000 : undefined,
+        to: last ? (last.t + getTimeframeSeconds(selectedTimeframe.value)) * 1000 : undefined,
+      },
+    }) as any
+    tradeHistory.value = response.success ? response.data || [] : []
   } catch (err: any) {
     console.error('加载交易历史失败:', err)
   } finally {

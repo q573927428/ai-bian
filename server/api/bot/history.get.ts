@@ -1,9 +1,4 @@
-import { readFileSync, existsSync, statSync } from 'fs'
-import { join } from 'path'
-
-let cachedRecords: any[] = []
-let cachedMtimeMs = 0
-let cachedSize = 0
+import { getCachedTradeHistory } from '../../utils/trade-history-cache'
 
 export default defineEventHandler(async (event) => {
   try {
@@ -12,9 +7,8 @@ export default defineEventHandler(async (event) => {
     const pageSize = parseInt(query.pageSize as string) || 10
     
     // 从全局交易历史文件读取数据
-    const historyFilePath = join(process.cwd(), 'data', 'trade-history.json')
-    
-    if (!existsSync(historyFilePath)) {
+    const cachedRecords = getCachedTradeHistory()
+    if (cachedRecords.length === 0) {
       return {
         success: true,
         data: [],
@@ -25,17 +19,6 @@ export default defineEventHandler(async (event) => {
           totalPages: 0,
         },
       }
-    }
-    
-    const fileStat = statSync(historyFilePath)
-    if (cachedMtimeMs !== fileStat.mtimeMs || cachedSize !== fileStat.size) {
-      const rawData = readFileSync(historyFilePath, 'utf-8')
-      cachedRecords = JSON.parse(rawData)
-
-      // 按 closeTime 降序排序（最新的在前）
-      cachedRecords.sort((a: any, b: any) => b.closeTime - a.closeTime)
-      cachedMtimeMs = fileStat.mtimeMs
-      cachedSize = fileStat.size
     }
     
     // 计算分页

@@ -614,7 +614,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
 import type { TradeHistory } from '../../types'
 import { useTradeHistoryStore, type FilterConfig } from '../stores/tradeHistory'
 
@@ -954,9 +954,21 @@ function getCloseCategoryType(category?: string): 'danger' | 'success' | 'warnin
 let pollTimer: ReturnType<typeof setInterval> | null = null
 
 onMounted(() => {
-  loadHistory()
-  // 每30秒自动刷新
-  pollTimer = setInterval(loadHistory, 30000)
+  // 抽屉打开后才加载和轮询，避免页面隐藏时持续传输历史数据。
+  if (visible.value) {
+    loadHistory()
+    pollTimer = setInterval(loadHistory, 30000)
+  }
+})
+
+watch(visible, (isVisible) => {
+  if (isVisible) {
+    void loadHistory()
+    if (!pollTimer) pollTimer = setInterval(loadHistory, 30000)
+  } else if (pollTimer) {
+    clearInterval(pollTimer)
+    pollTimer = null
+  }
 })
 
 onUnmounted(() => {

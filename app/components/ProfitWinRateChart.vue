@@ -108,10 +108,19 @@ let chartInstance: ECharts | null = null
 const loadData = async (force = false) => {
   loading.value = true
   try {
+    const response = await $fetch('/api/bot/history-summary', {
+      params: {
+        strategyId: selectedStrategy.value || undefined,
+        symbol: selectedSymbol.value || undefined,
+      },
+    }) as any
+    chartData.value = response.success ? response.data || [] : []
+    if (response.stats) stats.value = response.stats
+
+    // 筛选项只需从共享缓存中读取，不再用完整订单计算图表数据。
     await tradeHistoryStore.fetchAllHistory(force)
     const allHistory = tradeHistoryStore.allHistory
-    
-    // 提取所有策略和交易对
+
     const strategySet = new Set<string>()
     const symbolSet = new Set<string>()
     
@@ -123,7 +132,7 @@ const loadData = async (force = false) => {
     strategies.value = strategiesStore.strategies.filter(s => strategySet.has(s.id))
     symbols.value = Array.from(symbolSet).sort()
 
-    processChartData()
+    renderChart()
   } catch (error) {
     console.error('加载历史数据失败:', error)
   } finally {
@@ -134,6 +143,23 @@ const loadData = async (force = false) => {
 // 强制刷新
 const refreshData = async () => {
   await loadData(true)
+}
+
+/** 根据筛选条件获取服务端汇总，避免在浏览器扫描完整订单。 */
+const loadSummary = async () => {
+  try {
+    const response = await $fetch('/api/bot/history-summary', {
+      params: {
+        strategyId: selectedStrategy.value || undefined,
+        symbol: selectedSymbol.value || undefined,
+      },
+    }) as any
+    chartData.value = response.success ? response.data || [] : []
+    if (response.stats) stats.value = response.stats
+    renderChart()
+  } catch (error) {
+    console.error('加载盈亏汇总失败:', error)
+  }
 }
 
 // 处理图表数据
@@ -287,7 +313,7 @@ const renderChart = () => {
 
 // 监听筛选变化
 watch([selectedStrategy, selectedSymbol], () => {
-  processChartData()
+  void loadSummary()
 })
 
 // 监听主题变化，重新渲染图表以更新坐标轴颜色
