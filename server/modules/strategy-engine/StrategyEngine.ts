@@ -1449,9 +1449,10 @@ export class StrategyEngine {
 
       const actualEntryPrice = entryExecution?.averagePrice || realPosition.entryPrice || order.average || signal.price
 
-      // 8. 计算止盈价格
-      const takeProfit1 = calculateTakeProfit(signal.price, stopLoss, signal.direction.toUpperCase() as 'LONG' | 'SHORT', strategy.riskManagement.takeProfitRatios[0])
-      const takeProfit2 = calculateTakeProfit(signal.price, stopLoss, signal.direction.toUpperCase() as 'LONG' | 'SHORT', strategy.riskManagement.takeProfitRatios[1])
+      // 止盈必须以实际成交均价为基准；市价单可能产生滑点，继续使用 signal.price
+      // 会让空单止盈落在实际入场价上方（或多单下方）。
+      const takeProfit1 = calculateTakeProfit(actualEntryPrice, stopLoss, signal.direction.toUpperCase() as 'LONG' | 'SHORT', strategy.riskManagement.takeProfitRatios[0])
+      const takeProfit2 = calculateTakeProfit(actualEntryPrice, stopLoss, signal.direction.toUpperCase() as 'LONG' | 'SHORT', strategy.riskManagement.takeProfitRatios[1])
       
       // 9. 收集入场指标（根据策略启用的指标）
       const entryIndicators: Record<string, number> = {}
