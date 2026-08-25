@@ -945,9 +945,6 @@ export class StrategyEngine {
 
       // 获取策略级阈值（每个策略独立配置，无全局兜底）
       const strategyPreScreenConfig = (instance.strategy as any).preScreenConfig
-      const strategyMinConfidence = instance.strategy.minConfidence ?? 50
-      const strategyMinFinalScore = instance.strategy.minFinalScore ?? 0
-      const entryThresholdMode = instance.strategy.entryThresholdMode ?? 'confidence'
       const strategyMaxRiskLevel = instance.strategy.maxRiskLevel ?? 'MEDIUM'
 
       // AI预筛（支持策略级覆盖）
@@ -1054,12 +1051,11 @@ export class StrategyEngine {
 
       let enhancedLog = signal.reasoning
 
-      const minConfidence = strategyMinConfidence
-      const minFinalScore = strategyMinFinalScore
       const finalScore = signal.scoreBreakdown?.finalScore
-      const thresholdValue = entryThresholdMode === 'finalScore' ? finalScore : signal.confidence
-      const threshold = entryThresholdMode === 'finalScore' ? minFinalScore : minConfidence
-      const isThresholdOK = typeof thresholdValue === 'number' && thresholdValue >= threshold
+      const thresholdState = this.evaluateEntryThreshold(instance, signal)
+      const thresholdValue = thresholdState.displayValue
+      const threshold = thresholdState.displayThreshold
+      const isThresholdOK = thresholdState.passed
 
       const maxRiskLevel = strategyMaxRiskLevel
       let isRiskLevelOK = true
@@ -1071,16 +1067,16 @@ export class StrategyEngine {
       }
 
       if (signal.direction === 'idle') {
-        logger.info('🔍扫描结果', `${signal.symbol} @${signal.price} IDLE ${entryThresholdMode}（${thresholdValue ?? '缺失'}，阈值 ${threshold}）置信度（${signal.confidence}）评分（${finalScore}） [${signal.strategyId}] ===详细AI日志=== ${enhancedLog}`)
+        logger.info('🔍扫描结果', `${signal.symbol} @${signal.price} IDLE ${thresholdState.label}（${thresholdValue}，阈值 ${threshold}）置信度（${signal.confidence}）评分（${finalScore}） [${signal.strategyId}] ===详细AI日志=== ${enhancedLog}`)
         return null
       } else if (!isThresholdOK) {
-        logger.info('🔍扫描结果', `${signal.symbol} @${signal.price} ${signal.direction.toUpperCase()} ${entryThresholdMode}（${thresholdValue ?? '缺失'} < ${threshold}）置信度（${signal.confidence}）评分（${finalScore}）[${signal.strategyId}] ===详细AI日志=== ${enhancedLog}`)
+        logger.info('🔍扫描结果', `${signal.symbol} @${signal.price} ${signal.direction.toUpperCase()} ${thresholdState.label}（${thresholdValue} < ${threshold}）置信度（${signal.confidence}）评分（${finalScore}）[${signal.strategyId}] ===详细AI日志=== ${enhancedLog}`)
         return null
       } else if (!isRiskLevelOK) {
-        logger.info('🔍扫描结果', `${signal.symbol} @${signal.price} ${signal.direction.toUpperCase()} ${entryThresholdMode}（${thresholdValue} >= ${threshold}）风险等级（${signal.riskLevel} > ${maxRiskLevel}）[${signal.strategyId}] ===详细AI日志=== ${enhancedLog}`)
+        logger.info('🔍扫描结果', `${signal.symbol} @${signal.price} ${signal.direction.toUpperCase()} ${thresholdState.label}（${thresholdValue} >= ${threshold}）风险等级（${signal.riskLevel} > ${maxRiskLevel}）[${signal.strategyId}] ===详细AI日志=== ${enhancedLog}`)
         return null
       } else {
-        logger.success('🔍扫描结果', `${signal.symbol} @${signal.price} ${signal.direction.toUpperCase()} ${entryThresholdMode}（${thresholdValue} >= ${threshold}）风险等级（${signal.riskLevel} <= ${maxRiskLevel}）[${signal.strategyId}] ===详细AI日志=== ${enhancedLog}`)
+        logger.success('🔍扫描结果', `${signal.symbol} @${signal.price} ${signal.direction.toUpperCase()} ${thresholdState.label}（${thresholdValue} >= ${threshold}）风险等级（${signal.riskLevel} <= ${maxRiskLevel}）[${signal.strategyId}] ===详细AI日志=== ${enhancedLog}`)
       }
 
       // 信号中的止损价用于缓存和后续扩展展示，必须与正式下单使用同一套策略 ATR 口径。
@@ -1167,13 +1163,8 @@ export class StrategyEngine {
       return false
     }
 
-    // 只按策略选择的单一阈值判定，避免两种指标互相拦截。
-    const mode = instance.strategy.entryThresholdMode ?? 'confidence'
-    const threshold = mode === 'finalScore'
-      ? (instance.strategy.minFinalScore ?? 0)
-      : (instance.strategy.minConfidence ?? 50)
-    const value = mode === 'finalScore' ? signal.scoreBreakdown?.finalScore : signal.confidence
-    if (typeof value !== 'number' || value < threshold) {
+    // 根据策略模式统一判断阈值；both 模式要求两个指标同时达标。
+    if (!this.evaluateEntryThreshold(instance, signal).passed) {
       return false
     }
 
@@ -1190,6 +1181,65 @@ export class StrategyEngine {
     }
 
     return true
+  }
+
+  /**
+   * 统一评估策略开仓阈值，避免扫描、校验和杠杆计算出现不同口径。
+   */
+  private evaluateEntryThreshold(instance: StrategyInstance, signal: TradeSignal): {
+    passed: boolean
+    label: string
+    displayValue: string
+    displayThreshold: string
+    confidence: number | undefined
+    finalScore: number | undefined
+    confidenceThreshold: number
+    finalScoreThreshold: number
+  } {
+    const mode = instance.strategy.entryThresholdMode ?? 'confidence'
+    const confidenceThreshold = instance.strategy.minConfidence ?? 50
+    const finalScoreThreshold = instance.strategy.minFinalScore ?? 0
+    const confidence = signal.confidence
+    const finalScore = signal.scoreBreakdown?.finalScore
+    const confidencePassed = typeof confidence === 'number' && confidence >= confidenceThreshold
+    const finalScorePassed = typeof finalScore === 'number' && finalScore >= finalScoreThreshold
+
+    if (mode === 'both') {
+      return {
+        passed: confidencePassed && finalScorePassed,
+        label: 'confidence+finalScore',
+        displayValue: `置信度 ${confidence ?? '缺失'} / 评分 ${finalScore ?? '缺失'}`,
+        displayThreshold: `${confidenceThreshold} / ${finalScoreThreshold}`,
+        confidence,
+        finalScore,
+        confidenceThreshold,
+        finalScoreThreshold
+      }
+    }
+
+    if (mode === 'finalScore') {
+      return {
+        passed: finalScorePassed,
+        label: 'finalScore',
+        displayValue: `${finalScore ?? '缺失'}`,
+        displayThreshold: `${finalScoreThreshold}`,
+        confidence,
+        finalScore,
+        confidenceThreshold,
+        finalScoreThreshold
+      }
+    }
+
+    return {
+      passed: confidencePassed,
+      label: 'confidence',
+      displayValue: `${confidence ?? '缺失'}`,
+      displayThreshold: `${confidenceThreshold}`,
+      confidence,
+      finalScore,
+      confidenceThreshold,
+      finalScoreThreshold
+    }
   }
 
   // ==================== 信号执行 ====================
@@ -1255,18 +1305,26 @@ export class StrategyEngine {
         const clampedMinLev = Math.min(minLev, maxLev)
         const clampedMaxLev = maxLev
 
+        const thresholdState = this.evaluateEntryThreshold(instance, signal)
         const thresholdMode = instance.strategy.entryThresholdMode ?? 'confidence'
         const minThreshold = thresholdMode === 'finalScore'
-          ? (instance.strategy.minFinalScore ?? 0)
-          : (instance.strategy.minConfidence ?? 50)
+          ? thresholdState.finalScoreThreshold
+          : thresholdState.confidenceThreshold
         const thresholdValue = thresholdMode === 'finalScore'
-          ? (signal.scoreBreakdown?.finalScore ?? minThreshold)
-          : (signal.confidence ?? minThreshold)
+          ? (thresholdState.finalScore ?? minThreshold)
+          : (thresholdState.confidence ?? minThreshold)
 
-        // 在阈值之上归一化：0=刚过线，1=满分
-        const thresholdExcess = minThreshold < 100
-          ? Math.max(0, (thresholdValue - minThreshold) / (100 - minThreshold))
-          : 0
+        // both 模式取两个指标的较小超额比例，避免单项高分掩盖另一项刚过线。
+        const normalizedExcess = (value: number | undefined, threshold: number) =>
+          typeof value === 'number' && threshold < 100
+            ? Math.max(0, (value - threshold) / (100 - threshold))
+            : 0
+        const thresholdExcess = thresholdMode === 'both'
+          ? Math.min(
+              normalizedExcess(thresholdState.confidence, thresholdState.confidenceThreshold),
+              normalizedExcess(thresholdState.finalScore, thresholdState.finalScoreThreshold)
+            )
+          : normalizedExcess(thresholdValue, minThreshold)
 
         // 线性映射到 [minLev, maxLev]，取整数
         finalLeverage = Math.round(clampedMinLev + (clampedMaxLev - clampedMinLev) * thresholdExcess)
@@ -1276,8 +1334,12 @@ export class StrategyEngine {
           minLeverage: clampedMinLev,
           maxLeverage: clampedMaxLev,
           thresholdMode,
-          threshold: minThreshold,
-          thresholdValue,
+          threshold: thresholdMode === 'both'
+            ? { confidence: thresholdState.confidenceThreshold, finalScore: thresholdState.finalScoreThreshold }
+            : minThreshold,
+          thresholdValue: thresholdMode === 'both'
+            ? { confidence: thresholdState.confidence, finalScore: thresholdState.finalScore }
+            : thresholdValue,
           thresholdExcess: (thresholdExcess * 100).toFixed(0) + '%',
           finalLeverage
         }

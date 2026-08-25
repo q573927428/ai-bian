@@ -81,8 +81,8 @@ export type LeverageType = number | 'dynamic';
 // 交易动作
 export type TradeAction = 'open' | 'close' | 'hold';
 
-// 策略开仓阈值的判定依据
-export type EntryThresholdMode = 'confidence' | 'finalScore';
+// 策略开仓阈值的判定依据；both 表示置信度与 finalScore 必须同时达标
+export type EntryThresholdMode = 'confidence' | 'finalScore' | 'both';
 
 // ==================== 策略配置 ====================
 

@@ -155,6 +155,7 @@
               <el-select v-model="form.entryThresholdMode" style="width: 100%">
                 <el-option label="置信度（confidence）" value="confidence" />
                 <el-option label="最终评分（finalScore）" value="finalScore" />
+                <el-option label="同时满足（置信度 + 最终评分）" value="both" />
               </el-select>
             </el-form-item>
 
