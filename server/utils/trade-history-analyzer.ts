@@ -25,6 +25,8 @@ const ANALYSIS_RESULT_PATH = join(process.cwd(), 'data', 'trade-history-analysis
 
 let lastAnalysisTime = 0
 let cachedAnalysis: LearningResult | null = null
+// 防止凌晨窗口内多个并发请求重复启动分析；Promise 代表当前正在执行的唯一一次分析。
+let dailyAnalysisInFlight: Promise<LearningResult> | null = null
 
 // ==================== 核心方法 ====================
 
@@ -287,13 +289,32 @@ ${JSON.stringify(targetTrades.slice(-20).map(trade => ({
  */
 export async function checkDailyAnalysis(): Promise<boolean> {
   const now = Date.now()
+
+  // 进程重启后内存中的 lastAnalysisTime 会丢失，先从文件恢复最新记录，
+  // 否则凌晨 2~4 点启动服务时会把当天再次分析一遍。
+  if (lastAnalysisTime === 0) {
+    await getLatestAnalysis()
+  }
+
+  // 多个交易请求可能同时进入这里；只有第一个请求可以创建分析任务。
+  if (dailyAnalysisInFlight) {
+    return false
+  }
+
   const lastDate = new Date(lastAnalysisTime).toDateString()
   const currentDate = new Date(now).toDateString()
   const currentHour = new Date(now).getHours()
 
   // 每天凌晨2点到4点之间执行一次
   if (lastDate !== currentDate && currentHour >= 2 && currentHour < 4) {
-    await performTradeHistoryAnalysis()
+    const analysisPromise = performTradeHistoryAnalysis()
+    dailyAnalysisInFlight = analysisPromise
+    try {
+      await analysisPromise
+    } finally {
+      // 无论成功或失败都释放锁，允许后续日期继续分析。
+      dailyAnalysisInFlight = null
+    }
     return true
   }
 
