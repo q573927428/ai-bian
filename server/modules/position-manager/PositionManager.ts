@@ -469,6 +469,11 @@ export class PositionManager {
       }
 
       const previous = previousBySymbol.get(symbol)
+      // 部分 Binance/CCXT 持仓接口会把杠杆缺省为 1；不能用这个占位值覆盖本地真实杠杆。
+      const exchangeLeverage = Number(position.leverage)
+      const leverage = Number.isFinite(exchangeLeverage) && exchangeLeverage > 1
+        ? exchangeLeverage
+        : (previous?.leverage || exchangeLeverage || 1)
       const positionInfo: PositionInfo = {
         ...previous,
         accountId: DEFAULT_ACCOUNT_ID,
@@ -477,7 +482,7 @@ export class PositionManager {
         direction,
         entryPrice: position.entryPrice,
         quantity: position.quantity,
-        leverage: position.leverage,
+        leverage,
         // 交易所接口没有原始开仓时间，必须保留本地时间，避免重启后显示为刚刚开仓。
         openTime: previous?.openTime ?? position.openTime,
         highestPrice: previous?.highestPrice,
@@ -487,6 +492,7 @@ export class PositionManager {
           ...previous?.position,
           ...position,
           symbol,
+          leverage,
           stopLoss: previous?.stopLoss ?? position.stopLoss,
           initialStopLoss: previous?.initialStopLoss ?? position.initialStopLoss,
           takeProfit1: previous?.takeProfit1 ?? position.takeProfit1,
