@@ -478,7 +478,10 @@ export class PositionManager {
         entryPrice: position.entryPrice,
         quantity: position.quantity,
         leverage: position.leverage,
-        openTime: position.openTime,
+        // 交易所接口没有原始开仓时间，必须保留本地时间，避免重启后显示为刚刚开仓。
+        openTime: previous?.openTime ?? position.openTime,
+        highestPrice: previous?.highestPrice,
+        lowestPrice: previous?.lowestPrice,
         // 用最新交易所仓位刷新嵌套对象，同时保留本地止损和止盈参数。
         position: {
           ...previous?.position,
@@ -488,7 +491,10 @@ export class PositionManager {
           initialStopLoss: previous?.initialStopLoss ?? position.initialStopLoss,
           takeProfit1: previous?.takeProfit1 ?? position.takeProfit1,
           takeProfit2: previous?.takeProfit2 ?? position.takeProfit2,
-          stopLossOrderId: previous?.stopLossOrderId ?? position.stopLossOrderId
+          stopLossOrderId: previous?.stopLossOrderId ?? position.stopLossOrderId,
+          openTime: previous?.position?.openTime ?? previous?.openTime ?? position.openTime,
+          highestPrice: previous?.position?.highestPrice ?? previous?.highestPrice,
+          lowestPrice: previous?.position?.lowestPrice ?? previous?.lowestPrice
         }
       }
 
