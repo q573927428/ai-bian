@@ -395,7 +395,8 @@ export class BinanceService {
             ? (rawPositionAmt > 0 ? 'LONG' : 'SHORT')
             : (String(p.side || '').toLowerCase() === 'short' ? 'SHORT' : 'LONG')
           return {
-          symbol: p.symbol,
+          // CCXT 永续合约可能返回 SYMBOL/USDT:USDT；系统内部统一使用 SYMBOL/USDT。
+          symbol: String(p.symbol || '').split(':')[0] || '',
           direction,
           entryPrice: Number(Number(p.entryPrice || 0).toFixed(5)),
           quantity: Number(Math.abs(Number(Number(p.contracts || p.info?.positionAmt || 0).toFixed(5))).toFixed(5)),

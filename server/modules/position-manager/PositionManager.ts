@@ -98,6 +98,11 @@ export class PositionManager {
     return `${accountId || DEFAULT_ACCOUNT_ID}:${symbol}`
   }
 
+  /** 统一 CCXT 永续合约符号，避免 SYMBOL/USDT 与 SYMBOL/USDT:USDT 无法匹配。 */
+  private normalizeSymbol(symbol: string): string {
+    return String(symbol || '').split(':')[0] || ''
+  }
+
   private normalizeLockKey(key: string): string {
     return key.includes(':') ? key : this.getPositionKey(key)
   }
@@ -439,7 +444,7 @@ export class PositionManager {
     // 保留本地策略元数据（尤其是止损订单号），仅用交易所数据刷新数量、方向和入场价。
     const previousBySymbol = new Map<string, PositionInfo>()
     for (const previous of this.positions.values()) {
-      previousBySymbol.set(previous.symbol, previous)
+      previousBySymbol.set(this.normalizeSymbol(previous.symbol), previous)
     }
 
     // 清除现有记录
@@ -451,7 +456,7 @@ export class PositionManager {
     for (const position of exchangePositions) {
       // 需要从仓位信息中获取策略ID（如果没有，标记为 'unknown'）
       const strategyId = (position as any).strategyId || 'unknown'
-      const symbol = position.symbol
+      const symbol = this.normalizeSymbol(position.symbol)
       // 将 Position.Direction (大写) 转换为 TradeDirection (小写)
       let direction: TradeDirection
       if (position.direction === 'LONG') {
@@ -478,6 +483,7 @@ export class PositionManager {
         position: {
           ...previous?.position,
           ...position,
+          symbol,
           stopLoss: previous?.stopLoss ?? position.stopLoss,
           initialStopLoss: previous?.initialStopLoss ?? position.initialStopLoss,
           takeProfit1: previous?.takeProfit1 ?? position.takeProfit1,
