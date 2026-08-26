@@ -436,6 +436,12 @@ export class PositionManager {
   async syncExchangePositions(exchangePositions: Position[]): Promise<void> {
     logger.info('PositionManager', `开始同步交易所持仓，共 ${exchangePositions.length} 个仓位`)
 
+    // 保留本地策略元数据（尤其是止损订单号），仅用交易所数据刷新数量、方向和入场价。
+    const previousBySymbol = new Map<string, PositionInfo>()
+    for (const previous of this.positions.values()) {
+      previousBySymbol.set(previous.symbol, previous)
+    }
+
     // 清除现有记录
     this.positions.clear()
     this.symbolLocks.clear()
@@ -457,16 +463,27 @@ export class PositionManager {
         direction = 'long'
       }
 
+      const previous = previousBySymbol.get(symbol)
       const positionInfo: PositionInfo = {
+        ...previous,
         accountId: DEFAULT_ACCOUNT_ID,
         symbol,
-        strategyId,
+        strategyId: previous?.strategyId || strategyId,
         direction,
         entryPrice: position.entryPrice,
         quantity: position.quantity,
         leverage: position.leverage,
         openTime: position.openTime,
-        position
+        // 用最新交易所仓位刷新嵌套对象，同时保留本地止损和止盈参数。
+        position: {
+          ...previous?.position,
+          ...position,
+          stopLoss: previous?.stopLoss ?? position.stopLoss,
+          initialStopLoss: previous?.initialStopLoss ?? position.initialStopLoss,
+          takeProfit1: previous?.takeProfit1 ?? position.takeProfit1,
+          takeProfit2: previous?.takeProfit2 ?? position.takeProfit2,
+          stopLossOrderId: previous?.stopLossOrderId ?? position.stopLossOrderId
+        }
       }
 
       this.recordPosition(symbol, positionInfo)

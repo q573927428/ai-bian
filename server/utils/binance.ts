@@ -388,9 +388,15 @@ export class BinanceService {
       
       return positions
         .filter((p: any) => Number(Number(p.contracts || p.info?.positionAmt || 0).toFixed(5)) !== 0)
-        .map((p: any) => ({
+        .map((p: any) => {
+          // contracts 是绝对数量，必须优先使用 positionAmt/side 判断多空，否则空头会被误判为 LONG。
+          const rawPositionAmt = Number(p.info?.positionAmt ?? p.positionAmt ?? 0)
+          const direction = rawPositionAmt !== 0
+            ? (rawPositionAmt > 0 ? 'LONG' : 'SHORT')
+            : (String(p.side || '').toLowerCase() === 'short' ? 'SHORT' : 'LONG')
+          return {
           symbol: p.symbol,
-          direction: Number(Number(p.contracts || p.info?.positionAmt || 0).toFixed(5)) > 0 ? 'LONG' : 'SHORT',
+          direction,
           entryPrice: Number(Number(p.entryPrice || 0).toFixed(5)),
           quantity: Number(Math.abs(Number(Number(p.contracts || p.info?.positionAmt || 0).toFixed(5))).toFixed(5)),
           leverage: Number(Number(p.leverage || 1).toFixed(5)),
@@ -399,7 +405,8 @@ export class BinanceService {
           takeProfit1: 0,
           takeProfit2: 0,
           openTime: Date.now(),
-        }))
+          }
+        })
     } catch (error: any) {
       // 必须保留完整错误链，否则 CCXT 的 NetworkError 无法判断 DNS、TCP 或 TLS 故障。
       throw new Error(`获取持仓失败: ${formatBinanceErrorDetails(error)}`, { cause: error })

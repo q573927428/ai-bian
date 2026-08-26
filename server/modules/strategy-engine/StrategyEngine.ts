@@ -1250,6 +1250,9 @@ export class StrategyEngine {
   public async executeSignal(instance: StrategyInstance, signal: TradeSignal, indicatorsData: Map<string, any>): Promise<void> {
     let symbolLocked = false
     let positionRecorded = false
+    // 市价单成交后，即使后续止损失败，也必须尝试反向平仓，避免遗留无保护仓位。
+    let openedOrder: { orderId: string } | null = null
+    let openedQuantity = 0
     let dailyTradeReservationId: string | undefined
     let dailyTradeReservationCommitted = false
     try {
@@ -1413,6 +1416,9 @@ export class StrategyEngine {
       // 6. 市价开仓
       const side = getOrderSide(signal.direction.toUpperCase() as 'LONG' | 'SHORT', true)
       const order = await this.binance.marketOrder(signal.symbol, side, quantity)
+      openedOrder = order
+      // 订单已被交易所接受，先记录下单数量；即使后续查询持仓超时，也要尝试保护性平仓。
+      openedQuantity = quantity
 
       logger.success('开仓', `开仓订单已提交`, order)
 
@@ -1424,6 +1430,7 @@ export class StrategyEngine {
       }
 
       const actualQuantity = realPosition.quantity
+      openedQuantity = actualQuantity
       logger.info('持仓确认', `实际成交数量: ${actualQuantity} (下单数量: ${quantity})`)
 
       // 交易所已确认真实持仓，此时即计为一次开仓；后续止损单设置失败也不能退还次数。
@@ -1448,6 +1455,13 @@ export class StrategyEngine {
       }
 
       const actualEntryPrice = entryExecution?.averagePrice || realPosition.entryPrice || order.average || signal.price
+
+      // 滑点可能使原止损价落到入场价错误的一侧，币安会以 -2021 拒单；此时禁止继续下单。
+      const isLong = signal.direction === 'long'
+      const stopDirectionValid = isLong ? stopLoss < actualEntryPrice : stopLoss > actualEntryPrice
+      if (!stopDirectionValid) {
+        throw new Error(`止损价方向无效: ${stopLoss}，实际入场价 ${actualEntryPrice}`)
+      }
 
       // 止盈必须以实际成交均价为基准；市价单可能产生滑点，继续使用 signal.price
       // 会让空单止盈落在实际入场价上方（或多单下方）。
@@ -1608,6 +1622,21 @@ export class StrategyEngine {
       logger.success('开仓信号', `信号执行完成: ${signal.symbol}`)
     } catch (error: any) {
       logger.error('开仓信号', `信号执行失败 ${signal.symbol}: ${error.message}`)
+
+      // 市价开仓已成交但止损/记录流程失败时，优先反向平仓，防止留下裸仓。
+      if (openedOrder && openedQuantity > 0 && !positionRecorded) {
+        try {
+          const closeSide = getOrderSide(signal.direction.toUpperCase() as 'LONG' | 'SHORT', false)
+          const closeOrder = await this.binance.marketOrder(signal.symbol, closeSide, openedQuantity)
+          logger.warn('开仓保护', `止损设置失败，已执行反向平仓: ${signal.symbol}`, {
+            entryOrderId: openedOrder.orderId,
+            closeOrderId: closeOrder.orderId,
+            quantity: openedQuantity
+          })
+        } catch (closeError: any) {
+          logger.error('开仓保护', `止损设置失败且反向平仓失败，币安可能遗留裸仓: ${signal.symbol}: ${closeError.message}`)
+        }
+      }
 
       instance.error = error.message
       throw error
