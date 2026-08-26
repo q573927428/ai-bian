@@ -88,7 +88,7 @@
         <template #default="{ row }">{{ format(row.candleProgressPercent) }}%</template>
       </el-table-column>
       <el-table-column label="情绪" min-width="50">
-        <template #default="{ row }"><span :class="directionClass(row.sentiment)">{{ row.sentimentLabel }}</span></template>
+        <template #default="{ row }"><span :class="sentimentClass(row.sentiment)">{{ row.sentimentLabel }}</span></template>
       </el-table-column>
       <el-table-column label="数据" min-width="50">
         <template #default="{ row }"><span :class="row.stale ? 'down' : 'up'">{{ row.stale ? '偏旧' : '正常' }}</span></template>
@@ -245,6 +245,8 @@ function format(value?: number) { return value == null || !Number.isFinite(value
 function signed(value?: number) { return value == null || !Number.isFinite(value) ? '--' : `${value >= 0 ? '+' : ''}${value.toFixed(2)}` }
 function formatPrice(value?: number) { return value == null || !Number.isFinite(value) ? '--' : value.toLocaleString('en-US', { maximumFractionDigits: value < 1 ? 6 : 2 }) }
 function directionClass(value?: number) { return value == null ? 'muted' : value >= 0 ? 'up' : 'down' }
+/** 情绪中性时使用灰色，避免将零值误解为偏多。 */
+function sentimentClass(value?: number) { return value == null || !Number.isFinite(value) ? 'muted' : value > 0 ? 'up' : value < 0 ? 'down' : 'muted' }
 function rsiClass(value?: number) { return value != null && value >= 70 ? 'down' : value != null && value <= 30 ? 'up' : 'muted' }
 
 /** 将不同交易对写法统一为图标清单使用的 Binance symbol。 */
