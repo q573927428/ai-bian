@@ -243,6 +243,7 @@ const handlePasswordSuccess = async (password: string) => {
         cancelButtonText: '取消',
         type: 'warning',
         appendTo: 'body',
+        modalClass: 'strategy-confirm-overlay',
       }
     )
 
@@ -483,6 +484,16 @@ onUnmounted(() => {
 
 .close-btn {
   margin-left: 0;
+  cursor: pointer;
+  user-select: none;
+  transition: color 0.2s ease, background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.close-btn:hover {
+  color: var(--el-color-danger);
+  background-color: var(--el-color-danger-light-9);
+  border-color: var(--el-color-danger);
+  box-shadow: 0 0 0 2px var(--el-color-danger-light-8);
 }
 
 .ai-section {

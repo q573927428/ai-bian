@@ -528,8 +528,14 @@ html.dark .el-message-box__headerbtn .el-message-box__close {
 }
 
 /* MessageBox 可能由抽屉内操作触发；强制其遮罩层高于所有抽屉，避免确认框被完全遮挡。 */
-.el-overlay.el-message-box {
-  z-index: 3000 !important;
+.el-overlay.el-message-box,
+.el-overlay-message-box {
+  z-index: 4000 !important;
+}
+
+/* MessageBox 的 modalClass 会挂到遮罩根节点，确保其层级高于 Drawer 的动态 z-index。 */
+.strategy-confirm-overlay {
+  z-index: 5000 !important;
 }
 
 /* 警告条 */

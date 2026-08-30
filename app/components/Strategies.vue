@@ -324,7 +324,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed, nextTick } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import type { Strategy } from '../../types/strategy'
 import StrategyEditor from '../components/StrategyEditor.vue'
 import StrategyVersionHistory from '../components/StrategyVersionHistory.vue'
@@ -383,17 +383,9 @@ const availableSymbols = computed(() => botStore.botConfig?.symbols || [])
 
 // 详情数据
 const performance = ref<any>({})
-/**
- * 密码验证通过后的统一分发入口。
- * 抽屉中的高风险操作先关闭抽屉并等待过渡完成，避免后续确认框被抽屉遮挡。
- */
-const handlePasswordSuccess = async () => {
+// 密码验证成功回调
+const handlePasswordSuccess = () => {
   if (!pendingAction.value) return
-
-  // MessageBox 虽然挂载到 body，但打开的 drawer 仍可能覆盖其遮罩层；先让 drawer 完整退出。
-  visible.value = false
-  await nextTick()
-  await new Promise(resolve => setTimeout(resolve, 320))
   
   const { type, data } = pendingAction.value
   
@@ -511,7 +503,7 @@ const doToggleStrategy = async (strategy: Strategy) => {
     await ElMessageBox.confirm(
       `确定要${strategy.isActive ? '停用' : '激活'}策略 "${strategy.name}" 吗？`,
       '确认操作',
-      { type: 'warning', appendTo: 'body' }
+      { type: 'warning', appendTo: 'body', modalClass: 'strategy-confirm-overlay' }
     )
 
     await $fetch(`/api/strategies/${strategy.id}/toggle`, {
@@ -540,7 +532,7 @@ const doDeleteStrategy = async (strategy: Strategy) => {
     await ElMessageBox.confirm(
       `确定要删除策略 "${strategy.name}" 吗？此操作不可撤销。`,
       '确认删除',
-      { type: 'error', appendTo: 'body' }
+      { type: 'error', appendTo: 'body', modalClass: 'strategy-confirm-overlay' }
     )
 
     await $fetch(`/api/strategies/${strategy.id}`, {
@@ -624,6 +616,7 @@ const doTestStrategy = async (strategy: Strategy) => {
         inputPattern: /^[A-Z]+\/[A-Z]+$/,
         inputErrorMessage: '交易对格式不正确，例如 BTC/USDT',
         appendTo: 'body',
+        modalClass: 'strategy-confirm-overlay',
       }).catch(() => null)
       
       if (!result || !result.value) return
@@ -710,7 +703,7 @@ const clearAICache = async () => {
     await ElMessageBox.confirm(
       '确定要清理所有AI缓存吗？清理后将重新获取最新的AI分析结果。',
       '确认清理',
-      { type: 'warning', appendTo: 'body' }
+      { type: 'warning', appendTo: 'body', modalClass: 'strategy-confirm-overlay' }
     )
 
     await $fetch('/api/ai/clear-cache', {
