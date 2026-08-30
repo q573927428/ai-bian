@@ -506,6 +506,30 @@ html.dark .el-divider__text {
 html.dark .el-message-box {
   --el-messagebox-bg-color: #1d1e1f;
   --el-messagebox-border-color: #2c2c2d;
+  --el-bg-color: #1d1e1f;
+  --el-text-color-primary: #e5eaf3;
+  --el-text-color-regular: #cfd3dc;
+  background-color: #1d1e1f !important;
+  border: 1px solid #2c2c2d;
+  color: #cfd3dc;
+}
+
+html.dark .el-message-box__title {
+  color: #e5eaf3 !important;
+}
+
+html.dark .el-message-box__content,
+html.dark .el-message-box__message {
+  color: #cfd3dc !important;
+}
+
+html.dark .el-message-box__headerbtn .el-message-box__close {
+  color: #a3a6ad;
+}
+
+/* MessageBox 可能由抽屉内操作触发；强制其遮罩层高于所有抽屉，避免确认框被完全遮挡。 */
+.el-overlay.el-message-box {
+  z-index: 3000 !important;
 }
 
 /* 警告条 */
