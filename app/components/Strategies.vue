@@ -114,6 +114,7 @@
       width="80%"
       class="strategy-dialog"
       :close-on-click-modal="false"
+      append-to-body
       draggable
     >
       <StrategyEditor
@@ -133,7 +134,7 @@
     </el-dialog>
 
     <!-- 保存确认对话框 -->
-    <el-dialog v-model="showSaveConfirmDialog" title="保存策略" draggable width="500px">
+    <el-dialog v-model="showSaveConfirmDialog" title="保存策略" draggable width="500px" append-to-body>
       <div style="margin-bottom: 20px;">请选择保存方式：</div>
       <el-checkbox v-model="saveAsNewVersion" style="margin-bottom: 15px;">保存为新版本</el-checkbox>
       <el-input
@@ -155,7 +156,7 @@
     <PasswordDialog v-model="showPasswordDialog" @success="handlePasswordSuccess" />
 
     <!-- 强制开仓弹窗 -->
-    <el-dialog v-model="showForceOpenDialog" title="强制开仓" width="420px" draggable :close-on-click-modal="false">
+    <el-dialog v-model="showForceOpenDialog" title="强制开仓" width="420px" draggable append-to-body :close-on-click-modal="false">
       <div v-if="forceOpenStrategy">
         <div style="margin-bottom: 16px;">
           <div style="margin-bottom: 6px; font-weight: 500;">策略：{{ forceOpenStrategy.name }}</div>
@@ -191,7 +192,7 @@
     </el-dialog>
 
     <!-- 策略详情对话框 -->
-    <el-dialog v-model="showDetailDialog" :title="`${detailStrategy?.name} 运行详情`" width="80%" draggable :close-on-click-modal="false">
+    <el-dialog v-model="showDetailDialog" :title="`${detailStrategy?.name} 运行详情`" width="80%" draggable append-to-body :close-on-click-modal="false">
       <div v-if="detailStrategy" v-loading="detailLoading">
             <el-row :gutter="20" style="margin-bottom: 20px;">
               <el-col :xs="24" :sm="12" :md="6">
@@ -502,7 +503,7 @@ const doToggleStrategy = async (strategy: Strategy) => {
     await ElMessageBox.confirm(
       `确定要${strategy.isActive ? '停用' : '激活'}策略 "${strategy.name}" 吗？`,
       '确认操作',
-      { type: 'warning' }
+      ({ type: 'warning', appendTo: 'body', zIndex: 3000 } as any)
     )
 
     await $fetch(`/api/strategies/${strategy.id}/toggle`, {
@@ -531,7 +532,7 @@ const doDeleteStrategy = async (strategy: Strategy) => {
     await ElMessageBox.confirm(
       `确定要删除策略 "${strategy.name}" 吗？此操作不可撤销。`,
       '确认删除',
-      { type: 'error' }
+      ({ type: 'error', appendTo: 'body', zIndex: 3000 } as any)
     )
 
     await $fetch(`/api/strategies/${strategy.id}`, {
@@ -613,8 +614,10 @@ const doTestStrategy = async (strategy: Strategy) => {
       // @ts-ignore
       const result = await ElMessageBox.prompt('请选择要测试的交易对', '手动分析', {
         inputPattern: /^[A-Z]+\/[A-Z]+$/,
-        inputErrorMessage: '交易对格式不正确，例如 BTC/USDT'
-      }).catch(() => null)
+        inputErrorMessage: '交易对格式不正确，例如 BTC/USDT',
+        appendTo: 'body',
+        zIndex: 3000
+      } as any).catch(() => null)
       
       if (!result || !result.value) return
       symbol = result.value
@@ -700,7 +703,7 @@ const clearAICache = async () => {
     await ElMessageBox.confirm(
       '确定要清理所有AI缓存吗？清理后将重新获取最新的AI分析结果。',
       '确认清理',
-      { type: 'warning' }
+      ({ type: 'warning', appendTo: 'body', zIndex: 3000 } as any)
     )
 
     await $fetch('/api/ai/clear-cache', {

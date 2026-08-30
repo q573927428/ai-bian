@@ -241,8 +241,10 @@ const handlePasswordSuccess = async (password: string) => {
       {
         confirmButtonText: '确定',
         cancelButtonText: '取消',
-        type: 'warning'
-      }
+        type: 'warning',
+        appendTo: 'body',
+        zIndex: 3000
+      } as any
     )
 
     closingSymbols.value.push(symbol)

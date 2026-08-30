@@ -27,6 +27,7 @@ let lastAnalysisTime = 0
 let cachedAnalysis: LearningResult | null = null
 // 防止凌晨窗口内多个并发请求重复启动分析；Promise 代表当前正在执行的唯一一次分析。
 let dailyAnalysisInFlight: Promise<LearningResult> | null = null
+let dailyAnalysisTimer: ReturnType<typeof setTimeout> | null = null
 
 // ==================== 核心方法 ====================
 
@@ -245,7 +246,17 @@ ${JSON.stringify(targetTrades.slice(-20).map(trade => ({
       jsonContent = jsonMatch[1]
     }
 
-    const learningResult = JSON.parse(jsonContent) as Omit<LearningResult, 'timestamp'>
+    const learningResult = JSON.parse(jsonContent) as Partial<Omit<LearningResult, 'timestamp'>>
+
+    // AI 返回可解析 JSON 不代表内容符合分析协议；缺字段时必须走降级逻辑，
+    // 不能把“分析完成 + 空数组”当成有效结果写入历史文件。
+    if (typeof learningResult.summary !== 'string' || !learningResult.summary.trim()
+      || !Array.isArray(learningResult.keyPatterns)
+      || !Array.isArray(learningResult.successFactors)
+      || !Array.isArray(learningResult.failureFactors)
+      || !Array.isArray(learningResult.optimizationSuggestions)) {
+      throw new Error('AI分析结果字段不完整')
+    }
 
     // 辅助函数：确保数组不超过3个元素
     const limitArrayLength = (arr: unknown): string[] => {
@@ -319,6 +330,41 @@ export async function checkDailyAnalysis(): Promise<boolean> {
   }
 
   return false
+}
+
+/**
+ * 启动独立的每日分析调度器。任务不再依赖交易请求触发，
+ * 每天北京时间 02:05 执行一次，执行结束后安排下一天。
+ */
+export function startDailyAnalysisScheduler(): void {
+  if (dailyAnalysisTimer) return
+
+  const scheduleNext = () => {
+    const now = new Date()
+    const next = new Date(now)
+    next.setHours(2, 5, 0, 0)
+    if (next.getTime() <= now.getTime()) next.setDate(next.getDate() + 1)
+    dailyAnalysisTimer = setTimeout(async () => {
+      dailyAnalysisTimer = null
+      try {
+        await checkDailyAnalysis()
+      } catch (error: any) {
+        console.error('[TradeHistoryAnalyzer] 定时分析失败:', error?.message || error)
+      } finally {
+        scheduleNext()
+      }
+    }, Math.max(1000, next.getTime() - now.getTime()))
+    dailyAnalysisTimer.unref?.()
+  }
+
+  scheduleNext()
+}
+
+export function stopDailyAnalysisScheduler(): void {
+  if (dailyAnalysisTimer) {
+    clearTimeout(dailyAnalysisTimer)
+    dailyAnalysisTimer = null
+  }
 }
 
 /**

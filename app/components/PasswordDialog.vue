@@ -5,6 +5,7 @@
     title="请输入密码验证"
     :close-on-click-modal="false"
     :style="{ width: '90%', maxWidth: '400px' }"
+    append-to-body
     @closed="handleClosed"
     draggable
   >

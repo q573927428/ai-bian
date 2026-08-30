@@ -9,7 +9,7 @@ import { strategyStore } from '../strategy-store/StrategyStore'
 import { getProviderConfig, callAIAPI, extractJSONContent, type AIChatMessage } from '../../utils/ai-service'
 import { concurrencyPoolManager } from '../../utils/concurrency-pool'
 import { getAIAnalysisWriter } from '../../utils/jsonl-batch-writer'
-import { getLatestAnalysis, formatAnalysisToPromptSection, checkDailyAnalysis } from '../../utils/trade-history-analyzer'
+import { getLatestAnalysis, formatAnalysisToPromptSection } from '../../utils/trade-history-analyzer'
 import { shortHash } from '../../utils/stable-hash'
 
 /**
@@ -668,9 +668,6 @@ ${promptConfig.userPrompt}
    * 从 trade-history-analysis.json 读取已保存的分析结果
    */
   private async buildSystemPrompt(hasSquareHeat: boolean = false, squareHeatWindowMinutes?: number): Promise<string> {
-    // 异步触发每日分析检查（不阻塞主流程）
-    checkDailyAnalysis().catch(() => {})
-
     // 读取开关配置：是否在系统提示词中包含历史分析经验，默认开启
     const enableHistorySection = this.config.aiAnalysisConfig?.enableHistorySection ?? true
 

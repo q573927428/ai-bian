@@ -5,6 +5,7 @@
     width="66%"
     :fullscreen="isMobile"
     :close-on-click-modal="false"
+    append-to-body
     top="22vh"
     draggable
   >
