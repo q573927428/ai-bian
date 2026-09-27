@@ -1,5 +1,5 @@
 <template>
-  <div class="tradingview-panel">
+  <div class="tradingview-panel" style="margin-bottom: -43px;">
     <!-- 图表控制栏 -->
     <div class="chart-controls">
       <div class="controls-left">
@@ -123,19 +123,19 @@
     </div>
 
     <!-- 图表信息 -->
-    <div class="chart-info-wrapper">
+    <!-- <div class="chart-info-wrapper">
       <KLineChartInfo
         :kline-data="klineData"
         :updated="lastUpdated"
       />
-    </div>
+    </div> -->
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { useTheme } from '../../composables/useTheme'
-import KLineChartInfo from './KLineChartInfo.vue'
+// import KLineChartInfo from './KLineChartInfo.vue'
 
 const props = defineProps<{
   symbol: string

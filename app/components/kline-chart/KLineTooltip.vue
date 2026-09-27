@@ -42,6 +42,8 @@
           {{ formatVolume(data.volume) }}
         </span>
       </span>
+    </div>
+    <div class="tooltip-content" :class="{ 'tooltip-content-hidden': !visible }">
       <span class="data-item">
         <span class="label">涨跌:</span>
         <span class="value" :class="{ 'price-up': data.changePercent > 0, 'price-down': data.changePercent < 0 }">

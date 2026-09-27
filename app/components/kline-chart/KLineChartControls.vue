@@ -3,56 +3,19 @@
     <div class="controls-left">
       <div class="symbol-badge">{{ displaySymbol }}</div>
 
-      <el-button-group size="small" class="timeframe-buttons">
-          <el-button
-            size="small"
-            :type="selectedTimeframe === '5m' ? 'primary' : 'default'"
-            @click="selectTimeframe('5m')"
-            class="timeframe-btn"
-          >
-            5m
-          </el-button>
-          <el-button
-            size="small"
-            :type="selectedTimeframe === '15m' ? 'primary' : 'default'"
-            @click="selectTimeframe('15m')"
-            class="timeframe-btn"
-          >
-            15m
-          </el-button>
-          <el-button
-            size="small"
-            :type="selectedTimeframe === '1h' ? 'primary' : 'default'"
-            @click="selectTimeframe('1h')"
-            class="timeframe-btn"
-          >
-            1h
-          </el-button>
-          <el-button
-            size="small"
-            :type="selectedTimeframe === '4h' ? 'primary' : 'default'"
-            @click="selectTimeframe('4h')"
-            class="timeframe-btn"
-          >
-            4h
-          </el-button>
-          <el-button
-            size="small"
-            :type="selectedTimeframe === '1d' ? 'primary' : 'default'"
-            @click="selectTimeframe('1d')"
-            class="timeframe-btn"
-          >
-            1d
-          </el-button>
-          <el-button
-            size="small"
-            :type="selectedTimeframe === '1w' ? 'primary' : 'default'"
-            @click="selectTimeframe('1w')"
-            class="timeframe-btn"
-          >
-            1w
-          </el-button>
-      </el-button-group>
+      <el-select
+        :model-value="selectedTimeframe"
+        class="timeframe-select"
+        aria-label="K线周期"
+        @change="selectTimeframe"
+      >
+        <el-option
+          v-for="option in timeframeOptions"
+          :key="option.value"
+          :label="option.label"
+          :value="option.value"
+        />
+      </el-select>
 
       <!-- EMA周期选择器 -->
       <el-button-group size="small" class="ema-period-buttons">
@@ -80,7 +43,8 @@
           >
             <el-switch
               v-model="showScanMarkers"
-              size="small"
+              inline-prompt
+              active-text="扫描"
               inactive-text="扫描"
               :loading="scanLoading"
               :disabled="!scanSupported"
@@ -137,7 +101,8 @@
         <!-- <el-tooltip content="显示/隐藏EMA金叉死叉标记" placement="top">
           <el-switch
             v-model="showEMAMarkers"
-            size="small"
+            inline-prompt
+            active-text="交叉"
             inactive-text="交叉"
             @change="handleEMAMarkersChange"
             class="marker-switch"
@@ -147,7 +112,8 @@
         <el-tooltip content="显示/隐藏历史订单开仓平仓标记" placement="top">
           <el-switch
             v-model="showOrderMarkers"
-            size="small"
+            inline-prompt
+            active-text="订单"
             inactive-text="订单"
             @change="handleOrderMarkersChange"
             class="marker-switch"
@@ -161,7 +127,8 @@
         >
           <el-switch
             v-model="filterOrderMarkersByTimeframe"
-            size="small"
+            inline-prompt
+            active-text="周期"
             inactive-text="周期"
             @change="handleOrderTimeframeFilterChange"
             class="marker-switch"
@@ -171,8 +138,9 @@
         <el-tooltip content="显示/隐藏EMA快慢线" placement="top">
           <el-switch
             v-model="showEMALines"
-            size="small"
-            inactive-text="EMA线"
+            inline-prompt
+            active-text="EMA"
+            inactive-text="EMA"
             @change="handleEMALinesChange"
             class="marker-switch"
           />
@@ -281,6 +249,16 @@ const emit = defineEmits<{
 
 // 可用的EMA周期选项
 const availableEmaPeriods = [7, 14, 20, 30, 50, 60, 120, 200]
+
+// K线周期选项与接口使用的周期值保持一致。
+const timeframeOptions = [
+  { label: '5分钟', value: '5m' },
+  { label: '15分钟', value: '15m' },
+  { label: '1小时', value: '1h' },
+  { label: '4小时', value: '4h' },
+  { label: '1天', value: '1d' },
+  { label: '1周', value: '1w' }
+]
 
 // 响应式数据
 const selectedTimeframe = ref(props.timeframe)
@@ -470,8 +448,8 @@ watch(() => props.scanTimeRange, (newRange) => {
 .marker-controls {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 4px 12px;
+  gap: 6px;
+  padding: 2px 4px;
   background: var(--bg-card);
   border-radius: 8px;
   border: 1px solid var(--border-color);
@@ -562,31 +540,28 @@ watch(() => props.scanTimeRange, (newRange) => {
   box-shadow: 0 2px 4px rgba(64, 158, 255, 0.2);
 }
 
-.timeframe-buttons,
 .ema-period-buttons {
   display: inline-flex;
   border-radius: 12px;
   overflow: hidden;
 }
 
-.timeframe-buttons :deep(.el-button:first-child),
 .ema-period-buttons :deep(.el-button:first-child) {
   border-radius: 12px 0 0 12px;
 }
 
-.timeframe-buttons :deep(.el-button:last-child),
 .ema-period-buttons :deep(.el-button:last-child) {
   border-radius: 0 12px 12px 0;
 }
 
-.timeframe-btn {
-  padding: 12px 8px;
-  font-size: 13px;
+.timeframe-select {
+  width: 98px;
+  flex-shrink: 0;
 }
 
 /* EMA周期选择器 */
 .ema-period-btn {
-  padding: 12px 8px;
+  padding: 12px 5px;
   font-size: 12px;
 }
 
@@ -623,9 +598,8 @@ watch(() => props.scanTimeRange, (newRange) => {
     border-radius: 12px;
   }
   
-  .timeframe-buttons {
+  .timeframe-select {
     width: 100%;
-    justify-content: center;
   }
 
   .ema-period-buttons {

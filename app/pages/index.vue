@@ -62,10 +62,6 @@
                     <el-icon><ElIconDataAnalysis /></el-icon>
                     指标
                   </el-button>
-                  <el-button class="control-panel-action" type="primary" size="small" text @click="showPositionsDrawer = true">
-                    <el-icon><ElIconWallet /></el-icon>
-                    持仓
-                  </el-button>
                   <el-button class="control-panel-action" type="primary" size="small" text @click="showLogsDrawer = true">
                     <el-icon><ElIconDocument /></el-icon>
                     日志
@@ -116,7 +112,7 @@
                         <span class="balance-total-large">$ {{ formatBalance(usdtBalance?.total || 0) }}</span>
                       </div>
                       <div class="balance-row-large">
-                        <span class="balance-label-large"> 可用</span>
+                        <span class="balance-label-large">💎 可用</span>
                         <span class="balance-free-large">$ {{ formatBalance(usdtBalance?.free || 0) }}</span>
                       </div>
                       <div class="balance-row-large">
@@ -136,7 +132,7 @@
           </el-col>
 
           <!-- 右侧 - 持仓和交易历史 -->
-          <el-col :xs="24" :sm="24" :md="18" :lg="18">
+          <el-col :xs="24" :sm="24" :md="12" :lg="12">
             
             <!-- 加密货币价格卡片组件 -->
             <ClientOnly>
@@ -146,11 +142,6 @@
             <!-- 技术指标抽屉由状态面板卡片内按钮打开 -->
             <ClientOnly>
               <IndicatorsList v-model="showIndicatorsDrawer" />
-            </ClientOnly>
-
-            <!-- 当前持仓无需解锁页面，可由状态面板内的持仓按钮直接打开。 -->
-            <ClientOnly>
-              <ActivePositions v-model="showPositionsDrawer" />
             </ClientOnly>
 
             <!-- 系统日志抽屉由状态面板卡片内按钮打开 -->
@@ -173,6 +164,13 @@
               <TradeHistory v-model="showOrdersDrawer" />
             </ClientOnly>
 
+          </el-col>
+
+          <el-col :xs="24" :sm="24" :md="6" :lg="6">
+            <!-- 当前持仓固定显示，查看持仓无需解锁。 -->
+            <ClientOnly>
+              <ActivePositions />
+            </ClientOnly>
           </el-col>
           
         </el-row>
@@ -270,7 +268,6 @@ const { theme: currentTheme, toggleTheme } = useTheme()
 const showConfigDialog = ref(false)
 const showPerformanceDialog = ref(false)
 const showIndicatorsDrawer = ref(false)
-const showPositionsDrawer = ref(false)
 const showLogsDrawer = ref(false)
 const showOrdersDrawer = ref(false)
 const showStrategiesDrawer = ref(false)
@@ -649,8 +646,6 @@ onMounted(async () => {
   font-size: 14px;
   font-weight: 700;
   color: var(--balance-total-color);
-  line-height: 1.2;
-  padding-left: 5px;
 }
 .balance-usdt-large{
   font-size: 14px;

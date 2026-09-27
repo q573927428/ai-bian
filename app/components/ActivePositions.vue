@@ -1,11 +1,9 @@
 <template>
-  <el-drawer
-    v-model="visible"
-    class="positions-drawer"
-    :title="`当前持仓 (${positions.length})`"
-    direction="rtl"
-    size="30%"
-  >
+  <el-card class="active-positions-card" shadow="hover">
+    <template #header>
+      <div class="positions-card-header">当前持仓 ({{ positions.length }})</div>
+    </template>
+
     <div class="positions-list">
       <div
         v-for="position in positions"
@@ -19,7 +17,7 @@
             <div class="symbol-row"><span class="symbol">{{ position.symbol }}</span><span class="leverage">{{ position.leverage }}x</span><span class="open-time">{{ formatOpenTime(position.openTime) }}</span></div>
             <div class="pnl-info"><strong class="pnl-amount" :class="{ 'text-success': calculateUnrealizedPnl(position) >= 0, 'text-danger': calculateUnrealizedPnl(position) < 0 }">${{ calculateUnrealizedPnl(position) >= 0 ? '+' : '' }}{{ calculateUnrealizedPnl(position).toFixed(2) }}</strong></div>
           </div>
-          <div class="tag-row"><el-tag :type="position.direction === 'long' ? 'success' : 'danger'" effect="dark">{{ position.direction === 'long' ? '做多' : '做空' }}</el-tag><el-tag effect="plain">{{ position.strategyId }}</el-tag><el-tag effect="plain">{{ position.quantity }}</el-tag><el-tag type="danger" size="small" :loading="closingSymbols.includes(position.symbol)" @click="requestClosePosition(position.symbol)" class="close-btn" plain>平仓</el-tag><div v-if="position.reasoning" class="ai-toggle-btn-inline" @click="toggleAISection(position.symbol)"><el-icon class="toggle-icon" :class="{ rotated: expandedAISections.includes(position.symbol) }"><ElIconArrowDown /></el-icon></div><span class="pnl-percent" :class="{ 'text-success': calculateUnrealizedPnlPercentage(position) >= 0, 'text-danger': calculateUnrealizedPnlPercentage(position) < 0 }">{{ calculateUnrealizedPnlPercentage(position) >= 0 ? '+' : '' }}{{ calculateUnrealizedPnlPercentage(position).toFixed(1) }}%</span></div>
+          <div class="tag-row"><el-tag :type="position.direction === 'long' ? 'success' : 'danger'" effect="dark">{{ position.direction === 'long' ? '做多' : '做空' }}</el-tag><el-tag effect="plain">{{ position.strategyId }}</el-tag><el-tag type="danger" size="small" :loading="closingSymbols.includes(position.symbol)" @click="requestClosePosition(position.symbol)" class="close-btn" plain>平仓</el-tag><div v-if="position.reasoning" class="ai-toggle-btn-inline" @click="toggleAISection(position.symbol)"><el-icon class="toggle-icon" :class="{ rotated: expandedAISections.includes(position.symbol) }"><ElIconArrowDown /></el-icon></div><span class="pnl-percent" :class="{ 'text-success': calculateUnrealizedPnlPercentage(position) >= 0, 'text-danger': calculateUnrealizedPnlPercentage(position) < 0 }">{{ calculateUnrealizedPnlPercentage(position) >= 0 ? '+' : '' }}{{ calculateUnrealizedPnlPercentage(position).toFixed(1) }}%</span></div>
           <div v-if="hasPriceTrack(position)" class="price-track" aria-label="持仓价格水平"><span class="track-line" /><span v-for="marker in priceMarkers(position)" :key="marker.label" :class="['price-marker', { 'marker-current': marker.label === '当前', 'marker-trailing': marker.label === '移动', 'marker-stop': marker.label === '止损' }]" :style="{ left: `${marker.position}%` }"><b v-if="marker.label !== '当前'">{{ marker.label }}</b><small>{{ marker.displayValue }}</small><i /></span></div>
         </div>
 
@@ -70,32 +68,15 @@
 
     <!-- 密码只保护平仓操作，不影响持仓信息的查看。 -->
     <PasswordDialog v-model="showClosePasswordDialog" @success="handlePasswordSuccess" />
-  </el-drawer>
+  </el-card>
 </template>
 
 <script setup lang="ts">
-// ==================== 当前持仓抽屉 ====================
-import { computed, ref, onMounted, onUnmounted, watch } from 'vue'
+// ==================== 当前持仓固定面板 ====================
+import { ref, onMounted, onUnmounted } from 'vue'
 import { useBotStore } from '../stores/bot'
 import { formatPrice } from './kline-chart/utils/kline-formatters'
 import PasswordDialog from './PasswordDialog.vue'
-
-/** 当前持仓抽屉的外部控制参数。 */
-interface Props {
-  modelValue: boolean
-}
-
-/** 当前持仓抽屉向父组件同步开关状态的事件。 */
-interface Emits {
-  (event: 'update:modelValue', value: boolean): void
-}
-
-const props = defineProps<Props>()
-const emit = defineEmits<Emits>()
-const visible = computed({
-  get: () => props.modelValue,
-  set: (value: boolean) => emit('update:modelValue', value)
-})
 
 const botStore = useBotStore()
 const positions = ref<any[]>([])
@@ -270,10 +251,6 @@ const handlePasswordSuccess = async (password: string) => {
     }
   }
 }
-
-watch(visible, value => {
-  if (value) loadPositions()
-})
 
 onMounted(() => {
   loadPositions()
@@ -632,30 +609,37 @@ onUnmounted(() => {
   }
 }
 
-/* 抽屉会 Teleport 到 body，使用全局选择器继承应用的亮暗主题。 */
-:global(.positions-drawer) {
-  --el-drawer-bg-color: var(--bg-card);
+.active-positions-card {
+  display: flex;
+  flex-direction: column;
+  height: 796px;
+  margin-bottom: 20px;
   background: var(--bg-card);
   color: var(--text-regular);
-  border-left: 1px solid var(--border-color);
 }
 
-:global(.positions-drawer .el-drawer__header) {
-  margin-bottom: 0;
-  padding-bottom: 16px;
-  color: var(--text-primary);
-  border-bottom: 1px solid var(--border-color);
+.active-positions-card :deep(.el-card__header) {
+  flex-shrink: 0;
 }
 
-:global(.positions-drawer .el-drawer__title) {
+.active-positions-card :deep(.el-card__body) {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.active-positions-card :deep(.el-card__body::-webkit-scrollbar) {
+  display: none;
+}
+
+.active-positions-card :deep(.el-card__body::-webkit-scrollbar-thumb:hover) {
+  background: var(--text-secondary);
+}
+
+.positions-card-header {
   color: var(--text-primary);
   font-weight: 600;
-}
-
-
-@media (max-width: 768px) {
-  :global(.positions-drawer) {
-    width: 100% !important;
-  }
 }
 </style>

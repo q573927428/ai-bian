@@ -124,7 +124,7 @@ const isLoading = ref(false)
 const showChartModal = ref(false)
 const selectedSymbol = ref('')
 const currentPage = ref(0)
-const pageSize = ref(20)
+const pageSize = ref(12)
 // 价格变动动画状态
 const priceChangeAnimations = ref<Record<string, 'up' | 'down' | null>>({})
 
@@ -139,7 +139,7 @@ const visibleCryptoPrices = computed(() => {
 /** 根据视口宽度设置每页数量，确保卡片区域始终最多显示两行。 */
 function updatePageSize() {
   if (!import.meta.client) return
-  pageSize.value = window.innerWidth <= 480 ? 4 : 20
+  pageSize.value = window.innerWidth <= 480 ? 4 : 12
   currentPage.value = Math.min(currentPage.value, totalPages.value - 1)
 }
 
@@ -366,9 +366,9 @@ interface CryptoPrice {
   position: relative;
   overflow: hidden;
   min-height: 60px;
-  min-width: 120px;
+  min-width: 126px;
   flex-shrink: 0;
-  flex: 1 0 calc(10% - 8px);
+  flex: 1 0 calc(12% - 8px);
 }
 
 .price-card:hover {
