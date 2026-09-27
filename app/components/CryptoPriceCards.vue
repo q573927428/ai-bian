@@ -106,6 +106,16 @@ import { formatPrice } from './kline-chart/utils/kline-formatters'
 import { useBotStore } from '../stores/bot'
 import { useCoinIcon } from '../composables/useCoinIcon'
 
+const props = defineProps<{
+  /** 由外部指定要展示的交易对，例如点击当前持仓时传入。 */
+  chartSymbol?: string
+}>()
+
+const emit = defineEmits<{
+  /** 手动选择价格卡片后，将最新交易对同步给首页。 */
+  'update:chartSymbol': [symbol: string]
+}>()
+
 const botStore = useBotStore()
 const { getCoinIconUrl } = useCoinIcon()
 
@@ -166,6 +176,13 @@ watch(() => botStore.prices, () => {
   syncPricesFromStore()
 }, { deep: true })
 
+// 外部切换入口与价格卡片共用同一个图表状态，并统一兼容 BTC/USDT 与 BTCUSDT 写法。
+watch(() => props.chartSymbol, (symbol) => {
+  if (symbol) {
+    selectedSymbol.value = symbol.replace('/', '').toUpperCase()
+  }
+}, { immediate: true })
+
 // 更新加密货币价格
 function updateCryptoPrices(prices: Record<string, any>) {
   const updatedPrices: CryptoPrice[] = []
@@ -225,9 +242,12 @@ function triggerPriceAnimation(symbol: string, direction: 'up' | 'down') {
   }
 }
 
-// 打开图表弹窗
+/**
+ * 切换价格卡片对应的图表，并同步父页面状态，确保后续持仓点击能够再次触发切换。
+ */
 function openChartModal(crypto: CryptoPrice) {
   selectedSymbol.value = crypto.symbol
+  emit('update:chartSymbol', crypto.symbol)
   showChartModal.value = true
 }
 
@@ -235,6 +255,7 @@ function openChartModal(crypto: CryptoPrice) {
 function closeChartModal() {
   showChartModal.value = false
   selectedSymbol.value = ''
+  emit('update:chartSymbol', '')
 }
 
 // 格式化函数

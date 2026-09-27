@@ -136,7 +136,7 @@
             
             <!-- 加密货币价格卡片组件 -->
             <ClientOnly>
-              <CryptoPriceCards />
+              <CryptoPriceCards v-model:chart-symbol="selectedChartSymbol" />
             </ClientOnly>
 
             <!-- 技术指标抽屉由状态面板卡片内按钮打开 -->
@@ -169,7 +169,7 @@
           <el-col :xs="24" :sm="24" :md="6" :lg="6">
             <!-- 当前持仓固定显示，查看持仓无需解锁。 -->
             <ClientOnly>
-              <ActivePositions />
+              <ActivePositions @select-symbol="selectedChartSymbol = $event" />
             </ClientOnly>
           </el-col>
           
@@ -271,6 +271,8 @@ const showIndicatorsDrawer = ref(false)
 const showLogsDrawer = ref(false)
 const showOrdersDrawer = ref(false)
 const showStrategiesDrawer = ref(false)
+// 首页负责在持仓列表与 K 线区域之间中转当前交易对。
+const selectedChartSymbol = ref('')
 
 const handleConfigSuccess = () => {
   // 配置保存成功后的处理
