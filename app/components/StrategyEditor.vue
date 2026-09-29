@@ -546,7 +546,7 @@ const providerModels: Record<string, Array<{ label: string; value: string }>> = 
     { label: 'doubao-seed-2-0-mini-260215', value: 'doubao-seed-2-0-mini-260215' }
   ],
   'doubao-agent': [
-    { label: 'doubao-seed-2.0-lite', value: 'doubao-seed-2.0-lite' }
+    { label: 'doubao-seed-2.1-lite', value: 'doubao-seed-2.1-lite' }
   ],
   qwen: [
     { label: 'qwen3.6-plus', value: 'qwen3.6-plus' },
