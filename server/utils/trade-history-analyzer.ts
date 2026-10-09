@@ -5,10 +5,12 @@
 import { readFile, writeFile } from 'fs/promises'
 import { join } from 'path'
 import { existsSync } from 'fs'
+import { logger } from './logger'
 import type { TradeHistory } from '../../types'
 
 // ==================== 类型定义 ====================
 
+/** 历史交易学习结果，包含统计总结及供后续交易分析参考的经验。 */
 export interface LearningResult {
   timestamp: number
   summary: string
@@ -138,8 +140,13 @@ export async function performTradeHistoryAnalysis(): Promise<LearningResult> {
     if (t.pnl > 0) directionStats[dir].wins++
   }
 
+  // 仅记录响应元数据，不记录密钥、完整提示词或模型推理内容。
+  const responseDiagnostics: Record<string, unknown> = {}
   try {
     const runtimeConfig = useRuntimeConfig()
+    if (!runtimeConfig.deepseekApiKey) throw new Error('DeepSeek API Key 未配置')
+    const model = runtimeConfig.deepseekModel || 'deepseek-flash'
+    responseDiagnostics.model = model
 
     // 构建 AI 分析提示词
     const prompt = `请作为专业的量化交易策略分析师，对以下加密货币期货交易历史数据进行深度分析，总结交易规律，提炼成功和失败的关键因素，并给出优化建议。
@@ -215,7 +222,9 @@ ${JSON.stringify(targetTrades.slice(-20).map(trade => ({
         'Authorization': `Bearer ${runtimeConfig.deepseekApiKey}`,
       },
       body: JSON.stringify({
-        model: 'deepseek-flash',
+        model,
+        // 历史分析只需结构化结论；默认思考会耗尽 2000 token，导致正文为空。
+        thinking: { type: 'disabled' },
         messages: [
           {
             role: 'system',
@@ -227,22 +236,32 @@ ${JSON.stringify(targetTrades.slice(-20).map(trade => ({
           },
         ],
         temperature: 0.3,
-        max_tokens: 2000,
+        max_tokens: 6000,
         response_format: { type: 'json_object' }
       }),
+      signal: AbortSignal.timeout(120_000),
     })
 
+    responseDiagnostics.status = response.status
     if (!response.ok) {
-      throw new Error(`DeepSeek API请求失败: ${response.statusText}`)
+      throw new Error(`DeepSeek API请求失败: HTTP ${response.status} ${response.statusText}`)
     }
 
     const result = await response.json()
-    const content = result.choices?.[0]?.message?.content || '{}'
+    const choice = result.choices?.[0]
+    const content = choice?.message?.content
+    responseDiagnostics.finishReason = choice?.finish_reason
+    responseDiagnostics.usage = result.usage
+    responseDiagnostics.contentLength = typeof content === 'string' ? content.length : 0
+    // 明确区分额度耗尽和空正文，避免用 '{}' 掩盖真正失败原因。
+    if (choice?.finish_reason === 'length') throw new Error('AI分析输出被截断：token额度已耗尽')
+    if (typeof content !== 'string' || !content.trim()) throw new Error('AI分析返回正文为空')
 
     // 提取JSON内容
     let jsonContent = content
     const jsonMatch = content.match(/```json\s*([\s\S]*?)\s*```/) || content.match(/```\s*([\s\S]*?)\s*```/)
-    if (jsonMatch) {
+    // 匹配成功不保证索引项在类型上存在，先校验捕获组再赋值。
+    if (jsonMatch && typeof jsonMatch[1] === 'string') {
       jsonContent = jsonMatch[1]
     }
 
@@ -250,7 +269,7 @@ ${JSON.stringify(targetTrades.slice(-20).map(trade => ({
 
     // AI 返回可解析 JSON 不代表内容符合分析协议；缺字段时必须走降级逻辑，
     // 不能把“分析完成 + 空数组”当成有效结果写入历史文件。
-    if (typeof learningResult.summary !== 'string' || !learningResult.summary.trim()
+    if (!learningResult || typeof learningResult.summary !== 'string' || !learningResult.summary.trim()
       || !Array.isArray(learningResult.keyPatterns)
       || !Array.isArray(learningResult.successFactors)
       || !Array.isArray(learningResult.failureFactors)
@@ -278,7 +297,7 @@ ${JSON.stringify(targetTrades.slice(-20).map(trade => ({
 
     return finalResult
   } catch (error: any) {
-    console.error('[TradeHistoryAnalyzer] AI分析失败:', error.message)
+    logger.error('TradeHistoryAnalyzer', `AI分析失败: ${error.message}`, responseDiagnostics)
 
     // 降级处理：返回基于统计的简单分析
     const fallbackResult: LearningResult = {
