@@ -416,6 +416,13 @@ export class MultiStrategyAIAnalyzer {
       if (indicators.adxSlope !== undefined) {
         adxLines.push(`- ADX斜率：${indicators.adxSlope.toFixed(4)}`)
       }
+      // ADX 表示趋势强度，PDI/MDI 提供多空方向，供策略提示词比较。
+      if (indicators.pdi !== undefined) {
+        adxLines.push(`- PDI(+DI): ${indicators.pdi.toFixed(2)}`)
+      }
+      if (indicators.mdi !== undefined) {
+        adxLines.push(`- MDI(-DI): ${indicators.mdi.toFixed(2)}`)
+      }
     }
 
     // OI行

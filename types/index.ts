@@ -76,6 +76,10 @@ export interface TechnicalIndicators {
   adxPeriodLabel: string
   adx?: number
   adxSlope?: number
+  /** 正向方向指标（+DI），与 MDI 比较用于判断多空方向 */
+  pdi?: number
+  /** 负向方向指标（-DI），与 PDI 比较用于判断多空方向 */
+  mdi?: number
   rsi?: number
   macd?: {
     macd: number

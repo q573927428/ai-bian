@@ -985,6 +985,9 @@ export class StrategyEngine {
         adx: enabledADX ? adxData.adx : undefined,
         adxSlope: enabledADX ? adxData.adxSlope : undefined,
         atr: enabledATR ? indicatorsData.get(`${mainTimeframe}_ATR`)?.values?.atr : undefined,
+        // DI 与 ADX 使用同一策略周期和参数，仅在启用 ADX 时传入 AI。
+        pdi: enabledADX ? adxData.pdi : undefined,
+        mdi: enabledADX ? adxData.mdi : undefined,
         openInterest: enabledOI ? indicatorsData.get(`${oiTimeframe}_OI`)?.values?.value : undefined,
         openInterestChangePercent: enabledOI ? indicatorsData.get(`${oiTimeframe}_OI`)?.values?.changePercent : undefined,
         openInterestTrend: enabledOI ? indicatorsData.get(`${oiTimeframe}_OI`)?.values?.trend : undefined,

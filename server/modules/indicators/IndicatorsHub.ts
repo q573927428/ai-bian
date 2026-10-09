@@ -691,14 +691,18 @@ export class IndicatorsHub {
         case 'ADX':
           const adxPeriod = Number(options?.adxPeriod ?? 14)
           const adxValues = ADX.calculate({ period: adxPeriod, high: highs, low: lows, close: closes })
-          const currentADX = adxValues[adxValues.length - 1]?.adx ?? 0
+          const latestADX = adxValues[adxValues.length - 1]
+          const currentADX = latestADX?.adx ?? 0
           const adxSlopePeriod = this.config.indicatorsConfig?.adxSlopePeriod ?? 3
           const previousADXIndex = Math.max(0, adxValues.length - 1 - adxSlopePeriod)
           const previousADX = adxValues[previousADXIndex]?.adx ?? currentADX
           const adxSlope = currentADX - previousADX
           indicatorData.values = {
             adx: currentADX,
-            adxSlope: adxSlope
+            adxSlope: adxSlope,
+            // 保留 ADX 同次计算的方向指标；数据不足时不输出，避免被误认为有效方向。
+            pdi: latestADX?.pdi,
+            mdi: latestADX?.mdi
           }
           break
 
