@@ -64,7 +64,7 @@ export type StatisticsType = 'OI' | 'Volume' | 'SquareHeat';
 export type AIProvider = 'deepseek' | 'doubao' | 'doubao-agent' | 'qwen' | 'openai';
 
 // AI模型类型
-export type AIModel = 'deepseek-v4-flash' | 'deepseek-v4-pro' | string;
+export type AIModel = 'DeepSeek-V4.1-Flash' | 'deepseek-v4-pro' | string;
 
 // 保证金模式
 export type MarginMode = 'cross' | 'isolated';

@@ -537,7 +537,7 @@ const configuredProviders = ref<Array<{ id: string; name: string; configured: bo
 // AI 提供商模型配置
 const providerModels: Record<string, Array<{ label: string; value: string }>> = {
   deepseek: [
-    { label: 'deepseek-v4-flash', value: 'deepseek-v4-flash' },
+    { label: 'DeepSeek-V4.1-Flash', value: 'DeepSeek-V4.1-Flash' },
     { label: 'deepseek-v4-pro', value: 'deepseek-v4-pro' }
   ],
   doubao: [
@@ -657,7 +657,7 @@ const form = reactive<CreateStrategyInput>({
     temperature: 0.3,
     maxTokens: 2000,
     thinkingEnabled: false,
-    model: 'deepseek-v4-flash',
+    model: 'DeepSeek-V4.1-Flash',
     provider: 'deepseek'
   },
   riskManagement: {

@@ -374,7 +374,7 @@ AI 缓存机制：
 
 | 提供商 | API URL | 默认模型 |
 |--------|---------|----------|
-| DeepSeek | `https://api.deepseek.com` | `deepseek-v4-flash` |
+| DeepSeek | `https://api.deepseek.com` | `DeepSeek-V4.1-Flash` |
 | 豆包 (Doubao) | `https://ark.cn-beijing.volces.com/api/v3` | `doubao-seed-2-0-pro` |
 | 阿里千问 (Qwen) | `https://dashscope.aliyuncs.com` | `qwen-plus` |
 | OpenAI | `https://api.openai.com/v1` | `gpt-4o-mini` |

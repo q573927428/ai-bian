@@ -215,7 +215,7 @@ ${JSON.stringify(targetTrades.slice(-20).map(trade => ({
         'Authorization': `Bearer ${runtimeConfig.deepseekApiKey}`,
       },
       body: JSON.stringify({
-        model: 'deepseek-v4-flash',
+        model: 'DeepSeek-V4.1-Flash',
         messages: [
           {
             role: 'system',
