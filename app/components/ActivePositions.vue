@@ -14,7 +14,7 @@
         <!-- 紧凑持仓卡片：价格来自共享行情订阅，会随行情实时刷新。 -->
         <div class="position-header">
           <div class="position-topline">
-            <div class="symbol-row"><button type="button" class="symbol" :title="`查看 ${position.symbol} K线`" @click="selectChartSymbol(position.symbol)">{{ position.symbol }}</button><span class="leverage">{{ position.leverage }}x</span><span class="open-time">{{ formatOpenTime(position.openTime) }}</span></div>
+            <div class="symbol-row"><button type="button" class="symbol" :title="`查看 ${position.symbol} K线`" @click="selectChartSymbol(position.symbol, position.mainTimeframe)">{{ position.symbol }}</button><span class="leverage">{{ position.leverage }}x</span><span class="open-time">{{ formatOpenTime(position.openTime) }}</span></div>
             <div class="pnl-info"><strong class="pnl-amount" :class="{ 'text-success': calculateUnrealizedPnl(position) >= 0, 'text-danger': calculateUnrealizedPnl(position) < 0 }">${{ calculateUnrealizedPnl(position) >= 0 ? '+' : '' }}{{ calculateUnrealizedPnl(position).toFixed(2) }}</strong></div>
           </div>
           <div class="tag-row"><el-tag :type="position.direction === 'long' ? 'success' : 'danger'" effect="dark">{{ position.direction === 'long' ? '做多' : '做空' }}</el-tag><el-tag effect="plain">{{ position.strategyId }}</el-tag><el-tag type="danger" size="small" :loading="closingSymbols.includes(position.symbol)" @click="requestClosePosition(position.symbol)" class="close-btn" plain>平仓</el-tag><div v-if="position.reasoning" class="ai-toggle-btn-inline" @click="toggleAISection(position.symbol)"><el-icon class="toggle-icon" :class="{ rotated: expandedAISections.includes(position.symbol) }"><ElIconArrowDown /></el-icon></div><span class="pnl-percent" :class="{ 'text-success': calculateUnrealizedPnlPercentage(position) >= 0, 'text-danger': calculateUnrealizedPnlPercentage(position) < 0 }">{{ calculateUnrealizedPnlPercentage(position) >= 0 ? '+' : '' }}{{ calculateUnrealizedPnlPercentage(position).toFixed(1) }}%</span></div>
@@ -79,8 +79,8 @@ import { formatPrice } from './kline-chart/utils/kline-formatters'
 import PasswordDialog from './PasswordDialog.vue'
 
 const emit = defineEmits<{
-  /** 通知首页将 K 线图切换到当前持仓的交易对。 */
-  selectSymbol: [symbol: string]
+  /** 通知首页将 K 线图切换到当前持仓的交易对及主周期。 */
+  selectSymbol: [symbol: string, mainTimeframe?: string]
 }>()
 
 const botStore = useBotStore()
@@ -91,10 +91,10 @@ const showClosePasswordDialog = ref(false)
 const pendingCloseSymbol = ref('')
 
 /**
- * 将持仓交易对转换为 K 线组件使用的 Binance symbol 后通知父组件。
+ * 将持仓交易对转换为 Binance symbol，并携带持仓主周期通知父组件。
  */
-function selectChartSymbol(symbol: string) {
-  emit('selectSymbol', symbol.replace('/', '').toUpperCase())
+function selectChartSymbol(symbol: string, mainTimeframe?: string) {
+  emit('selectSymbol', symbol.replace('/', '').toUpperCase(), mainTimeframe)
 }
 
 // 加载持仓信息

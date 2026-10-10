@@ -2,7 +2,7 @@
   <el-card class="chart-card" shadow="hover">
     <!-- K线图表（引擎可切换：自研K线 / TradingView） -->
     <ClientOnly>
-      <ChartEngineSwitcher :symbol="selectedSymbol || 'BTCUSDT'" />
+      <ChartEngineSwitcher :symbol="selectedSymbol || 'BTCUSDT'" :timeframe="props.chartTimeframe" />
     </ClientOnly>
     
     <!-- 水平线 -->
@@ -109,6 +109,8 @@ import { useCoinIcon } from '../composables/useCoinIcon'
 const props = defineProps<{
   /** 由外部指定要展示的交易对，例如点击当前持仓时传入。 */
   chartSymbol?: string
+  /** 持仓对应的主周期，传递给当前图表引擎。 */
+  chartTimeframe?: string
 }>()
 
 const emit = defineEmits<{

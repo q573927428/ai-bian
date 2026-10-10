@@ -136,7 +136,7 @@
             
             <!-- 加密货币价格卡片组件 -->
             <ClientOnly>
-              <CryptoPriceCards v-model:chart-symbol="selectedChartSymbol" />
+              <CryptoPriceCards v-model:chart-symbol="selectedChartSymbol" :chart-timeframe="selectedChartTimeframe" />
             </ClientOnly>
 
             <!-- 技术指标抽屉由状态面板卡片内按钮打开 -->
@@ -169,7 +169,7 @@
           <el-col :xs="24" :sm="24" :md="6" :lg="6">
             <!-- 当前持仓固定显示，查看持仓无需解锁。 -->
             <ClientOnly>
-              <ActivePositions @select-symbol="selectedChartSymbol = $event" />
+              <ActivePositions @select-symbol="handlePositionChartSelect" />
             </ClientOnly>
           </el-col>
           
@@ -271,8 +271,16 @@ const showIndicatorsDrawer = ref(false)
 const showLogsDrawer = ref(false)
 const showOrdersDrawer = ref(false)
 const showStrategiesDrawer = ref(false)
-// 首页负责在持仓列表与 K 线区域之间中转当前交易对。
+// 首页负责在持仓列表与 K 线区域之间中转交易对和持仓主周期。
 const selectedChartSymbol = ref('')
+const selectedChartTimeframe = ref('')
+
+/** 点击持仓交易对时，同时定位图表交易对和该持仓的主周期。 */
+function handlePositionChartSelect(symbol: string, mainTimeframe?: string) {
+  selectedChartSymbol.value = symbol
+  // 兼容未保存主周期的旧持仓，避免向图表传入无效周期。
+  if (mainTimeframe) selectedChartTimeframe.value = mainTimeframe
+}
 
 const handleConfigSuccess = () => {
   // 配置保存成功后的处理

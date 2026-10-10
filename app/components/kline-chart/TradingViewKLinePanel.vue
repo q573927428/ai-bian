@@ -150,7 +150,7 @@ const emit = defineEmits<{
 const { theme: globalTheme } = useTheme()
 
 // 响应式数据
-const timeframe = ref(props.timeframe || '60')
+const timeframe = ref(toTradingViewTimeframe(props.timeframe || '1h'))
 const theme = ref(globalTheme.value)
 const chartType = ref('candlesticks')
 const isFullscreen = ref(false)
@@ -200,8 +200,24 @@ watch(globalTheme, (newTheme) => {
   }
 })
 
-// 监听symbol变化
-watch(() => props.symbol, (newSymbol) => {
+/** 将持仓使用的 Binance 周期转换为 TradingView 的分钟数或日、周、月标识。 */
+function toTradingViewTimeframe(value: string): string {
+  const match = value.match(/^(\d+)([mhdwM])$/)
+  if (!match) return value
+  const amount = Number(match[1])
+  switch (match[2]) {
+    case 'm': return String(amount)
+    case 'h': return String(amount * 60)
+    case 'd': return `${amount}D`
+    case 'w': return `${amount}W`
+    case 'M': return `${amount}M`
+    default: return value
+  }
+}
+
+// 同时接收交易对和主周期，避免一次持仓点击分别触发两次图表初始化。
+watch(() => [props.symbol, props.timeframe] as const, ([newSymbol, newTimeframe]) => {
+  if (newTimeframe) timeframe.value = toTradingViewTimeframe(newTimeframe)
   if (newSymbol) {
     initChart()
   }
