@@ -4,7 +4,7 @@
     class="indicators-drawer"
     title="指标看板"
     direction="rtl"
-    size="62%"
+    size="75%"
     destroy-on-close
   >
     <div class="toolbar">
@@ -42,16 +42,25 @@
           <span class="muted"> · {{ row.candleDirectionLabel }}</span>
         </template>
       </el-table-column>
-      <el-table-column label="趋势" min-width="100">
+      <el-table-column label="趋势" min-width="80">
         <template #default="{ row }">
           <div>ADX {{ format(row.adx) }}</div>
-          <span :class="row.emaBullish ? 'up' : 'down'">EMA {{ row.emaBullish ? '多头' : '空头' }}</span>
+          <div class="up">PDI {{ format(row.pdi) }}</div>
+          <div class="down">MDI {{ format(row.mdi) }}</div>
+          <span :class="row.diDirection === '多头' ? 'up' : row.diDirection === '空头' ? 'down' : 'muted'">{{ row.diDirection }}</span>
         </template>
       </el-table-column>
-      <el-table-column label="RSI" min-width="75" sortable="custom" prop="rsi">
+      <el-table-column label="EMA" min-width="120">
+        <template #default="{ row }">
+          <div>EMA{{ row.fastEmaPeriod }} {{ formatPrice(row.fastEma) }}</div>
+          <div>EMA{{ row.slowEmaPeriod }} {{ formatPrice(row.slowEma) }}</div>
+          <span :class="row.emaBullish == null ? 'muted' : row.emaBullish ? 'up' : 'down'">{{ row.emaBullish == null ? '--' : row.emaBullish ? '多头' : '空头' }}</span>
+        </template>
+      </el-table-column>
+      <el-table-column label="RSI" min-width="70" sortable="custom" prop="rsi">
         <template #default="{ row }"><span :class="rsiClass(row.rsi)">{{ format(row.rsi) }}</span></template>
       </el-table-column>
-      <el-table-column label="MACD 实时" min-width="225" sortable="custom" prop="macdHistogram">
+      <el-table-column label="MACD 实时" min-width="350" sortable="custom" prop="macdHistogram">
         <template #default="{ row }">
           <div class="macd-cell">
             <div class="macd-state-line">
@@ -59,18 +68,28 @@
               <span class="macd-trend" :class="directionClass(row.macdHistogram)">
                 柱 {{ histogramTrendIcon(row.macdHistogramTrend) }}
               </span>
-              <el-tooltip placement="top" effect="dark">
-                <template #content>
-                  上组 M {{ formatMacd(row.previousMacd) }}<br>
-                  S {{ formatMacd(row.previousMacdSignal) }} · H {{ formatSignedMacd(row.previousMacdHistogram) }}
-                </template>
-                <el-icon class="macd-history-icon"><ElIconInfoFilled /></el-icon>
-              </el-tooltip>
+              <span class="macd-result" :class="macdResultClass(row.macdHistogram, row.previousMacdHistogram)">{{ macdResult(row.macdHistogram, row.previousMacdHistogram) }}</span>
             </div>
-            <div class="macd-values current-values">
-              <span>M {{ formatMacd(row.macd) }}</span>
-              <span>S {{ formatMacd(row.macdSignal) }}</span>
-              <span :class="directionClass(row.macdHistogram)">H {{ formatSignedMacd(row.macdHistogram) }}</span>
+            <div class="macd-values macd-heading">
+              <span></span><span>M</span><span>S</span><span>H</span>
+            </div>
+            <div class="macd-values macd-data-row current-values">
+              <span class="macd-row-label">当前</span>
+              <span>{{ formatMacd(row.macd) }}</span>
+              <span>{{ formatMacd(row.macdSignal) }}</span>
+              <span :class="directionClass(row.macdHistogram)">{{ formatSignedMacd(row.macdHistogram) }}</span>
+              <span class="macd-row-chart" aria-hidden="true">
+                <span class="macd-chart-bar" :class="directionClass(row.macdHistogram)" :style="histogramBarStyle(row.macdHistogram, row.previousMacdHistogram)"></span>
+              </span>
+            </div>
+            <div class="macd-values macd-data-row previous-values">
+              <span class="macd-row-label">上组</span>
+              <span>{{ formatMacd(row.previousMacd) }}</span>
+              <span>{{ formatMacd(row.previousMacdSignal) }}</span>
+              <span>{{ formatSignedMacd(row.previousMacdHistogram) }}</span>
+              <span class="macd-row-chart" aria-hidden="true">
+                <span class="macd-chart-bar" :class="directionClass(row.previousMacdHistogram)" :style="histogramBarStyle(row.previousMacdHistogram, row.macdHistogram)"></span>
+              </span>
             </div>
           </div>
         </template>
@@ -87,7 +106,7 @@
       <el-table-column label="进度%" min-width="80" prop="candleProgressPercent" sortable="custom">
         <template #default="{ row }">{{ format(row.candleProgressPercent) }}%</template>
       </el-table-column>
-      <el-table-column label="情绪" min-width="50">
+      <el-table-column label="社区情绪" min-width="70">
         <template #default="{ row }"><span :class="sentimentClass(row.sentiment)">{{ row.sentimentLabel }}</span></template>
       </el-table-column>
       <el-table-column label="数据" min-width="50">
@@ -109,10 +128,14 @@ interface IndicatorRow {
   symbol: string; price?: number; closeChangePercent?: number; candleDirectionLabel: string
   candleProgressPercent?: number
   adx?: number; rsi?: number; atrPercent?: number; oiChangePercent?: number
+  /** ADX 的正向与负向方向指标及两者比较得出的方向。 */
+  pdi?: number; mdi?: number; diDirection: '多头' | '空头' | '中性' | '--'
+  /** EMA 周期与数值，以及短周期相对长周期的方向。 */
+  fastEmaPeriod: number; slowEmaPeriod: number; fastEma?: number; slowEma?: number; emaBullish?: boolean
   macd?: number; macdSignal?: number; macdHistogram?: number
   previousMacd?: number; previousMacdSignal?: number; previousMacdHistogram?: number
   macdCrossover: 'golden' | 'dead' | 'none'; macdHistogramTrend: 'rising' | 'falling' | 'flat'
-  volumeRatio?: number; sentiment?: number; sentimentLabel: string; emaBullish: boolean; stale: boolean
+  volumeRatio?: number; sentiment?: number; sentimentLabel: string; stale: boolean
 }
 
 /** 指标抽屉的外部控制参数。 */
@@ -149,13 +172,27 @@ const symbols = computed<string[]>(() => {
   return configuredSymbols.map((symbol: string) => symbol.replace('/', '').toUpperCase())
 })
 
+// 指标看板使用机器人配置中的周期；配置缺失时与服务端默认周期保持一致。
+const emaPeriods = computed<[number, number]>(() => {
+  const periods = botStore.botConfig?.emaPeriods
+  const fast = periods?.[0]
+  const slow = periods?.[1]
+  return fast != null && slow != null
+    && Number.isInteger(fast) && fast >= 2 && fast <= 500
+    && Number.isInteger(slow) && slow >= 2 && slow <= 500 && fast !== slow
+    ? [fast, slow]
+    : [20, 60]
+})
+
 /** 拉取配置交易对的诊断指标；单个交易对失败不会阻塞其余行。 */
 async function fetchData() {
+  if (!botStore.botConfig) await botStore.fetchBotConfig()
   if (symbols.value.length === 0) { rows.value = []; return }
   loading.value = true; errorMessage.value = ''
+  const requestedEmaPeriods = [...emaPeriods.value]
   const results = await Promise.all(symbols.value.map(async (symbol: string) => {
     try {
-      const response: any = await $fetch('/api/bot/indicators', { query: { symbol, timeframe: timeframe.value, includeSlowStats: 'false' } })
+      const response: any = await $fetch('/api/bot/indicators', { query: { symbol, timeframe: timeframe.value, emaPeriods: requestedEmaPeriods.join(','), includeSlowStats: 'false' } })
       return toRow(response.data)
     } catch { return null }
   }))
@@ -174,7 +211,7 @@ async function enrichSlowStats() {
   await Promise.all(pendingRows.map(async (row) => {
     try {
       const response: any = await $fetch('/api/bot/indicators', {
-        query: { symbol: row.symbol, timeframe: timeframe.value, includeSlowStats: 'true' }
+        query: { symbol: row.symbol, timeframe: timeframe.value, emaPeriods: emaPeriods.value.join(','), includeSlowStats: 'true' }
       })
       const next = toRow(response.data)
       const index = rows.value.findIndex(item => item.symbol === row.symbol)
@@ -221,8 +258,14 @@ function handleSortChange({ prop, order }: { prop?: string | null; order?: strin
 function toRow(data: any): IndicatorRow {
   const values = (name: string) => data?.indicators?.[name]?.values || {}
   const ema = values('ema').emaMap || {}
+  const [fastPeriod, slowPeriod] = data?.parameters?.emaPeriods || emaPeriods.value
+  const fastEma = ema[`EMA${fastPeriod}`] == null ? undefined : Number(ema[`EMA${fastPeriod}`])
+  const slowEma = ema[`EMA${slowPeriod}`] == null ? undefined : Number(ema[`EMA${slowPeriod}`])
   const price = Number(data?.kline?.latest?.close)
   const atr = Number(values('atr').atr)
+  const adx = values('adx')
+  const pdi = adx.pdi == null ? undefined : Number(adx.pdi)
+  const mdi = adx.mdi == null ? undefined : Number(adx.mdi)
   const macd = values('macd')
   const heat = values('squareHeat')
   const sentiment = Number(heat.netDirectionalSentimentPercent ?? heat.changePercent)
@@ -230,14 +273,20 @@ function toRow(data: any): IndicatorRow {
     symbol: data.symbol, price, closeChangePercent: Number(data.kline?.closeChangePercent),
     candleProgressPercent: Number(data.kline?.candleProgressPercent),
     candleDirectionLabel: data.kline?.candleDirection === 'bullish' ? '阳线' : data.kline?.candleDirection === 'bearish' ? '阴线' : '平',
-    adx: Number(values('adx').adx), rsi: Number(values('rsi').rsi),
+    adx: Number(adx.adx), rsi: Number(values('rsi').rsi),
+    // DI 差距超过 5 才视为明确方向，避免接近时反复切换多空。
+    pdi, mdi, diDirection: pdi == null || mdi == null || !Number.isFinite(pdi) || !Number.isFinite(mdi)
+      ? '--' : pdi - mdi > 5 ? '多头' : mdi - pdi > 5 ? '空头' : '中性',
+    fastEmaPeriod: fastPeriod, slowEmaPeriod: slowPeriod, fastEma, slowEma,
     macd: Number(macd.macd), macdSignal: Number(macd.signal), macdHistogram: Number(macd.histogram),
     previousMacd: Number(macd.previousMacd), previousMacdSignal: Number(macd.previousSignal), previousMacdHistogram: Number(macd.previousHistogram),
     macdCrossover: normalizeCrossover(macd.crossover), macdHistogramTrend: normalizeHistogramTrend(macd.histogramTrend),
     atrPercent: price > 0 ? atr / price * 100 : undefined, oiChangePercent: Number(values('oi').changePercent),
     volumeRatio: Number(values('volume').ratio), sentiment, sentimentLabel: Number.isFinite(sentiment) ? (sentiment > 0 ? '偏多' : sentiment < 0 ? '偏空' : '中性') : '--',
     // dataAgeMs 由服务端按最近一次成功写入时间计算，不再使用 K 线开盘时间。
-    emaBullish: Number(ema.EMA14) >= Number(ema.EMA50), stale: Number(data?.kline?.dataAgeMs) > 2 * 60 * 60 * 1000
+    emaBullish: fastEma == null || slowEma == null || !Number.isFinite(fastEma) || !Number.isFinite(slowEma)
+      ? undefined : fastEma >= slowEma,
+    stale: Number(data?.kline?.dataAgeMs) > 2 * 60 * 60 * 1000
   }
 }
 
@@ -285,6 +334,14 @@ function formatSignedMacd(value?: number) {
   return `${value >= 0 ? '+' : ''}${formatMacd(value)}`
 }
 
+/** 两组 H 共用同一比例尺，零轴位于轨道中央。 */
+function histogramBarStyle(value?: number, other?: number) {
+  if (value == null || !Number.isFinite(value)) return { width: '0%' }
+  const maximum = Math.max(Math.abs(value), other != null && Number.isFinite(other) ? Math.abs(other) : 0)
+  const width = maximum === 0 ? 0 : Math.abs(value) / maximum * 50
+  return { left: `${value < 0 ? 50 - width : 50}%`, width: `${width}%` }
+}
+
 function normalizeCrossover(value: unknown): IndicatorRow['macdCrossover'] {
   return value === 'golden' || value === 'dead' ? value : 'none'
 }
@@ -305,7 +362,25 @@ function histogramTrendIcon(value: IndicatorRow['macdHistogramTrend']) {
   return value === 'rising' ? '↑' : value === 'falling' ? '↓' : '→'
 }
 
+/** H 的正负表示当前多空动能方向，与上组比较表示动能增强或减弱。 */
+function macdResult(current?: number, previous?: number) {
+  if (current == null || previous == null || !Number.isFinite(current) || !Number.isFinite(previous)) return '--'
+  if (current === 0) return '动能中性'
+  if (current === previous) return current > 0 ? '多头持平' : '空头持平'
+  if (current > 0) return current > previous ? '多头增强' : '多头减弱'
+  return current < previous ? '空头增强' : '空头减弱'
+}
+
+function macdResultClass(current?: number, previous?: number) {
+  if (current == null || previous == null || !Number.isFinite(current) || !Number.isFinite(previous) || current === 0 || current === previous) return 'muted'
+  const strengthening = current > 0 ? current > previous : current < previous
+  return strengthening ? directionClass(current) : `${directionClass(current)} macd-weakening`
+}
+
 watch(() => symbols.value.join(','), () => {
+  if (visible.value) fetchData()
+})
+watch(() => emaPeriods.value.join(','), () => {
   if (visible.value) fetchData()
 })
 watch(visible, value => {
@@ -320,14 +395,23 @@ watch(visible, value => {
 .coin-icon, .coin-icon-placeholder { width: 18px; height: 18px; flex: 0 0 18px; border-radius: 50%; }
 .coin-icon { display: block; object-fit: cover; }
 .coin-icon-placeholder { display: inline-flex; align-items: center; justify-content: center; color: #fff; font-size: 10px; font-weight: 600; line-height: 1; }
-.macd-cell { display: flex; flex-direction: column; gap: 3px; min-width: 205px; line-height: 1.35; }
+.macd-cell { display: flex; flex-direction: column; gap: 3px; min-width: 326px; line-height: 1.35; }
 .macd-state-line, .macd-values { display: grid; align-items: center; column-gap: 8px; }
-.macd-state-line { grid-template-columns: 52px minmax(0, 1fr) 16px; }
-.macd-values { grid-template-columns: repeat(3, minmax(0, 1fr)); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.macd-state-line { grid-template-columns: 55px 52px minmax(0, 1fr); }
+.macd-values { grid-template-columns: 28px repeat(3, minmax(0, 1fr)); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.macd-values > span:not(:first-child) { text-align: right; }
 .macd-crossover { font-weight: 600; }
 .macd-trend { white-space: nowrap; }
-.macd-history-icon { color: var(--text-secondary); cursor: help; }
+.macd-result { white-space: nowrap; font-weight: 600; }
+.macd-weakening { opacity: .6; }
+.macd-heading, .macd-row-label, .previous-values { color: var(--text-secondary); }
 .current-values { color: var(--text-primary); }
+.macd-data-row { position: relative; min-height: 20px; }
+.macd-data-row > span:not(.macd-row-chart) { position: relative; z-index: 1; }
+.macd-row-chart { position: absolute; left: 36px; right: 0; top: 1px; bottom: 1px; pointer-events: none; }
+.macd-row-chart::before { content: ''; position: absolute; left: 50%; top: 0; bottom: 0; width: 1px; background: var(--text-secondary); opacity: .45; }
+.macd-chart-bar { position: absolute; top: 0; height: 100%; background: currentColor; opacity: .18; }
+.previous-values .macd-chart-bar { opacity: .12; }
 
 /* 抽屉会 Teleport 到 body，使用全局选择器让亮暗主题变量在弹层中完整生效。 */
 :global(.indicators-drawer) {

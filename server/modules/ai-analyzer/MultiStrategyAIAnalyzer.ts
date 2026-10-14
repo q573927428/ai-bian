@@ -24,6 +24,17 @@ interface StructuredRules {
   dsl?: string
 }
 
+/** 与看板使用同一口径，描述当前 H 的方向及相对上组的变化。 */
+function getMacdTrendResult(macd: NonNullable<TechnicalIndicators['macd']>): string {
+  if (!Number.isFinite(macd.histogram) || !Number.isFinite(macd.previousHistogram)) return '数据不足'
+  const current = macd.histogram
+  const previous = macd.previousHistogram
+  if (current === 0) return '动能中性'
+  if (current === previous) return current > 0 ? '多头持平' : '空头持平'
+  const stronger = current > 0 ? current > previous : current < previous
+  return `${current > 0 ? '多头' : '空头'}${stronger ? '增强' : '减弱'}`
+}
+
 const aiCache = new Map<string, MultiStrategyAICache>()
 
 /**
@@ -598,6 +609,9 @@ export class MultiStrategyAIAnalyzer {
     structuredRules?: StructuredRules
   ): string {
     const data = this.preparePromptData(symbol, price, indicators, volume, candleProgress)
+    const macdTrendResult = indicators.enabledIndicators?.macd && indicators.macd
+      ? getMacdTrendResult(indicators.macd)
+      : null
     const structuredRulesDslText = (() => {
       const fromPrompt = (promptConfig as any)?.structuredRulesDsl
       if (typeof fromPrompt === 'string' && fromPrompt.trim()) {
@@ -627,6 +641,7 @@ ${data.candleBodyLines.length > 0 ? data.candleBodyLines.join('\n') : ''}
 
 ## 三、技术指标（仅启用的指标有效）
 ${data.technicalIndicatorLines.join('\n')}
+${macdTrendResult ? `- MACD趋势结果（实时未收盘）：${macdTrendResult}` : ''}
 ${data.adxLines.length > 0 ? data.adxLines.join('\n') : ''}
 ${data.oiLines.length > 0 ? data.oiLines.join('\n') : ''}
 ${data.squareHeatLines.length > 0 ? data.squareHeatLines.join('\n') : ''}
@@ -846,7 +861,7 @@ ${historySection}
         if (hasIdleKeyword) {
           confidence = Math.min(confidence, 70)
         }
-        
+
         const normalizedScoreBreakdown = this.normalizeScoreBreakdown(aiResult.scoreBreakdown)
 
         const analysis: AIAnalysis = {
