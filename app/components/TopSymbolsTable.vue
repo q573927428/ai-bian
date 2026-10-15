@@ -391,7 +391,7 @@ const sortedData = computed(() => {
   arr.sort((a, b) => {
     let aVal = a[sortProp.value as keyof TopSymbol] as number
     let bVal = b[sortProp.value as keyof TopSymbol] as number
-    // activeDays 为字符串 "12/12"，排序时取分子
+    // activeDays 为字符串 "21/21"，排序时取分子
     if (sortProp.value === 'activeDays') {
       aVal = Number(String((a as any).activeDays || '0').split('/')[0])
       bVal = Number(String((b as any).activeDays || '0').split('/')[0])

@@ -27,7 +27,7 @@ interface TopSymbol {
   avgDailyVolume?: number  // 窗口期日均成交额 (USDT)
   volumeCv?: number        // 变异系数（越小越稳定）
   minMaxRatio?: number     // 最低/最高日成交额比
-  activeDays?: string      // 活跃天数，如 "12/12"
+  activeDays?: string      // 活跃天数，如 "21/21"
   contractType?: string    // 合约类型（PERPETUAL / TRADIFI_PERPETUAL）
   score?: number           // 综合得分 = avgDaily × (1 - min(CV, 1))
 }
