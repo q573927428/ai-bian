@@ -13,7 +13,7 @@ import { initKLineDb, closeKLineDb, flushDb, getSimpleKLineCount } from '../util
 const DEFAULT_SYNC_CONFIG: KLineSyncConfig = {
   symbols: [],
   timeframes: ['5m', '15m', '1h', '4h', '1d', '1w'],
-  maxBars: 2233,
+  maxBars: 495,
   syncInterval: 600, // 按周期调度，此值不再使用，但保留用于API兼容性
   timeframeConfigs: [
     { timeframe: '5m', syncInterval: 60, enabled: true },     // ✅ 1分钟

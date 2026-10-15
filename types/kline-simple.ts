@@ -84,7 +84,7 @@ export interface KLineSyncConfig {
 export const DEFAULT_CONFIG: KLineSyncConfig = {
   symbols: [],
   timeframes: ['5m', '15m', '1h', '4h', '1d', '1w'],
-  maxBars: 2233,
+  maxBars: 495,
   syncInterval: 600, // 按周期调度，此值不再使用，但保留用于API兼容性
   timeframeConfigs: [
     { timeframe: '5m',  syncInterval: 120, enabled: true },   // ✅ 2分钟

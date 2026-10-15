@@ -70,7 +70,7 @@ async function handleGetRequest(event: any) {
           first: 0,
           last: 0,
           count: 0,
-          max: 2233,
+          max: 495,
           updated: 0
         }
       }, '没有找到K线数据')
@@ -88,7 +88,7 @@ async function handleGetRequest(event: any) {
         first: klineData[0]?.t || 0,
         last: klineData[klineData.length - 1]?.t || 0,
         count: klineData.length,
-        max: 2233,
+        max: 495,
         updated: Math.floor(Date.now() / 1000)
       }
     }

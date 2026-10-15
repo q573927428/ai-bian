@@ -25,7 +25,7 @@ let dbInitPromise: Promise<void> | null = null
 // 进程内记录最近一次成功写入时间，避免为新鲜度诊断改动现有数据库结构。
 const klineWriteTimes = new Map<string, number>()
 
-const MAX_BARS = 2233
+const MAX_BARS = 495
 
 function getDbPath(): string {
   if (process.env.KLINE_DATA_DIR) {

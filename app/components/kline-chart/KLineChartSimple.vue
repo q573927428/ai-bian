@@ -249,7 +249,7 @@ const meta = ref({
   first: 0,
   last: 0,
   count: 0,
-  max: 2233,
+  max: 495,
   updated: 0
 })
 const loading = ref(false)
@@ -398,7 +398,7 @@ const loadKLineData = async (silent = false) => {
     const params = new URLSearchParams({
       symbol: symbolToUse,
       timeframe: timeframeToUse,
-      limit: '2233'
+      limit: '495'
     })
     
     const response = await fetch(`/api/kline-simple?${params}`)
