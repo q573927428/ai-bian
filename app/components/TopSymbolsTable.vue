@@ -62,7 +62,7 @@
           <div class="param-item">
             <label>日均成交额下限 (万USDT)</label>
             <el-input-number v-model="minDailyWan" :min="0" :step="1000" size="small" controls-position="right" />
-            <span class="param-desc">30 天平均日成交额须 ≥ 此值</span>
+            <span class="param-desc">窗口日均成交额及至少 80% 天数的单日成交额须 ≥ 此值</span>
           </div>
           <div class="param-item">
             <label>最低/最高比</label>
@@ -195,7 +195,9 @@
             min-width="90"
           >
             <template #default="{ row }">
-              {{ row.activeDays || '--' }}
+              <el-tooltip content="达到设置的成交额下限的天数 / 实际日线根数；至少 80% 的窗口天数须达标" placement="top">
+                <span>{{ row.activeDays || '--' }}</span>
+              </el-tooltip>
             </template>
           </el-table-column>
         </template>
@@ -292,9 +294,9 @@ interface FilterParams {
 
 /** 与服务端 FILTER_DEFAULTS 保持一致的默认值 */
 const DEFAULT_FILTER_PARAMS: FilterParams = {
-  days: 21,
+  days: 30,
   pool: 100,
-  top: 30,
+  top: 38,
   minDaily: 50_000_000,
   minRatio: 0.02,
   cvMax: 1.0,
@@ -391,7 +393,7 @@ const sortedData = computed(() => {
   arr.sort((a, b) => {
     let aVal = a[sortProp.value as keyof TopSymbol] as number
     let bVal = b[sortProp.value as keyof TopSymbol] as number
-    // activeDays 为字符串 "21/21"，排序时取分子
+    // activeDays 为字符串 "30/30"，排序时取分子
     if (sortProp.value === 'activeDays') {
       aVal = Number(String((a as any).activeDays || '0').split('/')[0])
       bVal = Number(String((b as any).activeDays || '0').split('/')[0])

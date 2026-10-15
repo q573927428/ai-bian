@@ -27,7 +27,7 @@ interface TopSymbol {
   avgDailyVolume?: number  // 窗口期日均成交额 (USDT)
   volumeCv?: number        // 变异系数（越小越稳定）
   minMaxRatio?: number     // 最低/最高日成交额比
-  activeDays?: string      // 活跃天数，如 "21/21"
+  activeDays?: string      // 达到成交额下限的天数 / 实际日线根数，如 "30/30"
   contractType?: string    // 合约类型（PERPETUAL / TRADIFI_PERPETUAL）
   score?: number           // 综合得分 = avgDaily × (1 - min(CV, 1))
 }
@@ -37,7 +37,7 @@ interface StableFilterOptions {
   days: number      // 统计窗口天数
   pool: number      // 候选池数量（24h 成交额前 N 名）
   top: number       // 最终输出数量
-  minDaily: number  // 日均成交额下限 (USDT)
+  minDaily: number  // 日均成交额及单日活跃判定下限 (USDT)
   minRatio: number  // 最低/最高成交额比阈值
   cvMax: number     // 最大变异系数
   segmentRatio: number // 分段稳定性阈值
@@ -45,9 +45,9 @@ interface StableFilterOptions {
 
 /** 持续放量筛选参数默认值 */
 const FILTER_DEFAULTS: StableFilterOptions = {
-  days: 21,
+  days: 30,
   pool: 100,
-  top: 30,
+  top: 38,
   minDaily: 50_000_000,
   minRatio: 0.02,
   cvMax: 1.0,
@@ -119,7 +119,7 @@ async function fetchDailyVolumes(symbol: string, days: number): Promise<number[]
  * 分析单个交易对的"持续放量"指标。
  *
  * 核心逻辑：
- * 1. 数据根数校验：klines 返回根数不足 days×90% 视为上市时间过短，标记无效。
+ * 1. 数据根数校验：klines 返回根数不足 days×80% 视为上市时间过短，标记无效。
  * 2. 基础统计：avgDaily / cv / minRatio / activeDays。
  * 3. 分段稳定性：时间三等分，每段平均成交额须 ≥ 全期均值的 segmentRatio 倍，
  *    从根源上排除"某段时期没量、突然几天爆发"的短期热点。
@@ -129,13 +129,14 @@ function analyzeSymbol(
   dailyVolumes: number[],
   days: number,
   segmentRatio: number,
-  contractType: string
+  contractType: string,
+  activeVolumeThreshold: number
 ): { valid: boolean; reason?: string; analysis?: any } {
   const valid = dailyVolumes.filter(v => v > 0)
   const total = dailyVolumes.length
 
   // 数据根数不足（如上市不足 days 天）时标记无效
-  if (total < Math.ceil(days * 0.9)) {
+  if (total < Math.ceil(days * 0.8)) {
     return { valid: false, reason: '上市时间不足，数据根数不够' }
   }
 
@@ -170,7 +171,8 @@ function analyzeSymbol(
       minRatio,
       cv,
       totalVolume,
-      activeDays: valid.length,
+      // 活跃必须达到用户设置的成交额门槛，避免微量成交也被计为持续放量。
+      activeDays: dailyVolumes.filter(v => v > 0 && v >= activeVolumeThreshold).length,
       totalDays: total,
       segmentOk,
       contractType,
@@ -247,7 +249,7 @@ async function fetchStableTopSymbols(options: StableFilterOptions): Promise<TopS
   // 3. 并行拉取每个候选的日线并分析稳定性（限流器自动排队，应用层限制并发 5）
   const analysisResults = await runPool(candidatePool, 5, async (ticker) => {
     const dailyVolumes = await fetchDailyVolumes(ticker.symbol, options.days)
-    const result = analyzeSymbol(ticker.symbol, dailyVolumes, options.days, options.segmentRatio, ticker.contractType)
+    const result = analyzeSymbol(ticker.symbol, dailyVolumes, options.days, options.segmentRatio, ticker.contractType, options.minDaily)
     if (!result.valid) {
       return { symbol: ticker.symbol, error: result.reason || 'invalid' }
     }
@@ -258,7 +260,7 @@ async function fetchStableTopSymbols(options: StableFilterOptions): Promise<TopS
   const valid = analysisResults.filter((r: any) => r && !r.error && r.avgDaily !== undefined && r.avgDaily !== null)
   const qualified = valid
     .filter((r: any) => r.avgDaily >= options.minDaily)
-    .filter((r: any) => r.activeDays >= Math.ceil(options.days * 0.9)) // 至少 90% 天数有量
+    .filter((r: any) => r.activeDays >= Math.ceil(options.days * 0.8)) // 至少 80% 的窗口天数达到成交额门槛
     .filter((r: any) => r.minRatio >= options.minRatio)
     .filter((r: any) => r.cv <= options.cvMax)
     .filter((r: any) => r.segmentOk) // 三段区间均有持续放量
