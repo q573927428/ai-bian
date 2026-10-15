@@ -6,7 +6,7 @@
         <div class="header-content">
           <h1>
             <el-icon style="vertical-align: middle; margin-right: 8px"><ElIconTrendCharts /></el-icon>
-            AI自动交易系统
+            AI自动交易
           </h1>
           <div class="header-right">
             <!-- 运行状态 -->
@@ -75,6 +75,10 @@
                   >
                     <el-icon><ElIconTickets /></el-icon>
                     订单
+                  </el-button>
+                  <el-button class="control-panel-action" type="primary" size="small" text @click="showMacroDataDrawer = true">
+                    <el-icon><ElIconTrendCharts /></el-icon>
+                    宏观
                   </el-button>
                 </div>
                 <!-- 余额信息 -->
@@ -147,6 +151,10 @@
             <!-- 系统日志抽屉由状态面板卡片内按钮打开 -->
             <ClientOnly>
               <SystemLogs v-model="showLogsDrawer" />
+            </ClientOnly>
+
+            <ClientOnly>
+              <MacroDataDrawer v-model="showMacroDataDrawer" />
             </ClientOnly>
 
             <!-- 密码验证对话框 -->
@@ -252,6 +260,7 @@ import PasswordDialog from '../components/PasswordDialog.vue'
 import SystemLogs from '../components/SystemLogs.vue'
 import CryptoPriceCards from '../components/CryptoPriceCards.vue'
 import IndicatorsList from '../components/IndicatorsList.vue'
+import MacroDataDrawer from '../components/MacroDataDrawer.vue'
 import ActivePositions from '../components/ActivePositions.vue'
 import Strategies from '../components/Strategies.vue'
 import TradeHistory from '../components/TradeHistory.vue'
@@ -270,6 +279,7 @@ const showPerformanceDialog = ref(false)
 const showIndicatorsDrawer = ref(false)
 const showLogsDrawer = ref(false)
 const showOrdersDrawer = ref(false)
+const showMacroDataDrawer = ref(false)
 const showStrategiesDrawer = ref(false)
 // 首页负责在持仓列表与 K 线区域之间中转交易对和持仓主周期。
 const selectedChartSymbol = ref('')
