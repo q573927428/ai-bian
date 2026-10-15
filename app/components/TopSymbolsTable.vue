@@ -47,7 +47,7 @@
           </div>
           <div class="param-item">
             <label>候选池数量</label>
-            <el-input-number v-model="filterParams.pool" :min="30" :max="500" size="small" controls-position="right" />
+            <el-input-number v-model="filterParams.pool" :min="5" :max="100" size="small" controls-position="right" />
             <span class="param-desc">24h 成交额前 N 名进入分析</span>
           </div>
           <div class="param-item">

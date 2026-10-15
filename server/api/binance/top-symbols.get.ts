@@ -46,7 +46,7 @@ interface StableFilterOptions {
 const FILTER_DEFAULTS: StableFilterOptions = {
   days: 12,
   pool: 100,
-  top: 20,
+  top: 30,
   minDaily: 50_000_000,
   minRatio: 0.02,
   cvMax: 1.0,
@@ -57,10 +57,10 @@ const FILTER_DEFAULTS: StableFilterOptions = {
 const KLINE_4H_MS = 4 * 60 * 60 * 1000
 /** 返回的热门交易对数量上限 */
 const TOP_SYMBOLS_LIMIT = 100
-/** 持续放量结果缓存时长（10 分钟），避免频繁打开弹窗重复拉取 K 线 */
-const STABLE_CACHE_TTL = 10 * 60 * 1000
-/** 24h 热门结果缓存时长（10 分钟），避免频繁打开弹窗重复消耗 Binance 权重 */
-const HOT_CACHE_TTL = 10 * 60 * 1000
+/** 持续放量结果缓存时长（30 分钟），避免频繁打开弹窗重复拉取 K 线 */
+const STABLE_CACHE_TTL = 30 * 60 * 1000
+/** 24h 热门结果缓存时长（30 分钟），避免频繁打开弹窗重复消耗 Binance 权重 */
+const HOT_CACHE_TTL = 30 * 60 * 1000
 
 // 模块级缓存：key 为参数序列化串
 let stableCache: { key: string; data: TopSymbol[]; timestamp: number } | null = null
