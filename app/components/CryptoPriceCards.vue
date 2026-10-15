@@ -48,15 +48,14 @@
         :class="{ 'price-up': crypto.change24hPercent > 0, 'price-down': crypto.change24hPercent < 0, 'has-tradfi-badge': isTradFi(crypto.symbol) }"
         @click="openChartModal(crypto)"
       >
-        <el-tag
+        <el-badge
           v-if="isTradFi(crypto.symbol)"
           class="tradfi-badge"
-          size="small"
+          value="T"
           type="warning"
-          effect="plain"
-          title="TradFi 永续合约（TRADIFI_PERPETUAL）"
-          aria-label="TradFi 永续合约"
-        >T</el-tag>
+          title="TradFi"
+          aria-label="TradFi"
+        />
         <div class="price-card-header">
         <div class="crypto-info">
         <div class="crypto-symbol">
@@ -435,6 +434,9 @@ interface CryptoPrice {
   position: absolute;
   top: 4px;
   right: 4px;
+}
+
+.tradfi-badge :deep(.el-badge__content) {
   padding: 0 4px;
   height: 18px;
   font-size: 10px;
