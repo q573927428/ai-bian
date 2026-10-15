@@ -375,28 +375,6 @@ onUnmounted(() => {
   }
 }
 
-:global(.logs-drawer) {
-  --el-drawer-bg-color: var(--bg-card);
-  background: var(--bg-card);
-  color: var(--text-regular);
-  border-left: 1px solid var(--border-color);
-}
-
-:global(.logs-drawer .el-drawer__header) {
-  margin-bottom: 0;
-  padding-bottom: 16px;
-  color: var(--text-primary);
-  border-bottom: 1px solid var(--border-color);
-}
-
-:global(.logs-drawer .el-drawer__title) {
-  color: var(--text-primary);
-  font-weight: 600;
-}
-
-:global(.logs-drawer .el-drawer__close-btn) { color: var(--text-secondary); }
-:global(.logs-drawer .el-drawer__body) { background: var(--bg-card); color: var(--text-regular); }
-
 @media (max-width: 768px) {
   :global(.logs-drawer) { width: 100% !important; }
 }

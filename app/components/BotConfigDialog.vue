@@ -11,7 +11,6 @@
       title="机器人配置"
       direction="rtl"
       size="75%"
-      :close-on-click-modal="false"
       destroy-on-close
       @closed="handleClosed"
     >
@@ -468,26 +467,6 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-:global(.bot-config-drawer) {
-  --el-drawer-bg-color: var(--bg-card);
-}
-
-:global(.bot-config-drawer .el-drawer__header) {
-  margin-bottom: 0;
-  padding-bottom: 16px;
-  border-bottom: 1px solid var(--border-color);
-}
-
-:global(.bot-config-drawer .el-drawer__title) {
-  color: var(--text-primary);
-  font-size: 18px;
-  font-weight: 600;
-}
-
-:global(.bot-config-drawer .el-drawer__body) {
-  color: var(--text-regular);
-}
-
 .config-container {
   padding-right: 10px;
 }

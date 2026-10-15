@@ -1,15 +1,14 @@
 <template>
-  <el-dialog
+  <component
+    :is="selectable ? ElDialog : ElDrawer"
     v-model="visible"
     :title="dialogTitle"
-    width="66%"
-    :fullscreen="isMobile"
-    :close-on-click-modal="false"
+    v-bind="selectable
+      ? { width: '66%', fullscreen: isMobile, top: '22vh', draggable: true }
+      : { direction: 'rtl', size: isMobile ? '100%' : '75%' }"
     append-to-body
-    top="22vh"
-    draggable
   >
-    <div class="top-symbols-container">
+    <div class="top-symbols-container" :class="{ 'top-symbols-container-drawer': !selectable }">
       <!-- 模式切换与工具栏 -->
       <div class="top-symbols-toolbar">
         <el-radio-group v-model="mode" size="small" @change="handleModeChange">
@@ -22,7 +21,7 @@
         </el-button>
       </div>
 
-      <div v-if="mode === 'hot'" class="toolbar-hint">
+      <div v-if="selectable && mode === 'hot'" class="toolbar-hint">
         勾选交易对后点击底部"添加选中到列表"可批量添加
       </div>
 
@@ -92,12 +91,12 @@
         style="width: 100%"
         size="small"
         @sort-change="handleSortChange"
-        @row-click="toggleRowSelection"
+        @row-click="selectable && toggleRowSelection($event)"
         @selection-change="handleSelectionChange"
         :default-sort="defaultSort"
         :key="tableKey"
       >
-        <el-table-column type="selection" width="40" reserve-selection />
+        <el-table-column v-if="selectable" type="selection" width="40" reserve-selection />
         <el-table-column type="index" label="#" width="50" />
 
         <el-table-column
@@ -119,7 +118,7 @@
                 class="crypto-icon-placeholder"
                 :style="{ backgroundColor: getRandomColor(getSymbolDisplay(row.symbol)) }"
               >{{ getSymbolDisplay(row.symbol).substring(0, 1).toUpperCase() }}</span>
-              <el-link type="primary" :underline="false" style="cursor: pointer;" @click.stop="toggleRowSelection(row)">
+              <el-link type="primary" :underline="false" :style="{ cursor: selectable ? 'pointer' : 'default' }" @click.stop="selectable && toggleRowSelection(row)">
                 {{ row.symbol.replace('USDT', '/USDT') }}
               </el-link>
               <el-tag v-if="row.contractType === 'TRADIFI_PERPETUAL'" size="small" type="warning" effect="plain">T</el-tag>
@@ -226,7 +225,7 @@
       </el-table>
 
       <!-- 多选操作栏 -->
-      <div class="selection-actions">
+      <div v-if="selectable" class="selection-actions">
         <span class="selection-count">已选 {{ selectedRows.length }} 个</span>
         <div class="selection-buttons">
           <el-button size="small" @click="selectAll">全选</el-button>
@@ -237,11 +236,12 @@
         </div>
       </div>
     </div>
-  </el-dialog>
+  </component>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
+import { ElDialog, ElDrawer } from 'element-plus'
 import { useCoinIcon } from '../composables/useCoinIcon'
 
 const { getCoinIconUrl } = useCoinIcon()
@@ -287,16 +287,19 @@ const DEFAULT_FILTER_PARAMS: FilterParams = {
   segmentRatio: 0.2,
 }
 
+/** 榜单弹窗参数；selectable 仅在配置表单添加交易对时启用。 */
 interface Props {
   modelValue: boolean
+  selectable?: boolean
 }
 
+/** 配置表单通过 select 接收选中的交易对。 */
 interface Emits {
   (e: 'update:modelValue', value: boolean): void
   (e: 'select', symbols: string[]): void
 }
 
-const props = defineProps<Props>()
+const props = withDefaults(defineProps<Props>(), { selectable: true })
 const emit = defineEmits<Emits>()
 
 const visible = computed({
@@ -545,6 +548,10 @@ watch(visible, (newVal) => {
   overflow-y: auto;
 }
 
+.top-symbols-container-drawer {
+  max-height: none;
+}
+
 .top-symbols-toolbar {
   display: flex;
   align-items: center;
@@ -666,6 +673,9 @@ watch(visible, (newVal) => {
 @media (max-width: 768px) {
   .top-symbols-container {
     max-height: 82vh;
+  }
+  .top-symbols-container-drawer {
+    max-height: none;
   }
   .top-symbols-toolbar {
     flex-wrap: wrap;

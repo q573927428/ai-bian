@@ -76,6 +76,10 @@
                     <el-icon><ElIconTickets /></el-icon>
                     订单
                   </el-button>
+                  <el-button class="control-panel-action" type="primary" size="small" text @click="showTopSymbolsDialog = true">
+                    <el-icon><ElIconStar /></el-icon>
+                    热门
+                  </el-button>
                   <el-button class="control-panel-action" type="primary" size="small" text @click="showMacroDataDrawer = true">
                     <el-icon><ElIconTrendCharts /></el-icon>
                     宏观
@@ -172,6 +176,10 @@
               <TradeHistory v-model="showOrdersDrawer" />
             </ClientOnly>
 
+            <ClientOnly>
+              <TopSymbolsTable v-model="showTopSymbolsDialog" :selectable="false" />
+            </ClientOnly>
+
           </el-col>
 
           <el-col :xs="24" :sm="24" :md="6" :lg="6">
@@ -264,6 +272,7 @@ import MacroDataDrawer from '../components/MacroDataDrawer.vue'
 import ActivePositions from '../components/ActivePositions.vue'
 import Strategies from '../components/Strategies.vue'
 import TradeHistory from '../components/TradeHistory.vue'
+import TopSymbolsTable from '../components/TopSymbolsTable.vue'
 import BotConfigDialog from '../components/BotConfigDialog.vue'
 import ProfitWinRateChart from '../components/ProfitWinRateChart.vue'
 import PerformancePanel from '../components/PerformancePanel.vue'
@@ -279,6 +288,7 @@ const showPerformanceDialog = ref(false)
 const showIndicatorsDrawer = ref(false)
 const showLogsDrawer = ref(false)
 const showOrdersDrawer = ref(false)
+const showTopSymbolsDialog = ref(false)
 const showMacroDataDrawer = ref(false)
 const showStrategiesDrawer = ref(false)
 // 首页负责在持仓列表与 K 线区域之间中转交易对和持仓主周期。

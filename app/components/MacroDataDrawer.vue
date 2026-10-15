@@ -104,6 +104,7 @@ function chartUrl(symbol: string, period: Period): string {
 .chart-viewport { height: calc(100% - 32px); overflow: hidden; }
 .chart-frame { display: block; width: 100%; height: calc(100% + 40px); transform: translateY(-40px); border: 0; background: #111; }
 :global(.macro-drawer .el-drawer__header) { margin-bottom: 0; padding: 12px 16px; background: #111; color: #f3f4f6; }
+:global(.macro-drawer .el-drawer__title) { color: #f3f4f6; }
 :global(.macro-drawer .el-drawer__body) { padding: 6px; overflow: auto; background: #080808; }
 @media (max-width: 1100px) { .chart-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .chart-panel { height: 300px; } }
 @media (max-width: 680px) { .chart-grid { grid-template-columns: minmax(0, 1fr); } .chart-panel { height: 300px; } .panel-caption span { display: none; } }

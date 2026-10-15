@@ -228,6 +228,40 @@ body.el-popup-parent--hidden {
 
 /* ─────────── Element Plus 暗色适配 ─────────── */
 
+/* 所有侧抽屉统一继承页面主题；弹层 Teleport 到 body 后仍使用根节点变量。 */
+.el-drawer.el-drawer {
+  --el-drawer-bg-color: var(--bg-card);
+  background-color: var(--bg-card);
+  color: var(--text-regular);
+}
+
+.el-drawer:not(.macro-drawer) .el-drawer__header {
+  margin-bottom: 0;
+  padding-bottom: 16px;
+  background-color: var(--bg-card);
+  color: var(--text-primary);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.el-drawer:not(.macro-drawer) .el-drawer__title {
+  color: var(--text-primary);
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.el-drawer .el-drawer__close-btn {
+  color: var(--text-secondary);
+}
+
+.el-drawer .el-drawer__close-btn:hover {
+  color: var(--color-primary);
+}
+
+.el-drawer:not(.macro-drawer) .el-drawer__body {
+  background: var(--bg-card);
+  color: var(--text-regular);
+}
+
 /* Element Plus 全局暗色 CSS 变量覆写（解决 el-select popper 白底等问题） */
 html.dark {
   --el-bg-color-overlay: #1d1e1f;

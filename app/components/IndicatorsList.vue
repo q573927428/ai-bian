@@ -413,39 +413,6 @@ watch(visible, value => {
 .macd-chart-bar { position: absolute; top: 0; height: 100%; background: currentColor; opacity: .18; }
 .previous-values .macd-chart-bar { opacity: .12; }
 
-/* 抽屉会 Teleport 到 body，使用全局选择器让亮暗主题变量在弹层中完整生效。 */
-:global(.indicators-drawer) {
-  --el-drawer-bg-color: var(--bg-card);
-  background: var(--bg-card);
-  color: var(--text-regular);
-  border-left: 1px solid var(--border-color);
-}
-
-:global(.indicators-drawer .el-drawer__header) {
-  margin-bottom: 0;
-  padding-bottom: 16px;
-  color: var(--text-primary);
-  border-bottom: 1px solid var(--border-color);
-}
-
-:global(.indicators-drawer .el-drawer__title) {
-  color: var(--text-primary);
-  font-weight: 600;
-}
-
-:global(.indicators-drawer .el-drawer__close-btn) {
-  color: var(--text-secondary);
-}
-
-:global(.indicators-drawer .el-drawer__close-btn:hover) {
-  color: var(--color-primary);
-}
-
-:global(.indicators-drawer .el-drawer__body) {
-  background: var(--bg-card);
-  color: var(--text-regular);
-}
-
 :global(.indicators-drawer .indicators-table) {
   /* 加载遮罩沿用表格卡片背景，避免暗色主题下出现 Element Plus 默认白底。 */
   --el-mask-color: var(--bg-card);

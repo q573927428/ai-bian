@@ -725,20 +725,6 @@ onMounted(() => {
 </script>
 
 <style scoped>
-:global(.strategies-drawer) {
-  --el-drawer-bg-color: var(--bg-card);
-}
-
-:global(.strategies-drawer .el-drawer__header) {
-  margin-bottom: 0;
-  padding-bottom: 16px;
-  border-bottom: 1px solid var(--border-color);
-}
-
-:global(.strategies-drawer .el-drawer__body) {
-  color: var(--text-regular);
-}
-
 .card-header {
   display: flex;
   align-items: center;

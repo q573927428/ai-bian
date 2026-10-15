@@ -980,20 +980,6 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-:global(.history-drawer) {
-  --el-drawer-bg-color: var(--bg-card);
-}
-
-:global(.history-drawer .el-drawer__header) {
-  margin-bottom: 0;
-  padding-bottom: 16px;
-  border-bottom: 1px solid var(--border-color);
-}
-
-:global(.history-drawer .el-drawer__body) {
-  color: var(--text-regular);
-}
-
 .card-header {
   display: flex;
   align-items: center;
