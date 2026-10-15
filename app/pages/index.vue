@@ -186,6 +186,7 @@
             <!-- 当前持仓固定显示，查看持仓无需解锁。 -->
             <ClientOnly>
               <ActivePositions @select-symbol="handlePositionChartSelect" />
+              <LatestNews />
             </ClientOnly>
           </el-col>
           
@@ -270,6 +271,7 @@ import CryptoPriceCards from '../components/CryptoPriceCards.vue'
 import IndicatorsList from '../components/IndicatorsList.vue'
 import MacroDataDrawer from '../components/MacroDataDrawer.vue'
 import ActivePositions from '../components/ActivePositions.vue'
+import LatestNews from '../components/LatestNews.vue'
 import Strategies from '../components/Strategies.vue'
 import TradeHistory from '../components/TradeHistory.vue'
 import TopSymbolsTable from '../components/TopSymbolsTable.vue'

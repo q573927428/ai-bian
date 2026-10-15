@@ -1,7 +1,7 @@
 <template>
   <el-card class="active-positions-card" shadow="hover">
     <template #header>
-      <div class="positions-card-header">当前持仓 ({{ positions.length }})</div>
+      <div class="positions-card-header">📌 当前持仓 ({{ positions.length }})</div>
     </template>
 
     <div class="positions-list">
@@ -642,7 +642,7 @@ onUnmounted(() => {
 .active-positions-card {
   display: flex;
   flex-direction: column;
-  height: 796px;
+  height: 486px;
   margin-bottom: 20px;
   background: var(--bg-card);
   color: var(--text-regular);
