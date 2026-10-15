@@ -359,7 +359,7 @@ function crossoverClass(value: IndicatorRow['macdCrossover']) {
 }
 
 function histogramTrendIcon(value: IndicatorRow['macdHistogramTrend']) {
-  return value === 'rising' ? '↑' : value === 'falling' ? '↓' : '→'
+  return value === 'rising' ? '↗' : value === 'falling' ? '↘' : '→'
 }
 
 /** H 的正负表示当前多空动能方向，与上组比较表示动能增强或减弱。 */
