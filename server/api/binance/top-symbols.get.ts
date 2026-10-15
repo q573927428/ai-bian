@@ -57,15 +57,16 @@ const FILTER_DEFAULTS: StableFilterOptions = {
 const KLINE_4H_MS = 4 * 60 * 60 * 1000
 /** 返回的热门交易对数量上限 */
 const TOP_SYMBOLS_LIMIT = 100
-/** 持续放量结果缓存时长（30 分钟），避免频繁打开弹窗重复拉取 K 线 */
-const STABLE_CACHE_TTL = 30 * 60 * 1000
-/** 24h 热门结果缓存时长（30 分钟），避免频繁打开弹窗重复消耗 Binance 权重 */
-const HOT_CACHE_TTL = 30 * 60 * 1000
-
-// 模块级缓存：key 为参数序列化串
-let stableCache: { key: string; data: TopSymbol[]; timestamp: number } | null = null
+/** 24h 热门、持续放量榜单及日线共用的缓存时长（30 分钟） */
+const TOP_SYMBOLS_CACHE_TTL = 30 * 60 * 1000
+// 按参数缓存榜单，按交易对和统计窗口缓存日线。
+const stableCache = new Map<string, { data: TopSymbol[]; timestamp: number }>()
+const stableRequests = new Map<string, Promise<TopSymbol[]>>()
+const dailyVolumeCache = new Map<string, { data: number[]; timestamp: number }>()
+const dailyVolumeRequests = new Map<string, Promise<number[]>>()
 // 24h 热门结果缓存（无参数依赖）
 let hotCache: { data: TopSymbol[]; timestamp: number } | null = null
+let hotRequest: ReturnType<typeof fallbackHotMode> | null = null
 
 /** 解析查询参数为数字，非法时回退默认值 */
 function parseNumber(value: unknown, fallback: number): number {
@@ -89,12 +90,28 @@ function stddev(arr: number[]): number {
  * klines 每根形如 [openTime, open, high, low, close, volume, ...]
  */
 async function fetchDailyVolumes(symbol: string, days: number): Promise<number[]> {
-  const data = await binanceApiGateway.fetchJson<any[]>(
+  const key = `${symbol}:${days}`
+  const cached = dailyVolumeCache.get(key)
+  if (cached && Date.now() - cached.timestamp < TOP_SYMBOLS_CACHE_TTL) return cached.data
+
+  const pending = dailyVolumeRequests.get(key)
+  if (pending) return pending
+
+  const request = binanceApiGateway.fetchJson<any[]>(
     'marketData',
     `stableKlines:${symbol}:1d:${days}`,
     `https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=1d&limit=${days}`
-  )
-  return data.map(k => parseFloat(k[4]) * parseFloat(k[5]))
+  ).then(data => {
+    const volumes = data.map(k => parseFloat(k[4]) * parseFloat(k[5]))
+    if (dailyVolumeCache.size >= 1000) {
+      const oldestKey = dailyVolumeCache.keys().next().value
+      if (oldestKey) dailyVolumeCache.delete(oldestKey)
+    }
+    dailyVolumeCache.set(key, { data: volumes, timestamp: Date.now() })
+    return volumes
+  }).finally(() => dailyVolumeRequests.delete(key))
+  dailyVolumeRequests.set(key, request)
+  return request
 }
 
 /**
@@ -287,6 +304,37 @@ async function fetchStableTopSymbols(options: StableFilterOptions): Promise<TopS
   }))
 }
 
+/** 同参数只计算一次；过期榜单可以在后台刷新期间继续提供结果。 */
+function refreshStableTopSymbols(key: string, options: StableFilterOptions): Promise<TopSymbol[]> {
+  const pending = stableRequests.get(key)
+  if (pending) return pending
+
+  const request = fetchStableTopSymbols(options).then(data => {
+    if (stableCache.size >= 20 && !stableCache.has(key)) {
+      const oldestKey = stableCache.keys().next().value
+      if (oldestKey) stableCache.delete(oldestKey)
+    }
+    stableCache.set(key, { data, timestamp: Date.now() })
+    return data
+  }).finally(() => stableRequests.delete(key))
+  stableRequests.set(key, request)
+  return request
+}
+
+/** 缓存未命中时复用同一轮热门榜计算，失败后允许下一次请求重试。 */
+function getHotTopSymbols(): ReturnType<typeof fallbackHotMode> {
+  if (hotCache && Date.now() - hotCache.timestamp < TOP_SYMBOLS_CACHE_TTL) {
+    return Promise.resolve({ success: true, data: hotCache.data })
+  }
+  if (hotRequest) return hotRequest
+
+  hotRequest = fallbackHotMode().then(result => {
+    if (result.success) hotCache = { data: result.data, timestamp: Date.now() }
+    return result
+  }).finally(() => { hotRequest = null })
+  return hotRequest
+}
+
 export default defineEventHandler(async (event) => {
   const query = getQuery(event)
   const mode = query.mode === 'stable' ? 'stable' : 'hot'
@@ -303,33 +351,31 @@ export default defineEventHandler(async (event) => {
       segmentRatio: parseNumber(query.segmentRatio, FILTER_DEFAULTS.segmentRatio),
     }
 
-    // 命中缓存直接返回
+    // 过期时先返回上次结果，后台合并同参数刷新；冷缓存才等待完整计算。
     const cacheKey = JSON.stringify(options)
-    if (stableCache && stableCache.key === cacheKey && Date.now() - stableCache.timestamp < STABLE_CACHE_TTL) {
-      return { success: true, mode, params: options, data: stableCache.data }
+    const cached = stableCache.get(cacheKey)
+    if (cached) {
+      if (Date.now() - cached.timestamp >= TOP_SYMBOLS_CACHE_TTL) {
+        void refreshStableTopSymbols(cacheKey, options).catch(error => {
+          console.error('后台刷新持续放量榜单失败:', error)
+        })
+      }
+      return { success: true, mode, params: options, data: cached.data, updatedAt: cached.timestamp }
     }
 
     try {
-      const data = await fetchStableTopSymbols(options)
-      stableCache = { key: cacheKey, data, timestamp: Date.now() }
-      return { success: true, mode, params: options, data }
+      const data = await refreshStableTopSymbols(cacheKey, options)
+      return { success: true, mode, params: options, data, updatedAt: stableCache.get(cacheKey)?.timestamp }
     } catch (error: any) {
       // 持续放量模式请求失败时，降级返回普通模式结果
-      const { success, data } = await fallbackHotMode()
+      const { success, data } = await getHotTopSymbols()
       return { success, mode: 'hot-fallback', params: options, data, message: `持续放量筛选失败，已降级为 24h 热门: ${error.message}` }
     }
   }
 
   // ============ 24h 热门模式（原有逻辑） ============
   // 命中缓存直接返回，避免每次打开弹窗都消耗 Binance 权重（ticker 40 + premium 10）
-  if (hotCache && Date.now() - hotCache.timestamp < HOT_CACHE_TTL) {
-    return { success: true, mode, data: hotCache.data }
-  }
-
-  const hotResult = await fallbackHotMode()
-  if (hotResult.success) {
-    hotCache = { data: hotResult.data, timestamp: Date.now() }
-  }
+  const hotResult = await getHotTopSymbols()
   return { ...hotResult, mode }
 })
 

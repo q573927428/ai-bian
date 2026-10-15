@@ -33,6 +33,10 @@
         </div>
       </div>
 
+      <div v-if="mode === 'stable' && updatedAt" class="data-updated-at">
+        数据更新于 {{ new Date(updatedAt).toLocaleString('zh-CN') }}
+      </div>
+
       <div v-if="selectable && mode === 'hot'" class="toolbar-hint">
         勾选交易对后点击底部"添加选中到列表"可批量添加
       </div>
@@ -321,6 +325,7 @@ const loading = ref(false)
 const data = ref<TopSymbol[]>([])
 const mode = ref<Mode>('hot')
 const message = ref('')
+const updatedAt = ref<number | null>(null)
 const sortProp = ref('volume')
 const sortOrder = ref<'ascending' | 'descending'>('descending')
 const windowWidth = ref(typeof window !== 'undefined' ? window.innerWidth : 1200)
@@ -354,6 +359,7 @@ const tableKey = computed(() => `${mode.value}-${sortProp.value}-${sortOrder.val
 
 const handleModeChange = () => {
   message.value = ''
+  updatedAt.value = null
   showFilterParams.value = false
   sortProp.value = 'volume'
   sortOrder.value = 'descending'
@@ -431,10 +437,12 @@ const fetchData = async () => {
       success: boolean
       mode?: string
       message?: string
+      updatedAt?: number
       data: TopSymbol[]
     }>('/api/binance/top-symbols', { query })
     if (res.success) {
       data.value = res.data
+      updatedAt.value = res.updatedAt || null
       if (res.mode === 'hot-fallback') {
         message.value = res.message || '持续放量筛选失败，已降级为 24h 热门'
       }
@@ -592,6 +600,12 @@ watch(visible, (newVal) => {
   font-size: 12px;
   color: #909399;
   margin-bottom: 8px;
+}
+
+.data-updated-at {
+  margin: -4px 0 8px;
+  color: #909399;
+  font-size: 12px;
 }
 
 .stable-params {
