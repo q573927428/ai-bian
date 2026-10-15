@@ -386,7 +386,7 @@ export default defineEventHandler(async (event) => {
 async function fallbackHotMode() {
   // 0. 从 bot-config.json 读取 requiredCandles 作为最少需要的4H K线根数
   const botConfig = await getBotConfig()
-  const minKlineCount = botConfig.indicatorsConfig?.requiredCandles || 500
+  const minKlineCount = botConfig.indicatorsConfig?.requiredCandles || 493
 
   // 1. 获取所有合约的 exchangeInfo（含上线时间和合约类型）
   const onboardMap = new Map<string, { onboardDate: number; contractType: string }>()

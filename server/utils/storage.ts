@@ -388,7 +388,7 @@ function getDefaultBotConfig(): BotConfig {
     syncSymbolsToStrategies: false, // 默认只更新 bot-config，不自动同步到所有策略
     monitorInterval: 60, // 持仓监控间隔（秒）
     indicatorsConfig: {
-      requiredCandles: 500, // 指标计算所需最少K线数量
+      requiredCandles: 493, // 指标计算所需最少K线数量
       adxSlopePeriod: 3, // ADX斜率计算回看周期
       emaSlopePeriod: 3 // EMA斜率计算回看周期
     },

@@ -247,7 +247,7 @@ export class IndicatorsHub {
    */
   private async loadKlinesFromFile(symbol: string): Promise<void> {
     const symbolData = this.getOrCreateSymbolData(symbol)
-    const limit = this.config.indicatorsConfig?.requiredCandles || 500
+    const limit = this.config.indicatorsConfig?.requiredCandles || 493
 
     for (const timeframe of this.ALL_TIMEFRAMES) {
       const mappedTimeframe = this.TIMEFRAME_MAP[timeframe]
@@ -318,7 +318,7 @@ export class IndicatorsHub {
 
     // 如果文件已更新，重新加载
     if (currentMTime && currentMTime !== cachedMTime) {
-      const limit = this.config.indicatorsConfig?.requiredCandles || 500
+      const limit = this.config.indicatorsConfig?.requiredCandles || 493
       const klines = getSimpleKLineAsOHLCV(symbol, mappedTimeframe, limit)
       
       if (klines.length > 0) {
@@ -1043,7 +1043,7 @@ export class IndicatorsHub {
       // 1. 强制重新加载该周期的 K线（绕过文件修改时间检测）
       const mappedTimeframe = this.TIMEFRAME_MAP[timeframe]
       if (mappedTimeframe) {
-        const limit = this.config.indicatorsConfig?.requiredCandles || 500
+        const limit = this.config.indicatorsConfig?.requiredCandles || 493
         const klines = getSimpleKLineAsOHLCV(symbol, mappedTimeframe, limit)
         if (klines.length > 0) {
           symbolData.klineData.set(timeframe, klines)
