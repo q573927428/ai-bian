@@ -45,9 +45,18 @@
         v-for="crypto in visibleCryptoPrices"
         :key="crypto.symbol"
         class="price-card"
-        :class="{ 'price-up': crypto.change24hPercent > 0, 'price-down': crypto.change24hPercent < 0 }"
+        :class="{ 'price-up': crypto.change24hPercent > 0, 'price-down': crypto.change24hPercent < 0, 'has-tradfi-badge': isTradFi(crypto.symbol) }"
         @click="openChartModal(crypto)"
       >
+        <el-tag
+          v-if="isTradFi(crypto.symbol)"
+          class="tradfi-badge"
+          size="small"
+          type="warning"
+          effect="plain"
+          title="TradFi 永续合约（TRADIFI_PERPETUAL）"
+          aria-label="TradFi 永续合约"
+        >T</el-tag>
         <div class="price-card-header">
         <div class="crypto-info">
         <div class="crypto-symbol">
@@ -120,6 +129,22 @@ const emit = defineEmits<{
 
 const botStore = useBotStore()
 const { getCoinIconUrl } = useCoinIcon()
+const contractTypes = ref<Record<string, string>>({})
+
+/** 单独加载低频合约元数据，失败时仍保留实时价格展示。 */
+async function loadContractTypes() {
+  try {
+    const response = await $fetch<{ contractTypes: Record<string, string> }>('/api/binance/contract-types')
+    contractTypes.value = response.contractTypes
+  } catch (error) {
+    console.warn('[Price] 获取合约类型失败:', error)
+  }
+}
+
+/** 仅按官方合约类型标记，避免通过币种名称误判传统金融合约。 */
+function isTradFi(symbol: string): boolean {
+  return contractTypes.value[symbol.replace('/', '').trim().toUpperCase()] === 'TRADIFI_PERPETUAL'
+}
 
 // 从配置文件获取加密货币列表，处理去掉/
 const DEFAULT_CRYPTOS = computed<string[]>(() => {
@@ -308,6 +333,7 @@ function getRandomColor(symbol: string) {
 
 // 组件生命周期
 onMounted(() => {
+  void loadContractTypes()
   // 订阅 botStore 共享价格更新，自动同步价格
   botStore.subscribeToPrices('crypto-price-cards')
   updatePageSize()
@@ -398,6 +424,21 @@ interface CryptoPrice {
   transform: translateY(-2px);
   box-shadow: var(--shadow-card-hover);
   border-color: var(--color-primary);
+}
+
+/* 角标独占右上角，避免覆盖原有涨跌幅。 */
+.has-tradfi-badge .price-card-header {
+  padding-right: 24px;
+}
+
+.tradfi-badge {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  padding: 0 4px;
+  height: 18px;
+  font-size: 10px;
+  line-height: 16px;
 }
 
 .price-card.price-up:hover {

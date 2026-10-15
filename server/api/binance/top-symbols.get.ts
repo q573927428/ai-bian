@@ -13,6 +13,7 @@
 
 import { binanceApiGateway } from '../../utils/binance-api-gateway'
 import { getBotConfig } from '../../utils/storage'
+import { getBinanceExchangeInfo } from '../../utils/binance-exchange-info'
 
 interface TopSymbol {
   symbol: string
@@ -207,11 +208,7 @@ async function fetchStableTopSymbols(options: StableFilterOptions): Promise<TopS
   // 1. 获取全市场合约信息（含上线时间与合约类型）
   let onboardMap = new Map<string, { onboardDate: number; contractType: string }>()
   try {
-    const exchangeInfo: any = await binanceApiGateway.fetchJson<any>(
-      'marketData',
-      'stableExchangeInfo',
-      'https://fapi.binance.com/fapi/v1/exchangeInfo'
-    )
+    const exchangeInfo = await getBinanceExchangeInfo()
     for (const s of (exchangeInfo.symbols || [])) {
       if (
         (s.contractType === 'PERPETUAL' || s.contractType === 'TRADIFI_PERPETUAL') &&
@@ -391,11 +388,7 @@ async function fallbackHotMode() {
   // 1. 获取所有合约的 exchangeInfo（含上线时间和合约类型）
   const onboardMap = new Map<string, { onboardDate: number; contractType: string }>()
   try {
-    const exchangeInfo: any = await binanceApiGateway.fetchJson<any>(
-      'marketData',
-      'exchangeInfo',
-      'https://fapi.binance.com/fapi/v1/exchangeInfo'
-    )
+    const exchangeInfo = await getBinanceExchangeInfo()
     for (const s of (exchangeInfo.symbols || [])) {
       // PERPETUAL = 普通永续合约, TRADIFI_PERPETUAL = TradFi 永续合约（如 SNDKUSDT）
       if ((s.contractType === 'PERPETUAL' || s.contractType === 'TRADIFI_PERPETUAL') && s.symbol.endsWith('USDT') && !s.symbol.endsWith('USDCUSDT')) {
