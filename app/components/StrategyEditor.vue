@@ -323,7 +323,7 @@
                 <el-input v-model="form.aiPrompt.apiKey" type="password" show-password placeholder="sk-..." />
               </el-form-item>
             </template>
-            <!-- <el-row :gutter="12">
+            <el-row :gutter="12">
               <el-col :xs="24" :span="12">
                 <el-form-item label="温度">
                   <el-slider v-model="form.aiPrompt.temperature" :min="0" :max="1" :step="0.1" />
@@ -334,7 +334,7 @@
                   <el-input-number v-model="form.aiPrompt.maxTokens" :min="500" :max="4000" :step="500" style="width: 100%" />
                 </el-form-item>
               </el-col>
-            </el-row> -->
+            </el-row>
           </el-card>
 
           <!-- 规则 DSL（简易编辑） -->
@@ -655,7 +655,7 @@ const form = reactive<CreateStrategyInput>({
   aiPrompt: {
     userPrompt: '请分析当前市场趋势，当技术指标显示明确的方向时给出开仓建议。\n\n要求：\n1. 趋势明确时才给出信号\n2. 严格控制风险\n3. 返回JSON格式：{direction: "long/short", confidence: 0-100, reasoning: "理由"}',
     temperature: 0.3,
-    maxTokens: 2000,
+    maxTokens: 3000,
     thinkingEnabled: false,
     model: 'deepseek-flash',
     provider: 'deepseek'

@@ -840,7 +840,7 @@ ${historySection}
 
         const content = await callAIAPI(providerConfig, messages, {
           temperature: promptConfig?.temperature ?? 0.5,
-          maxTokens: promptConfig?.maxTokens ?? 1000,
+          maxTokens: promptConfig?.maxTokens ?? 3000,
           thinkingEnabled: promptConfig?.thinkingEnabled,
           thinkingProvider: provider,
           timeoutMs: this.config.aiRateLimit?.timeoutMs ?? 45000

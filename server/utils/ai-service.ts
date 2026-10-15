@@ -99,7 +99,7 @@ export async function callAIAPI(
 ): Promise<string> {
   const {
     temperature = 0.5,
-    maxTokens = 1000,
+    maxTokens = 3000,
     responseFormat = { type: 'json_object' },
     timeoutMs = 45000
   } = options
