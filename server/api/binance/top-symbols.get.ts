@@ -45,7 +45,7 @@ interface StableFilterOptions {
 
 /** 持续放量筛选参数默认值 */
 const FILTER_DEFAULTS: StableFilterOptions = {
-  days: 12,
+  days: 21,
   pool: 100,
   top: 30,
   minDaily: 50_000_000,
