@@ -10,42 +10,43 @@
   </el-card>
 
   <el-card class="price-grid-card" shadow="hover">
-    <div class="price-cards-header">
-      <h3 class="price-cards-title">📊 价格看板</h3>
-      <div class="pagination-actions" v-if="totalPages > 1">
-        <el-button
-          circle
-          text
-          size="small"
-          :disabled="currentPage === 0"
-          aria-label="上一页价格"
-          title="上一页"
-          @click="previousPage"
-        >
-          <el-icon><ElIconArrowLeft /></el-icon>
-        </el-button>
-        <span class="page-indicator">{{ currentPage + 1 }} / {{ totalPages }}</span>
-        <el-button
-          circle
-          text
-          size="small"
-          :disabled="currentPage >= totalPages - 1"
-          aria-label="下一页价格"
-          title="下一页"
-          @click="nextPage"
-        >
-          <el-icon><ElIconArrowRight /></el-icon>
-        </el-button>
+    <template #header>
+      <div class="price-cards-header">
+        <h3 class="price-cards-title">📊 价格看板</h3>
+        <div class="pagination-actions" v-if="totalPages > 1">
+          <el-button
+            circle
+            size="small"
+            :disabled="currentPage === 0"
+            aria-label="上一页价格"
+            title="上一页"
+            @click="previousPage"
+          >
+            <el-icon><ElIconArrowLeft /></el-icon>
+          </el-button>
+          <span class="page-indicator">{{ currentPage + 1 }} / {{ totalPages }}</span>
+          <el-button
+            circle
+            size="small"
+            :disabled="currentPage >= totalPages - 1"
+            aria-label="下一页价格"
+            title="下一页"
+            @click="nextPage"
+          >
+            <el-icon><ElIconArrowRight /></el-icon>
+          </el-button>
+        </div>
       </div>
-    </div>
-
+    </template>
+    <template #default>
+    <!-- 显式声明正文插槽，让交易对网格与标题插槽保持独立。 -->
     <!-- 价格卡片网格 -->
     <div class="cards-grid">
       <div 
         v-for="crypto in visibleCryptoPrices"
         :key="crypto.symbol"
         class="price-card"
-        :class="{ 'price-up': crypto.change24hPercent > 0, 'price-down': crypto.change24hPercent < 0, 'has-tradfi-badge': isTradFi(crypto.symbol) }"
+        :class="{ 'price-up': crypto.change24hPercent > 0, 'price-down': crypto.change24hPercent < 0 }"
         @click="openChartModal(crypto)"
       >
         <el-badge
@@ -104,6 +105,7 @@
     <div v-else-if="!isLoading && cryptoPrices.length === 0" class="empty-state">
       <el-empty description="暂无价格数据" />
     </div>
+    </template>
   </el-card>
 </template>
 
@@ -160,7 +162,7 @@ const isLoading = ref(false)
 const showChartModal = ref(false)
 const selectedSymbol = ref('')
 const currentPage = ref(0)
-const pageSize = ref(12)
+const pageSize = ref(18)
 // 价格变动动画状态
 const priceChangeAnimations = ref<Record<string, 'up' | 'down' | null>>({})
 
@@ -175,7 +177,7 @@ const visibleCryptoPrices = computed(() => {
 /** 根据视口宽度设置每页数量，确保卡片区域始终最多显示两行。 */
 function updatePageSize() {
   if (!import.meta.client) return
-  pageSize.value = window.innerWidth <= 480 ? 4 : 12
+  pageSize.value = window.innerWidth <= 480 ? 4 : 18
   currentPage.value = Math.min(currentPage.value, totalPages.value - 1)
 }
 
@@ -369,8 +371,7 @@ interface CryptoPrice {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  min-height: 32px;
-  margin-bottom: 10px;
+  margin: -5px 0;
 }
 
 .price-cards-title {
@@ -398,7 +399,7 @@ interface CryptoPrice {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  margin-bottom: -10px;
+  margin: -10px;
 }
 .horizontal-line{
   margin-bottom: 30px;
@@ -412,7 +413,7 @@ interface CryptoPrice {
   cursor: pointer;
   transition: all 0.3s ease;
   position: relative;
-  overflow: hidden;
+  overflow: visible;
   min-height: 60px;
   min-width: 126px;
   flex-shrink: 0;
@@ -425,22 +426,21 @@ interface CryptoPrice {
   border-color: var(--color-primary);
 }
 
-/* 角标独占右上角，避免覆盖原有涨跌幅。 */
-.has-tradfi-badge .price-card-header {
-  padding-right: 24px;
-}
-
+/* 角标悬挂在卡片右上角边界外，不占用卡片内容空间。 */
 .tradfi-badge {
   position: absolute;
-  top: 4px;
-  right: 4px;
+  top: 0;
+  right: 0;
+  transform: translate(50%, -30%);
+  z-index: 1;
 }
 
 .tradfi-badge :deep(.el-badge__content) {
   padding: 0 4px;
-  height: 18px;
+  height: 16px;
   font-size: 10px;
   line-height: 16px;
+  color: #fff;
 }
 
 .price-card.price-up:hover {

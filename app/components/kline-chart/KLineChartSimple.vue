@@ -255,7 +255,7 @@ const meta = ref({
 const loading = ref(false)
 const error = ref('')
 const theme = ref<'light' | 'dark'>(globalTheme.value)
-const normalChartHeight = 500
+const normalChartHeight = 423
 const chartHeight = ref(normalChartHeight)
 const isFullscreen = ref(false)
 

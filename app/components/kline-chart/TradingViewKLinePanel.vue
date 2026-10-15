@@ -186,10 +186,10 @@ const chartHeight = computed(() => {
   if (isFullscreen.value) return 'calc(100vh - 200px)'
   if (process.client) {
     const screenWidth = window.innerWidth
-    if (screenWidth < 480) return '300px'
-    if (screenWidth < 768) return '450px'
+    if (screenWidth < 480) return '235px'
+    if (screenWidth < 768) return '385px'
   }
-  return '500px'
+  return '428px'
 })
 
 // 监听全局主题变化，自动同步到TradingView
@@ -448,14 +448,14 @@ declare global {
 /* 图表容器 */
 .chart-container {
   position: relative;
-  min-height: 500px;
+  min-height: 423px;
   border-radius: 8px;
   overflow: hidden;
 }
 
 .tradingview-chart {
   width: 100%;
-  min-height: 500px;
+  min-height: 423px;
 }
 
 .chart-loading {
@@ -512,11 +512,11 @@ declare global {
 
   .chart-container {
     margin: 12px;
-    min-height: 400px;
+    min-height: 340px;
   }
 
   .tradingview-chart {
-    min-height: 400px;
+    min-height: 340px;
   }
 }
 
@@ -549,12 +549,12 @@ declare global {
   }
 
   .chart-container {
-    min-height: 300px;
+    min-height: 240px;
     margin: 8px;
   }
 
   .tradingview-chart {
-    min-height: 300px;
+    min-height: 240px;
   }
 
   .chart-loading,
