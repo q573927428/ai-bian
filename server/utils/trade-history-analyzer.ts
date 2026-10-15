@@ -224,7 +224,7 @@ ${JSON.stringify(targetTrades.slice(-20).map(trade => ({
       body: JSON.stringify({
         model,
         // 历史分析只需结构化结论；默认思考会耗尽 2000 token，导致正文为空。
-        thinking: { type: 'disabled' },
+        thinking: { type: 'enabled' },
         messages: [
           {
             role: 'system',
@@ -235,8 +235,6 @@ ${JSON.stringify(targetTrades.slice(-20).map(trade => ({
             content: prompt,
           },
         ],
-        temperature: 0.3,
-        max_tokens: 6000,
         response_format: { type: 'json_object' }
       }),
       signal: AbortSignal.timeout(120_000),
