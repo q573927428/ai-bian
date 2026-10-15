@@ -15,10 +15,22 @@
           <el-radio-button value="hot">🔥 24h 热门</el-radio-button>
           <el-radio-button value="stable">📈 持续放量</el-radio-button>
         </el-radio-group>
-        <el-button type="primary" size="small" :loading="loading" @click="fetchData">
-          <el-icon><ElIconRefresh /></el-icon>
-          刷新数据
-        </el-button>
+        <div class="toolbar-actions">
+          <el-button type="primary" size="small" :loading="loading" @click="fetchData">
+            <el-icon><ElIconRefresh /></el-icon>
+            刷新
+          </el-button>
+          <el-button
+            v-if="mode === 'stable'"
+            size="small"
+            :aria-expanded="showFilterParams"
+            aria-controls="stable-filter-params"
+            @click="showFilterParams = !showFilterParams"
+          >
+            <el-icon><ElIconSetting /></el-icon>
+            设置
+          </el-button>
+        </div>
       </div>
 
       <div v-if="selectable && mode === 'hot'" class="toolbar-hint">
@@ -26,51 +38,49 @@
       </div>
 
       <!-- 持续放量模式参数设置 -->
-      <el-collapse v-if="mode === 'stable'" class="stable-params">
-        <el-collapse-item title="⚙️ 持续放量筛选参数设置" name="params">
-          <div class="params-grid">
-            <div class="param-item">
-              <label>统计窗口 (天)</label>
-              <el-input-number v-model="filterParams.days" :min="5" :max="90" size="small" controls-position="right" />
-              <span class="param-desc">拉取最近 N 天日线分析成交量</span>
-            </div>
-            <div class="param-item">
-              <label>候选池数量</label>
-              <el-input-number v-model="filterParams.pool" :min="30" :max="500" size="small" controls-position="right" />
-              <span class="param-desc">24h 成交额前 N 名进入分析</span>
-            </div>
-            <div class="param-item">
-              <label>输出数量</label>
-              <el-input-number v-model="filterParams.top" :min="5" :max="100" size="small" controls-position="right" />
-              <span class="param-desc">榜单最终展示数量</span>
-            </div>
-            <div class="param-item">
-              <label>日均成交额下限 (万USDT)</label>
-              <el-input-number v-model="minDailyWan" :min="0" :step="1000" size="small" controls-position="right" />
-              <span class="param-desc">30 天平均日成交额须 ≥ 此值</span>
-            </div>
-            <div class="param-item">
-              <label>最低/最高比</label>
-              <el-input-number v-model="filterParams.minRatio" :min="0" :max="1" :step="0.01" size="small" controls-position="right" />
-              <span class="param-desc">最低量那天 ≥ 最高量那天的此比例</span>
-            </div>
-            <div class="param-item">
-              <label>最大变异系数 CV</label>
-              <el-input-number v-model="filterParams.cvMax" :min="0" :max="10" :step="0.1" size="small" controls-position="right" />
-              <span class="param-desc">CV = 标准差÷均值，越小越稳定</span>
-            </div>
-            <div class="param-item">
-              <label>分段稳定性阈值</label>
-              <el-input-number v-model="filterParams.segmentRatio" :min="0" :max="1" :step="0.05" size="small" controls-position="right" />
-              <span class="param-desc">每段平均成交额 ≥ 全期均值的此比例</span>
-            </div>
+      <div v-if="mode === 'stable' && showFilterParams" id="stable-filter-params" class="stable-params">
+        <div class="params-grid">
+          <div class="param-item">
+            <label>统计窗口 (天)</label>
+            <el-input-number v-model="filterParams.days" :min="5" :max="90" size="small" controls-position="right" />
+            <span class="param-desc">拉取最近 N 天日线分析成交量</span>
           </div>
-          <div class="params-actions">
-            <el-button size="small" @click="resetParams">恢复默认</el-button>
-            <el-button type="primary" size="small" :loading="loading" @click="fetchData">应用筛选</el-button>
+          <div class="param-item">
+            <label>候选池数量</label>
+            <el-input-number v-model="filterParams.pool" :min="30" :max="500" size="small" controls-position="right" />
+            <span class="param-desc">24h 成交额前 N 名进入分析</span>
           </div>
-        </el-collapse-item>
-      </el-collapse>
+          <div class="param-item">
+            <label>输出数量</label>
+            <el-input-number v-model="filterParams.top" :min="5" :max="100" size="small" controls-position="right" />
+            <span class="param-desc">榜单最终展示数量</span>
+          </div>
+          <div class="param-item">
+            <label>日均成交额下限 (万USDT)</label>
+            <el-input-number v-model="minDailyWan" :min="0" :step="1000" size="small" controls-position="right" />
+            <span class="param-desc">30 天平均日成交额须 ≥ 此值</span>
+          </div>
+          <div class="param-item">
+            <label>最低/最高比</label>
+            <el-input-number v-model="filterParams.minRatio" :min="0" :max="1" :step="0.01" size="small" controls-position="right" />
+            <span class="param-desc">最低量那天 ≥ 最高量那天的此比例</span>
+          </div>
+          <div class="param-item">
+            <label>最大变异系数 CV</label>
+            <el-input-number v-model="filterParams.cvMax" :min="0" :max="10" :step="0.1" size="small" controls-position="right" />
+            <span class="param-desc">CV = 标准差÷均值，越小越稳定</span>
+          </div>
+          <div class="param-item">
+            <label>分段稳定性阈值</label>
+            <el-input-number v-model="filterParams.segmentRatio" :min="0" :max="1" :step="0.05" size="small" controls-position="right" />
+            <span class="param-desc">每段平均成交额 ≥ 全期均值的此比例</span>
+          </div>
+        </div>
+        <div class="params-actions">
+          <el-button size="small" @click="resetParams">恢复默认</el-button>
+          <el-button type="primary" size="small" :loading="loading" @click="applyFilterParams">应用筛选</el-button>
+        </div>
+      </div>
 
       <el-alert
         v-if="mode === 'stable' && message"
@@ -316,6 +326,7 @@ const sortOrder = ref<'ascending' | 'descending'>('descending')
 const windowWidth = ref(typeof window !== 'undefined' ? window.innerWidth : 1200)
 const tableRef = ref()
 const selectedRows = ref<TopSymbol[]>([])
+const showFilterParams = ref(false)
 
 // 筛选参数副本（默认值）
 const filterParams = ref<FilterParams>({ ...DEFAULT_FILTER_PARAMS })
@@ -329,7 +340,7 @@ const minDailyWan = computed({
 const isMobile = computed(() => windowWidth.value < 768)
 
 const dialogTitle = computed(() =>
-  mode.value === 'stable' ? '📈 持续放量交易对 Top' + filterParams.value.top : '🔥 热门交易对 Top 30'
+  mode.value === 'stable' ? '📈 持续放量交易对 Top' + filterParams.value.top : '🔥 热门交易对 Top 100'
 )
 
 const defaultSort = computed<{ prop: string; order: 'ascending' | 'descending' }>(() =>
@@ -343,6 +354,7 @@ const tableKey = computed(() => `${mode.value}-${sortProp.value}-${sortOrder.val
 
 const handleModeChange = () => {
   message.value = ''
+  showFilterParams.value = false
   sortProp.value = 'volume'
   sortOrder.value = 'descending'
   fetchData()
@@ -350,6 +362,11 @@ const handleModeChange = () => {
 
 const resetParams = () => {
   filterParams.value = { ...DEFAULT_FILTER_PARAMS }
+}
+
+const applyFilterParams = () => {
+  showFilterParams.value = false
+  fetchData()
 }
 
 const handleResize = () => {
@@ -538,6 +555,8 @@ const cvClass = (val: number | undefined): string => {
 watch(visible, (newVal) => {
   if (newVal) {
     fetchData()
+  } else {
+    showFilterParams.value = false
   }
 })
 </script>
@@ -559,6 +578,16 @@ watch(visible, (newVal) => {
   margin-bottom: 12px;
 }
 
+.toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.toolbar-actions .el-button + .el-button {
+  margin-left: 0;
+}
+
 .toolbar-hint {
   font-size: 12px;
   color: #909399;
@@ -569,6 +598,7 @@ watch(visible, (newVal) => {
   margin-bottom: 10px;
   border: 1px solid var(--el-border-color-lighter);
   border-radius: 6px;
+  padding: 8px;
 }
 
 .params-grid {

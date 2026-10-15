@@ -1,7 +1,7 @@
 // ==================== 热门交易对 API（支持 24h 热门 / 持续放量 两种模式） ====================
 //
 // 查询参数：
-//   mode=hot（默认）：按 24h 成交额排序取前 30，沿用原有逻辑
+//   mode=hot（默认）：按 24h 成交额排序取前 100
 //   mode=stable：按"最近 N 天持续稳定放量"筛选（排除短期热点）
 //     附加参数：days / pool / top / minDaily / minRatio / cvMax / segmentRatio
 //
@@ -56,7 +56,7 @@ const FILTER_DEFAULTS: StableFilterOptions = {
 /** 4H K线的毫秒数 */
 const KLINE_4H_MS = 4 * 60 * 60 * 1000
 /** 返回的热门交易对数量上限 */
-const TOP_SYMBOLS_LIMIT = 30
+const TOP_SYMBOLS_LIMIT = 100
 /** 持续放量结果缓存时长（10 分钟），避免频繁打开弹窗重复拉取 K 线 */
 const STABLE_CACHE_TTL = 10 * 60 * 1000
 /** 24h 热门结果缓存时长（10 分钟），避免频繁打开弹窗重复消耗 Binance 权重 */
@@ -342,20 +342,19 @@ async function fallbackHotMode() {
   const botConfig = await getBotConfig()
   const minKlineCount = botConfig.indicatorsConfig?.requiredCandles || 500
 
-  // 1. 获取所有合约的 exchangeInfo（含上线时间）
-  let onboardMap = new Map<string, number>()
+  // 1. 获取所有合约的 exchangeInfo（含上线时间和合约类型）
+  const onboardMap = new Map<string, { onboardDate: number; contractType: string }>()
   try {
     const exchangeInfo: any = await binanceApiGateway.fetchJson<any>(
       'marketData',
       'exchangeInfo',
       'https://fapi.binance.com/fapi/v1/exchangeInfo'
     )
-    const now = Date.now()
     for (const s of (exchangeInfo.symbols || [])) {
       // PERPETUAL = 普通永续合约, TRADIFI_PERPETUAL = TradFi 永续合约（如 SNDKUSDT）
       if ((s.contractType === 'PERPETUAL' || s.contractType === 'TRADIFI_PERPETUAL') && s.symbol.endsWith('USDT') && !s.symbol.endsWith('USDCUSDT')) {
         const onboardDate = s.onboardDate ? Number(s.onboardDate) : 0
-        onboardMap.set(s.symbol, onboardDate)
+        onboardMap.set(s.symbol, { onboardDate, contractType: s.contractType })
       }
     }
   } catch {
@@ -369,13 +368,18 @@ async function fallbackHotMode() {
     'https://fapi.binance.com/fapi/v1/ticker/24hr'
   )
 
-  // 3. 筛选 USDT 永续合约，按成交额排序，取前 TOP_SYMBOLS_LIMIT 个
+  // 3. 筛选符合 K 线要求的 USDT 永续合约，再按成交额取前 TOP_SYMBOLS_LIMIT 个
   const symbols = tickers
     .filter((t: any) => onboardMap.has(t.symbol)) // 只保留 exchangeInfo 中存在的永久合约
+    // 先排除上线时间不足的交易对，避免截取后榜单数量不足 100
+    .filter((t: any) => {
+      const onboardDate = onboardMap.get(t.symbol)?.onboardDate || 0
+      return onboardDate > 0 && Math.floor((Date.now() - onboardDate) / KLINE_4H_MS) >= minKlineCount
+    })
     .sort((a: any, b: any) => parseFloat(b.quoteVolume || '0') - parseFloat(a.quoteVolume || '0'))
     .slice(0, TOP_SYMBOLS_LIMIT)
     .map((t: any) => {
-      const onboardDate = onboardMap.get(t.symbol) || 0
+      const { onboardDate = 0, contractType } = onboardMap.get(t.symbol) || {}
       const klineCount4h = onboardDate > 0
         ? Math.floor((Date.now() - onboardDate) / KLINE_4H_MS)
         : 0
@@ -387,10 +391,9 @@ async function fallbackHotMode() {
         fundingRate: 0,
         klineCount4h,
         onboardDate,
+        contractType,
       }
     })
-    // 先按成交额排序后再过滤上线时间不足的，确保展示尽可能多的热门币种
-    .filter(item => item.klineCount4h >= minKlineCount || onboardMap.size === 0)
 
   // 3a. 全量获取 premiumIndex（权重 10），一次性获取所有资金费率
   let fundingMap = new Map<string, number>()
