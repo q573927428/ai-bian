@@ -77,11 +77,11 @@
     </div>
 
     <!-- 图表统计固定在行情数据下方，并与行情数据共用画布内的悬浮定位。 -->
-    <KLineChartInfo
+    <!-- <KLineChartInfo
       floating
       :kline-data="klineData"
       :updated="updated"
-    />
+    /> -->
   </div>
 
   <!-- 订单模式：竖排订单详情面板 -->

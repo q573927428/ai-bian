@@ -154,7 +154,7 @@
 
             <!-- 系统日志抽屉由状态面板卡片内按钮打开 -->
             <ClientOnly>
-              <SystemLogs v-model="showLogsDrawer" />
+              <SystemLogs v-model="showLogsDrawer" @select-symbol="handlePositionChartSelect" />
             </ClientOnly>
 
             <ClientOnly>

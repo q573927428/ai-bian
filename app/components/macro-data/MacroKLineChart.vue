@@ -8,7 +8,7 @@
     </div>
     <div class="source-status" :title="error">
       {{ market.source === 'yahoo' ? 'Yahoo Finance · 本地缓存' : '币安合约 · 本地缓存' }}
-      <span v-if="updatedAt"> · 同步 {{ new Date(updatedAt).toLocaleTimeString() }}</span>
+      <span v-if="updatedAt"> · 同步 {{ beijingClock.format(new Date(updatedAt)) }}（北京时间）</span>
       <span v-if="error && hasData"> · 同步异常，显示缓存</span>
     </div>
   </div>
@@ -16,13 +16,30 @@
 
 <script setup lang="ts">
 import { ref, watch, onMounted, onBeforeUnmount, inject } from 'vue'
-import { createChart, ColorType, CandlestickSeries, type IChartApi, type ISeriesApi, type UTCTimestamp, type MouseEventParams } from 'lightweight-charts'
+import { createChart, ColorType, CandlestickSeries, TickMarkType, type Time, type IChartApi, type ISeriesApi, type UTCTimestamp, type MouseEventParams } from 'lightweight-charts'
 import type { MacroMarket, MacroPeriod, MacroKlineResponse } from '../../../types/macro-market'
 import { macroCrosshairKey, crosshairTimeKey, type MacroCrosshairPosition } from './crosshair-sync'
 
 const props = defineProps<{ market: MacroMarket; period: MacroPeriod }>()
 const DEFAULT_VISIBLE_BARS = 366
 const RIGHT_OFFSET_BARS = 22
+// 仅格式化显示，保留原始时间戳，避免影响跨市场光标匹配及交易日期归属。
+const beijingClock = new Intl.DateTimeFormat('zh-CN', { timeZone: 'Asia/Shanghai', hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' })
+const beijingCrosshairTime = new Intl.DateTimeFormat('zh-CN', { timeZone: 'Asia/Shanghai', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
+const beijingTicks = {
+  [TickMarkType.Year]: new Intl.DateTimeFormat('zh-CN', { timeZone: 'Asia/Shanghai', year: 'numeric' }),
+  [TickMarkType.Month]: new Intl.DateTimeFormat('zh-CN', { timeZone: 'Asia/Shanghai', month: 'short' }),
+  [TickMarkType.DayOfMonth]: new Intl.DateTimeFormat('zh-CN', { timeZone: 'Asia/Shanghai', month: '2-digit', day: '2-digit' }),
+  [TickMarkType.Time]: new Intl.DateTimeFormat('zh-CN', { timeZone: 'Asia/Shanghai', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }),
+  [TickMarkType.TimeWithSeconds]: beijingClock,
+}
+
+/** 兼容图表时间类型，所有显示统一转换为北京时间，不偏移实际数据。 */
+function chartTimeDate(time: Time): Date {
+  if (typeof time === 'number') return new Date(time * 1000)
+  if (typeof time === 'string') return new Date(`${time}T00:00:00Z`)
+  return new Date(Date.UTC(time.year, time.month - 1, time.day))
+}
 const container = ref<HTMLDivElement>()
 const loading = ref(false)
 const error = ref('')
@@ -116,7 +133,11 @@ onMounted(() => {
     autoSize: true,
     layout: { background: { type: ColorType.Solid, color: '#111111' }, textColor: '#aeb5c3', fontSize: 10 },
     grid: { vertLines: { color: '#202024' }, horzLines: { color: '#202024' } },
-    timeScale: { timeVisible: true, secondsVisible: false, rightOffset: RIGHT_OFFSET_BARS },
+    localization: { locale: 'zh-CN', timeFormatter: (time: Time) => `${beijingCrosshairTime.format(chartTimeDate(time))} 北京时间` },
+    timeScale: {
+      timeVisible: true, secondsVisible: false, rightOffset: RIGHT_OFFSET_BARS,
+      tickMarkFormatter: (time: Time, type: TickMarkType) => beijingTicks[type].format(chartTimeDate(time)),
+    },
     rightPriceScale: { borderColor: '#303038' },
   })
   series = chart.addSeries(CandlestickSeries, {

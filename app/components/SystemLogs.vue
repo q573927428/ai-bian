@@ -70,17 +70,22 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
+import { ElNotification } from 'element-plus'
+import type { LogEntry } from '../../types'
 import { useBotStore } from '../stores/bot'
 import dayjs from 'dayjs'
 
+/** 日志抽屉的显示状态。 */
 interface Props {
   /** 控制日志抽屉的显示状态。 */
   modelValue: boolean
 }
 
+/** 向首页同步抽屉状态或请求切换交易对图表。 */
 interface Emits {
   (event: 'update:modelValue', value: boolean): void
+  (event: 'select-symbol', symbol: string): void
 }
 
 const props = defineProps<Props>()
@@ -161,6 +166,87 @@ async function fetchStrategies() {
 
 const DETAILED_LOG_SEPARATOR = '===详细AI日志==='
 
+const seenLogs = new Map<string, number>()
+const notifications = new Set<ReturnType<typeof ElNotification>>()
+const pendingNotifications: LogEntry[] = []
+let isCreatingNotifications = false
+let notificationsMounted = false
+let stopNotificationWatch: (() => void) | undefined
+
+/** 只提醒未处理的近期 AI 结果；抽屉内看过的结果也标记，避免关闭后补弹。 */
+function notifyRecentAnalysis(): void {
+  const now = Date.now()
+  for (const [key, timestamp] of seenLogs) {
+    if (now - timestamp > 60_000) seenLogs.delete(key)
+  }
+  for (const log of botStore.logs) {
+    const age = now - log.timestamp
+    if (!hasDetailedLog(log.message) || age < 0 || age > 60_000) continue
+    const key = JSON.stringify([log.timestamp, log.category, log.message])
+    if (seenLogs.has(key)) continue
+    seenLogs.set(key, log.timestamp)
+    if (!visible.value) pendingNotifications.push(log)
+  }
+  void flushAnalysisNotifications()
+}
+
+/** 等上一条通知完成 DOM 更新后再创建下一条，确保组件能测得真实高度并正确堆叠。 */
+async function flushAnalysisNotifications(): Promise<void> {
+  if (isCreatingNotifications) return
+  isCreatingNotifications = true
+  try {
+    while (pendingNotifications.length > 0) {
+      // ElNotification 初次挂载时隐藏，必须等待可见状态更新后才能计算下一条的偏移。
+      await nextTick()
+      if (!notificationsMounted || visible.value) {
+        pendingNotifications.length = 0
+        break
+      }
+      const log = pendingNotifications.shift()!
+      if (Date.now() - log.timestamp <= 60_000) showAnalysisNotification(log)
+    }
+  } finally {
+    isCreatingNotifications = false
+  }
+}
+
+/** 兼容历史文本日志，新日志优先读取结构化分析字段，缺失值不猜测。 */
+function showAnalysisNotification(log: LogEntry): void {
+  const summary = getLogSummary(log.message)
+  const data = log.data
+  const symbol = data?.symbol || summary.match(/^\s*(\S+)\s+@/)?.[1]
+  if (!symbol) return
+  const strategyId = data?.strategyId || summary.match(/\[([^\]]+)\]/)?.[1] || '未知策略'
+  const direction = data?.direction?.toUpperCase() || summary.match(/@\S+\s+(LONG|SHORT|IDLE)/)?.[1] || 'IDLE'
+  const score = data?.score ?? summary.match(/评分[（(:：]\s*([\d.]+)/)?.[1] ?? '--'
+  const confidence = data?.confidence ?? log.message.match(/置信度[（(:：]\s*([\d.]+)/)?.[1] ?? '--'
+  // 扫描引擎只在满足开仓条件时记录 SUCCESS，通知状态直接沿用日志级别。
+  const type = log.level === 'SUCCESS' ? 'success' : 'warning'
+  const notification = ElNotification({
+    title: `${symbol} · ${direction}`,
+    type,
+    duration: 5000,
+    customClass: 'ai-analysis-notification',
+    message: `评分 ${score} · 置信度 ${confidence} · ${strategyId}`,
+    position: 'bottom-right',
+    onClick: () => {
+      emit('select-symbol', symbol)
+      notification.close()
+    },
+    onClose: () => {
+      notifications.delete(notification)
+    }
+  })
+  notifications.add(notification)
+}
+
+/** 打开日志时撤下通知，避免与抽屉重复展示。 */
+function closeAnalysisNotifications(): void {
+  pendingNotifications.length = 0
+  for (const notification of notifications) notification.close()
+  notifications.clear()
+}
+
 // 详细 AI 日志默认收起，并由标题栏按钮统一控制全部日志。
 const showDetailedLogs = ref(false)
 
@@ -203,17 +289,24 @@ function fetchSymbols() {
 
 // 组件加载时获取日志并订阅共享轮询
 onMounted(async () => {
+  notificationsMounted = true
+  stopNotificationWatch = watch([() => botStore.logs, visible], () => {
+    if (visible.value) closeAnalysisNotifications()
+    notifyRecentAnalysis()
+  }, { immediate: true, deep: true })
+  botStore.subscribeToPolling('system-logs')
   // 获取策略列表
   await fetchStrategies()
   // 获取交易对列表
   fetchSymbols()
-  // 订阅共享轮询
-  botStore.subscribeToPolling('system-logs')
 })
 
 
 // 组件卸载时取消订阅共享轮询
 onUnmounted(() => {
+  notificationsMounted = false
+  stopNotificationWatch?.()
+  closeAnalysisNotifications()
   botStore.unsubscribeFromPolling('system-logs')
 })
 </script>
@@ -421,5 +514,29 @@ onUnmounted(() => {
   font-size: 12px;
   line-height: 1.5;
   color: var(--text-regular);
+}
+</style>
+
+<style>
+/* 通知挂载到 body，使用全局样式；只让背景透明，保持文字与图标清晰。 */
+.ai-analysis-notification {
+  width: 350px;
+  max-width: calc(100vw - 32px);
+  background: color-mix(in srgb, var(--el-bg-color-overlay) 65%, transparent);
+  backdrop-filter: blur(8px);
+  cursor: pointer;
+}
+.ai-analysis-notification .el-notification__group {
+  flex: 1;
+  min-width: 0;
+}
+.ai-analysis-notification .el-notification__title {
+  font-size: 13px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.ai-analysis-notification .el-notification__content {
+  font-size: 12px;
+  text-align: left;
 }
 </style>
