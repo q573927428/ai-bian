@@ -8,6 +8,7 @@ import { KLineSimpleSyncService } from '../modules/kline-simple-sync'
 import type { KLineSyncConfig } from '../../types/kline-simple'
 import { setSyncService, getSyncService, setSyncReadyPromise } from '../utils/kline-sync-service'
 import { initKLineDb, closeKLineDb, flushDb, getSimpleKLineCount } from '../utils/kline-simple-storage'
+import { startMacroSync, stopMacroSync } from '../modules/macro-kline-sync'
 
 // 默认配置
 const DEFAULT_SYNC_CONFIG: KLineSyncConfig = {
@@ -31,6 +32,11 @@ export default defineNitroPlugin(async (nitroApp: NitroApp) => {
   try {
     // 初始化 K 线数据库（node:sqlite）
     await initKLineDb()
+    // 宏观数据独立下载，不加入交易白名单，也不阻塞策略初始化。
+    startMacroSync()
+    nitroApp.hooks.hook('close', async () => {
+      await stopSyncService()
+    })
     
     // 从环境变量或配置文件中获取配置
     const config = await getSyncConfig()
@@ -44,11 +50,6 @@ export default defineNitroPlugin(async (nitroApp: NitroApp) => {
     const readyPromise = startInitialSync()
     setSyncReadyPromise(readyPromise)
     await readyPromise
-    
-    // 处理服务器关闭
-    nitroApp.hooks.hook('close', async () => {
-      await stopSyncService()
-    })
     
   } catch (error) {
     console.error('❌ 初始化K线同步服务失败:', error)
@@ -169,6 +170,7 @@ async function startInitialSync(): Promise<void> {
  * 停止同步服务
  */
 async function stopSyncService(): Promise<void> {
+  await stopMacroSync()
   const syncService = getSyncService()
   if (syncService) {
     console.log('🛑 停止K线同步服务...')

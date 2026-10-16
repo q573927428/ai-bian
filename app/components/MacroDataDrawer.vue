@@ -3,6 +3,10 @@
   <el-drawer v-model="visible" class="macro-drawer" title="宏观数据" direction="rtl" size="96%" destroy-on-close>
     <div class="macro-toolbar">
       <span class="overview-title">全球流动性+市场风险偏好总览</span>
+      <div class="periods" aria-label="数据源">
+        <button type="button" :class="{ active: dataSource === 'local' }" :aria-pressed="dataSource === 'local'" @click="dataSource = 'local'">本地数据</button>
+        <button type="button" :class="{ active: dataSource === 'tradingview' }" :aria-pressed="dataSource === 'tradingview'" @click="dataSource = 'tradingview'">TradingView</button>
+      </div>
       <div class="periods global-periods" aria-label="全部图表周期">
         <button v-for="period in periods" :key="period.value" type="button"
           :class="{ active: globalPeriod === period.value }"
@@ -26,7 +30,8 @@
           </div>
         </header>
         <div class="chart-viewport">
-          <iframe class="chart-frame" :title="`${item.name} K线图`" :src="chartUrl(item.symbol, selectedPeriods[item.symbol] || 'D')"
+          <MacroKLineChart v-if="visible && dataSource === 'local'" :market="item" :period="selectedPeriods[item.symbol] || '1d'" />
+          <iframe v-else-if="visible && dataSource === 'tradingview'" class="chart-frame" :title="`${item.name} K线图`" :src="chartUrl(item.tradingView, selectedPeriods[item.symbol] || '1d')"
             loading="lazy" referrerpolicy="origin" />
         </div>
       </section>
@@ -35,7 +40,20 @@
 </template>
 
 <script setup lang="ts">
-import { computed, reactive, ref } from 'vue'
+import { computed, reactive, ref, onMounted, watch, provide } from 'vue'
+import { MACRO_MARKETS } from '../../types/macro-market'
+import MacroKLineChart from './macro-data/MacroKLineChart.vue'
+import { macroCrosshairKey, type MacroCrosshairPosition } from './macro-data/crosshair-sync'
+
+// 通道仅在当前九宫格内广播，组件卸载时各自移除订阅。
+const crosshairListeners = new Set<(position: MacroCrosshairPosition | null) => void>()
+provide(macroCrosshairKey, {
+  publish: position => crosshairListeners.forEach(listener => listener(position)),
+  subscribe: listener => {
+    crosshairListeners.add(listener)
+    return () => { crosshairListeners.delete(listener) }
+  },
+})
 
 const props = defineProps<{ modelValue: boolean }>()
 const emit = defineEmits<{ 'update:modelValue': [value: boolean] }>()
@@ -44,30 +62,29 @@ const visible = computed({
   set: value => emit('update:modelValue', value),
 })
 
-// 截图中的市场标的；价格和蜡烛图由 TradingView 实时提供。
-const markets = [
-  { name: '比特币', description: '投机资金风险偏好', symbol: 'BINANCE:BTCUSDT.P' },
-  { name: '纳指100（QQQ）', description: '美股科技股资金流向', symbol: 'BINANCE:QQQUSDT.P' },
-  { name: '黄金', description: '大钱避险资金', symbol: 'BINANCE:XAUUSDT.P' },
-  { name: '美元指数', description: '涨-流动性收紧 大宗受压；跌-利好其他资产', symbol: 'PEPPERSTONE:USDX' },
-  { name: '10年期美债收益率', description: '全球流动性闸门', symbol: 'PYTH:US10Y' },
-  { name: '原油', description: '能源供需与通胀冲击', symbol: 'BINANCE:CLUSDT.P' },
-  { name: '日经225', description: '亚洲黑盘风险情绪', symbol: 'PEPPERSTONE:JPN225' },
-  { name: '恒生科技', description: '指数代理 · 中系资产风险情绪', symbol: 'FOREXCOM:HSTECH' },
-  { name: '韩国 KOSPI（EWY）', description: '芯片 / 存储周期温度', symbol: 'BINANCE:EWYUSDT.P' },
-] as const
+const markets = MACRO_MARKETS
+const dataSource = ref<'local' | 'tradingview'>('local')
+onMounted(() => {
+  try {
+    if (localStorage.getItem('macro-data-source') === 'tradingview') dataSource.value = 'tradingview'
+  } catch { /* 浏览器禁用存储时使用本地默认值。 */ }
+})
+watch(dataSource, value => {
+  try { localStorage.setItem('macro-data-source', value) } catch { /* 存储失败不影响切换。 */ }
+})
 
 const periods = [
-  { label: '15m', value: '15' },
-  { label: '1H', value: '60' },
-  { label: '4H', value: '240' },
-  { label: '1D', value: 'D' },
+  { label: '15m', value: '15m' },
+  { label: '1H', value: '1h' },
+  { label: '4H', value: '4h' },
+  { label: '1D', value: '1d' },
+  { label: '1W', value: '1w' },
 ] as const
 
 type Period = typeof periods[number]['value']
-const globalPeriod = ref<Period>('D')
+const globalPeriod = ref<Period>('1d')
 const selectedPeriods = reactive<Record<string, Period>>(
-  Object.fromEntries(markets.map(item => [item.symbol, 'D' as Period])),
+  Object.fromEntries(markets.map(item => [item.symbol, '1d' as Period])),
 )
 
 /** 顶部周期切换同步更新九张图，单卡切换仍可独立覆盖。 */
@@ -79,7 +96,7 @@ function setGlobalPeriod(period: Period) {
 /** 使用 TradingView 公开嵌入图表提供市场数据，周期变化时 iframe 会重新加载。 */
 function chartUrl(symbol: string, period: Period): string {
   const params = new URLSearchParams({
-    symbol, interval: period, theme: 'dark', style: '1', locale: 'zh_CN',
+    symbol, interval: { '15m': '15', '1h': '60', '4h': '240', '1d': 'D', '1w': 'W' }[period], theme: 'dark', style: '1', locale: 'zh_CN',
     timezone: 'Etc/UTC', hidesidetoolbar: '1', hide_legend: '1',
     symboledit: '0', saveimage: '0', toolbarbg: '#111111',
   })
