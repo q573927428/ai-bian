@@ -18,6 +18,8 @@ export interface LearningResult {
   successFactors: string[]
   failureFactors: string[]
   optimizationSuggestions: string[]
+  /** 仅降级结果包含：记录失败原因，避免将所有异常误判为服务不可用。 */
+  analysisError?: string
 }
 
 // ==================== 常量 ====================
@@ -223,8 +225,9 @@ ${JSON.stringify(targetTrades.slice(-20).map(trade => ({
       },
       body: JSON.stringify({
         model,
-        // 历史分析只需结构化结论；默认思考会耗尽 2000 token，导致正文为空。
-        thinking: { type: 'enabled' },
+        // 历史分析只需结构化结论，关闭思考，避免 token 预算被推理占用而没有正文。
+        thinking: { type: 'disabled' },
+        max_tokens: 4000,
         messages: [
           {
             role: 'system',
@@ -295,7 +298,8 @@ ${JSON.stringify(targetTrades.slice(-20).map(trade => ({
 
     return finalResult
   } catch (error: any) {
-    logger.error('TradeHistoryAnalyzer', `AI分析失败: ${error.message}`, responseDiagnostics)
+    const failureReason = error instanceof Error ? error.message : String(error)
+    logger.error('TradeHistoryAnalyzer', `AI分析失败: ${failureReason}`, responseDiagnostics)
 
     // 降级处理：返回基于统计的简单分析
     const fallbackResult: LearningResult = {
@@ -304,7 +308,8 @@ ${JSON.stringify(targetTrades.slice(-20).map(trade => ({
       keyPatterns: [],
       successFactors: [],
       failureFactors: [],
-      optimizationSuggestions: ['等待AI服务恢复后重新分析']
+      optimizationSuggestions: ['等待AI服务恢复后重新分析'],
+      analysisError: failureReason
     }
     await saveAnalysisResult(fallbackResult)
     return fallbackResult
