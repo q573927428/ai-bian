@@ -159,19 +159,22 @@ export class BinanceRateLimiter {
       return headersLike[name] || headersLike[name.toLowerCase()] || null
     }
 
-    const usedWeight = Number(getHeader('x-mbx-used-weight-1m'))
-    if (Number.isFinite(usedWeight)) {
+    const weightHeader = getHeader('x-mbx-used-weight-1m')
+    const usedWeight = Number(weightHeader)
+    if (weightHeader !== null && Number.isFinite(usedWeight)) {
       this.usedWeight1m = usedWeight
       this.usedWeightUpdatedAt = Date.now()
     }
 
-    const order10s = Number(getHeader('x-mbx-order-count-10s'))
-    if (Number.isFinite(order10s)) {
+    const order10sHeader = getHeader('x-mbx-order-count-10s')
+    const order10s = Number(order10sHeader)
+    if (order10sHeader !== null && Number.isFinite(order10s)) {
       this.orderCount10s = order10s
     }
 
-    const order1m = Number(getHeader('x-mbx-order-count-1m'))
-    if (Number.isFinite(order1m)) {
+    const order1mHeader = getHeader('x-mbx-order-count-1m')
+    const order1m = Number(order1mHeader)
+    if (order1mHeader !== null && Number.isFinite(order1m)) {
       this.orderCount1m = order1m
     }
   }
@@ -228,14 +231,15 @@ export class BinanceRateLimiter {
    */
   shouldPauseBackgroundWork(): boolean {
     const now = Date.now()
-    return this.bannedUntil > now || this.degradedUntil > now
+    return this.bannedUntil > now || this.degradedUntil > now || this.shouldPauseGroup('marketData')
   }
 
   getBackgroundPauseReason(): string | undefined {
-    return this.shouldPauseBackgroundWork() ? (this.degradedReason || 'Binance 请求处于降级状态') : undefined
+    return this.shouldPauseBackgroundWork() ? (this.degradedReason || 'Binance 请求权重达到后台暂停阈值') : undefined
   }
 
   getSnapshot(): BinanceRateLimitSnapshot {
+    this.resetExpiredObservedWeight()
     return {
       usedWeight1m: this.usedWeight1m,
       localEstimatedWeight1m: this.getLocalEstimatedWeight1m(),
@@ -296,7 +300,7 @@ export class BinanceRateLimiter {
         const task = this.queues[group].shift()
         if (!task) break
         this.lastStartedAt[group] = Date.now()
-        this.recordLocalWeight(group)
+        this.recordLocalWeight(group, task.key)
         this.execute(task)
         started = true
       }
@@ -333,11 +337,9 @@ export class BinanceRateLimiter {
 
     // Binance USD-M Futures commonly allows 2400 request weight per minute.
     // Keep a guard band and slow non-trade traffic when usage approaches it.
-    if (this.usedWeightUpdatedAt > 0 && now - this.usedWeightUpdatedAt > 65000) {
-      this.usedWeight1m = 0
-      this.usedWeightUpdatedAt = 0
-    }
-    const softLimit = 2400 * this.config.maxUsedWeight1mRatio
+    this.resetExpiredObservedWeight()
+    // 后台先让路，账户查询使用预留额度；429/418 的暂停规则仍优先执行。
+    const softLimit = 2400 * (group === 'account' ? 0.95 : this.config.maxUsedWeight1mRatio)
     const observedWeight = Math.max(this.usedWeight1m, this.getLocalEstimatedWeight1m())
     return group !== 'trade' && observedWeight >= softLimit
   }
@@ -360,10 +362,18 @@ export class BinanceRateLimiter {
     return Math.max(0, GROUP_MIN_INTERVAL_MS[group] - elapsed)
   }
 
-  private recordLocalWeight(group: BinanceRequestGroup): void {
+  private recordLocalWeight(group: BinanceRequestGroup, key: string): void {
+    let weight = GROUP_ESTIMATED_WEIGHT[group]
+    // USD-M K线按请求的 limit 档位计权，与实际返回根数无关。
+    if (key.startsWith('klines:') || key.startsWith('fetchOHLCV:')) {
+      const limit = Number(key.split(':').at(-1))
+      if (Number.isFinite(limit) && limit > 0) {
+        weight = limit < 100 ? 1 : limit < 500 ? 2 : limit <= 1000 ? 5 : 10
+      }
+    }
     this.localWeightEvents.push({
       timestamp: Date.now(),
-      weight: GROUP_ESTIMATED_WEIGHT[group]
+      weight
     })
     this.pruneLocalWeightEvents()
   }
@@ -371,6 +381,14 @@ export class BinanceRateLimiter {
   private getLocalEstimatedWeight1m(): number {
     this.pruneLocalWeightEvents()
     return this.localWeightEvents.reduce((sum, event) => sum + event.weight, 0)
+  }
+
+  /** Binance 权重按整分钟重置，旧窗口的观测不能继续阻塞新窗口。 */
+  private resetExpiredObservedWeight(): void {
+    if (this.usedWeightUpdatedAt > 0 && Math.floor(Date.now() / 60000) > Math.floor(this.usedWeightUpdatedAt / 60000)) {
+      this.usedWeight1m = 0
+      this.usedWeightUpdatedAt = 0
+    }
   }
 
   private pruneLocalWeightEvents(): void {

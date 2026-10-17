@@ -46,6 +46,10 @@ export class KLineSimpleSyncService {
   private readonly HIGH_FREQUENCY_INTERVAL = 120 * 1000
   // 高频同步状态锁
   private isHighFrequencySyncing = false
+  // 所有定时K线轮次共用串行队列，避免整点多周期与高频任务互相挤压。
+  private scheduledSyncTail: Promise<void> = Promise.resolve()
+  private autoSyncGeneration = 0
+  private autoSyncRunning = false
   private initialSyncQueue: string[] = []
   private initialSyncSymbols: Set<string> = new Set()
   private isInitialSyncRunning = false
@@ -356,7 +360,8 @@ export class KLineSimpleSyncService {
           timeframe, 
           startTime, 
           undefined, // endTime
-          initialBars // limit
+          // 增量只请求缺失区间；长时间离线仍保留原有单批上限。
+          Math.min(initialBars, Math.max(2, Math.ceil((Date.now() - startTime) / (this.getIntervalSeconds(timeframe) * 1000)) + 1))
         )
         
         if (klineData.length === 0) {
@@ -863,6 +868,8 @@ export class KLineSimpleSyncService {
     }
     
     console.log('🚀 开始按周期调度定时同步 + 高频同步...')
+    this.autoSyncRunning = true
+    this.autoSyncGeneration++
     
     // 为每个周期创建独立的定时器
     for (const timeframe of this.config.timeframes) {
@@ -870,11 +877,24 @@ export class KLineSimpleSyncService {
     }
     
     // 启动高频同步
-    this.startHighFrequencySync()
+    this.startHighFrequencySync(60000)
+  }
+
+  /** 串行执行后台同步；停止或重启后，旧代次尚未执行的任务直接跳过。 */
+  private enqueueScheduledSync(work: () => Promise<void>): Promise<void> {
+    const generation = this.autoSyncGeneration
+    const next = this.scheduledSyncTail.then(async () => {
+      if (!this.autoSyncRunning || generation !== this.autoSyncGeneration) return
+      await work()
+    })
+    this.scheduledSyncTail = next.catch(() => {})
+    return next
   }
   
   // 启动高频同步
-  private startHighFrequencySync(): void {
+  private startHighFrequencySync(delayMs = this.HIGH_FREQUENCY_INTERVAL): void {
+    if (!this.autoSyncRunning) return
+    const generation = this.autoSyncGeneration
     // 先清除现有的定时器（关键修复）
     if (this.highFrequencyTimer) {
       nodeClearTimeout(this.highFrequencyTimer)
@@ -883,18 +903,19 @@ export class KLineSimpleSyncService {
     
     this.highFrequencyTimer = nodeSetTimeout(async () => {
       try {
-        await this.highFrequencySync()
+        await this.enqueueScheduledSync(() => this.highFrequencySync())
       } catch (error) {
         // 静默处理高频同步错误
       } finally {
         // 继续下一次
-        this.startHighFrequencySync()
+        if (generation === this.autoSyncGeneration) this.startHighFrequencySync()
       }
-    }, this.HIGH_FREQUENCY_INTERVAL) as unknown as NodeJS.Timeout
+    }, delayMs) as unknown as NodeJS.Timeout
   }
 
   // 开始特定周期的定时同步（使用递归调度，对齐K线周期时间点）
   private startTimeframeSync(timeframe: KLineTimeframe): void {
+    const generation = this.autoSyncGeneration
     // 如果已经有定时器，先清除
     if (this.syncIntervals.has(timeframe)) {
       this.stopTimeframeSync(timeframe)
@@ -909,6 +930,7 @@ export class KLineSimpleSyncService {
     
     // 递归调度函数
     const scheduleNext = () => {
+      if (!this.autoSyncRunning || generation !== this.autoSyncGeneration) return
       // 计算下一次同步的延迟
       const delay = this.getNextSyncDelay(timeframe)
       
@@ -916,7 +938,7 @@ export class KLineSimpleSyncService {
       
       const timeout = nodeSetTimeout(async () => {
         try {
-          await this.syncTimeframe(timeframe)
+          await this.enqueueScheduledSync(() => this.syncTimeframe(timeframe))
         } catch (error) {
           // 错误已经在syncTimeframe中处理，这里只确保继续调度
           console.error(`${timeframe} 周期同步失败:`, error)
@@ -932,14 +954,7 @@ export class KLineSimpleSyncService {
     // 开始调度
     scheduleNext()
     
-    // 立即执行一次同步（可选）
-    nodeSetTimeout(async () => {
-      try {
-        await this.syncTimeframe(timeframe)
-      } catch (error) {
-        console.error(`${timeframe} 周期初始同步失败:`, error)
-      }
-    }, 1000) // 延迟1秒开始，避免同时启动所有周期
+    // 启动阶段已经完成增量同步，这里仅等待周期边界，不再重复请求六个周期。
   }
 
   // 同步特定周期的所有交易对（带并发锁和超时保护）
@@ -972,16 +987,8 @@ export class KLineSimpleSyncService {
       const now = Math.floor(Date.now() / 1000)
       this.lastSyncTimes.set(timeframe, now)
       
-      // 设置超时保护：统一5分钟（300000毫秒）
-      const timeoutPromise = new Promise((_, reject) => {
-        nodeSetTimeout(() => reject(new Error(`同步超时: ${timeframe} (超过5分钟)`)), 5 * 60 * 1000)
-      })
-      
-      // 执行同步任务，带超时保护
-      await Promise.race([
-        this.executeSyncTimeframe(timeframe),
-        timeoutPromise
-      ])
+      // 不用 Promise.race 提前释放锁：超时后底层任务仍运行，会破坏串行约束。
+      await this.executeSyncTimeframe(timeframe)
       
     } catch (error: any) {
       // 减少日志：只记录错误，不记录跳过信息
@@ -1044,6 +1051,8 @@ export class KLineSimpleSyncService {
 
   // 停止定时同步（包含高频同步）
   stopAutoSync(): void {
+    this.autoSyncRunning = false
+    this.autoSyncGeneration++
     // 停止高频同步
     if (this.highFrequencyTimer) {
       nodeClearTimeout(this.highFrequencyTimer)

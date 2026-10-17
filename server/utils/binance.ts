@@ -1,6 +1,7 @@
 import * as ccxt from 'ccxt'
 import type { OHLCV, Order, AccountInfo, Position, CryptoBalance, OrderExecutionSummary } from '../../types'
 import { binanceApiGateway } from './binance-api-gateway'
+import { binanceRateLimiter } from './binance-rate-limiter'
 
 /**
  * 脱敏错误文本中的签名和常见凭据，避免诊断日志泄露请求认证信息。
@@ -68,7 +69,12 @@ function enableTransportErrorDiagnostics(exchange: ccxt.binance): void {
 
   exchangeWithFetch.fetchImplementation = async (url: string, init: RequestInit) => {
     try {
-      return await nativeFetch(url, init)
+      const response = await nativeFetch(url, init)
+      // 只合并 USD-M 响应，避免 CCXT 初始化时现货/币本位读数覆盖合约权重。
+      if (new URL(url).hostname === 'fapi.binance.com') {
+        binanceRateLimiter.updateFromHeaders(response.headers)
+      }
+      return response
     } catch (error: any) {
       // 让 CCXT 继续按原有逻辑识别请求超时，不能把超时伪装成普通网络错误。
       if (AbortError && error instanceof AbortError && error.name === 'AbortError') {
@@ -112,6 +118,7 @@ export class BinanceService {
       },
       enableRateLimit: true,
     })
+    enableTransportErrorDiagnostics(this.publicExchange)
     enableTransportErrorDiagnostics(this.privateExchange)
   }
 
