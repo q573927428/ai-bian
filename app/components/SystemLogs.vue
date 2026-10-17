@@ -225,7 +225,7 @@ function showAnalysisNotification(log: LogEntry): void {
   const notification = ElNotification({
     title: `${symbol} · ${direction}`,
     type,
-    duration: 5000,
+    duration: 8000,
     customClass: 'ai-analysis-notification',
     message: `评分 ${score} · 置信度 ${confidence} · ${strategyId}`,
     position: 'bottom-right',
