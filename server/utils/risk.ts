@@ -56,8 +56,7 @@ export function isPositionTimeout(
 }
 
 /**
- * 检查是否达到TP1条件（整合保护机制：盈亏比或RSI极值）
- * 必须达到盈亏比（riskRewardTriggered）才允许触发
+ * 检查是否达到TP1条件：盈亏比达标，且ADX走弱、持仓方向EMA走弱或RSI极值之一成立。
  */
 export function checkTP1Condition(
   position: Position,
@@ -85,8 +84,10 @@ export function checkTP1Condition(
   const rsiTriggered = (direction === 'LONG' && rsi >= takeProfitConfig.rsiExtreme.long) ||
                       (direction === 'SHORT' && rsi <= takeProfitConfig.rsiExtreme.short)
   
-  // 辅助条件：ADX走弱、EMA走弱或RSI触发
-  const auxiliaryCondition = adxSlope < 0 || emaSlope < 0 || rsiTriggered
+  // EMA 下行削弱多头、上行削弱空头；零斜率不视为方向反转。
+  const emaWeakening = (direction === 'LONG' && emaSlope < 0) ||
+                       (direction === 'SHORT' && emaSlope > 0)
+  const auxiliaryCondition = adxSlope < 0 || emaWeakening || rsiTriggered
   
   const triggered = riskRewardTriggered && auxiliaryCondition
   
@@ -95,7 +96,7 @@ export function checkTP1Condition(
     const reasons: string[] = []
     reasons.push(`盈亏比 ${riskRewardRatio.toFixed(2)}:1`)
     if (adxSlope < 0) reasons.push(`ADX走弱`)
-    if (emaSlope < 0) reasons.push(`EMA走弱`)
+    if (emaWeakening) reasons.push(`EMA走弱`)
     if (rsiTriggered) reasons.push(`RSI ${rsi.toFixed(1)}`)
     reason = `达到TP1条件：${reasons.join('，')}`
   } else {

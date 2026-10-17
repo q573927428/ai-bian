@@ -1171,8 +1171,8 @@ export class StrategyEngine {
       return false
     }
 
-    // 检查风险等级（策略独立配置，兜底 HIGH）
-    const maxRiskLevel = 'HIGH'
+    // 与 AI 返回路径保持一致，缓存信号也必须遵守策略风险上限。
+    const maxRiskLevel = instance.strategy.maxRiskLevel ?? 'MEDIUM'
     if (maxRiskLevel !== undefined && signal.riskLevel !== undefined) {
       // 风险等级优先级：LOW < MEDIUM < HIGH
       const riskLevelOrder: Record<string, number> = { 'LOW': 0, 'MEDIUM': 1, 'HIGH': 2 }
