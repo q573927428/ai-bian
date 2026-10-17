@@ -136,6 +136,12 @@
                 {{ row.symbol.replace('USDT', '/USDT') }}
               </el-link>
               <el-tag v-if="row.contractType === 'TRADIFI_PERPETUAL'" size="small" type="warning" effect="plain">T</el-tag>
+              <span
+                v-if="isConfiguredSymbol(row.symbol)"
+                class="configured-dot"
+                title="已在机器人交易对配置中"
+                aria-label="已配置"
+              />
             </div>
           </template>
         </el-table-column>
@@ -264,6 +270,7 @@ const { getCoinIconUrl } = useCoinIcon()
 
 type Mode = 'hot' | 'stable'
 
+/** 热门及持续放量榜单的交易对行情。 */
 interface TopSymbol {
   symbol: string
   volume: number
@@ -334,6 +341,30 @@ const windowWidth = ref(typeof window !== 'undefined' ? window.innerWidth : 1200
 const tableRef = ref()
 const selectedRows = ref<TopSymbol[]>([])
 const showFilterParams = ref(false)
+const configuredSymbols = ref<Set<string> | null>(null)
+
+/** 统一配置与币安行情的交易对格式，避免斜杠和大小写影响匹配。 */
+function normalizeSymbol(symbol: string): string {
+  return symbol.trim().replace(/\//g, '').toUpperCase()
+}
+
+/** 判断交易对是否已保存到机器人配置。 */
+function isConfiguredSymbol(symbol: string): boolean {
+  return configuredSymbols.value?.has(normalizeSymbol(symbol)) ?? false
+}
+
+/** 每次刷新读取已保存配置；失败时不把未知状态误标为未配置。 */
+async function fetchConfiguredSymbols() {
+  configuredSymbols.value = null
+  try {
+    const res = await $fetch<{ success: boolean; data?: { symbols?: string[] } }>('/api/bot/config')
+    if (res.success && Array.isArray(res.data?.symbols)) {
+      configuredSymbols.value = new Set(res.data.symbols.map(normalizeSymbol))
+    }
+  } catch (err) {
+    console.error('获取交易对配置失败:', err)
+  }
+}
 
 // 筛选参数副本（默认值）
 const filterParams = ref<FilterParams>({ ...DEFAULT_FILTER_PARAMS })
@@ -435,13 +466,13 @@ const fetchData = async () => {
           segmentRatio: filterParams.value.segmentRatio,
         }
       : {}
-    const res = await $fetch<{
+    const [res] = await Promise.all([$fetch<{
       success: boolean
       mode?: string
       message?: string
       updatedAt?: number
       data: TopSymbol[]
-    }>('/api/binance/top-symbols', { query })
+    }>('/api/binance/top-symbols', { query }), fetchConfiguredSymbols()])
     if (res.success) {
       data.value = res.data
       updatedAt.value = res.updatedAt || null
@@ -692,6 +723,15 @@ watch(visible, (newVal) => {
 
 .symbol-cell .el-tag {
   margin-left: 2px;
+  flex-shrink: 0;
+}
+
+.configured-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--el-color-success);
+  flex-shrink: 0;
 }
 
 .crypto-icon {

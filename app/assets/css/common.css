@@ -280,6 +280,11 @@ html.dark {
   --el-color-black: #e5eaf3;
 }
 
+/* 加载遮罩统一跟随暗色主题，覆盖表格、弹窗和挂载到 body 的全屏等待状态。 */
+html.dark .el-loading-mask {
+  --el-mask-color: rgba(20, 20, 20, 0.8);
+}
+
 /* 表格 */
 html.dark .el-table {
   --el-table-header-bg-color: #1a1a1b;

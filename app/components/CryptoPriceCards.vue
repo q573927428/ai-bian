@@ -437,9 +437,9 @@ interface CryptoPrice {
 
 .tradfi-badge :deep(.el-badge__content) {
   padding: 0 4px;
-  height: 16px;
+  height: 15px;
   font-size: 10px;
-  line-height: 16px;
+  line-height: 15px;
   color: #fff;
 }
 
