@@ -907,7 +907,7 @@ ${historySection}
         const runtimeConfig = useRuntimeConfig()
         const provider = promptConfig?.provider || (runtimeConfig.aiProvider as AIProvider) || 'deepseek'
         this.recordAIError(provider, error)
-        logger.error('MultiStrategyAIAnalyzer', `AI API 调用失败: ${error.message}`)
+        logger.error('MultiStrategyAIAnalyzer', `AI API 调用失败: ${error.message}`, { strategyId, symbol, provider })
         
         // 返回默认分析结果（降级处理）
         const fallbackAnalysis: AIAnalysis = {

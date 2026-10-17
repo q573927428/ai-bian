@@ -146,6 +146,29 @@ export async function callAIAPI(
 
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), timeoutMs)
+  const startedAt = Date.now()
+  // 诊断信息不包含密钥、提示词或 URL 查询参数，避免日志泄露认证信息。
+  const redact = (value: unknown): string => String(value ?? '')
+    .split(providerConfig.apiKey).join('[REDACTED]')
+    .replace(/Bearer\s+\S+/gi, 'Bearer [REDACTED]')
+  const diagnosticUrl = (() => {
+    try {
+      const url = new URL(`${providerConfig.apiUrl}/chat/completions`)
+      return `${url.origin}${url.pathname}`
+    } catch {
+      return '[无效的 API URL]'
+    }
+  })()
+  // Error 的关键字段默认不可 JSON 序列化；展开 cause 和多地址连接错误以定位 DNS/TLS/网络故障。
+  const describeError = (error: any, depth = 0): Record<string, unknown> => ({
+    name: redact(error?.name),
+    message: redact(error?.message ?? error),
+    code: error?.code,
+    ...(depth < 3 && error?.cause ? { cause: describeError(error.cause, depth + 1) } : {}),
+    ...(depth < 3 && Array.isArray(error?.errors)
+      ? { errors: error.errors.map((item: unknown) => describeError(item, depth + 1)) }
+      : {})
+  })
   let response: Response
   try {
     response = await fetch(`${providerConfig.apiUrl}/chat/completions`, {
@@ -157,11 +180,31 @@ export async function callAIAPI(
       body: JSON.stringify(requestBody),
       signal: controller.signal,
     })
+  } catch (error: unknown) {
+    logger.error('AIService', 'AI 请求通信失败', {
+      url: diagnosticUrl,
+      model: providerConfig.model,
+      elapsedMs: Date.now() - startedAt,
+      timeoutMs,
+      aborted: controller.signal.aborted,
+      error: describeError(error)
+    })
+    throw error
   } finally {
     clearTimeout(timeout)
   }
 
   if (!response.ok) {
+    // 不额外读取错误响应正文，避免诊断过程阻塞或记录服务商回显的敏感内容。
+    logger.error('AIService', 'AI HTTP 请求失败', {
+      url: diagnosticUrl,
+      model: providerConfig.model,
+      elapsedMs: Date.now() - startedAt,
+      timeoutMs,
+      status: response.status,
+      statusText: redact(response.statusText),
+      requestId: redact(response.headers.get('x-request-id') || response.headers.get('request-id'))
+    })
     throw new Error(`API请求失败: ${response.statusText}`)
   }
 
