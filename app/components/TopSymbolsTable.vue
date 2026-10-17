@@ -296,7 +296,7 @@ interface FilterParams {
 const DEFAULT_FILTER_PARAMS: FilterParams = {
   days: 30,
   pool: 100,
-  top: 38,
+  top: 50,
   minDaily: 50_000_000,
   minRatio: 0.02,
   cvMax: 1.0,

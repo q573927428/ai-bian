@@ -47,7 +47,7 @@ interface StableFilterOptions {
 const FILTER_DEFAULTS: StableFilterOptions = {
   days: 30,
   pool: 100,
-  top: 38,
+  top: 50,
   minDaily: 50_000_000,
   minRatio: 0.02,
   cvMax: 1.0,
