@@ -5,7 +5,7 @@
       <el-header class="header">
         <div class="header-content">
           <h1>
-            <el-icon style="vertical-align: middle; margin-right: 8px"><ElIconTrendCharts /></el-icon>
+            <img :src="currentTheme === 'light' ? '/logo-light.png' : '/logo.png'" alt="Logo" style="width: 1.5em; height: 1.5em; object-fit: contain; vertical-align: middle; margin-right: 8px" />
             AI自动交易
           </h1>
           <div class="header-right">
