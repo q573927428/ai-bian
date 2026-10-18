@@ -2,6 +2,7 @@
 import type { MarketOverview } from '../../types/market-overview'
 import { fetchEtfFlow } from './etf-flow'
 import { fetchMarketAmount, MARKET_AMOUNT_KEYS } from './market-amounts'
+import { markTrendStale, persistTrendHistories } from './crypto-trends'
 
 export const MARKET_REFRESH_MS = 60 * 60_000
 const cache: MarketOverview = {
@@ -36,6 +37,7 @@ export function refreshMarketOverview(): Promise<void> {
         cache[key] = { value, updatedAt: new Date().toISOString(), stale: false }
       } catch (error) {
         cache[key].stale = true
+        markTrendStale(key)
         console.warn(`[MarketOverview] ${key} 同步失败:`, error instanceof Error ? error.message : error)
       }
     }),
@@ -48,6 +50,7 @@ export function refreshMarketOverview(): Promise<void> {
         cache[key] = { value, updatedAt: new Date().toISOString(), stale: false }
       } catch (error) {
         cache[key].stale = true
+        markTrendStale(key)
         console.warn(`[MarketOverview] ${asset.toUpperCase()} ETF 同步失败:`, error instanceof Error ? error.message : error)
       }
     }),
@@ -76,7 +79,7 @@ export function refreshMarketOverview(): Promise<void> {
         console.warn('[MarketOverview] CoinGecko 同步失败:', error instanceof Error ? error.message : error)
       }
     })(),
-  ]).then(() => { pending = undefined })
+  ]).then(async () => { await persistTrendHistories() }).finally(() => { pending = undefined })
   return pending
 }
 

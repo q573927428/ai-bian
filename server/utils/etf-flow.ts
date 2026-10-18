@@ -1,5 +1,6 @@
 // ==================== ETF 公开 JSON 净流入同步 ====================
 import type { EtfNetFlow } from '../../types/market-overview'
+import { recordTrendHistory } from './crypto-trends'
 
 export const ETF_FLOW_SOURCES = {
   btc: { url: 'https://data.tbstat.com/dashboard/markets_structuredproducts_btcspotetftotalnetflows_daily_other.json', name: 'BTC Spot ETF Total Net Flows' },
@@ -24,5 +25,8 @@ export async function fetchEtfFlow(asset: keyof typeof ETF_FLOW_SOURCES): Promis
   const source = ETF_FLOW_SOURCES[asset]
   const response = await fetch(source.url, { signal: AbortSignal.timeout(15_000) })
   if (!response.ok) throw new Error(`The Block JSON HTTP ${response.status}`)
-  return parseEtfFlow(await response.json(), source.name)
+  const data = await response.json()
+  const value = parseEtfFlow(data, source.name)
+  recordTrendHistory(asset === 'btc' ? 'btcEtf' : 'ethEtf', data, source.name)
+  return value
 }

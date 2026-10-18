@@ -1,7 +1,10 @@
 // ==================== ETF 公开 JSON 解析回归测试 ====================
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { parseEtfFlow, ETF_FLOW_SOURCES } from '../server/utils/etf-flow.ts'
+import { registerHooks } from 'node:module'
+// Node 原生测试补全 Nuxt 支持的无扩展名导入。
+registerHooks({ resolve(specifier, context, next) { return next(specifier === './crypto-trends' ? './crypto-trends.ts' : specifier, context) } })
+const { parseEtfFlow, ETF_FLOW_SOURCES } = await import('../server/utils/etf-flow.ts')
 
 const timestamp = Date.parse('2026-10-15T12:00:00Z') / 1000
 const name = ETF_FLOW_SOURCES.btc.name

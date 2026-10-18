@@ -1,5 +1,6 @@
 // ==================== 公开市场持仓、清算与稳定币供应快照 ====================
 import type { MarketAmount } from '../../types/market-overview'
+import { recordTrendHistory } from './crypto-trends'
 
 export const MARKET_AMOUNT_KEYS = ['btcOi', 'ethOi', 'longLiquidations', 'shortLiquidations', 'stablecoinSupply'] as const
 export type MarketAmountKey = typeof MARKET_AMOUNT_KEYS[number]
@@ -68,5 +69,8 @@ export async function fetchMarketAmount(key: MarketAmountKey): Promise<MarketAmo
   const url = `https://data.tbstat.com/dashboard/${source.file}`
   const response = await fetch(url, { signal: AbortSignal.timeout(20_000), headers: { 'User-Agent': 'Mozilla/5.0' } })
   if (!response.ok) throw new Error(`The Block HTTP ${response.status}`)
-  return parseAmountSeries(await response.json(), source.name, key === 'longLiquidations' || key === 'shortLiquidations')
+  const data = await response.json()
+  const value = parseAmountSeries(data, source.name, key === 'longLiquidations' || key === 'shortLiquidations')
+  recordTrendHistory(key, data, source.name)
+  return value
 }

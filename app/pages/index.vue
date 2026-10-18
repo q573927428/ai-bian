@@ -84,6 +84,10 @@
                     <el-icon><ElIconTrendCharts /></el-icon>
                     宏观
                   </el-button>
+                  <el-button class="control-panel-action" type="primary" size="small" text @click="showCryptoTrendsDrawer = true">
+                    <el-icon><ElIconDataAnalysis /></el-icon>
+                    趋势
+                  </el-button>
                 </div>
                 <!-- 余额信息 -->
                 <div class="balance-card-large">
@@ -159,6 +163,7 @@
 
             <ClientOnly>
               <MacroDataDrawer v-model="showMacroDataDrawer" />
+              <CryptoTrendsDrawer v-model="showCryptoTrendsDrawer" />
             </ClientOnly>
 
             <!-- 密码验证对话框 -->
@@ -293,6 +298,7 @@ const showLogsDrawer = ref(false)
 const showOrdersDrawer = ref(false)
 const showTopSymbolsDialog = ref(false)
 const showMacroDataDrawer = ref(false)
+const showCryptoTrendsDrawer = ref(false)
 const showStrategiesDrawer = ref(false)
 // 首页负责在持仓列表与 K 线区域之间中转交易对和持仓主周期。
 const selectedChartSymbol = ref('')
