@@ -87,7 +87,7 @@ const etfItems = computed(() => [
   { label: 'ETH', metric: overview.value?.ethEtf },
 ])
 const amountGroups = computed(() => [
-  { label: '已披露持仓', note: '期货未平仓名义美元价值；仅汇总公开披露交易所，非完整全市场总量', items: [{ label: 'BTC', metric: overview.value?.btcOi }, { label: 'ETH', metric: overview.value?.ethOi }] },
+  { label: '主要交易所持仓', note: '主要交易所期货未平仓名义美元价值合计，仅包含下列来源覆盖交易所，非全市场总持仓', items: [{ label: 'BTC', metric: overview.value?.btcOi }, { label: 'ETH', metric: overview.value?.ethOi }] },
   { label: '日清算', note: '来源日频统计，以 UTC 16:00 为日界；可能尚未结算完整一天，非滚动24小时金额', items: [{ label: '多头', metric: overview.value?.longLiquidations }, { label: '空头', metric: overview.value?.shortLiquidations }] },
   { label: '稳定币总供应', note: '来源覆盖的美元锚定稳定币供应量合计，按美元面值计；非资金净流入', items: [{ label: '', metric: overview.value?.stablecoinSupply }] },
 ])

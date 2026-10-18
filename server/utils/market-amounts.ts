@@ -4,8 +4,8 @@ import type { MarketAmount } from '../../types/market-overview'
 export const MARKET_AMOUNT_KEYS = ['btcOi', 'ethOi', 'longLiquidations', 'shortLiquidations', 'stablecoinSupply'] as const
 export type MarketAmountKey = typeof MARKET_AMOUNT_KEYS[number]
 const sources = {
-  btcOi: { path: 'crypto-markets/futures/aggregated-open-interest-of-bitcoin-futures-daily', name: 'Aggregated Open Interest of Bitcoin Futures' },
-  ethOi: { path: 'crypto-markets/futures/aggregated-open-interest-of-ethereum-futures-daily', name: 'Aggregated Open Interest of Ethereum Futures' },
+  btcOi: { file: 'markets_futures_topbitcoinfuturesoi_daily_other.json', name: 'Top Bitcoin Futures OI' },
+  ethOi: { file: 'markets_futures_topetherfuturesoi_daily_other.json', name: 'Top Ether Futures OI' },
   longLiquidations: { file: 'markets_futures_longliquidationsbyexchanges_daily_coinglass.json', name: 'Long liquidations by exchanges' },
   shortLiquidations: { file: 'markets_futures_shortliquidationsbyexchanges_daily_coinglass.json', name: 'Short liquidations by exchanges' },
   stablecoinSupply: { file: 'openfinance_stablecoins_totalstablecoinsupply_daily_defillama.json', name: 'Total Stablecoin Supply' },
@@ -65,10 +65,8 @@ export function parseDisclosedOi(html: string, name: string): MarketAmount {
 /** 仅请求无需凭证的公开资源，各指标失败交给上层缓存处理。 */
 export async function fetchMarketAmount(key: MarketAmountKey): Promise<MarketAmount> {
   const source = sources[key]
-  const url = 'file' in source ? `https://data.tbstat.com/dashboard/${source.file}` : `https://www.theblock.co/data/${source.path}`
+  const url = `https://data.tbstat.com/dashboard/${source.file}`
   const response = await fetch(url, { signal: AbortSignal.timeout(20_000), headers: { 'User-Agent': 'Mozilla/5.0' } })
   if (!response.ok) throw new Error(`The Block HTTP ${response.status}`)
-  return 'file' in source
-    ? parseAmountSeries(await response.json(), source.name, key === 'longLiquidations' || key === 'shortLiquidations')
-    : parseDisclosedOi(await response.text(), source.name)
+  return parseAmountSeries(await response.json(), source.name, key === 'longLiquidations' || key === 'shortLiquidations')
 }

@@ -1,27 +1,22 @@
-// ==================== ETF 公开数据解析回归测试 ====================
+// ==================== ETF 公开 JSON 解析回归测试 ====================
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { parseEtfFlow, ETF_FLOW_SOURCES } from '../server/utils/etf-flow.ts'
 
-/** 构造来源结构，覆盖多指标、日期、单位和空值校验。 */
-function row(value, date = '2026-10-15T12:00:00.000Z', unit = 'USD', name = ETF_FLOW_SOURCES.btc.name) {
-  return { '@type': 'DataFeedItem', dateModified: date, item: { name, variableMeasured: [{ name: 'Total Net Flow', value, unitText: unit }] } }
-}
-const html = data => `<script type="application/ld+json">${JSON.stringify(data)}</script>`
+const timestamp = Date.parse('2026-10-15T12:00:00Z') / 1000
+const name = ETF_FLOW_SOURCES.btc.name
+/** 构造目标序列，避免混淆成交量和累计净流入。 */
+const sample = rows => ({ Description: name, Frequency: 'Daily', Series: { 'Total Net Flow': { Data: rows } } })
 
-test('只读取目标美元单日合计，并选择最新来源日期', () => {
-  const source = html({ '@graph': [row(10, '2026-10-14'), row(-60300000), row(99, '2026-10-16', 'ETH'), row(88, '2026-10-16', 'USD', 'Cumulative Net Flow')] })
-  assert.deepEqual(parseEtfFlow(source, ETF_FLOW_SOURCES.btc.name), { usd: -60300000, date: '2026-10-15' })
+test('JSON 选最新时间点，保留负流入及零值，忽略无关序列', () => {
+  const data = sample([{ Timestamp: timestamp, Result: -60300000 }, { Timestamp: timestamp - 86400, Result: 10 }])
+  data.Series.Volume = { Data: [{ Timestamp: timestamp + 86400, Result: 999 }] }
+  assert.deepEqual(parseEtfFlow(data, name), { usd: -60300000, date: '2026-10-15' })
+  assert.equal(parseEtfFlow(sample([{ Timestamp: timestamp, Result: 0 }]), name).usd, 0)
 })
 
-test('有效零值可以展示，缺失及错误页不得冒充零流入', () => {
-  assert.equal(parseEtfFlow(html(row(0)), ETF_FLOW_SOURCES.btc.name).usd, 0)
-  for (const source of ['<html>Access denied</html>', html(row(null)), html(row('53')), html(row(10, 'invalid')), html(row(10, '2099-01-01'))]) {
-    assert.throws(() => parseEtfFlow(source, ETF_FLOW_SOURCES.btc.name), /缺少有效净流入数据/)
-  }
-})
-
-test('无关损坏 JSON 不影响 ETH 指标解析', () => {
-  const source = '<script type="application/ld+json">invalid</script>' + html(row(12300000, '2026-10-15', 'USD', ETF_FLOW_SOURCES.eth.name))
-  assert.deepEqual(parseEtfFlow(source, ETF_FLOW_SOURCES.eth.name), { usd: 12300000, date: '2026-10-15' })
+test('最新空值不冒充零、不回退旧日期，错误数据拒绝解析', () => {
+  assert.throws(() => parseEtfFlow(sample([{ Timestamp: timestamp - 86400, Result: 5 }, { Timestamp: timestamp, Result: null }]), name), /缺少有效/)
+  for (const data of [null, '<html>Access denied</html>', { ...sample([]), Description: 'Cumulative Flow' }, { ...sample([]), Frequency: 'Monthly' }]) assert.throws(() => parseEtfFlow(data, name), /格式异常/)
+  assert.throws(() => parseEtfFlow(sample([{ Timestamp: timestamp, Result: '53' }]), name), /缺少有效/)
 })
