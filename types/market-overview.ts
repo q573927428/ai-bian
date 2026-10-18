@@ -12,6 +12,18 @@ export interface MarketOverview {
   dominance: MarketMetric<{ btc: number; eth: number }>
   btcEtf: MarketMetric<EtfNetFlow>
   ethEtf: MarketMetric<EtfNetFlow>
+  btcOi: MarketMetric<MarketAmount>
+  ethOi: MarketMetric<MarketAmount>
+  longLiquidations: MarketMetric<MarketAmount>
+  shortLiquidations: MarketMetric<MarketAmount>
+  stablecoinSupply: MarketMetric<MarketAmount>
+}
+
+/** 美元计价的来源快照；coverage 说明实际汇总的交易所或币种，避免误称全市场。 */
+export interface MarketAmount {
+  usd: number
+  date: string
+  coverage: string[]
 }
 
 /** 美国现货 ETF 单日净流入（美元）；日期取来源元数据，不推断为今日。 */

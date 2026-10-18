@@ -842,6 +842,15 @@ ${historySection}
           { role: 'user', content: prompt }
         ]
 
+        // 调试时从最终用户提示词截取原文，确保看到的就是本次请求实际携带的市场背景。
+        if (process.env.AI_DEBUG_MARKET_BREADTH === '1') {
+          const sectionStart = prompt.indexOf('### 已选交易对市场背景')
+          const sectionEnd = prompt.indexOf('\n--------------------------', sectionStart)
+          const section = sectionStart < 0 ? '本次提示词未包含市场广度。'
+            : prompt.slice(sectionStart, sectionEnd < 0 ? undefined : sectionEnd).trim()
+          logger.info('AI市场广度', `策略=${strategyId} 交易对=${symbol}\n${section}`)
+        }
+
         const content = await callAIAPI(providerConfig, messages, {
           temperature: promptConfig?.temperature ?? 0.5,
           maxTokens: promptConfig?.maxTokens ?? 3000,

@@ -2,24 +2,38 @@
 <template>
   <div class="market-ticker" aria-label="市场概览">
     <div ref="viewport" class="ticker-viewport" tabindex="0" aria-label="市场指标，悬停或聚焦暂停滚动">
-    <div ref="track" class="ticker-track" :class="{ scrolling: overflowing }" :style="tickerStyle">
+    <div ref="track" class="ticker-track" :class="{ scrolling: overflowing, 'tooltip-paused': openTooltips > 0 }" :style="tickerStyle">
     <div v-for="copy in (overflowing ? 2 : 1)" :key="copy" class="market-overview" :aria-hidden="copy === 2 ? true : undefined">
-    <span class="metric-group sentiment-group" :title="sourceTitle('Alternative.me', overview?.fearGreed)">
+    <MarketMetricTooltip :details="sourceTitle('Alternative.me', overview?.fearGreed)" @visible-change="tooltipVisibility">
+    <span class="metric-group sentiment-group">
       <span class="metric-label">恐慌贪婪</span> <strong :style="{ color: sentimentColor }">{{ score ?? '--' }}</strong>
       <el-tag v-if="score !== undefined" size="small" class="sentiment-tag" :style="sentimentTagStyle" effect="light">{{ sentiment }}</el-tag><small v-if="overview?.fearGreed.stale">（待更新）</small>
     </span>
-    <span class="metric-group dominance-group" :title="sourceTitle('CoinGecko', overview?.dominance)">
+    </MarketMetricTooltip>
+    <MarketMetricTooltip :details="`${sourceTitle('CoinGecko', overview?.dominance)}；统计口径：币种市值占加密货币总市值比例`" @visible-change="tooltipVisibility">
+    <span class="metric-group dominance-group">
       <span class="metric-label">市占率</span> <span class="metric-value">BTC <strong class="btc-dominance">{{ percent(overview?.dominance.value?.btc) }}</strong></span>
       <span class="metric-value">ETH <strong class="eth-dominance">{{ percent(overview?.dominance.value?.eth) }}</strong></span><small v-if="overview?.dominance.stale">（待更新）</small>
     </span>
+    </MarketMetricTooltip>
     <span class="metric-group etf-group">
       <span class="metric-label">ETF净流入</span>
-      <span v-for="item in etfItems" :key="item.label" class="metric-group" :title="sourceTitle('The Block', item.metric)">
+      <MarketMetricTooltip v-for="item in etfItems" :key="item.label" :details="`${sourceTitle('The Block', item.metric)}；ETF 数据日期：${item.metric?.value?.date ?? '--'}；统计口径：美国现货 ${item.label} ETF 单日净流入（美元）`" @visible-change="tooltipVisibility">
+      <span class="metric-group">
         {{ item.label }} <strong :class="{ 'flow-positive': (item.metric?.value?.usd ?? 0) > 0, 'flow-negative': (item.metric?.value?.usd ?? 0) < 0 }">{{ formatFlow(item.metric?.value?.usd) }}</strong>
         <small v-if="item.metric?.stale">（待更新）</small>
       </span>
+      </MarketMetricTooltip>
     </span>
-    <small v-if="etfDate" class="etf-date" title="ETF 来源数据日期">{{ etfDate }}</small>
+    <span v-for="group in amountGroups" :key="group.label" class="metric-group etf-group">
+      <span class="metric-label">{{ group.label }}</span>
+      <MarketMetricTooltip v-for="item in group.items" :key="item.label" :details="amountTitle(item.metric, group.note)" @visible-change="tooltipVisibility">
+      <span class="metric-group">
+        {{ item.label }} <strong>{{ formatAmount(item.metric?.value?.usd) }}</strong>
+        <small v-if="item.metric?.stale">（待更新）</small>
+      </span>
+      </MarketMetricTooltip>
+    </span>
     <small v-if="failed">连接异常</small>
   </div>
     </div>
@@ -29,10 +43,15 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
-import type { MarketOverview, MarketMetric } from '../../types/market-overview'
+import type { MarketOverview, MarketMetric, MarketAmount } from '../../types/market-overview'
 
 const overview = ref<MarketOverview | null>(null)
 const failed = ref(false)
+const openTooltips = ref(0)
+/** 鼠标进入浮层阅读时继续暂停滚动，离开最后一个浮层后恢复。 */
+function tooltipVisibility(visible: boolean) {
+  openTooltips.value = Math.max(0, openTooltips.value + (visible ? 1 : -1))
+}
 const viewport = ref<HTMLElement | null>(null)
 const track = ref<HTMLElement | null>(null)
 const overflowing = ref(false)
@@ -67,12 +86,23 @@ const etfItems = computed(() => [
   { label: 'BTC', metric: overview.value?.btcEtf },
   { label: 'ETH', metric: overview.value?.ethEtf },
 ])
-// 同日只展示一次日期；独立来源日期不一致时明确各自日期，避免误导。
-const etfDate = computed(() => {
-  const items = etfItems.value.filter(item => item.metric?.value)
-  const dates = new Set(items.map(item => item.metric!.value!.date))
-  return dates.size <= 1 ? [...dates][0] : items.map(item => `${item.label} ${item.metric!.value!.date}`).join(' / ')
-})
+const amountGroups = computed(() => [
+  { label: '已披露持仓', note: '期货未平仓名义美元价值；仅汇总公开披露交易所，非完整全市场总量', items: [{ label: 'BTC', metric: overview.value?.btcOi }, { label: 'ETH', metric: overview.value?.ethOi }] },
+  { label: '日清算', note: '来源日频统计，以 UTC 16:00 为日界；可能尚未结算完整一天，非滚动24小时金额', items: [{ label: '多头', metric: overview.value?.longLiquidations }, { label: '空头', metric: overview.value?.shortLiquidations }] },
+  { label: '稳定币总供应', note: '来源覆盖的美元锚定稳定币供应量合计，按美元面值计；非资金净流入', items: [{ label: '', metric: overview.value?.stablecoinSupply }] },
+])
+
+/** 各指标日期及覆盖范围独立展示在提示中，ETF 日期不代表其他指标日期。 */
+function amountTitle(metric: MarketMetric<MarketAmount> | undefined, note: string) {
+  return `${sourceTitle('The Block', metric)}；${note}；数据日期：${metric?.value?.date ?? '--'}；覆盖：${metric?.value?.coverage.join('、') ?? '--'}`
+}
+
+/** 供应量与持仓为规模，不附加表示资金流向的正号。 */
+function formatAmount(value?: number) {
+  if (value === undefined) return '--'
+  const divisor = value >= 1e12 ? 1e12 : value >= 1e9 ? 1e9 : 1e6
+  return `$${(value / divisor).toFixed(2)}${divisor === 1e12 ? 'T' : divisor === 1e9 ? 'B' : 'M'}`
+}
 
 /** 用美元及 M/B 展示单日有符号流量，缺失值不冒充零流入。 */
 function formatFlow(value?: number) {
@@ -111,27 +141,32 @@ onUnmounted(() => { stopped = true; clearTimeout(timer); resizeObserver?.disconn
 </script>
 
 <style scoped>
-.market-ticker { position: fixed; inset: auto 0 0; z-index: 2147483647; box-sizing: border-box; padding: 4px 10px calc(4px + env(safe-area-inset-bottom, 0px)); background: var(--bg-card); border-top: 1px solid var(--el-border-color-lighter); box-shadow: 0 -2px 10px #00000012; }
+/* 为传送至 body 的详情浮层预留最高一层，避免箭头和内容被行情条遮挡。 */
+.market-ticker { position: fixed; inset: auto 0 0; z-index: 2147483646; box-sizing: border-box; padding: 4px 10px calc(4px + env(safe-area-inset-bottom, 0px)); background: var(--bg-card); border-top: 1px solid var(--el-border-color-lighter); box-shadow: 0 -2px 10px #00000012; }
 .ticker-viewport { overflow: hidden; }
 .ticker-track { display: flex; width: max-content; min-width: 100%; gap: 32px; }
 .market-overview { display: flex; flex: none; align-items: center; justify-content: center; gap: 12px; width: max-content; min-width: 100%; font-size: 12px; line-height: 18px; color: var(--text-regular); }
 .scrolling .market-overview { min-width: 0; }
 .ticker-track.scrolling { animation: ticker-scroll var(--ticker-duration) linear infinite; }
+.ticker-track.tooltip-paused { animation-play-state: paused; }
 .ticker-viewport:hover .scrolling, .ticker-viewport:focus-within .scrolling { animation-play-state: paused; }
 @keyframes ticker-scroll { to { transform: translateX(calc(-1 * var(--ticker-distance))); } }
 .metric-group { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
 .etf-group { gap: 8px; }
 .sentiment-tag.el-tag { height: 16px; padding: 0 4px; font-size: 10px; }
-strong { font-variant-numeric: tabular-nums; color: var(--text-primary); }
+/* 普通金额用高对比文字色，语义配色在后续规则及内联样式中保留。 */
+strong { font-variant-numeric: tabular-nums; font-weight: 700; color: var(--ticker-number-color, #0369a1); }
+:global(html.dark .market-overview) { --ticker-number-color: #38d5ff; }
 /* 固定币种配色只用于市占率，避免与 ETF 净流入的正负颜色混淆。 */
 .btc-dominance { color: #b85c00; }
 .eth-dominance { color: #6952cc; }
 :global(html.dark .btc-dominance) { color: #f7a644; }
 :global(html.dark .eth-dominance) { color: #a99aff; }
-.flow-positive { color: #67c23a; }
-.flow-negative { color: #f56c6c; }
+.flow-positive { color: #14803c; }
+.flow-negative { color: #dc2626; }
+:global(html.dark .market-overview .flow-positive) { color: #39ef7d; }
+:global(html.dark .market-overview .flow-negative) { color: #ff606d; }
 small { color: var(--text-secondary); font-size: 10px; }
-.etf-date { color: var(--el-text-color-secondary, #909399); white-space: nowrap; }
 
 /* 手机保持单行；安全区留白避免底部系统手势条遮挡指标。 */
 @media (max-width: 600px) {

@@ -88,7 +88,7 @@ test('提示词包含范围、统计时间及三周期聚合值，不传入逐�
   const f = fixture()
   const snapshot = await f.api.getMarketBreadth({ symbols: ['BTCUSDT'] })
   const prompt = f.api.formatMarketBreadth(snapshot)
-  assert.ok(prompt.includes('已选1个。') && prompt.includes('更新时间：') && prompt.includes('4h'))
+  assert.ok(prompt.includes('已筛选1个币安') && prompt.includes('更新时间：') && prompt.includes('4h'))
   assert.ok(prompt.includes('1h：涨1，跌0，平0；上涨占比100.00%，涨跌幅中位数+10.00%；有效1，缺失0。'))
   assert.ok(prompt.includes('24h：涨1，跌0，平0；上涨占比100.00%，涨跌幅中位数+5.00%'))
   assert.ok(!prompt.includes('changes') && !prompt.includes('BTCUSDT'))
