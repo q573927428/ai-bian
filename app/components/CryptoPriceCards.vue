@@ -12,7 +12,24 @@
   <el-card class="price-grid-card" shadow="hover">
     <template #header>
       <div class="price-cards-header">
-        <h3 class="price-cards-title">📊 价格看板</h3>
+        <div class="price-cards-heading">
+          <h3 class="price-cards-title">📊 价格看板</h3>
+          <el-radio-group v-model="changePeriod" size="small" aria-label="涨跌幅周期">
+            <el-radio-button value="1h">1h</el-radio-button>
+            <el-radio-button value="4h">4h</el-radio-button>
+            <el-radio-button value="24h">24h</el-radio-button>
+          </el-radio-group>
+          <div class="price-counts" :title="`按已选交易对的${changePeriod}涨跌幅统计；上涨占比和中位数仅计算有效行情（含持平）；1h/4h参考价取本地5m K线，精度5分钟`">
+            <span>总 {{ DEFAULT_CRYPTOS.length }}</span>
+            <span class="count-up">涨 {{ priceCounts.up }}</span>
+            <span class="count-down">跌 {{ priceCounts.down }}</span>
+            <span>上涨占比 {{ priceCounts.upRatio === null ? '—' : `${priceCounts.upRatio.toFixed(0)}%` }}</span>
+            <span :class="{ 'count-up': (priceCounts.median ?? 0) > 0, 'count-down': (priceCounts.median ?? 0) < 0 }">
+              中位数 {{ priceCounts.median === null ? '—' : formatPercent(priceCounts.median) }}
+            </span>
+            <span v-if="priceCounts.pending">待更新 {{ priceCounts.pending }}</span>
+          </div>
+        </div>
         <div class="pagination-actions" v-if="totalPages > 1">
           <el-button
             circle
@@ -46,7 +63,7 @@
         v-for="crypto in visibleCryptoPrices"
         :key="crypto.symbol"
         class="price-card"
-        :class="{ 'price-up': crypto.change24hPercent > 0, 'price-down': crypto.change24hPercent < 0 }"
+        :class="{ 'price-up': (getChangePercent(crypto.symbol) ?? 0) > 0, 'price-down': (getChangePercent(crypto.symbol) ?? 0) < 0 }"
         @click="openChartModal(crypto)"
       >
         <el-badge
@@ -75,8 +92,8 @@
               {{ getSymbolDisplay(crypto.symbol) }}
             </div>
           </div>
-          <div class="price-change" :class="crypto.change24hPercent >= 0 ? 'positive' : 'negative'">
-            {{ formatPercent(crypto.change24hPercent) }}
+          <div class="price-change" :class="{ positive: (getChangePercent(crypto.symbol) ?? 0) > 0, negative: (getChangePercent(crypto.symbol) ?? 0) < 0 }">
+            {{ getChangePercent(crypto.symbol) === null ? '待更新' : formatPercent(getChangePercent(crypto.symbol)!) }}
           </div>
         </div>
 
@@ -162,12 +179,78 @@ const isLoading = ref(false)
 const showChartModal = ref(false)
 const selectedSymbol = ref('')
 const currentPage = ref(0)
+const changePeriod = ref<'1h' | '4h' | '24h'>('24h')
+const hourBases = ref<Record<string, number>>({})
+let hourReferenceTime = 0
+let hourRequestId = 0
+let hourTimer: ReturnType<typeof setInterval> | undefined
+
+/** 使用实时价格与所选周期参考价计算，缺失行情时明确展示待更新。 */
+function getChangePercent(symbol: string): number | null {
+  const ticker = botStore.prices[symbol]
+  if (!ticker || !(Number(ticker.price) > 0)) return null
+  if (changePeriod.value === '24h') {
+    const change = Number(ticker.change24hPercent)
+    return Number.isFinite(change) ? change : null
+  }
+  const base = hourBases.value[symbol]
+  return base && Number.isFinite(Number(ticker.price)) ? (Number(ticker.price) / base - 1) * 100 : null
+}
+
+/** 周期切换与配置更新时重新获取参考价；忽略过期请求，避免覆盖新选择。 */
+async function loadHourBases() {
+  if (changePeriod.value === '24h') return
+  const period = changePeriod.value
+  const duration = (period === '4h' ? 4 : 1) * 3600000
+  const requestId = ++hourRequestId
+  // 过期参考价不再用于当前周期的行情计算。
+  if (Date.now() - hourReferenceTime >= duration + 300000) hourBases.value = {}
+  try {
+    const result = await $fetch<{ bases: Record<string, number>; referenceTime: number }>('/api/binance/hour-bases', { query: { period } })
+    if (requestId === hourRequestId) {
+      hourBases.value = result.bases
+      hourReferenceTime = result.referenceTime
+    }
+  } catch (error) {
+    console.warn(`[Price] 获取${period}参考价失败:`, error)
+  }
+}
+
+watch([changePeriod, DEFAULT_CRYPTOS], () => {
+  hourRequestId++
+  // 切换周期后立即清空旧基准，避免把 1h 参考价显示成 4h 涨跌幅。
+  hourBases.value = {}
+  hourReferenceTime = 0
+  if (import.meta.client) void loadHourBases()
+})
 const pageSize = ref(18)
 // 价格变动动画状态
 const priceChangeAnimations = ref<Record<string, 'up' | 'down' | null>>({})
 
 // 计算属性
 const hasPrices = computed(() => cryptoPrices.value.length > 0)
+// 统计全部已选交易对，直接跟随配置与实时行情更新，不受卡片分页影响。
+const priceCounts = computed(() => {
+  let up = 0
+  let down = 0
+  let pending = 0
+  const changes: number[] = []
+  for (const symbol of DEFAULT_CRYPTOS.value) {
+    const change = getChangePercent(symbol)
+    if (change !== null) changes.push(change)
+    // 持平及尚未收到行情的交易对不归入上涨或下跌。
+    if (change === null) pending++
+    else if (change > 0) up++
+    else if (change < 0) down++
+  }
+  // 持平计入有效样本，缺失行情不作为零值；中位数减少极端涨跌的影响。
+  changes.sort((a, b) => a - b)
+  const middle = Math.floor(changes.length / 2)
+  const median = changes.length === 0 ? null : changes.length % 2
+    ? changes[middle]!
+    : (changes[middle - 1]! + changes[middle]!) / 2
+  return { up, down, pending, upRatio: changes.length ? up / changes.length * 100 : null, median }
+})
 const totalPages = computed(() => Math.max(1, Math.ceil(cryptoPrices.value.length / pageSize.value)))
 const visibleCryptoPrices = computed(() => {
   const start = currentPage.value * pageSize.value
@@ -334,6 +417,7 @@ function getRandomColor(symbol: string) {
 
 // 组件生命周期
 onMounted(() => {
+  hourTimer = setInterval(() => { void loadHourBases() }, 60000)
   void loadContractTypes()
   // 订阅 botStore 共享价格更新，自动同步价格
   botStore.subscribeToPrices('crypto-price-cards')
@@ -344,6 +428,8 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  hourRequestId++
+  clearInterval(hourTimer)
   botStore.unsubscribeFromPrices('crypto-price-cards')
   if (import.meta.client) {
     window.removeEventListener('resize', updatePageSize)
@@ -369,9 +455,35 @@ interface CryptoPrice {
 
 .price-cards-header {
   display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
   align-items: center;
   justify-content: space-between;
   margin: -5px 0;
+}
+
+.price-cards-heading {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+}
+
+.price-counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.count-up {
+  color: var(--color-success);
+}
+
+.count-down {
+  color: var(--color-danger);
 }
 
 .price-cards-title {
