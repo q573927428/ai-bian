@@ -1,0 +1,93 @@
+// ==================== 已选交易对市场广度统一计算与缓存 ====================
+import type { BotConfig } from '../../types'
+import type { MarketBreadthSnapshot } from '../../types/market-breadth'
+import { summarizeBreadth } from '../../app/utils/market-breadth'
+import { getSimpleKLineData, initKLineDb } from './kline-simple-storage'
+import { marketPriceHub } from './market-price-hub'
+
+let cached: MarketBreadthSnapshot | null = null
+let pending: { key: string; promise: Promise<MarketBreadthSnapshot> } | null = null
+
+// 前端与服务端复用聚合口径，但各自保留实时展示和固定快照的更新节奏。
+export { summarizeBreadth } from '../../app/utils/market-breadth'
+
+/** 每轮预计算刷新一次；未启动预计算时按相同有效期惰性计算，并合并并发请求。 */
+export async function getMarketBreadth(config: BotConfig, force = false): Promise<MarketBreadthSnapshot> {
+  const symbols = [...new Set((config.symbols || []).map(symbol => symbol.replace('/', '').trim().toUpperCase()).filter(Boolean))].sort()
+  const intervalMs = config.indicatorPrecompute?.enabled === false ? 60000
+    : Math.max(60000, Number(config.indicatorPrecompute?.intervalMs ?? 300000))
+  const key = JSON.stringify([symbols, intervalMs])
+  if (pending?.key === key) return pending.promise
+  if (!force && cached && JSON.stringify([cached.symbols, cached.expiresAt - cached.computedAt]) === key && Date.now() < cached.expiresAt) return cached
+  const promise = (async (): Promise<MarketBreadthSnapshot> => {
+    await initKLineDb()
+    const now = Date.now()
+    // 只消费行情中心已有快照，不初始化订阅、不发起 REST 请求或 K 线补数。
+    const prices = marketPriceHub.getSnapshot(symbols)
+    const periods = {} as MarketBreadthSnapshot['periods']
+    for (const period of ['1h', '4h', '24h'] as const) {
+      const referenceTime = period === '24h' ? null : Math.floor(now / 300000) * 300000 - (period === '4h' ? 4 : 1) * 3600000
+      const changes: Record<string, number | null> = {}
+      const bases: Record<string, number> = {}
+      for (const symbol of symbols) {
+        const ticker = prices[symbol]
+        changes[symbol] = null
+        // 历史基准独立于当前行情保存，ticker 稍后到达时前端即可计算，无需等待下轮快照。
+        const timestamp = (referenceTime ?? Math.floor(now / 300000) * 300000 - 86400000) / 1000
+        const historicalBar = referenceTime === null ? undefined
+          : getSimpleKLineData(symbol, '5m', { from: timestamp, to: timestamp, limit: 1 })[0]
+        if (historicalBar && Number.isFinite(historicalBar.o) && historicalBar.o > 0) bases[symbol] = historicalBar.o
+        // 后台策略不能依赖浏览器启动 ticker 订阅；没有新鲜 ticker 时复用本地最新 5m 收盘价。
+        const freshTicker = ticker && Number.isFinite(ticker.price) && ticker.price > 0 && Number.isFinite(ticker.timestamp)
+          && now - ticker.timestamp <= 120000 && ticker.timestamp <= now + 60000
+        const latest = freshTicker ? undefined : getSimpleKLineData(symbol, '5m', { limit: 1, to: Math.floor(now / 1000) })[0]
+        const price = freshTicker ? ticker.price
+          : latest && now - latest.t * 1000 <= 600000 && Number.isFinite(latest.c) && latest.c > 0 ? latest.c : null
+        if (price === null) continue
+        if (referenceTime === null && freshTicker && typeof ticker.change24hPercent === 'number' && Number.isFinite(ticker.change24hPercent)) {
+          const change = ticker.change24hPercent
+          changes[symbol] = change
+        } else {
+          // ticker 无 24h 统计时同样从本地 K 线计算，绝不为补齐指标调用外部接口。
+          const bar = historicalBar ?? (referenceTime === null
+            ? getSimpleKLineData(symbol, '5m', { from: timestamp, to: timestamp, limit: 1 })[0] : undefined)
+          if (bar && Number.isFinite(bar.o) && bar.o > 0) {
+            const change = (price / bar.o - 1) * 100
+            if (Number.isFinite(change)) changes[symbol] = change
+          }
+        }
+      }
+      periods[period] = summarizeBreadth(changes, referenceTime, bases)
+    }
+    const result: MarketBreadthSnapshot = { scope: 'selected_symbols', selectedCount: symbols.length, symbols, computedAt: now, expiresAt: now + intervalMs, periods }
+    return result
+  })()
+  pending = { key, promise }
+  try {
+    const result = await promise
+    // 配置变更后启动的新计算优先，旧请求不能覆盖新配置的快照。
+    if (pending?.promise === promise) cached = result
+    return result
+  } finally {
+    if (pending?.promise === promise) pending = null
+  }
+}
+
+/** AI 仅接收聚合值，避免重复传入全部交易对涨跌幅造成提示词膨胀。 */
+export function formatMarketBreadth(snapshot?: MarketBreadthSnapshot): string {
+  if (!snapshot) return '市场广度：暂无可用快照。'
+  const lines = (['1h', '4h', '24h'] as const).map(period => {
+    const stats = snapshot.periods[period]
+    // 缺失数据明确标注，不能格式化为 0% 而被误解为持平。
+    const ratio = stats.upRatioPct === null ? '暂无数据' : `${stats.upRatioPct.toFixed(2)}%`
+    const median = stats.medianChangePct === null ? '暂无数据'
+      : `${stats.medianChangePct >= 0 ? '+' : ''}${stats.medianChangePct.toFixed(2)}%`
+    return `${period}：涨${stats.upCount}，跌${stats.downCount}，平${stats.flatCount}；上涨占比${ratio}，涨跌幅中位数${median}；有效${stats.validCount}，缺失${stats.missingCount}。`
+  })
+  const updatedAt = new Date(snapshot.computedAt).toISOString().slice(0, 19).replace('T', ' ') + ' UTC'
+  return [
+    `市场广度（已筛选${snapshot.selectedCount}个币安近30日交易量高且稳定交易对，供市场方向参考）：`,
+    `更新时间：${updatedAt}${Date.now() >= snapshot.expiresAt ? '（数据已过期）' : ''}。`,
+    ...lines
+  ].join('\n')
+}

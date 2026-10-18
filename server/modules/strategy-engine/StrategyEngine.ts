@@ -5,6 +5,7 @@ import type { TradeSignal } from '../../../types/signal'
 import type { BotConfig, OrderExecutionSummary } from '../../../types'
 import { StrategyStore } from '../strategy-store/StrategyStore'
 import { IndicatorsHub } from '../indicators/IndicatorsHub'
+import { getMarketBreadth } from '../../utils/market-breadth'
 import { PositionManager } from '../position-manager/PositionManager'
 import { BinanceService } from '../../utils/binance'
 import { MultiStrategyAIAnalyzer } from '../ai-analyzer/MultiStrategyAIAnalyzer'
@@ -907,6 +908,8 @@ export class StrategyEngine {
 
       // 使用快照中的价格
       const price = snapshot.price
+      // 所有交易对复用本轮缓存，同时把快照加入 AI 缓存键，防止复用旧市场背景的结论。
+      const marketBreadth = await getMarketBreadth(this.config)
 
       const cacheKey = this.buildAICacheKey(
         symbol,
@@ -915,6 +918,7 @@ export class StrategyEngine {
         (instance.strategy as any).structuredRules,
         {
           price: Number(price.toFixed(8)),
+          marketBreadth,
           lastCandle,
           prevCandle,
           candleProgress: Number(candleProgress.toFixed(4))
@@ -1007,6 +1011,7 @@ export class StrategyEngine {
           ? Number(instance.strategy.riskManagement?.maxHoldTimeMinutes ?? 24 * 60)
           : undefined,
         adxPeriodLabel: mainTimeframe,
+        marketBreadth,
         enabledIndicators: {
           ema: enabledEMAs,
           rsi: enabledRSI,

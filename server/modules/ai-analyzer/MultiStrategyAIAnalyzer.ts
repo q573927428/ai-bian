@@ -11,6 +11,7 @@ import { concurrencyPoolManager } from '../../utils/concurrency-pool'
 import { getAIAnalysisWriter } from '../../utils/jsonl-batch-writer'
 import { getLatestAnalysis, formatAnalysisToPromptSection } from '../../utils/trade-history-analyzer'
 import { shortHash } from '../../utils/stable-hash'
+import { formatMarketBreadth } from '../../utils/market-breadth'
 
 /**
  * AI 分析缓存
@@ -650,6 +651,9 @@ ${data.volumeCompareLines.length > 0 ? data.volumeCompareLines.join('\n') : ''}
 ${data.priceInRangeLines.length > 0 ? data.priceInRangeLines.join('\n') : ''}
 ${data.enabledIndicatorsList.length > 0 ? `本次分析仅使用：${data.enabledIndicatorsList.join(', ')}
 未启用指标全部忽略` : ''}
+
+### 已选交易对市场背景
+${formatMarketBreadth(indicators.marketBreadth)}
 
 --------------------------
 ## 四、策略（唯一规则）

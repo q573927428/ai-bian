@@ -1,4 +1,5 @@
 // ==================== 核心类型定义 ====================
+import type { MarketBreadthSnapshot } from './market-breadth'
 
 // 交易方向
 export type Direction = 'LONG' | 'SHORT' | 'IDLE'
@@ -71,6 +72,8 @@ export interface OHLCV {
 
 // 技术指标
 export interface TechnicalIndicators {
+  /** 本轮已选交易对市场广度，供 AI 作为整体方向背景参考。 */
+  marketBreadth?: MarketBreadthSnapshot
   emaMap: Record<string, number>
   emaList: Array<{ period: number; name: string; value: number; slope?: number }>
   adxPeriodLabel: string

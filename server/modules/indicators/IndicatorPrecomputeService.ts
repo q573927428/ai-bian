@@ -1,4 +1,5 @@
 import type { BotConfig } from '../../../types'
+import { getMarketBreadth } from '../../utils/market-breadth'
 import type { IndicatorData, Timeframe } from '../../../types/strategy'
 import { concurrencyPoolManager } from '../../utils/concurrency-pool'
 import { logger } from '../../utils/logger'
@@ -65,6 +66,12 @@ export class IndicatorPrecomputeService {
 
   async precomputeAll(): Promise<void> {
     if (this.config.indicatorPrecompute?.enabled === false) return
+    // 市场广度只读本地数据，即使外部接口降级也可刷新，并与各交易对共享同一快照。
+    try {
+      await getMarketBreadth(this.config, true)
+    } catch (error: any) {
+      logger.warn('IndicatorPrecomputeService', `市场广度计算失败: ${error.message}`)
+    }
     if (binanceApiGateway.shouldPauseBackgroundWork()) {
       this.stats.skippedRuns++
       logger.warn('IndicatorPrecomputeService', `Binance 请求降级，跳过本轮指标预计算: ${binanceApiGateway.getBackgroundPauseReason()}`)
