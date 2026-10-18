@@ -205,6 +205,7 @@
         </el-dialog>
       </ClientOnly>
     </el-container>
+    <MarketOverview />
   </div>
 </template>
 
@@ -479,6 +480,14 @@ onMounted(async () => {
   justify-content: space-between;
   align-items: center;
   height: 100%;
+  gap: 8px 16px;
+}
+
+.header-content h1, .header-right { flex-shrink: 0; }
+
+@media (max-width: 1100px) {
+  .header { height: auto; min-height: 60px; }
+  .header-content { flex-wrap: wrap; padding: 10px 0; }
 }
 
 .header-right {
@@ -726,6 +735,12 @@ onMounted(async () => {
 }
 
 @media (max-width: 768px) {
+  .header { padding: 0 12px; }
+
+  .header-content { gap: 10px 8px; }
+
+  .header-right { gap: 4px; }
+
   .header h1 {
     font-size: 16px;
   }
