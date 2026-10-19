@@ -1,9 +1,11 @@
 <template>
-  <div ref="simpleContainerRef" class="kline-chart-simple-container">
+  <div ref="simpleContainerRef" class="kline-chart-simple-container" :class="{ 'timeline-active': timeline }">
     <!-- 图表控制栏 -->
     <div ref="controlsWrapperRef" class="chart-controls-wrapper">
       <KLineChartControls
         :symbol="displaySymbol"
+        :timeline="timeline"
+        @timeline-change="setTimeline"
         :timeframe="selectedTimeframe"
         :theme="theme"
         :loading="loading"
@@ -20,7 +22,7 @@
         :ema-periods="selectedEmaPeriods"
         :active-engine="activeEngine"
         @timeframe-change="selectTimeframe"
-        @refresh="loadKLineData"
+        @refresh="refreshChart"
         @toggle-theme="toggleTheme"
         @toggle-fullscreen="toggleFullscreen"
         @ema-markers-change="handleEMAMarkersChange"
@@ -36,7 +38,9 @@
 
     <!-- 图表容器 -->
     <div class="chart-container">
+      <RealtimeTimeline v-if="timeline" ref="timelineRef" :symbol="displaySymbol" :theme="theme" :height="chartHeight" />
       <KLineChartCanvas
+        v-if="!timeline"
         ref="chartCanvasRef"
         :kline-data="klineData"
         :trade-history="visibleTradeHistory"
@@ -68,6 +72,7 @@
 
       <!-- K线数据浮动面板 -->
       <KLineTooltip
+        v-if="!timeline"
         :visible="tooltipVisible"
         :symbol="displaySymbol"
         :timeframe="selectedTimeframe"
@@ -80,6 +85,7 @@
 
       <!-- 订单详情浮动面板 -->
       <KLineTooltip
+        v-if="!timeline"
         mode="order"
         :visible="orderTooltipVisible"
         :symbol="displaySymbol"
@@ -103,6 +109,7 @@ import type { ScanResultApiResponse, StrategyScanResult } from '../../../types/s
 
 // 导入子组件
 import KLineChartControls from './KLineChartControls.vue'
+import RealtimeTimeline from './RealtimeTimeline.vue'
 import KLineChartCanvas from './KLineChartCanvas.vue'
 import KLineTooltip from './KLineTooltip.vue'
 import KLineScanResultDialog from './KLineScanResultDialog.vue'
@@ -184,6 +191,30 @@ const computedTimeframe = computed(() => {
 
 // 响应式数据
 const selectedTimeframe = ref(computedTimeframe.value)
+const timeline = ref(false)
+const timelineRef = ref<InstanceType<typeof RealtimeTimeline> | null>(null)
+
+/** 分时独立于策略周期，进入时停止 K 线轮询并使在途请求失效。 */
+function setTimeline(enabled: boolean) {
+  timeline.value = enabled
+  requestGeneration++
+  scanRequestGeneration++
+  hideTooltip()
+  if (enabled) {
+    loading.value = false
+    scanDialogVisible.value = false
+    stopNewKlineCheck()
+  } else {
+    loadKLineData()
+    startNewKlineCheck()
+  }
+}
+
+/** 分时刷新只清空浏览器内的临时价格点。 */
+function refreshChart() {
+  if (timeline.value) timelineRef.value?.reset()
+  else loadKLineData()
+}
 
 // 标记控制状态 - 从配置读取默认值
 const chartMarkerConfig = computed(() => botStore.config?.chartMarkerConfig || {})
@@ -329,6 +360,11 @@ const tooltipPosition = ref({
 
 // 选择周期
 const selectTimeframe = (timeframe: string) => {
+  if (timeline.value) {
+    selectedTimeframe.value = timeframe
+    setTimeline(false)
+    return
+  }
   if (selectedTimeframe.value === timeframe) return
   
   // 清空当前K线数据，避免显示旧周期的数据
@@ -381,6 +417,7 @@ const loadTradeHistory = async () => {
  * @param silent 后台周期轮询使用静默模式，避免加载遮罩覆盖现有图表。
  */
 const loadKLineData = async (silent = false) => {
+  if (timeline.value) return
   const symbolToUse = props.symbol || 'BTCUSDT'
   const timeframeToUse = selectedTimeframe.value
 
@@ -872,6 +909,7 @@ const priceSubscriberId = `kline-chart-${getCurrentInstance()?.uid ?? 'default'}
 
 // 从 botStore 共享价格中获取当前 symbol 的价格，更新最后一根K线
 const checkAndUpdatePrice = () => {
+  if (timeline.value) return
   const currentSymbol = (props.symbol || 'BTCUSDT')
   const price = botStore.getPrice(currentSymbol)
   
@@ -962,6 +1000,7 @@ const fetchLastBar = async () => {
 
 // 检查是否需要加载新K线
 const checkForNewKline = (syncLastBar = true) => {
+  if (timeline.value) return
   if (klineData.value.length === 0 || !selectedTimeframe.value) return
   
   const lastKline = klineData.value[klineData.value.length - 1]
@@ -1131,6 +1170,11 @@ onUnmounted(() => {
   height: 100vh;
   margin: 0;
   padding: 0;
+}
+
+/* 分时保留完整底部空间，避免继承 K 线负边距后被外层卡片裁掉时间轴。 */
+.kline-chart-simple-container.timeline-active {
+  margin-bottom: 0;
 }
 
 .chart-container {

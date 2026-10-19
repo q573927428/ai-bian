@@ -4,7 +4,7 @@
       <div class="symbol-badge">{{ displaySymbol }}</div>
 
       <el-select
-        :model-value="selectedTimeframe"
+        :model-value="timeline ? 'timeline' : selectedTimeframe"
         class="timeframe-select"
         aria-label="K线周期"
         @change="selectTimeframe"
@@ -18,7 +18,7 @@
       </el-select>
 
       <!-- EMA周期选择器 -->
-      <el-button-group size="small" class="ema-period-buttons">
+      <el-button-group v-if="!timeline" size="small" class="ema-period-buttons">
           <el-button
             v-for="period in availableEmaPeriods"
             :key="period"
@@ -35,7 +35,7 @@
 
     <div class="controls-right">
       <!-- 图表标记控制开关 -->
-      <div class="marker-controls">
+      <div v-if="!timeline" class="marker-controls">
         <div class="scan-controls-group">
           <el-tooltip
             :content="scanSupported ? `显示当前周期的历史策略扫描结果（${scanCount}）` : '当前周期没有对应的扫描策略'"
@@ -194,6 +194,7 @@ import { ref, watch, computed } from 'vue'
  * K线控制栏属性，包含图表状态、标记开关和周期过滤配置。
  */
 interface Props {
+  timeline?: boolean
   symbol?: string
   timeframe?: string
   theme?: 'light' | 'dark'
@@ -233,6 +234,7 @@ const props = withDefaults(defineProps<Props>(), {
 
 // 定义emits
 const emit = defineEmits<{
+  'timeline-change': [enabled: boolean]
   'timeframe-change': [timeframe: string]
   'refresh': []
   'toggle-theme': []
@@ -250,8 +252,9 @@ const emit = defineEmits<{
 // 可用的EMA周期选项
 const availableEmaPeriods = [7, 14, 20, 30, 50, 60, 120, 200]
 
-// K线周期选项与接口使用的周期值保持一致。
+// 分时仅作为显示模式，其余周期值与 K 线接口保持一致。
 const timeframeOptions = [
+  { label: '分时', value: 'timeline' },
   { label: '5分钟', value: '5m' },
   { label: '15分钟', value: '15m' },
   { label: '1小时', value: '1h' },
@@ -276,9 +279,13 @@ const displaySymbol = computed(() => {
   return props.symbol || 'BTCUSDT'
 })
 
-// 选择周期
+// 分时不传给 K 线接口；退出分时时，即使选中原周期也需要通知父组件切换模式。
 const selectTimeframe = (timeframe: string) => {
-  if (selectedTimeframe.value === timeframe) return
+  if (timeframe === 'timeline') {
+    if (!props.timeline) emit('timeline-change', true)
+    return
+  }
+  if (!props.timeline && selectedTimeframe.value === timeframe) return
   selectedTimeframe.value = timeframe
   emit('timeframe-change', timeframe)
 }
