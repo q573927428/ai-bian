@@ -652,7 +652,7 @@ ${data.priceInRangeLines.length > 0 ? data.priceInRangeLines.join('\n') : ''}
 ${data.enabledIndicatorsList.length > 0 ? `本次分析仅使用：${data.enabledIndicatorsList.join(', ')}
 未启用指标全部忽略` : ''}
 
-### 已选交易对市场背景
+### 近30日持续高交易量且稳定交易对市场背景
 ${formatMarketBreadth(indicators.marketBreadth, symbol)}
 
 --------------------------
