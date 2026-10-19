@@ -14,12 +14,17 @@
 import { binanceApiGateway } from '../../utils/binance-api-gateway'
 import { getBotConfig } from '../../utils/storage'
 import { getBinanceExchangeInfo } from '../../utils/binance-exchange-info'
+import { getSimpleKLineData, initKLineDb } from '../../utils/kline-simple-storage'
 
+/** 榜单行情及持续放量统计，涨跌幅均以百分数返回。 */
 interface TopSymbol {
   symbol: string
   volume: number          // 24h 成交额 (USDT)
   price: number           // 当前价格
   priceChangePercent: number // 24小时涨跌幅 (%)
+  priceChangePercent1h?: number
+  priceChangePercent4h?: number
+  priceChangePercentDays?: number
   fundingRate: number     // 资金费率 (%)
   klineCount4h: number    // 4H K线可用根数
   onboardDate: number     // 上线时间戳 (ms)
@@ -63,8 +68,13 @@ const TOP_SYMBOLS_CACHE_TTL = 30 * 60 * 1000
 // 按参数缓存榜单，按交易对和统计窗口缓存日线。
 const stableCache = new Map<string, { data: TopSymbol[]; timestamp: number }>()
 const stableRequests = new Map<string, Promise<TopSymbol[]>>()
-const dailyVolumeCache = new Map<string, { data: number[]; timestamp: number }>()
-const dailyVolumeRequests = new Map<string, Promise<number[]>>()
+/** 同一份日线同时提供成交额与窗口起始价格，避免为天数涨跌幅重复请求。 */
+interface DailyWindow {
+  volumes: number[]
+  open?: number
+}
+const dailyVolumeCache = new Map<string, { data: DailyWindow; timestamp: number }>()
+const dailyVolumeRequests = new Map<string, Promise<DailyWindow>>()
 // 24h 热门结果缓存（无参数依赖）
 let hotCache: { data: TopSymbol[]; timestamp: number } | null = null
 let hotRequest: ReturnType<typeof fallbackHotMode> | null = null
@@ -90,7 +100,7 @@ function stddev(arr: number[]): number {
  * 拉取单个交易对最近 days 天日线，折算为每日成交额序列（USDT）。
  * klines 每根形如 [openTime, open, high, low, close, volume, ...]
  */
-async function fetchDailyVolumes(symbol: string, days: number): Promise<number[]> {
+async function fetchDailyVolumes(symbol: string, days: number): Promise<DailyWindow> {
   const key = `${symbol}:${days}`
   const cached = dailyVolumeCache.get(key)
   if (cached && Date.now() - cached.timestamp < TOP_SYMBOLS_CACHE_TTL) return cached.data
@@ -108,8 +118,10 @@ async function fetchDailyVolumes(symbol: string, days: number): Promise<number[]
       const oldestKey = dailyVolumeCache.keys().next().value
       if (oldestKey) dailyVolumeCache.delete(oldestKey)
     }
-    dailyVolumeCache.set(key, { data: volumes, timestamp: Date.now() })
-    return volumes
+    const open = Number(data[0]?.[1])
+    const window: DailyWindow = { volumes, open: data.length >= days && Number.isFinite(open) && open > 0 ? open : undefined }
+    dailyVolumeCache.set(key, { data: window, timestamp: Date.now() })
+    return window
   }).finally(() => dailyVolumeRequests.delete(key))
   dailyVolumeRequests.set(key, request)
   return request
@@ -203,6 +215,41 @@ async function runPool<T>(items: any[], limit: number, worker: (item: any, index
   return results
 }
 
+/** 只读取本地历史价格：优先使用 5m K线，缺失时使用 1h K线，不触发补数或外部请求。 */
+function getLocalPeriodChanges(symbol: string, price: number, referenceTime: number): Pick<TopSymbol, 'priceChangePercent1h' | 'priceChangePercent4h'> {
+  const change = (hours: number): number | undefined => {
+    if (!Number.isFinite(price) || price <= 0 || !Number.isFinite(referenceTime)) return undefined
+    try {
+      for (const [timeframe, seconds] of [['5m', 300], ['1h', 3600]] as const) {
+        // 本地时间戳单位为秒；精确匹配目标周期，避免用陈旧或缺口附近的 K线冒充历史价格。
+        const timestamp = Math.floor((referenceTime / 1000 - hours * 3600) / seconds) * seconds
+        const candle = getSimpleKLineData(symbol, timeframe, { from: timestamp, to: timestamp, limit: 1 })[0]
+        if (candle && Number.isFinite(candle.o) && candle.o > 0) return (price / candle.o - 1) * 100
+      }
+    } catch {
+      // 本地数据库不可用时仍返回榜单，附加涨跌幅留空。
+    }
+    return undefined
+  }
+  return { priceChangePercent1h: change(1), priceChangePercent4h: change(4) }
+}
+
+/** 热门榜固定 30 天涨跌幅，只使用本地历史；按 1h、4h、日线依次尝试。 */
+function getLocal30DayChange(symbol: string, price: number, referenceTime: number): number | undefined {
+  if (!Number.isFinite(price) || price <= 0 || !Number.isFinite(referenceTime)) return undefined
+  try {
+    for (const [timeframe, seconds] of [['1h', 3600], ['4h', 14400], ['1d', 86400]] as const) {
+      // 不同周期保留的历史长度不同；只匹配 30 天前所在 K线，缺失时不使用更早或更新的价格替代。
+      const timestamp = Math.floor((referenceTime / 1000 - 30 * 86400) / seconds) * seconds
+      const candle = getSimpleKLineData(symbol, timeframe, { from: timestamp, to: timestamp, limit: 1 })[0]
+      if (candle && Number.isFinite(candle.o) && candle.o > 0) return (price / candle.o - 1) * 100
+    }
+  } catch {
+    // 附加行情读取失败不影响热门榜返回，也不触发币安补数。
+  }
+  return undefined
+}
+
 /**
  * 执行"持续放量"筛选模式。
  */
@@ -241,6 +288,7 @@ async function fetchStableTopSymbols(options: StableFilterOptions): Promise<TopS
       quoteVolume: parseFloat(t.quoteVolume || '0'),
       lastPrice: parseFloat(t.lastPrice || '0'),
       priceChangePercent: parseFloat(t.priceChangePercent || '0'),
+      referenceTime: Number(t.closeTime) || Date.now(),
       contractType: onboardMap.get(t.symbol)?.contractType || 'PERPETUAL',
     }))
     .sort((a, b) => b.quoteVolume - a.quoteVolume)
@@ -248,12 +296,13 @@ async function fetchStableTopSymbols(options: StableFilterOptions): Promise<TopS
 
   // 3. 并行拉取每个候选的日线并分析稳定性（限流器自动排队，应用层限制并发 5）
   const analysisResults = await runPool(candidatePool, 5, async (ticker) => {
-    const dailyVolumes = await fetchDailyVolumes(ticker.symbol, options.days)
+    const dailyWindow = await fetchDailyVolumes(ticker.symbol, options.days)
+    const dailyVolumes = dailyWindow.volumes
     const result = analyzeSymbol(ticker.symbol, dailyVolumes, options.days, options.segmentRatio, ticker.contractType, options.minDaily)
     if (!result.valid) {
       return { symbol: ticker.symbol, error: result.reason || 'invalid' }
     }
-    return { symbol: ticker.symbol, ...result.analysis, quoteVolume: ticker.quoteVolume, lastPrice: ticker.lastPrice, priceChangePercent: ticker.priceChangePercent }
+    return { symbol: ticker.symbol, ...result.analysis, quoteVolume: ticker.quoteVolume, lastPrice: ticker.lastPrice, priceChangePercent: ticker.priceChangePercent, referenceTime: ticker.referenceTime, windowOpen: dailyWindow.open }
   })
 
   // 4. 过滤 + 排序 + 取前 top
@@ -286,11 +335,17 @@ async function fetchStableTopSymbols(options: StableFilterOptions): Promise<TopS
     // 忽略全量资金费率错误
   }
 
+  // 初始化仅访问本地 SQLite；失败时让附加行情降级为空，不影响榜单。
+  await initKLineDb().catch(() => {})
   return qualified.map((item: any) => ({
     symbol: item.symbol,
     volume: item.quoteVolume,
     price: item.lastPrice,
     priceChangePercent: item.priceChangePercent,
+    ...getLocalPeriodChanges(item.symbol, item.lastPrice, item.referenceTime),
+    // days 列采用已拉取日线窗口的首根开盘价；不足完整窗口时不展示。
+    priceChangePercentDays: item.windowOpen && Number.isFinite(item.lastPrice) && item.lastPrice > 0
+      ? (item.lastPrice / item.windowOpen - 1) * 100 : undefined,
     fundingRate: fundingMap.get(item.symbol) || 0,
     klineCount4h: 0,
     onboardDate: onboardMap.get(item.symbol)?.onboardDate || 0,
@@ -428,6 +483,7 @@ async function fallbackHotMode() {
         symbol: t.symbol,
         volume: parseFloat(t.quoteVolume || '0'),
         price: parseFloat(t.lastPrice || '0'),
+        referenceTime: Number(t.closeTime) || Date.now(),
         priceChangePercent: parseFloat(t.priceChangePercent || '0'),
         fundingRate: 0,
         klineCount4h,
@@ -451,9 +507,12 @@ async function fallbackHotMode() {
     // 忽略全量资金费率错误
   }
 
-  // 4. 组装最终结果
+  // 4. 组装最终结果，仅消费本地已有 K线。
+  await initKLineDb().catch(() => {})
   const result: TopSymbol[] = symbols.map(item => ({
     ...item,
+    ...getLocalPeriodChanges(item.symbol, item.price, item.referenceTime),
+    priceChangePercentDays: getLocal30DayChange(item.symbol, item.price, item.referenceTime),
     fundingRate: fundingMap.get(item.symbol) || 0,
   }))
 

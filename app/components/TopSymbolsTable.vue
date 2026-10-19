@@ -1,3 +1,4 @@
+<!-- ==================== 热门及持续放量交易对榜单 ==================== -->
 <template>
   <component
     :is="selectable ? ElDialog : ElDrawer"
@@ -51,7 +52,7 @@
           </div>
           <div class="param-item">
             <label>候选池数量</label>
-            <el-input-number v-model="filterParams.pool" :min="5" :max="100" size="small" controls-position="right" />
+            <el-input-number v-model="filterParams.pool" :min="5" :max="200" size="small" controls-position="right" />
             <span class="param-desc">24h 成交额前 N 名进入分析</span>
           </div>
           <div class="param-item">
@@ -220,6 +221,19 @@
         </el-table-column>
 
         <el-table-column
+          v-for="period in shortChangePeriods"
+          :key="period.prop"
+          :prop="period.prop"
+          :label="period.label"
+          sortable="custom"
+          min-width="100"
+        >
+          <template #default="{ row }">
+            <span :class="percentClass(row[period.prop])">{{ formatChange(row[period.prop]) }}</span>
+          </template>
+        </el-table-column>
+
+        <el-table-column
           prop="priceChangePercent"
           label="24h涨跌幅"
           sortable="custom"
@@ -229,6 +243,18 @@
             <span :class="percentClass(row.priceChangePercent)">
               {{ row.priceChangePercent >= 0 ? '+' : '' }}{{ row.priceChangePercent.toFixed(2) }}%
             </span>
+          </template>
+        </el-table-column>
+
+        <el-table-column
+          prop="priceChangePercentDays"
+          :label="`${mode === 'stable' ? loadedDays : 30}d涨跌幅`"
+          :show-overflow-tooltip="true"
+          sortable="custom"
+          min-width="110"
+        >
+          <template #default="{ row }">
+            <span :class="percentClass(row.priceChangePercentDays)">{{ formatChange(row.priceChangePercentDays) }}</span>
           </template>
         </el-table-column>
 
@@ -276,6 +302,9 @@ interface TopSymbol {
   volume: number
   price: number
   priceChangePercent: number
+  priceChangePercent1h?: number
+  priceChangePercent4h?: number
+  priceChangePercentDays?: number
   fundingRate: number
   klineCount4h: number
   onboardDate: number
@@ -368,6 +397,19 @@ async function fetchConfiguredSymbols() {
 
 // 筛选参数副本（默认值）
 const filterParams = ref<FilterParams>({ ...DEFAULT_FILTER_PARAMS })
+// 标题跟随已加载数据，避免编辑尚未应用的 days 时误标涨跌幅周期。
+const loadedDays = ref(DEFAULT_FILTER_PARAMS.days)
+const shortChangePeriods = [
+  { prop: 'priceChangePercent1h', label: '1h涨跌幅' },
+  { prop: 'priceChangePercent4h', label: '4h涨跌幅' },
+]
+
+/** 缺失历史行情显示占位符，零涨跌幅仍正常展示。 */
+function formatChange(value?: number): string {
+  return typeof value === 'number' && Number.isFinite(value)
+    ? `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`
+    : '--'
+}
 
 // minDaily 以"万 USDT"为单位便于输入
 const minDailyWan = computed({
@@ -424,6 +466,8 @@ const sortedData = computed(() => {
   arr.sort((a, b) => {
     let aVal = a[sortProp.value as keyof TopSymbol] as number
     let bVal = b[sortProp.value as keyof TopSymbol] as number
+    // 缺失的周期行情始终置底，不将未知涨跌幅当作 0%。
+    if (aVal == null || bVal == null) return aVal == null ? (bVal == null ? 0 : 1) : -1
     // activeDays 为字符串 "30/30"，排序时取分子
     if (sortProp.value === 'activeDays') {
       aVal = Number(String((a as any).activeDays || '0').split('/')[0])
@@ -471,10 +515,12 @@ const fetchData = async () => {
       mode?: string
       message?: string
       updatedAt?: number
+      params?: FilterParams
       data: TopSymbol[]
     }>('/api/binance/top-symbols', { query }), fetchConfiguredSymbols()])
     if (res.success) {
       data.value = res.data
+      if (res.params) loadedDays.value = res.params.days
       updatedAt.value = res.updatedAt || null
       if (res.mode === 'hot-fallback') {
         message.value = res.message || '持续放量筛选失败，已降级为 24h 热门'
