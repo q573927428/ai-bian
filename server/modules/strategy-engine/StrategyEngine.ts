@@ -1058,6 +1058,8 @@ export class StrategyEngine {
       const strategyName = strategyInstance ? strategyInstance.strategy.name : '未知策略'
 
       let enhancedLog = signal.reasoning
+      // 保存扫描当时的主周期，避免点击通知时策略配置已变更而定位到错误周期。
+      const scanContext = { symbol: signal.symbol, strategyId: signal.strategyId, mainTimeframe }
 
       const finalScore = signal.scoreBreakdown?.finalScore
       const thresholdState = this.evaluateEntryThreshold(instance, signal)
@@ -1075,16 +1077,16 @@ export class StrategyEngine {
       }
 
       if (signal.direction === 'idle') {
-        logger.info('🔍扫描结果', `${signal.symbol} @${signal.price} IDLE ${thresholdState.label}（${thresholdValue}，阈值 ${threshold}）置信度（${signal.confidence}）评分（${finalScore}） [${signal.strategyId}] ===详细AI日志=== ${enhancedLog}`)
+        logger.info('🔍扫描结果', `${signal.symbol} @${signal.price} IDLE ${thresholdState.label}（${thresholdValue}，阈值 ${threshold}）置信度（${signal.confidence}）评分（${finalScore}） [${signal.strategyId}] ===详细AI日志=== ${enhancedLog}`, scanContext)
         return null
       } else if (!isThresholdOK) {
-        logger.info('🔍扫描结果', `${signal.symbol} @${signal.price} ${signal.direction.toUpperCase()} ${thresholdState.label}（${thresholdValue} < ${threshold}）置信度（${signal.confidence}）评分（${finalScore}）[${signal.strategyId}] ===详细AI日志=== ${enhancedLog}`)
+        logger.info('🔍扫描结果', `${signal.symbol} @${signal.price} ${signal.direction.toUpperCase()} ${thresholdState.label}（${thresholdValue} < ${threshold}）置信度（${signal.confidence}）评分（${finalScore}）[${signal.strategyId}] ===详细AI日志=== ${enhancedLog}`, scanContext)
         return null
       } else if (!isRiskLevelOK) {
-        logger.info('🔍扫描结果', `${signal.symbol} @${signal.price} ${signal.direction.toUpperCase()} ${thresholdState.label}（${thresholdValue} >= ${threshold}）风险等级（${signal.riskLevel} > ${maxRiskLevel}）[${signal.strategyId}] ===详细AI日志=== ${enhancedLog}`)
+        logger.info('🔍扫描结果', `${signal.symbol} @${signal.price} ${signal.direction.toUpperCase()} ${thresholdState.label}（${thresholdValue} >= ${threshold}）风险等级（${signal.riskLevel} > ${maxRiskLevel}）[${signal.strategyId}] ===详细AI日志=== ${enhancedLog}`, scanContext)
         return null
       } else {
-        logger.success('🔍扫描结果', `${signal.symbol} @${signal.price} ${signal.direction.toUpperCase()} ${thresholdState.label}（${thresholdValue} >= ${threshold}）风险等级（${signal.riskLevel} <= ${maxRiskLevel}）[${signal.strategyId}] ===详细AI日志=== ${enhancedLog}`)
+        logger.success('🔍扫描结果', `${signal.symbol} @${signal.price} ${signal.direction.toUpperCase()} ${thresholdState.label}（${thresholdValue} >= ${threshold}）风险等级（${signal.riskLevel} <= ${maxRiskLevel}）[${signal.strategyId}] ===详细AI日志=== ${enhancedLog}`, scanContext)
       }
 
       // 信号中的止损价用于缓存和后续扩展展示，必须与正式下单使用同一套策略 ATR 口径。

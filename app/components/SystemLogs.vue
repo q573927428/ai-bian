@@ -2,6 +2,12 @@
   <el-drawer v-model="visible" class="logs-drawer" title="运行日志" direction="rtl" size="50%" destroy-on-close>
     <div class="logs-toolbar">
           <div class="header-title-group">
+            <el-switch
+              :model-value="desktopNotificationsEnabled"
+              :disabled="!desktopNotificationsSupported || requestingPermission"
+              active-text="桌面通知"
+              @change="toggleDesktopNotifications"
+            />
             <el-button
               size="small"
               text
@@ -71,7 +77,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
-import { ElNotification } from 'element-plus'
+import { ElMessage, ElNotification } from 'element-plus'
 import type { LogEntry } from '../../types'
 import { useBotStore } from '../stores/bot'
 import dayjs from 'dayjs'
@@ -85,7 +91,7 @@ interface Props {
 /** 向首页同步抽屉状态或请求切换交易对图表。 */
 interface Emits {
   (event: 'update:modelValue', value: boolean): void
-  (event: 'select-symbol', symbol: string): void
+  (event: 'select-symbol', symbol: string, mainTimeframe?: string): void
 }
 
 const props = defineProps<Props>()
@@ -104,7 +110,7 @@ const selectedStrategy = ref<string>('')
 // 当前选中的交易对
 const selectedSymbol = ref<string>('')
 // 策略列表
-const strategies = ref<Array<{ id: string; name: string }>>([])
+const strategies = ref<Array<{ id: string; name: string; mainTimeframe?: string }>>([])
 // 交易对列表
 const symbols = ref<string[]>([])
 
@@ -156,7 +162,8 @@ async function fetchStrategies() {
     if (response.success && response.data) {
       strategies.value = response.data.map((s: any) => ({
         id: s.id,
-        name: s.name
+        name: s.name,
+        mainTimeframe: s.marketData?.timeframes?.[0]
       }))
     }
   } catch (error) {
@@ -165,6 +172,74 @@ async function fetchStrategies() {
 }
 
 const DETAILED_LOG_SEPARATOR = '===详细AI日志==='
+const DESKTOP_NOTIFICATION_KEY = 'scan-desktop-notifications'
+const desktopNotificationsEnabled = ref(false)
+const desktopNotificationsSupported = ref(false)
+const requestingPermission = ref(false)
+const desktopNotifications = new Set<Notification>()
+
+/** 必须由开关点击申请授权，避免浏览器拦截非用户操作触发的权限请求。 */
+async function toggleDesktopNotifications(value: string | number | boolean): Promise<void> {
+  if (!desktopNotificationsSupported.value || requestingPermission.value) return
+  if (value) {
+    requestingPermission.value = true
+    try {
+      const permission = await Notification.requestPermission()
+      if (permission !== 'granted') {
+        ElMessage.warning(permission === 'denied'
+          ? '桌面通知已被阻止，请在浏览器的网站设置中允许通知'
+          : '未开启通知权限，桌面通知保持关闭')
+        return
+      }
+    } catch {
+      ElMessage.warning('无法申请桌面通知权限，请检查浏览器的网站设置')
+      return
+    } finally {
+      requestingPermission.value = false
+    }
+  }
+  desktopNotificationsEnabled.value = Boolean(value)
+  if (!value) closeDesktopNotifications()
+  try {
+    localStorage.setItem(DESKTOP_NOTIFICATION_KEY, String(Boolean(value)))
+  } catch {
+    // 隐私模式或存储限制不影响本次会话使用通知。
+  }
+}
+
+/** 仅后台页面的成功扫描发送静音通知；沿用近期日志去重，避免轮询重复提醒。 */
+function showDesktopNotification(log: LogEntry): void {
+  if (!desktopNotificationsEnabled.value || !desktopNotificationsSupported.value
+    || Notification.permission !== 'granted' || !document.hidden || log.level !== 'SUCCESS') return
+  const summary = getLogSummary(log.message)
+  const symbol = log.data?.symbol || summary.match(/^\s*(\S+)\s+@/)?.[1]
+  if (!symbol) return
+  try {
+    const notification = new Notification(`${symbol} · 扫描满足开仓条件`, {
+      body: summary,
+      tag: `scan-${symbol}-${log.data?.strategyId || log.category}`,
+      silent: true
+    })
+    desktopNotifications.add(notification)
+    notification.onclick = () => {
+      window.focus()
+      visible.value = false
+      emit('select-symbol', symbol, getScanTimeframe(log))
+      notification.close()
+      desktopNotifications.delete(notification)
+    }
+    notification.onclose = () => desktopNotifications.delete(notification)
+    notification.onerror = () => desktopNotifications.delete(notification)
+  } catch {
+    // 部分浏览器不支持通知构造器，失败时仍保留原有页面弹窗。
+  }
+}
+
+/** 关闭开关或卸载时移除本组件创建的系统通知。 */
+function closeDesktopNotifications(): void {
+  for (const notification of desktopNotifications) notification.close()
+  desktopNotifications.clear()
+}
 
 const seenLogs = new Map<string, number>()
 const notifications = new Set<ReturnType<typeof ElNotification>>()
@@ -172,6 +247,12 @@ const pendingNotifications: LogEntry[] = []
 let isCreatingNotifications = false
 let notificationsMounted = false
 let stopNotificationWatch: (() => void) | undefined
+
+/** 优先使用扫描当时保存的周期；旧日志回退到对应策略的主周期，不猜测默认值。 */
+function getScanTimeframe(log: LogEntry): string | undefined {
+  const strategyId = log.data?.strategyId || getLogSummary(log.message).match(/\[([^\]]+)\]/)?.[1]
+  return log.data?.mainTimeframe || strategies.value.find(strategy => strategy.id === strategyId)?.mainTimeframe
+}
 
 /** 只提醒未处理的近期 AI 结果；抽屉内看过的结果也标记，避免关闭后补弹。 */
 function notifyRecentAnalysis(): void {
@@ -185,6 +266,8 @@ function notifyRecentAnalysis(): void {
     const key = JSON.stringify([log.timestamp, log.category, log.message])
     if (seenLogs.has(key)) continue
     seenLogs.set(key, log.timestamp)
+    // 抽屉即使处于打开状态，后台页面也需要收到成功结果提醒。
+    showDesktopNotification(log)
     if (!visible.value) pendingNotifications.push(log)
   }
   void flushAnalysisNotifications()
@@ -230,7 +313,7 @@ function showAnalysisNotification(log: LogEntry): void {
     message: `评分 ${score} · 置信度 ${confidence} · ${strategyId}`,
     position: 'bottom-right',
     onClick: () => {
-      emit('select-symbol', symbol)
+      emit('select-symbol', symbol, getScanTimeframe(log))
       notification.close()
     },
     onClose: () => {
@@ -289,6 +372,14 @@ function fetchSymbols() {
 
 // 组件加载时获取日志并订阅共享轮询
 onMounted(async () => {
+  desktopNotificationsSupported.value = window.isSecureContext && 'Notification' in window
+  try {
+    desktopNotificationsEnabled.value = desktopNotificationsSupported.value
+      && Notification.permission === 'granted'
+      && localStorage.getItem(DESKTOP_NOTIFICATION_KEY) === 'true'
+  } catch {
+    // 无法读取偏好时默认关闭，不主动请求权限。
+  }
   notificationsMounted = true
   stopNotificationWatch = watch([() => botStore.logs, visible], () => {
     if (visible.value) closeAnalysisNotifications()
@@ -307,6 +398,7 @@ onUnmounted(() => {
   notificationsMounted = false
   stopNotificationWatch?.()
   closeAnalysisNotifications()
+  closeDesktopNotifications()
   botStore.unsubscribeFromPolling('system-logs')
 })
 </script>
