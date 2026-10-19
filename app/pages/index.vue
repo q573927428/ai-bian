@@ -29,7 +29,7 @@
       <el-main class="main">
         <el-row :gutter="20">
           <!-- 左侧 - 控制面板 -->
-          <el-col :xs="24" :sm="24" :md="6" :lg="6">
+          <el-col class="overview-column" :xs="24" :sm="24" :md="6" :lg="6">
             <el-card class="card" shadow="hover">
               <template #header>
                 <div class="card-header">
@@ -144,7 +144,7 @@
           </el-col>
 
           <!-- 右侧 - 持仓和交易历史 -->
-          <el-col :xs="24" :sm="24" :md="12" :lg="12">
+          <el-col class="market-column" :xs="24" :sm="24" :md="12" :lg="12">
             
             <!-- 加密货币价格卡片组件 -->
             <ClientOnly>
@@ -187,7 +187,7 @@
 
           </el-col>
 
-          <el-col :xs="24" :sm="24" :md="6" :lg="6">
+          <el-col class="positions-news-column" :xs="24" :sm="24" :md="6" :lg="6">
             <!-- 当前持仓固定显示，查看持仓无需解锁。 -->
             <ClientOnly>
               <ActivePositions @select-symbol="handlePositionChartSelect" />
@@ -472,7 +472,155 @@ onMounted(async () => {
 
 <style scoped>
 .container {
-  min-height: 100vh;
+  /* 预留底部固定行情栏及安全区，页面高度始终跟随实际可视区域。 */
+  height: 100vh;
+  height: 100dvh;
+  box-sizing: border-box;
+  padding-bottom: calc(27px + env(safe-area-inset-bottom, 0px));
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.container > .el-container {
+  flex: 1;
+  min-height: 0;
+}
+
+.header {
+  flex-shrink: 0;
+}
+
+/* 桌面三列共享剩余高度；长内容在列内滚动，不再撑高整页。 */
+@media (min-width: 992px) {
+  .main {
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .main > .el-row {
+    height: 100%;
+    min-height: 0;
+  }
+
+  .main > .el-row > .el-col {
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  /* 最后一张卡片无需再留列底外边距，否则内容恰好放下时仍会溢出。 */
+  .main > .el-row > .el-col > :deep(.el-card:last-child) {
+    margin-bottom: 0;
+  }
+
+  .main > .el-row > .el-col::-webkit-scrollbar {
+    display: none;
+    width: 0;
+    height: 0;
+  }
+
+  /* 用剩余空间分配图表高度，避免固定高度、外边距和负边距累加。 */
+  .main > .el-row > .overview-column,
+  .main > .el-row > .market-column {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  .overview-column > :deep(.card),
+  .market-column > :deep(.price-grid-card) {
+    flex: 0 0 auto;
+    margin-bottom: 0;
+  }
+
+  .overview-column > :deep(.chart-card),
+  .market-column > :deep(.chart-card) {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    margin-bottom: 0;
+  }
+
+  .overview-column :deep(.chart-card > .el-card__header) {
+    flex-shrink: 0;
+  }
+
+  .overview-column :deep(.chart-card > .el-card__body) {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+  }
+
+  .overview-column :deep(.chart-container) {
+    flex: 1;
+    min-height: 80px;
+    height: auto;
+  }
+
+  .overview-column :deep(.filters),
+  .overview-column :deep(.stats-container) {
+    flex-shrink: 0;
+  }
+
+  .market-column :deep(.chart-card > .el-card__body) {
+    flex: 1;
+    min-height: 0;
+    padding: 0;
+  }
+
+  .market-column :deep(.chart-engine-switcher) {
+    height: 100%;
+    margin: 0;
+  }
+
+  .market-column :deep(.kline-chart-simple-container:not(:fullscreen)) {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    margin: 0;
+    transition: none;
+  }
+
+  .market-column :deep(.chart-controls-wrapper) {
+    flex-shrink: 0;
+  }
+
+  .market-column :deep(.kline-chart-simple-container > .chart-container) {
+    flex: 1;
+    min-height: 0;
+  }
+
+  .market-column :deep(.horizontal-line) {
+    display: none;
+  }
+
+  .main > .el-row > .positions-news-column {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    overflow: hidden;
+  }
+
+  .positions-news-column :deep(.active-positions-card) {
+    flex: 0 1 auto;
+    /* 较矮屏幕也要为快讯保留空间，持仓过多时在正文内滚动。 */
+    max-height: min(486px, 65%);
+    margin-bottom: 0;
+  }
+
+  .positions-news-column :deep(.latest-news-card) {
+    flex: 1;
+    min-height: 0;
+    margin-bottom: 0;
+  }
+
+  .positions-news-column :deep(.news-list) {
+    height: auto;
+  }
 }
 
 .header {

@@ -642,7 +642,8 @@ onUnmounted(() => {
 .active-positions-card {
   display: flex;
   flex-direction: column;
-  height: 486px;
+  max-height: 486px;
+  min-height: 0;
   margin-bottom: 20px;
   background: var(--bg-card);
   color: var(--text-regular);

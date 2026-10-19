@@ -258,6 +258,7 @@ const theme = ref<'light' | 'dark'>(globalTheme.value)
 const normalChartHeight = 423
 const chartHeight = ref(normalChartHeight)
 const isFullscreen = ref(false)
+let layoutObserver: ResizeObserver | undefined
 
 // 监听全局主题变化，同步本地 ref
 watch(globalTheme, (newTheme) => {
@@ -488,6 +489,12 @@ const toggleFullscreen = () => {
 
 const updateChartHeight = () => {
   if (!isFullscreen.value) {
+    const container = simpleContainerRef.value
+    if (window.innerWidth >= 992 && container?.closest('.market-column')) {
+      // 直接读取 flex 布局分配后的空间，不用旧画布高度反推，避免更新时序造成误差。
+      chartHeight.value = Math.max(250, container.clientHeight - (controlsWrapperRef.value?.offsetHeight || 0))
+      return
+    }
     chartHeight.value = normalChartHeight
     return
   }
@@ -1083,6 +1090,14 @@ onMounted(() => {
   startNewKlineCheck()
   document.addEventListener('fullscreenchange', handleFullscreenChange)
   window.addEventListener('resize', handleWindowResize)
+  const column = simpleContainerRef.value?.closest('.chart-card')?.parentElement
+  if (column) {
+    layoutObserver = new ResizeObserver(updateChartHeight)
+    if (simpleContainerRef.value) layoutObserver.observe(simpleContainerRef.value)
+    const prices = column.querySelector('.price-grid-card')
+    if (prices) layoutObserver.observe(prices)
+    if (controlsWrapperRef.value) layoutObserver.observe(controlsWrapperRef.value)
+  }
 })
 
 // 组件卸载前同步清理
@@ -1090,6 +1105,7 @@ onBeforeUnmount(() => {
   stopNewKlineCheck()
   document.removeEventListener('fullscreenchange', handleFullscreenChange)
   window.removeEventListener('resize', handleWindowResize)
+  layoutObserver?.disconnect()
 })
 
 // 组件卸载时异步清理

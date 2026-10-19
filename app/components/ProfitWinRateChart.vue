@@ -40,7 +40,8 @@
     </div>
 
     <!-- 图表容器 -->
-    <div ref="chartRef" class="chart-container"></div>
+    <!-- 无数据时只显示空状态，避免空图表和空状态重复占用高度。 -->
+    <div v-show="chartData.length > 0" ref="chartRef" class="chart-container"></div>
 
     <!-- 统计数据 -->
     <div v-if="chartData.length > 0" class="stats-container">
@@ -73,7 +74,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch } from 'vue'
+import { ref, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { LineChart } from 'echarts/charts'
 import { GridComponent, TitleComponent, TooltipComponent } from 'echarts/components'
 import { CanvasRenderer } from 'echarts/renderers'
@@ -88,6 +89,7 @@ const strategiesStore = useStrategiesStore()
 const tradeHistoryStore = useTradeHistoryStore()
 
 const chartRef = ref<HTMLElement | null>(null)
+let chartResizeObserver: ResizeObserver | undefined
 const loading = ref(false)
 const selectedStrategy = ref('')
 const selectedSymbol = ref('')
@@ -117,8 +119,15 @@ const loadData = async (force = false) => {
     chartData.value = response.success ? response.data || [] : []
     if (response.stats) stats.value = response.stats
 
-    // 筛选项只需从共享缓存中读取，不再用完整订单计算图表数据。
-    await tradeHistoryStore.fetchAllHistory(force)
+    // 汇总足以绘图；先等 v-show 更新容器，再绘制，避免初始化时高度为零。
+    await nextTick()
+    renderChart()
+
+    // 策略与完整历史仅用于筛选选项，放在首次绘图之后加载。
+    await Promise.all([
+      tradeHistoryStore.fetchAllHistory(force),
+      strategiesStore.strategies.length === 0 ? strategiesStore.loadStrategies() : Promise.resolve(),
+    ])
     const allHistory = tradeHistoryStore.allHistory
 
     const strategySet = new Set<string>()
@@ -132,7 +141,6 @@ const loadData = async (force = false) => {
     strategies.value = strategiesStore.strategies.filter(s => strategySet.has(s.id))
     symbols.value = Array.from(symbolSet).sort()
 
-    renderChart()
   } catch (error) {
     console.error('加载历史数据失败:', error)
   } finally {
@@ -156,6 +164,8 @@ const loadSummary = async () => {
     }) as any
     chartData.value = response.success ? response.data || [] : []
     if (response.stats) stats.value = response.stats
+    // 筛选从无数据切换为有数据时，同样需要等待容器恢复显示。
+    await nextTick()
     renderChart()
   } catch (error) {
     console.error('加载盈亏汇总失败:', error)
@@ -329,8 +339,10 @@ const handleResize = () => {
 }
 
 onMounted(async () => {
-  if (strategiesStore.strategies.length === 0) {
-    await strategiesStore.loadStrategies()
+  // 左列使用剩余空间布局后，卡片变化也需要同步调整 ECharts 画布。
+  if (chartRef.value) {
+    chartResizeObserver = new ResizeObserver(handleResize)
+    chartResizeObserver.observe(chartRef.value)
   }
   await loadData()
   
@@ -338,6 +350,7 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
+  chartResizeObserver?.disconnect()
   window.removeEventListener('resize', handleResize)
   chartInstance?.dispose()
 })

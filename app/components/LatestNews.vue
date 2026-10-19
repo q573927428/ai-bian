@@ -101,14 +101,17 @@ onUnmounted(() => {
 
 <style scoped>
 .latest-news-card { margin-bottom: 20px; background: var(--bg-card); color: var(--text-regular); }
+/* 正文与列表都允许收缩，刷新状态出现时也不会撑高卡片。 */
+.latest-news-card { display: flex; flex-direction: column; min-height: 0; }
+.latest-news-card :deep(.el-card__header) { flex-shrink: 0; }
 .news-header { display: flex; justify-content: space-between; align-items: center; font-weight: 600; color: var(--text-primary);margin: -5px 0; }
 .news-header { gap: 8px; flex-wrap: wrap; }
 .news-updated-at { margin-left: auto; font-size: 11px; font-weight: 400; color: var(--text-secondary); }
 .news-refresh { gap: 2px; padding: 0; font-size: 12px; }
 .news-refresh :deep(> span) { gap: 2px; }
-.latest-news-card :deep(.el-card__body) { padding: 12px 16px; }
-.news-status { min-height: 18px; margin-bottom: 8px; font-size: 11px; color: var(--text-secondary); }
-.news-list { height: 210px; overflow-y: auto; scrollbar-width: none; -ms-overflow-style: none; }
+.latest-news-card :deep(.el-card__body) { display: flex; flex-direction: column; flex: 1; min-height: 0; padding: 12px 16px; }
+.news-status { flex-shrink: 0; min-height: 18px; margin-bottom: 8px; font-size: 11px; color: var(--text-secondary); }
+.news-list { flex: 1; min-height: 0; height: 210px; overflow-y: auto; scrollbar-width: none; -ms-overflow-style: none; }
 .news-list::-webkit-scrollbar { display: none; }
 .news-item { display: flex; width: 100%; align-items: center; gap: 8px; padding: 8px 0; background: transparent; border: none; font: inherit; text-align: left; cursor: pointer; color: var(--text-primary); border-bottom: 1px solid var(--el-border-color-lighter); }
 .news-item:first-child { padding-top: 4px; }
