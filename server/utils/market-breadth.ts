@@ -73,8 +73,8 @@ export async function getMarketBreadth(config: BotConfig, force = false): Promis
   }
 }
 
-/** AI 仅接收聚合值，避免重复传入全部交易对涨跌幅造成提示词膨胀。 */
-export function formatMarketBreadth(snapshot?: MarketBreadthSnapshot): string {
+/** AI 接收市场聚合值及当前交易对涨跌幅，不展开其他交易对明细。 */
+export function formatMarketBreadth(snapshot?: MarketBreadthSnapshot, symbol?: string): string {
   if (!snapshot) return '市场广度：暂无可用快照。'
   const lines = (['1h', '4h', '24h'] as const).map(period => {
     const stats = snapshot.periods[period]
@@ -85,9 +85,18 @@ export function formatMarketBreadth(snapshot?: MarketBreadthSnapshot): string {
     return `${period}：涨${stats.upCount}，跌${stats.downCount}，平${stats.flatCount}；上涨占比${ratio}，涨跌幅中位数${median}；有效${stats.validCount}，缺失${stats.missingCount}。`
   })
   const updatedAt = new Date(snapshot.computedAt).toISOString().slice(0, 19).replace('T', ' ') + ' UTC'
+  const normalizedSymbol = symbol?.replace('/', '').trim().toUpperCase()
+  // 使用同一轮快照，便于 AI 对比个币和整体方向，缺失时不能按持平处理。
+  const currentSymbolLine = normalizedSymbol ? `当前交易对 ${normalizedSymbol}：${(['1h', '4h', '24h'] as const).map(period => {
+    const change = snapshot.periods[period].changes[normalizedSymbol]
+    const value = typeof change === 'number' && Number.isFinite(change)
+      ? `${change >= 0 ? '+' : ''}${change.toFixed(2)}%` : '暂无数据'
+    return `${period}涨跌幅${value}`
+  }).join('；')}。` : null
   return [
     `市场广度（已筛选${snapshot.selectedCount}个币安近30日交易量高且稳定交易对，供市场方向参考）：`,
     `更新时间：${updatedAt}${Date.now() >= snapshot.expiresAt ? '（数据已过期）' : ''}。`,
-    ...lines
+    ...lines,
+    ...(currentSymbolLine ? [currentSymbolLine] : [])
   ].join('\n')
 }

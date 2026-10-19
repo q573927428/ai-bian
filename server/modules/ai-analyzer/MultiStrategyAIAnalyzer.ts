@@ -653,7 +653,7 @@ ${data.enabledIndicatorsList.length > 0 ? `本次分析仅使用：${data.enable
 未启用指标全部忽略` : ''}
 
 ### 已选交易对市场背景
-${formatMarketBreadth(indicators.marketBreadth)}
+${formatMarketBreadth(indicators.marketBreadth, symbol)}
 
 --------------------------
 ## 四、策略（唯一规则）

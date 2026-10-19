@@ -101,6 +101,18 @@ test('提示词包含范围、统计时间及三周期聚合值，不传入逐�
   assert.ok(f.api.formatMarketBreadth(empty).includes('涨跌幅中位数-1.23%'))
 })
 
+test('提示词仅补充当前交易对三周期涨跌幅，兼容交易对格式及缺失数据', async () => {
+  const f = fixture()
+  const snapshot = await f.api.getMarketBreadth({ symbols: ['BTCUSDT', 'ETHUSDT'] })
+  snapshot.periods['4h'].changes.BTCUSDT = -1.234
+  snapshot.periods['24h'].changes.BTCUSDT = null
+  const prompt = f.api.formatMarketBreadth(snapshot, ' btc/usdt ')
+  assert.ok(prompt.includes('当前交易对 BTCUSDT：1h涨跌幅+10.00%；4h涨跌幅-1.23%；24h涨跌幅暂无数据。'))
+  assert.ok(!prompt.includes('ETHUSDT'))
+  assert.ok(!f.api.formatMarketBreadth(snapshot).includes('当前交易对'))
+  assert.ok(f.api.formatMarketBreadth(snapshot, 'UNKNOWN').includes('1h涨跌幅暂无数据'))
+})
+
 test('实时价格变化立即更新涨跌数量和中位数，不改变 AI 固定快照且不读取数据库', async () => {
   const f = fixture()
   f.prices.ETHUSDT = { price: 90, timestamp: f.now, change24hPercent: -2 }
