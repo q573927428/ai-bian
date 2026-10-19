@@ -347,7 +347,7 @@
               <span class="detail-label">入场指标</span>
               <div class="indicators-tags">
                 <el-tag
-                  v-for="(val, key) in row.entryIndicators"
+                  v-for="(val, key) in getEntryIndicators(row.entryIndicators)"
                   :key="key"
                   size="small"
                   effect="plain"
@@ -709,6 +709,11 @@ function formatIndicatorValue(key: string, value: unknown): string {
   return key.endsWith('Percent') ? `${formatted}%` : formatted
 }
 
+/** 补齐旧订单缺失的趋势指标展示项；不修改或推算原始入场快照。 */
+function getEntryIndicators(indicators: Record<string, number>): Record<string, number | undefined> {
+  return { PDI: undefined, MDI: undefined, ADXSlope: undefined, ...indicators }
+}
+
 // 百分比数值只保留两位小数（用于 OI变化率、预计量/EMA 列）
 function formatPercent2(value: number | undefined | null): string {
   if (value == null || isNaN(value) || !isFinite(value)) return '--'
@@ -716,6 +721,9 @@ function formatPercent2(value: number | undefined | null): string {
 }
 
 const INDICATOR_LABELS: Record<string, string> = {
+  PDI: 'PDI',
+  MDI: 'MDI',
+  ADXSlope: 'ADX斜率',
   ATRVolatilityPercent: 'ATR波动率',
   OIChangePercent: 'OI变化率',
   EstimatedVolume: '预计量',

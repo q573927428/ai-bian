@@ -1507,6 +1507,10 @@ export class StrategyEngine {
         entryIndicators['PreviousMACDHistogram'] = macdData.previousHistogram ?? macdData.histogram
       }
       if (adxData.adx !== undefined) entryIndicators['ADX'] = adxData.adx
+      // 保存入场时的 DMI 方向和 ADX 强度变化，供历史订单复核趋势条件。
+      if (adxData.pdi !== undefined) entryIndicators['PDI'] = adxData.pdi
+      if (adxData.mdi !== undefined) entryIndicators['MDI'] = adxData.mdi
+      if (adxData.adxSlope !== undefined) entryIndicators['ADXSlope'] = adxData.adxSlope
       if (atrData.atr !== undefined) entryIndicators['ATR'] = atrData.atr
       if (signal.indicators?.atrVolatilityPercent !== undefined) {
         entryIndicators['ATRVolatilityPercent'] = signal.indicators.atrVolatilityPercent
