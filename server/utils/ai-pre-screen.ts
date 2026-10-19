@@ -224,9 +224,9 @@ export class AIPreScreener {
     }
 
     // 记录日志
-    if (!passed) {
-      logger.info('🔍扫描结果', `${input.symbol} 预筛跳过: ${failReason} [${input.strategyId}]`)
-    }
+    // if (!passed) {
+    //   logger.info('🔍扫描结果', `${input.symbol} 预筛跳过: ${failReason} [${input.strategyId}]`)
+    // }
 
     return {
       passed,
