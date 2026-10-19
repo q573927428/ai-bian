@@ -2,6 +2,7 @@
 
 import type { AIProvider } from '../../types/strategy'
 import { logger } from './logger'
+import { fetchAIWithConnectionRetry } from './ai-connection-retry'
 
 /**
  * AI 提供商配置
@@ -171,7 +172,7 @@ export async function callAIAPI(
   })
   let response: Response
   try {
-    response = await fetch(`${providerConfig.apiUrl}/chat/completions`, {
+    response = await fetchAIWithConnectionRetry(`${providerConfig.apiUrl}/chat/completions`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -179,8 +180,13 @@ export async function callAIAPI(
       },
       body: JSON.stringify(requestBody),
       signal: controller.signal,
+    }, (attempt, delayMs) => {
+      logger.warn('AIService', 'AI 建连失败，准备重试', {
+        url: diagnosticUrl, model: providerConfig.model, attempt, delayMs
+      })
     })
   } catch (error: unknown) {
+    clearTimeout(timeout)
     logger.error('AIService', 'AI 请求通信失败', {
       url: diagnosticUrl,
       model: providerConfig.model,
@@ -190,28 +196,31 @@ export async function callAIAPI(
       error: describeError(error)
     })
     throw error
+  }
+
+  try {
+    if (!response.ok) {
+      // 不额外读取错误响应正文，避免诊断过程阻塞或记录服务商回显的敏感内容。
+      logger.error('AIService', 'AI HTTP 请求失败', {
+        url: diagnosticUrl,
+        model: providerConfig.model,
+        elapsedMs: Date.now() - startedAt,
+        timeoutMs,
+        status: response.status,
+        statusText: redact(response.statusText),
+        requestId: redact(response.headers.get('x-request-id') || response.headers.get('request-id'))
+      })
+      throw new Error(`API请求失败: ${response.statusText}`)
+    }
+
+    const result = await response.json()
+    const content = (result.choices?.[0]?.message?.content as string) || '{}'
+
+    return content
   } finally {
+    // 读取响应正文也必须受总超时约束，避免仅收到响应头后无限等待。
     clearTimeout(timeout)
   }
-
-  if (!response.ok) {
-    // 不额外读取错误响应正文，避免诊断过程阻塞或记录服务商回显的敏感内容。
-    logger.error('AIService', 'AI HTTP 请求失败', {
-      url: diagnosticUrl,
-      model: providerConfig.model,
-      elapsedMs: Date.now() - startedAt,
-      timeoutMs,
-      status: response.status,
-      statusText: redact(response.statusText),
-      requestId: redact(response.headers.get('x-request-id') || response.headers.get('request-id'))
-    })
-    throw new Error(`API请求失败: ${response.statusText}`)
-  }
-
-  const result = await response.json()
-  const content = (result.choices?.[0]?.message?.content as string) || '{}'
-
-  return content
 }
 
 /**
