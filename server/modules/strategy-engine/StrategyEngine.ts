@@ -1327,16 +1327,16 @@ export class StrategyEngine {
           ? (thresholdState.finalScore ?? minThreshold)
           : (thresholdState.confidence ?? minThreshold)
 
-        // both 模式取两个指标的较小超额比例，避免单项高分掩盖另一项刚过线。
+        // both 模式取两个指标超额比例的中位数；两个数的中位数等于其平均值。
         const normalizedExcess = (value: number | undefined, threshold: number) =>
           typeof value === 'number' && threshold < 100
             ? Math.max(0, (value - threshold) / (100 - threshold))
             : 0
         const thresholdExcess = thresholdMode === 'both'
-          ? Math.min(
-              normalizedExcess(thresholdState.confidence, thresholdState.confidenceThreshold),
+          ? (
+              normalizedExcess(thresholdState.confidence, thresholdState.confidenceThreshold) +
               normalizedExcess(thresholdState.finalScore, thresholdState.finalScoreThreshold)
-            )
+            ) / 2
           : normalizedExcess(thresholdValue, minThreshold)
 
         // 线性映射到 [minLev, maxLev]，取整数
