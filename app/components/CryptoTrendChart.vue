@@ -10,7 +10,7 @@ import { useTheme } from '../composables/useTheme'
 import type { TrendPoint } from '../../types/crypto-trends'
 
 /** 每条美元序列的图形、颜色和左右轴配置。 */
-interface ChartSeries { name: string; points: TrendPoint[]; color: string; bar?: boolean; right?: boolean; dashed?: boolean }
+interface ChartSeries { name: string; points: TrendPoint[]; color: string; bar?: boolean; right?: boolean; dashed?: boolean; stack?: string }
 const props = defineProps<{ series: ChartSeries[]; days: number; percent?: boolean }>()
 use([LineChart, BarChart, GridComponent, TooltipComponent, LegendComponent, DataZoomComponent, CanvasRenderer])
 const element = ref<HTMLElement | null>(null)
@@ -41,7 +41,8 @@ function render() {
     dataZoom: [{ type: 'inside' }, { type: 'slider', height: 13, bottom: 5, showDetail: false, borderColor: 'transparent' }],
     series: props.series.map(s => {
       const lookup = new Map(s.points.map(p => [p.date, p.value]))
-      return { name: s.name, type: s.bar ? 'bar' : 'line', yAxisIndex: s.right ? 1 : 0, showSymbol: false, connectNulls: false, lineStyle: { width: 2, type: s.dashed ? 'dashed' : 'solid' }, data: dates.map(date => lookup.get(date) ?? null) }
+      // 共用堆叠组让清算正负柱在同一日期中心对齐；正负数仍分别从零轴向两侧延伸。
+      return { name: s.name, type: s.bar ? 'bar' : 'line', stack: s.stack, yAxisIndex: s.right ? 1 : 0, showSymbol: false, connectNulls: false, lineStyle: { width: 2, type: s.dashed ? 'dashed' : 'solid' }, data: dates.map(date => lookup.get(date) ?? null) }
     }),
   }, true)
 }
