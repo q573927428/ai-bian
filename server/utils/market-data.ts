@@ -1,16 +1,19 @@
-// ==================== 公开市场持仓、清算与稳定币供应快照 ====================
-import type { MarketAmount } from '../../types/market-overview'
+// ==================== The Block 日频市场数据来源与解析 ====================
+import type { MarketAmount, EtfNetFlow } from '../../types/market-overview'
 import { recordTrendHistory } from './crypto-trends'
 
 export const MARKET_AMOUNT_KEYS = ['btcOi', 'ethOi', 'longLiquidations', 'shortLiquidations', 'stablecoinSupply'] as const
 export type MarketAmountKey = typeof MARKET_AMOUNT_KEYS[number]
-const sources = {
+export const MARKET_DATA_SOURCES = {
   btcOi: { file: 'markets_futures_topbitcoinfuturesoi_daily_other.json', name: 'Top Bitcoin Futures OI' },
   ethOi: { file: 'markets_futures_topetherfuturesoi_daily_other.json', name: 'Top Ether Futures OI' },
   longLiquidations: { file: 'markets_futures_longliquidationsbyexchanges_daily_coinglass.json', name: 'Long liquidations by exchanges' },
   shortLiquidations: { file: 'markets_futures_shortliquidationsbyexchanges_daily_coinglass.json', name: 'Short liquidations by exchanges' },
   stablecoinSupply: { file: 'openfinance_stablecoins_totalstablecoinsupply_daily_defillama.json', name: 'Total Stablecoin Supply' },
+  btcEtf: { file: 'markets_structuredproducts_btcspotetftotalnetflows_daily_other.json', name: 'BTC Spot ETF Total Net Flows' },
+  ethEtf: { file: 'markets_structuredproducts_ethspotetftotalnetflows_daily_other.json', name: 'ETH Spot ETF Total Net Flows' },
 } as const
+export type MarketDataKey = keyof typeof MARKET_DATA_SOURCES
 
 /** 校验数据点与日期，拒绝缺失、负持仓和未来错误日期。 */
 function validPoint(value: unknown, timestamp: number, absolute: boolean): value is number {
@@ -63,14 +66,36 @@ export function parseDisclosedOi(html: string, name: string): MarketAmount {
   return aggregateLatest(rows)
 }
 
-/** 仅请求无需凭证的公开资源，各指标失败交给上层缓存处理。 */
-export async function fetchMarketAmount(key: MarketAmountKey): Promise<MarketAmount> {
-  const source = sources[key]
-  const url = `https://data.tbstat.com/dashboard/${source.file}`
-  const response = await fetch(url, { signal: AbortSignal.timeout(20_000), headers: { 'User-Agent': 'Mozilla/5.0' } })
-  if (!response.ok) throw new Error(`The Block HTTP ${response.status}`)
+/** 校验美元单日净流入序列；最新日期空值报错保留缓存，不冒充零或回退历史数据。 */
+export function parseEtfFlow(data: any, name: string): EtfNetFlow {
+  const series = data?.Series?.['Total Net Flow']
+  if (data?.Description !== name || data.Frequency !== 'Daily' || !Array.isArray(series?.Data)) throw new Error(`${name} JSON 数据格式异常`)
+  let latest: { Timestamp: number; Result: number } | undefined
+  for (const row of series.Data) {
+    if (typeof row?.Timestamp !== 'number' || !Number.isFinite(row.Timestamp) || row.Timestamp <= 0 || row.Timestamp * 1000 > Date.now() + 86_400_000) continue
+    if (!latest || row.Timestamp > latest.Timestamp) latest = row
+  }
+  if (!latest || typeof latest.Result !== 'number' || !Number.isFinite(latest.Result)) throw new Error(`${name} 缺少有效净流入数据`)
+  return { usd: latest.Result, date: new Date(latest.Timestamp * 1000).toISOString().slice(0, 10) }
+}
+
+/** 按指标返回对应快照类型，ETF 不包含交易所覆盖字段。 */
+export function fetchMarketData(key: MarketAmountKey): Promise<MarketAmount>
+export function fetchMarketData(key: 'btcEtf' | 'ethEtf'): Promise<EtfNetFlow>
+/** 统一下载公开日频 JSON；解析及历史记录保留各指标独立口径，失败由上层保留缓存。 */
+export async function fetchMarketData(key: MarketDataKey): Promise<MarketAmount | EtfNetFlow> {
+  const source = MARKET_DATA_SOURCES[key]
+  const isEtf = key === 'btcEtf' || key === 'ethEtf'
+  const response = await fetch(`https://data.tbstat.com/dashboard/${source.file}`, {
+    signal: AbortSignal.timeout(isEtf ? 15_000 : 20_000),
+    headers: { 'User-Agent': 'Mozilla/5.0' },
+  })
+  if (!response.ok) throw new Error(`The Block JSON HTTP ${response.status}`)
   const data = await response.json()
-  const value = parseAmountSeries(data, source.name, key === 'longLiquidations' || key === 'shortLiquidations')
+  // ETF 仅取单日净流入，允许负值；持仓和供应汇总分项，清算转换为金额绝对值。
+  const value = isEtf
+    ? parseEtfFlow(data, source.name)
+    : parseAmountSeries(data, source.name, key === 'longLiquidations' || key === 'shortLiquidations')
   recordTrendHistory(key, data, source.name)
   return value
 }

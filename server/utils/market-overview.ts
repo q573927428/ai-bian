@@ -1,7 +1,6 @@
 // ==================== 市场概览定时同步与缓存 ====================
 import type { MarketOverview } from '../../types/market-overview'
-import { fetchEtfFlow } from './etf-flow'
-import { fetchMarketAmount, MARKET_AMOUNT_KEYS } from './market-amounts'
+import { fetchMarketData, MARKET_AMOUNT_KEYS } from './market-data'
 import { markTrendStale, persistTrendHistories } from './crypto-trends'
 
 export const MARKET_REFRESH_MS = 60 * 60_000
@@ -31,7 +30,7 @@ export function refreshMarketOverview(): Promise<void> {
   pending = Promise.allSettled([
     ...MARKET_AMOUNT_KEYS.map(async (key) => {
       try {
-        const value = await fetchMarketAmount(key)
+        const value = await fetchMarketData(key)
         // 来源缓存日期倒退时保留已有较新数据。
         if (cache[key].value && value.date < cache[key].value!.date) throw new Error('来源数据日期倒退')
         cache[key] = { value, updatedAt: new Date().toISOString(), stale: false }
@@ -44,7 +43,7 @@ export function refreshMarketOverview(): Promise<void> {
     ...(['btc', 'eth'] as const).map(async (asset) => {
       const key = asset === 'btc' ? 'btcEtf' : 'ethEtf'
       try {
-        const value = await fetchEtfFlow(asset)
+        const value = await fetchMarketData(key)
         // 上游缓存倒退时不覆盖较新数据。
         if (cache[key].value && value.date < cache[key].value!.date) throw new Error('ETF 来源数据日期倒退')
         cache[key] = { value, updatedAt: new Date().toISOString(), stale: false }

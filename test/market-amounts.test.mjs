@@ -4,7 +4,7 @@ import test from 'node:test'
 import { registerHooks } from 'node:module'
 // Node 原生测试补全 Nuxt 支持的无扩展名导入。
 registerHooks({ resolve(specifier, context, next) { return next(specifier === './crypto-trends' ? './crypto-trends.ts' : specifier, context) } })
-const { parseAmountSeries, parseDisclosedOi } = await import('../server/utils/market-amounts.ts')
+const { parseAmountSeries, parseDisclosedOi } = await import('../server/utils/market-data.ts')
 
 const timestamp = Date.parse('2026-10-17') / 1000
 const series = (points) => ({ Data: points.map(([Timestamp, Result]) => ({ Timestamp, Result })) })

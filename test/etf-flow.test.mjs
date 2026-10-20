@@ -4,10 +4,10 @@ import test from 'node:test'
 import { registerHooks } from 'node:module'
 // Node 原生测试补全 Nuxt 支持的无扩展名导入。
 registerHooks({ resolve(specifier, context, next) { return next(specifier === './crypto-trends' ? './crypto-trends.ts' : specifier, context) } })
-const { parseEtfFlow, ETF_FLOW_SOURCES } = await import('../server/utils/etf-flow.ts')
+const { parseEtfFlow, MARKET_DATA_SOURCES } = await import('../server/utils/market-data.ts')
 
 const timestamp = Date.parse('2026-10-15T12:00:00Z') / 1000
-const name = ETF_FLOW_SOURCES.btc.name
+const name = MARKET_DATA_SOURCES.btcEtf.name
 /** 构造目标序列，避免混淆成交量和累计净流入。 */
 const sample = rows => ({ Description: name, Frequency: 'Daily', Series: { 'Total Net Flow': { Data: rows } } })
 
