@@ -305,13 +305,17 @@ function showAnalysisNotification(log: LogEntry): void {
   const confidence = data?.confidence ?? log.message.match(/置信度[（(:：]\s*([\d.]+)/)?.[1] ?? '--'
   // 扫描引擎只在满足开仓条件时记录 SUCCESS，通知状态直接沿用日志级别。
   const type = log.level === 'SUCCESS' ? 'success' : 'warning'
+  // 背景表达开仓方向，与是否通过开仓检查的日志状态独立。
+  const directionClass = direction === 'LONG' ? 'ai-analysis-long' : direction === 'SHORT' ? 'ai-analysis-short' : ''
   const notification = ElNotification({
     title: `${symbol} · ${direction}`,
     type,
     duration: 8000,
-    customClass: 'ai-analysis-notification',
+    customClass: `ai-analysis-notification ${directionClass}`.trim(),
     message: `评分 ${score} · 置信度 ${confidence} · ${strategyId}`,
     position: 'bottom-right',
+    // 在固定行情栏上方保留 16px 间距，实际高度包含移动端底部安全区。
+    offset: Math.ceil(document.querySelector('.market-ticker')?.getBoundingClientRect().height ?? 0) + 16,
     onClick: () => {
       emit('select-symbol', symbol, getScanTimeframe(log))
       notification.close()
@@ -617,6 +621,15 @@ onUnmounted(() => {
   background: color-mix(in srgb, var(--el-bg-color-overlay) 65%, transparent);
   backdrop-filter: blur(8px);
   cursor: pointer;
+}
+/* 混合主题底色保持深浅主题文字可读，方向只影响背景和边框。 */
+.ai-analysis-notification.ai-analysis-long {
+  background: color-mix(in srgb, var(--el-color-success) 25%, var(--el-bg-color-overlay) 75%);
+  border-color: var(--el-color-success);
+}
+.ai-analysis-notification.ai-analysis-short {
+  background: color-mix(in srgb, var(--el-color-danger) 25%, var(--el-bg-color-overlay) 75%);
+  border-color: var(--el-color-danger);
 }
 .ai-analysis-notification .el-notification__group {
   flex: 1;
