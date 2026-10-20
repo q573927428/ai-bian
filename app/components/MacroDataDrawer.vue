@@ -1,6 +1,6 @@
 <!-- ==================== 宏观数据抽屉 ==================== -->
 <template>
-  <el-drawer v-model="visible" class="macro-drawer" title="宏观数据" direction="rtl" size="96%" destroy-on-close>
+  <el-drawer v-model="visible" class="macro-drawer" title="宏观数据" direction="rtl" size="90%" destroy-on-close>
     <div class="macro-toolbar">
       <span class="overview-title">全球流动性+市场风险偏好总览</span>
       <div class="periods" aria-label="数据源">

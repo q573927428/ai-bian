@@ -626,7 +626,7 @@ export class StrategyEngine {
       this.loopStats.lastDurationMs = duration
       this.loopStats.lastAIRequests = this.currentLoopAIRequests
       this.loopStats.skippedLoops = this.skippedLoopCount
-      logger.info('StrategyEngine', `第 ${this.loopStats.scanCount} 轮扫描结束，耗时 ${duration}ms，跳过计数 ${this.skippedLoopCount}`)
+      logger.success('StrategyEngine', `第 ${this.loopStats.scanCount} 轮扫描结束，耗时 ${duration}ms，跳过计数 ${this.skippedLoopCount}`)
       if (duration > this.globalScanInterval * 0.8) {
         this.loopStats.exceededDurationCount++
         logger.warn('StrategyEngine', `本轮扫描耗时接近全局间隔: ${duration}ms / ${this.globalScanInterval}ms`)

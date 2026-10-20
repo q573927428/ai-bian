@@ -1,6 +1,6 @@
 <!-- ==================== 加密市场六图趋势看板 ==================== -->
 <template>
-  <el-drawer v-model="visible" title="加密市场趋势" size="96%" destroy-on-close class="crypto-trends-drawer">
+  <el-drawer v-model="visible" title="加密市场趋势" size="90%" destroy-on-close class="crypto-trends-drawer">
     <div class="trends-toolbar">
       <span>价格 · 机构资金 · 流动性 · 杠杆风险</span>
       <div class="toolbar-actions">
