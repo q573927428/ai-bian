@@ -47,7 +47,7 @@
           <div>ADX {{ format(row.adx) }}</div>
           <div class="up">PDI {{ format(row.pdi) }}</div>
           <div class="down">MDI {{ format(row.mdi) }}</div>
-          <span :class="row.diDirection.startsWith('多头') ? 'up' : row.diDirection.startsWith('空头') ? 'down' : 'muted'">{{ row.diDirection }}</span>
+          <span :class="[row.diDirection.startsWith('多头') ? 'up' : row.diDirection.startsWith('空头') ? 'down' : 'muted', { 'macd-weakening': row.diDirection.endsWith('减弱') }]">{{ row.diDirection }}</span>
         </template>
       </el-table-column>
       <el-table-column label="EMA" min-width="120">
