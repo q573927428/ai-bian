@@ -3,7 +3,7 @@
 // 查询参数：
 //   mode=hot（默认）：按 24h 成交额排序取前 100
 //   mode=stable：按"最近 N 天持续稳定放量"筛选（排除短期热点）
-//     附加参数：days / pool / top / minDaily / minRatio / cvMax / segmentRatio
+//     附加参数：days / pool / top / minDaily / activeDaysRatio / minRatio / cvMax / segmentRatio
 //
 // 持续放量判定：
 //   1. 24h 成交额前 pool 名作为候选池
@@ -43,6 +43,7 @@ interface StableFilterOptions {
   pool: number      // 候选池数量（24h 成交额前 N 名）
   top: number       // 最终输出数量
   minDaily: number  // 日均成交额及单日活跃判定下限 (USDT)
+  activeDaysRatio: number // 窗口内达到单日成交额下限的最低天数比例（0–1）
   minRatio: number  // 最低/最高成交额比阈值
   cvMax: number     // 最大变异系数
   segmentRatio: number // 分段稳定性阈值
@@ -54,6 +55,7 @@ const FILTER_DEFAULTS: StableFilterOptions = {
   pool: 100,
   top: 50,
   minDaily: 50_000_000,
+  activeDaysRatio: 0.8,
   minRatio: 0.02,
   cvMax: 1.0,
   segmentRatio: 0.2,
@@ -309,7 +311,8 @@ async function fetchStableTopSymbols(options: StableFilterOptions): Promise<TopS
   const valid = analysisResults.filter((r: any) => r && !r.error && r.avgDaily !== undefined && r.avgDaily !== null)
   const qualified = valid
     .filter((r: any) => r.avgDaily >= options.minDaily)
-    .filter((r: any) => r.activeDays >= Math.ceil(options.days * 0.8)) // 至少 80% 的窗口天数达到成交额门槛
+    // 按完整统计窗口计算最低活跃天数，向上取整以确保达到用户设置的比例。
+    .filter((r: any) => r.activeDays >= Math.ceil(options.days * options.activeDaysRatio))
     .filter((r: any) => r.minRatio >= options.minRatio)
     .filter((r: any) => r.cv <= options.cvMax)
     .filter((r: any) => r.segmentOk) // 三段区间均有持续放量
@@ -400,6 +403,7 @@ export default defineEventHandler(async (event) => {
       pool: Math.max(30, Math.min(500, parseNumber(query.pool, FILTER_DEFAULTS.pool))),
       top: Math.max(5, Math.min(100, parseNumber(query.top, FILTER_DEFAULTS.top))),
       minDaily: parseNumber(query.minDaily, FILTER_DEFAULTS.minDaily),
+      activeDaysRatio: Math.max(0, Math.min(1, parseNumber(query.activeDaysRatio, FILTER_DEFAULTS.activeDaysRatio))),
       minRatio: parseNumber(query.minRatio, FILTER_DEFAULTS.minRatio),
       cvMax: parseNumber(query.cvMax, FILTER_DEFAULTS.cvMax),
       segmentRatio: parseNumber(query.segmentRatio, FILTER_DEFAULTS.segmentRatio),

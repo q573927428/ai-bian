@@ -63,7 +63,12 @@
           <div class="param-item">
             <label>日均成交额下限 (万USDT)</label>
             <el-input-number v-model="minDailyWan" :min="0" :step="1000" size="small" controls-position="right" />
-            <span class="param-desc">窗口日均成交额及至少 80% 天数的单日成交额须 ≥ 此值</span>
+            <span class="param-desc">窗口日均成交额及活跃日的单日成交额须 ≥ 此值</span>
+          </div>
+          <div class="param-item">
+            <label>活跃天数比例 (%)</label>
+            <el-input-number v-model="activeDaysPercent" :min="0" :max="100" :precision="0" :step="5" size="small" controls-position="right" />
+            <span class="param-desc">至少 {{ Math.ceil(filterParams.days * filterParams.activeDaysRatio) }} 天达到成交额下限（向上取整）</span>
           </div>
           <div class="param-item">
             <label>最低/最高比</label>
@@ -202,7 +207,7 @@
             min-width="90"
           >
             <template #default="{ row }">
-              <el-tooltip content="达到设置的成交额下限的天数 / 实际日线根数；至少 80% 的窗口天数须达标" placement="top">
+              <el-tooltip :content="`达到设置的成交额下限的天数 / 实际日线根数；至少 ${Math.round(loadedActiveDaysRatio * 100)}% 的窗口天数须达标（${Math.ceil(loadedDays * loadedActiveDaysRatio)} 天）`" placement="top">
                 <span>{{ row.activeDays || '--' }}</span>
               </el-tooltip>
             </template>
@@ -323,6 +328,7 @@ interface FilterParams {
   pool: number
   top: number
   minDaily: number
+  activeDaysRatio: number // 最低活跃天数占统计窗口的比例（0–1）
   minRatio: number
   cvMax: number
   segmentRatio: number
@@ -334,6 +340,7 @@ const DEFAULT_FILTER_PARAMS: FilterParams = {
   pool: 100,
   top: 50,
   minDaily: 50_000_000,
+  activeDaysRatio: 0.8,
   minRatio: 0.02,
   cvMax: 1.0,
   segmentRatio: 0.2,
@@ -399,6 +406,8 @@ async function fetchConfiguredSymbols() {
 const filterParams = ref<FilterParams>({ ...DEFAULT_FILTER_PARAMS })
 // 标题跟随已加载数据，避免编辑尚未应用的 days 时误标涨跌幅周期。
 const loadedDays = ref(DEFAULT_FILTER_PARAMS.days)
+// 提示跟随已应用参数，避免修改设置时误解当前榜单的筛选条件。
+const loadedActiveDaysRatio = ref(DEFAULT_FILTER_PARAMS.activeDaysRatio)
 const shortChangePeriods = [
   { prop: 'priceChangePercent1h', label: '1h涨跌幅' },
   { prop: 'priceChangePercent4h', label: '4h涨跌幅' },
@@ -415,6 +424,12 @@ function formatChange(value?: number): string {
 const minDailyWan = computed({
   get: () => Math.round(filterParams.value.minDaily / 10000),
   set: (val: number) => { filterParams.value.minDaily = Number(val) * 10000 }
+})
+
+// 前端以百分数输入，接口统一使用 0–1 的比例。
+const activeDaysPercent = computed({
+  get: () => Math.round(filterParams.value.activeDaysRatio * 100),
+  set: (val: number) => { filterParams.value.activeDaysRatio = (val ?? 80) / 100 }
 })
 
 const isMobile = computed(() => windowWidth.value < 768)
@@ -505,6 +520,7 @@ const fetchData = async () => {
           pool: filterParams.value.pool,
           top: filterParams.value.top,
           minDaily: filterParams.value.minDaily,
+          activeDaysRatio: filterParams.value.activeDaysRatio,
           minRatio: filterParams.value.minRatio,
           cvMax: filterParams.value.cvMax,
           segmentRatio: filterParams.value.segmentRatio,
@@ -520,7 +536,10 @@ const fetchData = async () => {
     }>('/api/binance/top-symbols', { query }), fetchConfiguredSymbols()])
     if (res.success) {
       data.value = res.data
-      if (res.params) loadedDays.value = res.params.days
+      if (res.params) {
+        loadedDays.value = res.params.days
+        loadedActiveDaysRatio.value = res.params.activeDaysRatio
+      }
       updatedAt.value = res.updatedAt || null
       if (res.mode === 'hot-fallback') {
         message.value = res.message || '持续放量筛选失败，已降级为 24h 热门'
