@@ -292,8 +292,8 @@ const generateMarkers = () => {
   // 获取当前时间周期（优先使用props.timeframe，否则使用computedTimeframe）
   const currentTimeframe = props.timeframe || computedTimeframe.value
   
-  // 在1d和1w时间周期下不显示标记（提高长周期图表可读性）
-  const hideMarkersTimeframes = ['1d', '1w']
+  // 日线展示历史订单开平仓标记，周线仍隐藏以保持长周期图表可读性。
+  const hideMarkersTimeframes = ['1w']
   if (hideMarkersTimeframes.includes(currentTimeframe)) {
     return []
   }
@@ -332,8 +332,8 @@ const generateMarkers = () => {
       countMap.set(openKey, (countMap.get(openKey) || 0) + 1)
     }
     
-    // 平仓（不与开仓在同一K线时单独记录）
-    if (closeTime !== openTime && isWithinLoadedKlineRange(closeTime)) {
+    // 日内开平仓也要在日线上完整展示，两类标记分别按数量聚合。
+    if ((currentTimeframe === '1d' || closeTime !== openTime) && isWithinLoadedKlineRange(closeTime)) {
       const closeType: OrderType = order.direction === 'LONG' ? '平多' : '平空'
       const closeKey = `${closeTime}|${closeType}`
       countMap.set(closeKey, (countMap.get(closeKey) || 0) + 1)

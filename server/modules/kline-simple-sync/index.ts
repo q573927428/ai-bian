@@ -758,7 +758,7 @@ export class KLineSimpleSyncService {
   // 高频同步：仅更新最后一根未收盘K线
   private async highFrequencySync(): Promise<void> {
     const startedAt = Date.now()
-    const highFreqTimeframes: KLineTimeframe[] = ['5m', '15m', '1h', '4h']
+    const highFreqTimeframes: KLineTimeframe[] = ['5m', '15m', '1h', '4h', '1d']
     let processedTimeframes = 0
     let processedSymbols = 0
     let completed = false
@@ -778,7 +778,7 @@ export class KLineSimpleSyncService {
     try {
       this.isHighFrequencySyncing = true
       
-      // 只对较短周期进行高频同步
+      // 日线也参与高频同步，持续更新当日未收盘K线的价格和成交量。
       for (const timeframe of highFreqTimeframes) {
         if (binanceApiGateway.shouldPauseBackgroundWork()) {
           return

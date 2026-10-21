@@ -11,13 +11,13 @@
           style="width: 100px"
           @change="updateChart"
         >
-          <el-option label="1分钟" value="1" />
-          <el-option label="5分钟" value="5" />
-          <el-option label="15分钟" value="15" />
-          <el-option label="1小时" value="60" />
-          <el-option label="4小时" value="240" />
-          <el-option label="1天" value="1D" />
-          <el-option label="1周" value="1W" />
+          <el-option label="1m" value="1" />
+          <el-option label="5m" value="5" />
+          <el-option label="15m" value="15" />
+          <el-option label="1h" value="60" />
+          <el-option label="4h" value="240" />
+          <el-option label="1d" value="1D" />
+          <el-option label="1w" value="1W" />
         </el-select>
 
         <el-select
