@@ -238,6 +238,8 @@ const emit = defineEmits<{
     atrPercent?: number | null
     rsi?: number | null
     adx?: number | null
+    pdi?: number | null
+    mdi?: number | null
   }, time: string]
   'order-click': [orders: TradeHistory[], klineTime: number]
   'scan-click': [results: StrategyScanResult[], klineTime: number]
@@ -809,10 +811,14 @@ const emitTooltipUpdate = (kline: SimpleKLineData) => {
     rsi = cachedRsiSeries.value[klineIndex] ?? null
   }
   
-  // 获取ADX
+  // 同一根 K 线的 ADX、PDI、MDI 共用缓存，保证悬停时指标时间一致。
   let adx: number | null = null
+  let pdi: number | null = null
+  let mdi: number | null = null
   if (cachedAdxSeries.value && klineIndex >= 0 && klineIndex < cachedAdxSeries.value.length) {
     adx = cachedAdxSeries.value[klineIndex]?.adx ?? null
+    pdi = cachedAdxSeries.value[klineIndex]?.plusDI ?? null
+    mdi = cachedAdxSeries.value[klineIndex]?.minusDI ?? null
   }
   
   emit('tooltip-update', {
@@ -825,7 +831,9 @@ const emitTooltipUpdate = (kline: SimpleKLineData) => {
     emaDiffPercent: emaDiff,
     atrPercent,
     rsi,
-    adx
+    adx,
+    pdi,
+    mdi
   }, timeStr)
 }
 

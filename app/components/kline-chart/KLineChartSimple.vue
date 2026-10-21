@@ -350,7 +350,9 @@ const tooltipData = ref({
   emaDiffPercent: 0,
   atrPercent: 0,
   rsi: 0,
-  adx: 0
+  adx: 0,
+  pdi: 0,
+  mdi: 0
 })
 const tooltipTime = ref('')
 const tooltipPosition = ref({
@@ -751,7 +753,7 @@ const updateLastKlineWithPrice = (price: number) => {
     const emaDiffPercent = calculateLatestEmaDiff(klineData.value)
     const atrPercent = calculateLatestAtrPercent(klineData.value)
     const rsi = calculateLatestRsi(klineData.value)
-    const adx = calculateLatestAdx(klineData.value)
+    const directionIndicators = calculateLatestAdx(klineData.value)
     tooltipData.value = {
       open: updatedKline.o,
       high: updatedKline.h,
@@ -762,7 +764,7 @@ const updateLastKlineWithPrice = (price: number) => {
       emaDiffPercent,
       atrPercent,
       rsi,
-      adx
+      ...directionIndicators
     }
     tooltipTime.value = formatTime(updatedKline.t)
   }
@@ -811,12 +813,14 @@ const calculateLatestRsi = (klineData: SimpleKLineData[]): number => {
   return rsiSeries[rsiSeries.length - 1]?.value || 0
 }
 
-// 计算最新ADX
-const calculateLatestAdx = (klineData: SimpleKLineData[]): number => {
-  if (klineData.length < 14) return 0
+// 一次计算最新 ADX 和方向指标，供默认展示与实时行情更新共用。
+const calculateLatestAdx = (klineData: SimpleKLineData[]): { adx: number; pdi: number; mdi: number } => {
+  const empty = { adx: 0, pdi: 0, mdi: 0 }
+  if (klineData.length < 14) return empty
   const adxSeries = calculateADXSeries(klineData, 14)
-  if (adxSeries.length === 0) return 0
-  return adxSeries[adxSeries.length - 1]?.adx || 0
+  const latest = adxSeries[adxSeries.length - 1]
+  if (!latest) return empty
+  return { adx: latest.adx || 0, pdi: latest.plusDI || 0, mdi: latest.minusDI || 0 }
 }
 
 // 显示最新K线数据
@@ -828,7 +832,7 @@ const showLatestKline = () => {
       const emaDiffPercent = calculateLatestEmaDiff(klineData.value)
       const atrPercent = calculateLatestAtrPercent(klineData.value)
       const rsi = calculateLatestRsi(klineData.value)
-      const adx = calculateLatestAdx(klineData.value)
+      const directionIndicators = calculateLatestAdx(klineData.value)
       tooltipData.value = {
         open: latestKline.o,
         high: latestKline.h,
@@ -839,7 +843,7 @@ const showLatestKline = () => {
         emaDiffPercent,
         atrPercent,
         rsi,
-        adx
+        ...directionIndicators
       }
       tooltipTime.value = formatTime(latestKline.t)
       tooltipVisible.value = true

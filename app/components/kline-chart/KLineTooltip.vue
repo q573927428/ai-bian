@@ -74,6 +74,14 @@
           {{ (data.adx ?? 0).toFixed(1) }}
         </span>
       </span>
+      <span class="data-item">
+        <span class="label">PDI:</span>
+        <span class="value price-up">{{ (data.pdi ?? 0).toFixed(1) }}</span>
+      </span>
+      <span class="data-item">
+        <span class="label">MDI:</span>
+        <span class="value price-down">{{ (data.mdi ?? 0).toFixed(1) }}</span>
+      </span>
     </div>
 
     <!-- 图表统计固定在行情数据下方，并与行情数据共用画布内的悬浮定位。 -->
@@ -214,6 +222,8 @@ interface Props {
     atrPercent?: number | null
     rsi?: number | null
     adx?: number | null
+    pdi?: number | null
+    mdi?: number | null
   }
   klineTime?: number
   orders?: TradeHistory[]
