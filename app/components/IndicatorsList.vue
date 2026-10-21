@@ -42,12 +42,12 @@
           <span class="muted"> · {{ row.candleDirectionLabel }}</span>
         </template>
       </el-table-column>
-      <el-table-column label="趋势" min-width="80">
+      <el-table-column label="趋势" min-width="100">
         <template #default="{ row }">
           <div>ADX {{ format(row.adx) }}</div>
           <div class="up">PDI {{ format(row.pdi) }}</div>
           <div class="down">MDI {{ format(row.mdi) }}</div>
-          <span :class="row.diDirection === '多头' ? 'up' : row.diDirection === '空头' ? 'down' : 'muted'">{{ row.diDirection }}</span>
+          <span :class="row.diDirection.startsWith('多头') ? 'up' : row.diDirection.startsWith('空头') ? 'down' : 'muted'">{{ row.diDirection }}</span>
         </template>
       </el-table-column>
       <el-table-column label="EMA" min-width="120">
@@ -128,8 +128,8 @@ interface IndicatorRow {
   symbol: string; price?: number; closeChangePercent?: number; candleDirectionLabel: string
   candleProgressPercent?: number
   adx?: number; rsi?: number; atrPercent?: number; oiChangePercent?: number
-  /** ADX 的正向与负向方向指标及两者比较得出的方向。 */
-  pdi?: number; mdi?: number; diDirection: '多头' | '空头' | '中性' | '--'
+  /** ADX 方向指标及基于后端 DI 差距变化得出的趋势信号。 */
+  pdi?: number; mdi?: number; diDirection: '多头增强' | '多头减弱' | '空头减弱' | '空头增强' | '中性' | '--'
   /** EMA 周期与数值，以及短周期相对长周期的方向。 */
   fastEmaPeriod: number; slowEmaPeriod: number; fastEma?: number; slowEma?: number; emaBullish?: boolean
   macd?: number; macdSignal?: number; macdHistogram?: number
@@ -274,9 +274,7 @@ function toRow(data: any): IndicatorRow {
     candleProgressPercent: Number(data.kline?.candleProgressPercent),
     candleDirectionLabel: data.kline?.candleDirection === 'bullish' ? '阳线' : data.kline?.candleDirection === 'bearish' ? '阴线' : '平',
     adx: Number(adx.adx), rsi: Number(values('rsi').rsi),
-    // DI 差距超过 5 才视为明确方向，避免接近时反复切换多空。
-    pdi, mdi, diDirection: pdi == null || mdi == null || !Number.isFinite(pdi) || !Number.isFinite(mdi)
-      ? '--' : pdi - mdi > 5 ? '多头' : mdi - pdi > 5 ? '空头' : '中性',
+    pdi, mdi, diDirection: diTrendSignal(adx.diSpread, adx.diGapChange),
     fastEmaPeriod: fastPeriod, slowEmaPeriod: slowPeriod, fastEma, slowEma,
     macd: Number(macd.macd), macdSignal: Number(macd.signal), macdHistogram: Number(macd.histogram),
     previousMacd: Number(macd.previousMacd), previousMacdSignal: Number(macd.previousSignal), previousMacdHistogram: Number(macd.previousHistogram),
@@ -288,6 +286,15 @@ function toRow(data: any): IndicatorRow {
       ? undefined : fastEma >= slowEma,
     stale: Number(data?.kline?.dataAgeMs) > 2 * 60 * 60 * 1000
   }
+}
+
+/** 与后端 AI 信号保持一致：当前优势侧配合绝对差距变化，缺失数据不视为中性。 */
+function diTrendSignal(spread: unknown, gapChange: unknown): IndicatorRow['diDirection'] {
+  if (typeof spread !== 'number' || typeof gapChange !== 'number'
+    || !Number.isFinite(spread) || !Number.isFinite(gapChange)) return '--'
+  if (spread === 0 || gapChange === 0) return '中性'
+  if (spread > 0) return gapChange > 0 ? '多头增强' : '多头减弱'
+  return gapChange > 0 ? '空头增强' : '空头减弱'
 }
 
 function format(value?: number) { return value == null || !Number.isFinite(value) ? '--' : value.toFixed(2) }

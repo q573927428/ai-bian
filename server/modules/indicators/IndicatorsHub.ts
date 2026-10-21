@@ -692,6 +692,7 @@ export class IndicatorsHub {
           const adxPeriod = Number(options?.adxPeriod ?? 14)
           const adxValues = ADX.calculate({ period: adxPeriod, high: highs, low: lows, close: closes })
           const latestADX = adxValues[adxValues.length - 1]
+          const previousDI = adxValues[adxValues.length - 2]
           const currentADX = latestADX?.adx ?? 0
           const adxSlopePeriod = this.config.indicatorsConfig?.adxSlopePeriod ?? 3
           const previousADXIndex = Math.max(0, adxValues.length - 1 - adxSlopePeriod)
@@ -702,7 +703,15 @@ export class IndicatorsHub {
             adxSlope: adxSlope,
             // 保留 ADX 同次计算的方向指标；数据不足时不输出，避免被误认为有效方向。
             pdi: latestADX?.pdi,
-            mdi: latestADX?.mdi
+            mdi: latestADX?.mdi,
+            // 固定比较上一根 K 线；不沿用 ADX 斜率回看窗口，缺少历史时保持缺失。
+            previousPdi: previousDI?.pdi,
+            previousMdi: previousDI?.mdi,
+            diSpread: latestADX ? latestADX.pdi - latestADX.mdi : undefined,
+            // 用绝对差距判断扩大/收窄，避免空头优势增强时被有符号差值误导。
+            diGapChange: latestADX && previousDI
+              ? Math.abs(latestADX.pdi - latestADX.mdi) - Math.abs(previousDI.pdi - previousDI.mdi)
+              : undefined
           }
           break
 

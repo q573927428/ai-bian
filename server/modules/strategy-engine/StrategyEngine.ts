@@ -992,6 +992,10 @@ export class StrategyEngine {
         // DI 与 ADX 使用同一策略周期和参数，仅在启用 ADX 时传入 AI。
         pdi: enabledADX ? adxData.pdi : undefined,
         mdi: enabledADX ? adxData.mdi : undefined,
+        previousPdi: enabledADX ? adxData.previousPdi : undefined,
+        previousMdi: enabledADX ? adxData.previousMdi : undefined,
+        diSpread: enabledADX ? adxData.diSpread : undefined,
+        diGapChange: enabledADX ? adxData.diGapChange : undefined,
         openInterest: enabledOI ? indicatorsData.get(`${oiTimeframe}_OI`)?.values?.value : undefined,
         openInterestChangePercent: enabledOI ? indicatorsData.get(`${oiTimeframe}_OI`)?.values?.changePercent : undefined,
         openInterestTrend: enabledOI ? indicatorsData.get(`${oiTimeframe}_OI`)?.values?.trend : undefined,

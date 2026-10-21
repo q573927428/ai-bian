@@ -435,6 +435,15 @@ export class MultiStrategyAIAnalyzer {
       if (indicators.mdi !== undefined) {
         adxLines.push(`- MDI(-DI): ${indicators.mdi.toFixed(2)}`)
       }
+      if (indicators.diSpread !== undefined && indicators.diGapChange !== undefined) {
+        // 方向持平或差距不变时归为中性；缺少历史时不输出信号。
+        const direction = indicators.diSpread > 0 ? '多头' : '空头'
+        const strength = indicators.diGapChange > 0 ? '增强' : '减弱'
+        const signal = indicators.diSpread === 0 || indicators.diGapChange === 0
+          ? '中性'
+          : `${direction}${strength}`
+        adxLines.push(`- DI信号趋势: ${signal}`)
+      }
     }
 
     // OI行

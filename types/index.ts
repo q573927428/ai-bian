@@ -83,6 +83,14 @@ export interface TechnicalIndicators {
   pdi?: number
   /** 负向方向指标（-DI），与 PDI 比较用于判断多空方向 */
   mdi?: number
+  /** 上一根 K 线的 +DI，与当前实时值比较 */
+  previousPdi?: number
+  /** 上一根 K 线的 -DI，用于识别方向交叉 */
+  previousMdi?: number
+  /** 有符号方向差值 PDI - MDI，正数多头占优，负数空头占优 */
+  diSpread?: number
+  /** 绝对差距较上一根 K 线的变化，正数扩大，负数收窄 */
+  diGapChange?: number
   rsi?: number
   macd?: {
     macd: number
