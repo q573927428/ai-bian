@@ -68,6 +68,9 @@ export interface OHLCV {
   low: number
   close: number
   volume: number
+  /** 计价资产成交额与主动买入额；旧数据或非币安数据源可能缺失。 */
+  quoteVolume?: number
+  takerBuyQuoteVolume?: number
 }
 
 // 技术指标

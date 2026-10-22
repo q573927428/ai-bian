@@ -122,6 +122,7 @@ export default defineEventHandler(async (event) => {
       lookbackMinutes,
       trendThresholdPercent: 0.4
     }))] : []),
+    collect('moneyFlow', () => indicatorsHub.getIndicators(indicatorSymbol, timeframe, 'MoneyFlow')),
     collect('volume', () => indicatorsHub.getIndicators(indicatorSymbol, timeframe, 'Volume')),
     ...(includeSlowStats ? [collect('squareHeat', () => indicatorsHub.getIndicators(indicatorSymbol, timeframe, 'SquareHeat', {
       lookbackMinutes: squareHeatWindowMinutes

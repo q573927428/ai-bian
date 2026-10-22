@@ -24,6 +24,8 @@ let dbReady = false
 let dbInitPromise: Promise<void> | null = null
 // 进程内记录最近一次成功写入时间，避免为新鲜度诊断改动现有数据库结构。
 const klineWriteTimes = new Map<string, number>()
+// 同一毫秒内也可能更新多次，独立版本保证主动买入额修订能使缓存失效。
+const klineWriteVersions = new Map<string, number>()
 
 const MAX_BARS = 495
 
@@ -70,6 +72,11 @@ export async function initKLineDb(): Promise<void> {
 
       `)
 
+      // 旧库仅增加可空列，历史缺失值保留 NULL，交由同步服务回填。
+      const columns = db.prepare('PRAGMA table_info(kline_data)').all() as Array<{ name: string }>
+      for (const column of ['quote_volume', 'taker_buy_quote_volume']) {
+        if (!columns.some(item => item.name === column)) db.exec(`ALTER TABLE kline_data ADD COLUMN ${column} REAL`)
+      }
       dbReady = true
       console.log('✅ K线数据库初始化完成，驱动: node:sqlite')
     } catch (error) {
@@ -183,7 +190,9 @@ function runSql(sql: string, params: any[] = []): void {
 
 /** 记录某交易对/周期最近一次成功写入 K 线的本地时间。 */
 function markKLineUpdated(symbol: string, timeframe: KLineTimeframe): void {
-  klineWriteTimes.set(`${normalizeSymbol(symbol)}_${timeframe}`, Date.now())
+  const key = `${normalizeSymbol(symbol)}_${timeframe}`
+  klineWriteTimes.set(key, Date.now())
+  klineWriteVersions.set(key, (klineWriteVersions.get(key) ?? 0) + 1)
 }
 
 /** 获取最近一次成功写入 K 线的时间，用于判断同步是否真正停滞。 */
@@ -215,9 +224,9 @@ export function readSimpleKLineFile(
   const normSymbol = normalizeSymbol(symbol)
   
   const rows = queryAll<{
-    timestamp: number; open: number; high: number; low: number; close: number; volume: number
+    timestamp: number; open: number; high: number; low: number; close: number; volume: number; quote_volume: number | null; taker_buy_quote_volume: number | null
   }>(
-    `SELECT timestamp, open, high, low, close, volume 
+    `SELECT timestamp, open, high, low, close, volume, quote_volume, taker_buy_quote_volume
      FROM kline_data 
      WHERE symbol = ? AND timeframe = ?
      ORDER BY timestamp ASC`,
@@ -232,7 +241,9 @@ export function readSimpleKLineFile(
     h: r.high,
     l: r.low,
     c: r.close,
-    v: r.volume
+    v: r.volume,
+    ...(r.quote_volume == null ? {} : { q: r.quote_volume }),
+    ...(r.taker_buy_quote_volume == null ? {} : { bq: r.taker_buy_quote_volume })
   }))
   
   return {
@@ -264,7 +275,7 @@ export function getSimpleKLineData(
   const normSymbol = normalizeSymbol(symbol)
   const { limit, from, to } = options
   
-  let sql = 'SELECT timestamp, open, high, low, close, volume FROM kline_data WHERE symbol = ? AND timeframe = ?'
+  let sql = 'SELECT timestamp, open, high, low, close, volume, quote_volume, taker_buy_quote_volume FROM kline_data WHERE symbol = ? AND timeframe = ?'
   const params: (string | number)[] = [normSymbol, timeframe]
   
   if (from !== undefined) {
@@ -282,7 +293,7 @@ export function getSimpleKLineData(
     params.push(limit)
     
     const rows = queryAll<{
-      timestamp: number; open: number; high: number; low: number; close: number; volume: number
+      timestamp: number; open: number; high: number; low: number; close: number; volume: number; quote_volume: number | null; taker_buy_quote_volume: number | null
     }>(sql, params)
     
     // 反转回正序
@@ -292,14 +303,16 @@ export function getSimpleKLineData(
       h: r.high,
       l: r.low,
       c: r.close,
-      v: r.volume
+      v: r.volume,
+      ...(r.quote_volume == null ? {} : { q: r.quote_volume }),
+      ...(r.taker_buy_quote_volume == null ? {} : { bq: r.taker_buy_quote_volume })
     }))
   }
   
   sql += ' ORDER BY timestamp ASC'
   
   const rows = queryAll<{
-    timestamp: number; open: number; high: number; low: number; close: number; volume: number
+    timestamp: number; open: number; high: number; low: number; close: number; volume: number; quote_volume: number | null; taker_buy_quote_volume: number | null
   }>(sql, params)
   
   return rows.map(r => ({
@@ -308,7 +321,9 @@ export function getSimpleKLineData(
     h: r.high,
     l: r.low,
     c: r.close,
-    v: r.volume
+    v: r.volume,
+    ...(r.quote_volume == null ? {} : { q: r.quote_volume }),
+    ...(r.taker_buy_quote_volume == null ? {} : { bq: r.taker_buy_quote_volume })
   }))
 }
 
@@ -391,15 +406,17 @@ export function getSimpleKLineAsOHLCV(
     high: item.h,
     low: item.l,
     close: item.c,
-    volume: item.v
+    volume: item.v,
+    quoteVolume: item.q,
+    takerBuyQuoteVolume: item.bq
   }))
 }
 
 /**
  * 获取最后更新标识（解决 volume 更新不感知问题）
  * 
- * 返回字符串复合标识：`最大时间戳_最后一根K线volume`，
- * 只要 timestamp 或 volume 任意一个变了，返回值就不同。
+ * 返回时间戳、末根成交量与进程内写入版本的复合标识。
+ * 资金字段回填、独立修订以及同一毫秒内写入也能触发缓存刷新。
  * 使用字符串拼接，永不溢出、永不碰撞。
  */
 export function getKLineFileMTime(
@@ -423,7 +440,7 @@ export function getKLineFileMTime(
   )
   if (!row || row.last_ts === null) return null
   // 关键：字符串组合，永不重复
-  return `${row.last_ts}_${row.last_volume ?? 0}`
+  return `${row.last_ts}_${row.last_volume ?? 0}_${klineWriteVersions.get(`${normSymbol}_${timeframe}`) ?? 0}`
 }
 
 /**
@@ -499,9 +516,9 @@ export function writeSimpleKLineFile(
       
       // 插入所有数据
       executePreparedBatch(
-        `INSERT OR REPLACE INTO kline_data (symbol, timeframe, timestamp, open, high, low, close, volume)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        limitedData.map(item => [normSymbol, timeframe, item.timestamp, item.open, item.high, item.low, item.close, item.volume])
+        `INSERT OR REPLACE INTO kline_data (symbol, timeframe, timestamp, open, high, low, close, volume, quote_volume, taker_buy_quote_volume)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        limitedData.map(item => [normSymbol, timeframe, item.timestamp, item.open, item.high, item.low, item.close, item.volume, item.quoteVolume ?? null, item.takerBuyQuoteVolume ?? null])
       )
 
       runSql('COMMIT')
@@ -536,9 +553,9 @@ export function appendSimpleKLineData(
       
       // 插入新数据（INSERT OR REPLACE 自动去重）
       executePreparedBatch(
-        `INSERT OR REPLACE INTO kline_data (symbol, timeframe, timestamp, open, high, low, close, volume)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        sortedNewData.map(item => [normSymbol, timeframe, item.timestamp, item.open, item.high, item.low, item.close, item.volume])
+        `INSERT OR REPLACE INTO kline_data (symbol, timeframe, timestamp, open, high, low, close, volume, quote_volume, taker_buy_quote_volume)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        sortedNewData.map(item => [normSymbol, timeframe, item.timestamp, item.open, item.high, item.low, item.close, item.volume, item.quoteVolume ?? null, item.takerBuyQuoteVolume ?? null])
       )
 
       // 删除超出 MAX_BARS 的旧数据
@@ -598,9 +615,9 @@ export function updateLastKLine(
   try {
       execute(
       `UPDATE kline_data 
-       SET open = ?, high = ?, low = ?, close = ?, volume = ?
+       SET open = ?, high = ?, low = ?, close = ?, volume = ?, quote_volume = ?, taker_buy_quote_volume = ?
        WHERE symbol = ? AND timeframe = ? AND timestamp = ?`,
-      [bar.open, bar.high, bar.low, bar.close, bar.volume, normSymbol, timeframe, bar.timestamp]
+      [bar.open, bar.high, bar.low, bar.close, bar.volume, bar.quoteVolume ?? null, bar.takerBuyQuoteVolume ?? null, normSymbol, timeframe, bar.timestamp]
       )
     markKLineUpdated(normSymbol, timeframe)
     return true
@@ -722,4 +739,13 @@ export function getLocal24hStatsPrecise(symbol: string): {
     change24hPercent,
     volume24h: Number(volume24h.toFixed(2))
   }
+}
+
+/** 检查已有币安历史是否缺少资金字段，下一次常规同步按原限流流程回填。 */
+export function hasMissingMoneyFlow(symbol: string, timeframe: KLineTimeframe): boolean {
+  return !!queryOne<{ timestamp: number }>(
+    `SELECT timestamp FROM kline_data WHERE symbol = ? AND timeframe = ?
+     AND (quote_volume IS NULL OR taker_buy_quote_volume IS NULL) LIMIT 1`,
+    [normalizeSymbol(symbol), timeframe]
+  )
 }

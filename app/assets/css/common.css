@@ -93,10 +93,15 @@
   /* 表格样式 */
   --table-header-bg: #f5f7fa;
   --table-header-color: #303133;
+  /* 抽屉滚动条使用中性灰，避免浅色轨道在暗色面板上突兀。 */
+  --drawer-scrollbar-thumb: #c0c4cc;
+  --drawer-scrollbar-thumb-hover: #909399;
 }
 
 /* 暗色主题 */
 :root.dark {
+  --drawer-scrollbar-thumb: #4c4d4f;
+  --drawer-scrollbar-thumb-hover: #73767a;
   --bg-main: #141414;
   --bg-card: #1d1e1f;
   --bg-page: #141414;
@@ -260,6 +265,48 @@ body.el-popup-parent--hidden {
 .el-drawer:not(.macro-drawer) .el-drawer__body {
   background: var(--bg-card);
   color: var(--text-regular);
+}
+
+/* 原生滚动条与 Element Plus 自绘滚动条统一跟随根主题，适配 Teleport 抽屉。 */
+.el-drawer {
+  color-scheme: light;
+  scrollbar-color: var(--drawer-scrollbar-thumb) var(--bg-card);
+}
+
+html.dark .el-drawer {
+  color-scheme: dark;
+}
+
+.el-drawer .el-drawer__body,
+.el-drawer .el-scrollbar__wrap {
+  scrollbar-width: thin;
+}
+
+.el-drawer ::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.el-drawer ::-webkit-scrollbar-track,
+.el-drawer ::-webkit-scrollbar-corner {
+  background: var(--bg-card);
+}
+
+.el-drawer ::-webkit-scrollbar-thumb {
+  background: var(--drawer-scrollbar-thumb);
+  border: 2px solid var(--bg-card);
+  border-radius: 8px;
+}
+
+.el-drawer ::-webkit-scrollbar-thumb:hover {
+  background: var(--drawer-scrollbar-thumb-hover);
+}
+
+.el-drawer .el-scrollbar {
+  --el-scrollbar-bg-color: var(--drawer-scrollbar-thumb);
+  --el-scrollbar-hover-bg-color: var(--drawer-scrollbar-thumb-hover);
+  --el-scrollbar-opacity: 1;
+  --el-scrollbar-hover-opacity: 1;
 }
 
 /* Element Plus 全局暗色 CSS 变量覆写（解决 el-select popper 白底等问题） */

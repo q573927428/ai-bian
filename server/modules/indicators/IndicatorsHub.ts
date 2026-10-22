@@ -1,5 +1,6 @@
 // ==================== 指标统一获取与缓存中心 ====================
 
+import { calculateMoneyFlow } from '../../utils/money-flow'
 import { EMA, RSI, ADX, ATR, MACD } from 'technicalindicators'
 import type {
   IndicatorData,
@@ -481,6 +482,14 @@ export class IndicatorsHub {
     }
   ): Promise<IndicatorData> {
     const symbolData = this.getOrCreateSymbolData(symbol)
+
+    if (type === 'MoneyFlow') {
+      // 从已加载 K 线计算，沿用 K 线事件驱动更新，避免另建易失效缓存。
+      return {
+        symbol, timeframe, timestamp: Date.now(),
+        values: calculateMoneyFlow(this.getKlines(symbol, timeframe) || [], this.timeframeToMinutes(timeframe) * 60_000)
+      }
+    }
 
     if (type === 'EMA') {
       throw new Error(`${symbol} ${timeframe} EMA 需通过 getEMAByPeriods(symbol, timeframe, periods) 获取`)

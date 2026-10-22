@@ -4,7 +4,7 @@
     class="indicators-drawer"
     title="指标看板"
     direction="rtl"
-    size="75%"
+    size="max(75vw, min(100vw, 1320px))"
     destroy-on-close
   >
     <div class="toolbar">
@@ -23,8 +23,8 @@
     </div>
 
     <el-alert v-if="errorMessage" type="warning" :closable="false" show-icon>{{ errorMessage }}</el-alert>
-    <el-table v-loading="loading" class="indicators-table" :data="filteredRows" :empty-text="rows.length ? '当前筛选下暂无交易对' : '暂无已配置交易对或指标数据'" stripe size="small" style="width: 100%" @sort-change="handleSortChange">
-      <el-table-column prop="symbol" label="交易对" fixed min-width="125">
+    <el-table v-loading="loading" class="indicators-table" height="100%" :data="filteredRows" :empty-text="rows.length ? '当前筛选下暂无交易对' : '暂无已配置交易对或指标数据'" stripe size="small" style="width: 100%" @sort-change="handleSortChange">
+      <el-table-column prop="symbol" label="交易对" fixed min-width="110">
         <template #default="{ row }">
           <button type="button" class="symbol-cell symbol-link" :title="`查看 ${row.symbol} ${timeframe} 图表`" @click="selectChart(row.symbol)">
             <img
@@ -52,14 +52,14 @@
           </div>
         </template>
       </el-table-column>
-      <el-table-column label="价格 / K线" min-width="120">
+      <el-table-column label="价格 / K线" min-width="100">
         <template #default="{ row }">
           <div>{{ formatPrice(row.price) }}</div>
           <span :class="directionClass(row.closeChangePercent)">{{ signed(row.closeChangePercent) }}%</span>
           <span class="muted"> · {{ row.candleDirectionLabel }}</span>
         </template>
       </el-table-column>
-      <el-table-column label="趋势" min-width="100">
+      <el-table-column label="趋势" min-width="85">
         <template #default="{ row }">
           <div>ADX {{ format(row.adx) }}</div>
           <div class="up">PDI {{ format(row.pdi) }}</div>
@@ -67,17 +67,17 @@
           <span :class="[row.diDirection.startsWith('多头') ? 'up' : row.diDirection.startsWith('空头') ? 'down' : 'muted', { 'macd-weakening': row.diDirection.endsWith('减弱') }]">{{ row.diDirection }}</span>
         </template>
       </el-table-column>
-      <el-table-column label="EMA" min-width="120">
+      <el-table-column label="EMA" min-width="105">
         <template #default="{ row }">
           <div>EMA{{ row.fastEmaPeriod }} {{ formatPrice(row.fastEma) }}</div>
           <div>EMA{{ row.slowEmaPeriod }} {{ formatPrice(row.slowEma) }}</div>
           <span :class="row.emaBullish == null ? 'muted' : row.emaBullish ? 'up' : 'down'">{{ row.emaBullish == null ? '--' : row.emaBullish ? '多头' : '空头' }}</span>
         </template>
       </el-table-column>
-      <el-table-column label="RSI" min-width="70" sortable="custom" prop="rsi">
+      <el-table-column label="RSI" align="center" header-align="center" min-width="55" sortable="custom" prop="rsi">
         <template #default="{ row }"><span :class="rsiClass(row.rsi)">{{ format(row.rsi) }}</span></template>
       </el-table-column>
-      <el-table-column label="MACD 实时" min-width="320" sortable="custom" prop="macdHistogram">
+      <el-table-column label="MACD 实时" min-width="250" sortable="custom" prop="macdHistogram">
         <template #default="{ row }">
           <div class="macd-cell">
             <div class="macd-state-line">
@@ -111,23 +111,51 @@
           </div>
         </template>
       </el-table-column>
-      <el-table-column label="ATR%" min-width="75" prop="atrPercent" sortable="custom">
-        <template #default="{ row }">{{ format(row.atrPercent) }}%</template>
-      </el-table-column>
-      <el-table-column label="OI变化" min-width="80" prop="oiChangePercent" sortable="custom">
+      <el-table-column label="OI变化" align="center" header-align="center" min-width="65" prop="oiChangePercent" sortable="custom">
         <template #default="{ row }"><span :class="directionClass(row.oiChangePercent)">{{ signed(row.oiChangePercent) }}%</span></template>
       </el-table-column>
-      <el-table-column label="预量比" min-width="80" prop="volumeRatio" sortable="custom">
+      <el-table-column label="预量比" align="center" header-align="center" min-width="65" prop="volumeRatio" sortable="custom">
         <template #default="{ row }">{{ format(row.volumeRatio) }}x</template>
       </el-table-column>
-      <el-table-column label="进度%" min-width="80" prop="candleProgressPercent" sortable="custom">
+      <el-table-column label="资金流" width="145" prop="netInflowPercent" sortable="custom">
+        <template #default="{ row }">
+          <el-tooltip placement="top">
+            <template #content>
+              <div v-for="(line, index) in [row.moneyFlowTooltip, row.cumulativeFlowTooltip].join('\n').split('\n')" :key="index">{{ line }}</div>
+            </template>
+            <div class="flow-cell">
+              <div class="flow-row">
+                <span class="muted">本根</span>
+                <span>{{ formatFlowAmount(row.netInflow) }}</span>
+                <span :class="flowDirectionClass(row.netInflowPercent)">{{ signed(row.netInflowPercent) }}{{ row.netInflowPercent == null ? '' : '%' }}</span>
+              </div>
+              <div class="flow-row flow-secondary">
+                <span class="muted">5根</span>
+                <span>{{ formatFlowAmount(row.cumulativeNetInflow) }}</span>
+                <span :class="flowDirectionClass(row.cumulativeNetInflowPercent)">{{ signed(row.cumulativeNetInflowPercent) }}{{ row.cumulativeNetInflowPercent == null ? '' : '%' }}</span>
+              </div>
+            </div>
+          </el-tooltip>
+        </template>
+      </el-table-column>
+      <el-table-column label="ATR%" align="center" header-align="center" min-width="60" prop="atrPercent" sortable="custom">
+        <template #default="{ row }">{{ format(row.atrPercent) }}%</template>
+      </el-table-column>
+      <el-table-column label="社区情绪" min-width="80">
+        <template #default="{ row }">
+          <el-tooltip placement="top">
+            <template #content>
+              <div v-for="(line, index) in row.sentimentTooltip.split('\n')" :key="index">{{ line }}</div>
+            </template>
+            <div class="sentiment-cell">
+              <div :class="sentimentClass(row.sentiment)">{{ row.sentimentLabel }}<span v-if="row.sentiment != null"> {{ signed(row.sentiment) }}%</span></div>
+              <div class="muted">多 {{ row.bullishCount ?? '--' }} / 空 {{ row.bearishCount ?? '--' }}</div>
+            </div>
+          </el-tooltip>
+        </template>
+      </el-table-column>
+      <el-table-column label="进度%" align="center" header-align="center" min-width="65" prop="candleProgressPercent" sortable="custom">
         <template #default="{ row }">{{ format(row.candleProgressPercent) }}%</template>
-      </el-table-column>
-      <el-table-column label="社区情绪" min-width="70">
-        <template #default="{ row }"><span :class="sentimentClass(row.sentiment)">{{ row.sentimentLabel }}</span></template>
-      </el-table-column>
-      <el-table-column label="数据" min-width="50">
-        <template #default="{ row }"><span :class="row.stale ? 'down' : 'up'">{{ row.stale ? '偏旧' : '正常' }}</span></template>
       </el-table-column>
     </el-table>
     <el-empty v-if="!loading && rows.length === 0" description="暂无已配置交易对或指标数据" />
@@ -152,7 +180,12 @@ interface IndicatorRow {
   macd?: number; macdSignal?: number; macdHistogram?: number
   previousMacd?: number; previousMacdSignal?: number; previousMacdHistogram?: number
   macdCrossover: 'golden' | 'dead' | 'none'; macdHistogramTrend: 'rising' | 'falling' | 'flat'
+  /** 计价资产资金流，保留缺失状态，避免 Number(null) 变为零。 */
+  netInflow?: number; netInflowPercent?: number; cumulativeNetInflow?: number; cumulativeNetInflowPercent?: number
+  moneyFlowTooltip: string; cumulativeFlowTooltip: string
   volumeRatio?: number; sentiment?: number; sentimentLabel: string; stale: boolean
+  /** 情绪样本量与解释信息，随后台慢统计一并补齐。 */
+  bullishCount?: number; bearishCount?: number; sentimentTooltip: string
 }
 
 /** 指标抽屉的外部控制参数。 */
@@ -196,7 +229,7 @@ const filteredRows = computed(() => signalFilter.value === '全部'
 const periodSignals = ref<Record<string, Partial<Record<string, IndicatorRow['diDirection']>>>>({})
 let fetchVersion = 0
 type SortOrder = 'ascending' | 'descending' | null
-type SortProp = 'candleProgressPercent' | 'rsi' | 'macdHistogram' | 'atrPercent' | 'oiChangePercent' | 'volumeRatio' | null
+type SortProp = 'candleProgressPercent' | 'rsi' | 'macdHistogram' | 'atrPercent' | 'oiChangePercent' | 'volumeRatio' | 'netInflowPercent' | 'cumulativeNetInflow' | null
 const sortProp = ref<SortProp>(null)
 const sortOrder = ref<SortOrder>(null)
 const symbols = computed<string[]>(() => {
@@ -321,7 +354,10 @@ async function enrichSlowStats(version: number, requestedTimeframe: string) {
           ...current,
           oiChangePercent: next.oiChangePercent,
           sentiment: next.sentiment,
-          sentimentLabel: next.sentimentLabel
+          sentimentLabel: next.sentimentLabel,
+          bullishCount: next.bullishCount,
+          bearishCount: next.bearishCount,
+          sentimentTooltip: next.sentimentTooltip
         }
       }
     } catch {
@@ -347,7 +383,7 @@ function applySort() {
 
 /** 接收 Element Plus 的自定义排序事件，并在当前已加载数据上即时排序。 */
 function handleSortChange({ prop, order }: { prop?: string | null; order?: string | null }) {
-  sortProp.value = (['candleProgressPercent', 'rsi', 'macdHistogram', 'atrPercent', 'oiChangePercent', 'volumeRatio'] as string[]).includes(prop || '')
+  sortProp.value = (['candleProgressPercent', 'rsi', 'macdHistogram', 'atrPercent', 'oiChangePercent', 'volumeRatio', 'netInflowPercent', 'cumulativeNetInflow'] as string[]).includes(prop || '')
     ? prop as SortProp
     : null
   sortOrder.value = order === 'ascending' || order === 'descending' ? order : null
@@ -367,8 +403,26 @@ function toRow(data: any): IndicatorRow {
   const pdi = adx.pdi == null ? undefined : Number(adx.pdi)
   const mdi = adx.mdi == null ? undefined : Number(adx.mdi)
   const macd = values('macd')
+  const flow = values('moneyFlow')
+  // 资金流窗口只展示月日与时分，避免重复年份和秒数挤占提示宽度。
+  const flowTime = (timestamp: number) => new Date(timestamp).toLocaleString('zh-CN', {
+    month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false
+  })
+  const flowWindow = flow.startTimestamp && flow.endTimestamp
+    ? `${flowTime(flow.startTimestamp)} — ${flowTime(flow.endTimestamp)}` : '暂无数据'
   const heat = values('squareHeat')
-  const sentiment = Number(heat.netDirectionalSentimentPercent ?? heat.changePercent)
+  const bullishCount = finiteNumber(heat.bullishCount)
+  const bearishCount = finiteNumber(heat.bearishCount)
+  // 热度涨跌不代表多空情绪；没有方向样本时也不能将默认零值解读成中性。
+  const sentiment = bullishCount != null && bearishCount != null && bullishCount + bearishCount > 0
+    ? finiteNumber(heat.netDirectionalSentimentPercent) : undefined
+  const windowMinutes = finiteNumber(data?.parameters?.squareHeatWindowMinutes)
+  const sentimentTooltip = [
+    `总帖数：${finiteNumber(heat.postCount) ?? '--'}`,
+    `方向覆盖：${format(finiteNumber(heat.directionalCoveragePercent))}%`,
+    `热度变化：${signed(finiteNumber(heat.changePercent))}%`,
+    `统计窗口：${windowMinutes == null ? '--' : windowMinutes % 60 === 0 ? `${windowMinutes / 60}小时` : `${windowMinutes}分钟`}`
+  ].join('\n')
   return {
     symbol: data.symbol, price, closeChangePercent: Number(data.kline?.closeChangePercent),
     candleProgressPercent: Number(data.kline?.candleProgressPercent),
@@ -380,7 +434,15 @@ function toRow(data: any): IndicatorRow {
     previousMacd: Number(macd.previousMacd), previousMacdSignal: Number(macd.previousSignal), previousMacdHistogram: Number(macd.previousHistogram),
     macdCrossover: normalizeCrossover(macd.crossover), macdHistogramTrend: normalizeHistogramTrend(macd.histogramTrend),
     atrPercent: price > 0 ? atr / price * 100 : undefined, oiChangePercent: Number(values('oi').changePercent),
-    volumeRatio: Number(values('volume').ratio), sentiment, sentimentLabel: Number.isFinite(sentiment) ? (sentiment > 0 ? '偏多' : sentiment < 0 ? '偏空' : '中性') : '--',
+    netInflow: flow.netInflow ?? undefined,
+    netInflowPercent: flow.netInflowPercent ?? undefined,
+    cumulativeNetInflow: flow.cumulativeNetInflow ?? undefined,
+    cumulativeNetInflowPercent: flow.cumulativeNetInflowPercent ?? undefined,
+    moneyFlowTooltip: `本根成交：${formatFlowAmount(flow.quoteVolume)}\n主动买入：${formatFlowAmount(flow.takerBuyQuoteVolume)}`,
+    cumulativeFlowTooltip: `近5根：${flowWindow}\n${flow.complete ? '累计比例 = 净流入 / 成交额' : '数据不足，等待补齐'}`,
+    volumeRatio: Number(values('volume').ratio), sentiment,
+    sentimentLabel: sentiment == null ? '--' : sentiment > 0 ? '偏多' : sentiment < 0 ? '偏空' : '中性',
+    bullishCount, bearishCount, sentimentTooltip,
     // dataAgeMs 由服务端按最近一次成功写入时间计算，不再使用 K 线开盘时间。
     emaBullish: fastEma == null || slowEma == null || !Number.isFinite(fastEma) || !Number.isFinite(slowEma)
       ? undefined : fastEma >= slowEma,
@@ -397,9 +459,28 @@ function diTrendSignal(spread: unknown, gapChange: unknown): IndicatorRow['diDir
   return gapChange > 0 ? '空头增强' : '空头减弱'
 }
 
+/** 资金金额省略币种单位，保留万、亿缩写；缺失显示 --。 */
+function formatFlowAmount(value?: number | null): string {
+  if (value == null || !Number.isFinite(value)) return '--'
+  const amount = Math.abs(value)
+  const unit = amount >= 1e8 ? '亿' : amount >= 1e4 ? '万' : ''
+  const divisor = amount >= 1e8 ? 1e8 : amount >= 1e4 ? 1e4 : 1
+  return `${value > 0 ? '+' : ''}${(value / divisor).toFixed(2)}${unit}`
+}
+
+/** 保留零值，避免空值被转换成有效的零样本或零情绪。 */
+function finiteNumber(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) ? value : undefined
+}
+
 function format(value?: number) { return value == null || !Number.isFinite(value) ? '--' : value.toFixed(2) }
 function signed(value?: number) { return value == null || !Number.isFinite(value) ? '--' : `${value >= 0 ? '+' : ''}${value.toFixed(2)}` }
 function formatPrice(value?: number) { return value == null || !Number.isFinite(value) ? '--' : value.toLocaleString('en-US', { maximumFractionDigits: value < 1 ? 6 : 2 }) }
+/** 资金流只为有效非零数值着色，零值和缺失值沿用正文颜色。 */
+function flowDirectionClass(value?: number) {
+  return value == null || !Number.isFinite(value) || value === 0 ? '' : value > 0 ? 'up' : 'down'
+}
+
 function directionClass(value?: number) { return value == null ? 'muted' : value >= 0 ? 'up' : 'down' }
 /** 情绪中性时使用灰色，避免将零值误解为偏多。 */
 function sentimentClass(value?: number) { return value == null || !Number.isFinite(value) ? 'muted' : value > 0 ? 'up' : value < 0 ? 'down' : 'muted' }
@@ -427,12 +508,15 @@ function placeholderColor(symbol: string) {
   return `hsl(${Math.abs(hash) % 360} 48% 42%)`
 }
 
-/** MACD 根据绝对值自适应精度，避免低价格标的被显示为 0.00。 */
+/** 大值最多两位小数，小值保留三位有效数字；统一普通小数，便于直接比较。 */
 function formatMacd(value?: number) {
   if (value == null || !Number.isFinite(value)) return '--'
+  if (value === 0) return '0'
   const absolute = Math.abs(value)
-  const digits = absolute >= 1000 ? 2 : absolute >= 1 ? 4 : absolute >= 0.01 ? 5 : 7
-  return value.toFixed(digits)
+  // 去掉末尾补零，压缩展示宽度；仅影响显示，不改变指标计算和排序精度。
+  return absolute >= 1
+    ? value.toLocaleString('en-US', { useGrouping: false, maximumFractionDigits: 2 })
+    : value.toLocaleString('en-US', { useGrouping: false, maximumSignificantDigits: 3 })
 }
 
 /** 为柱体保留正负号，便于快速分辨零轴方向。 */
@@ -499,7 +583,7 @@ watch(visible, value => {
 .toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 16px; }
 .refresh-button { margin-left: auto; }
 .up { color: var(--el-color-success); }.down { color: var(--el-color-danger); }.muted { color: var(--el-text-color-secondary); }
-.symbol-cell { display: flex; align-items: center; gap: 7px; white-space: nowrap; }
+.symbol-cell { display: flex; align-items: center; gap: 4px; white-space: nowrap; }
 .symbol-link { padding: 0; border: 0; background: transparent; color: inherit; font: inherit; cursor: pointer; text-align: left; }
 .symbol-link:hover { color: var(--el-color-primary); }
 .symbol-link:focus-visible { outline: 2px solid var(--el-color-primary); outline-offset: 3px; border-radius: 3px; }
@@ -510,8 +594,14 @@ watch(visible, value => {
 .coin-icon, .coin-icon-placeholder { width: 18px; height: 18px; flex: 0 0 18px; border-radius: 50%; }
 .coin-icon { display: block; object-fit: cover; }
 .coin-icon-placeholder { display: inline-flex; align-items: center; justify-content: center; color: #fff; font-size: 10px; font-weight: 600; line-height: 1; }
-.macd-cell { display: flex; flex-direction: column; gap: 3px; min-width: 296px; line-height: 1.35; }
-.macd-state-line, .macd-values { display: grid; align-items: center; column-gap: 6px; }
+.macd-cell { display: flex; flex-direction: column; gap: 3px; min-width: 0; line-height: 1.35; }
+.flow-cell { display: grid; grid-template-columns: 24px max-content max-content; column-gap: 6px; row-gap: 3px; width: max-content; font-weight: 400; line-height: 1.35; }
+/* 两行共享内容宽度，不再让金额列拉伸填满整列，避免标签与金额之间出现大块留白。 */
+.flow-row { display: contents; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.flow-row > span:not(:first-child) { text-align: right; }
+.flow-secondary > span { opacity: .7; }
+.sentiment-cell { display: flex; flex-direction: column; gap: 3px; line-height: 1.35; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.macd-state-line, .macd-values { display: grid; align-items: center; column-gap: 4px; }
 .macd-state-line { grid-template-columns: 55px 52px minmax(0, 1fr); }
 .macd-values { grid-template-columns: 28px repeat(3, minmax(0, 1fr)); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .macd-values > span:not(:first-child) { text-align: right; }
@@ -528,7 +618,19 @@ watch(visible, value => {
 .macd-chart-bar { position: absolute; top: 0; height: 100%; background: currentColor; opacity: .18; }
 .previous-values .macd-chart-bar { opacity: .12; }
 
+/* 表格占用工具栏下方剩余高度，交给组件内部滚动，保持表头与横向滚动同步。 */
+:global(.indicators-drawer .el-drawer__body) {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.toolbar { flex-shrink: 0; }
+
 :global(.indicators-drawer .indicators-table) {
+  flex: 1;
+  min-height: 0;
   /* 加载遮罩沿用表格卡片背景，避免暗色主题下出现 Element Plus 默认白底。 */
   --el-mask-color: var(--bg-card);
   --el-table-header-bg-color: var(--bg-table-header);
@@ -542,6 +644,22 @@ watch(visible, value => {
 
 :global(.indicators-drawer .el-empty__description p) {
   color: var(--text-secondary);
+}
+
+/* 统一收紧单元格留白，保留排序箭头与数字间距，不通过缩小字号挤压内容。 */
+:global(.indicators-drawer .indicators-table .cell) {
+  padding-left: 4px;
+  padding-right: 4px;
+}
+
+/* 使用淡竖线明确列边界，保留现有横线和斑马纹，避免完整网格过于抢眼。 */
+:global(.indicators-drawer .indicators-table .el-table__cell:not(:last-child)) {
+  border-right: 1px solid color-mix(in srgb, var(--border-color) 60%, transparent);
+}
+
+:global(.indicators-drawer .el-drawer__body) {
+  padding-left: 12px;
+  padding-right: 12px;
 }
 
 @media (max-width: 768px) {

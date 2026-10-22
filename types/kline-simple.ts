@@ -11,6 +11,8 @@ export interface SimpleKLineData {
   l: number      // low 最低价
   c: number      // close 收盘价
   v: number      // volume 成交量
+  q?: number     // 计价资产成交额；历史缺失时不填，不能视为零
+  bq?: number    // 计价资产主动买入额
 }
 
 // 完整的K线数据条目（用于内部处理）
@@ -21,6 +23,8 @@ export interface KLineData {
   low: number
   close: number
   volume: number
+  quoteVolume?: number
+  takerBuyQuoteVolume?: number
 }
 
 // 单文件K线数据格式

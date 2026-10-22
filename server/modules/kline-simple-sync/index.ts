@@ -1,4 +1,4 @@
-import { appendSimpleKLineData, getSimpleLastKLineTimestamp, updateLastKLine, deleteKLineFile } from '../../utils/kline-simple-storage'
+import { appendSimpleKLineData, getSimpleLastKLineTimestamp, updateLastKLine, deleteKLineFile, hasMissingMoneyFlow } from '../../utils/kline-simple-storage'
 import type { KLineData, KLineTimeframe, KLineSyncConfig, TimeframeSyncConfig } from '../../../types/kline-simple'
 import { DEFAULT_CONFIG } from '../../../types/kline-simple'
 import {
@@ -273,7 +273,10 @@ export class KLineSimpleSyncService {
         high: parseFloat(item[2]),
         low: parseFloat(item[3]),
         close: parseFloat(item[4]),
-        volume: parseFloat(item[5])
+        volume: parseFloat(item[5]),
+        // 保存原始计价资产金额，净流入由指标中心统一计算。
+        quoteVolume: item[7] == null ? undefined : parseFloat(item[7]),
+        takerBuyQuoteVolume: item[10] == null ? undefined : parseFloat(item[10])
       }))
       
     } catch (error) {
@@ -321,7 +324,8 @@ export class KLineSimpleSyncService {
       // 获取最后一条数据的时间戳
       let lastTimestamp = getSimpleLastKLineTimestamp(symbol, timeframe)
       
-      if (!lastTimestamp || force) {
+      // 旧库缺少资金字段时，复用历史同步与限流，不在看板读取时发起外部请求。
+      if (!lastTimestamp || force || hasMissingMoneyFlow(symbol, timeframe)) {
         // 首次同步或强制同步，使用manualSyncHistory获取maxBars条数据
         console.log(`[首次同步] 开始获取历史数据: ${symbol}/${timeframe}`)
         const historyResult = await this.manualSyncHistory(symbol, timeframe, {
@@ -330,6 +334,11 @@ export class KLineSimpleSyncService {
         })
         
         if (historyResult.success) {
+          // 回填也必须通知指标中心，避免历史字段补齐后仍读取旧缓存。
+          this.eventEmitter.emit('klineUpdated', {
+            symbol, timeframe, type: 'append',
+            timestamp: getSimpleLastKLineTimestamp(symbol, timeframe)
+          })
           this.updateStatus(symbol, timeframe, { 
             status: 'idle', 
             lastSyncTime: Math.floor(Date.now() / 1000),

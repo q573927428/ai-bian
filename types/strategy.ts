@@ -58,7 +58,7 @@ export interface AIInput {
 export type IndicatorType = 'EMA' | 'RSI' | 'MACD' | 'ATR' | 'ADX';
 
 // 统计数据类型
-export type StatisticsType = 'OI' | 'Volume' | 'SquareHeat';
+export type StatisticsType = 'OI' | 'Volume' | 'SquareHeat' | 'MoneyFlow';
 
 // AI提供商类型
 export type AIProvider = 'deepseek' | 'doubao' | 'doubao-agent' | 'qwen' | 'openai';
