@@ -26,7 +26,7 @@
     <el-table v-loading="loading" class="indicators-table" :data="filteredRows" :empty-text="rows.length ? '当前筛选下暂无交易对' : '暂无已配置交易对或指标数据'" stripe size="small" style="width: 100%" @sort-change="handleSortChange">
       <el-table-column prop="symbol" label="交易对" fixed min-width="125">
         <template #default="{ row }">
-          <div class="symbol-cell">
+          <button type="button" class="symbol-cell symbol-link" :title="`查看 ${row.symbol} ${timeframe} 图表`" @click="selectChart(row.symbol)">
             <img
               v-if="!iconFailed[row.symbol] && coinIconUrl(row.symbol)"
               :src="coinIconUrl(row.symbol)"
@@ -38,7 +38,7 @@
               {{ baseAsset(row.symbol).slice(0, 1) }}
             </span>
             <span>{{ row.symbol }}</span>
-          </div>
+          </button>
           <div class="resonance" :class="signalClass(resonanceSignal(row.symbol))" :title="resonanceTitle(row.symbol)" :aria-label="resonanceTitle(row.symbol)">
             <!-- 方向与增强/减弱分开展示，避免把趋势回调误读为没有方向。 -->
             <span
@@ -163,6 +163,7 @@ interface Props {
 /** 指标抽屉向父组件同步开关状态的事件。 */
 interface Emits {
   (event: 'update:modelValue', value: boolean): void
+  (event: 'select-symbol', symbol: string, timeframe: string): void
 }
 
 const props = defineProps<Props>()
@@ -175,6 +176,13 @@ const botStore = useBotStore()
 const { getCoinIconUrl } = useCoinIcon()
 const iconFailed = ref<Record<string, boolean>>({})
 const timeframe = ref('1h')
+
+/** 将看板当前交易对和周期同步到首页，关闭抽屉以展示图表。 */
+function selectChart(symbol: string) {
+  emit('select-symbol', symbol, timeframe.value)
+  visible.value = false
+}
+
 const timeframes = ['5m', '15m', '1h', '4h', '1d']
 const rows = ref<IndicatorRow[]>([])
 const loading = ref(false)
@@ -490,6 +498,9 @@ watch(visible, value => {
 .refresh-button { margin-left: auto; }
 .up { color: var(--el-color-success); }.down { color: var(--el-color-danger); }.muted { color: var(--el-text-color-secondary); }
 .symbol-cell { display: flex; align-items: center; gap: 7px; white-space: nowrap; }
+.symbol-link { padding: 0; border: 0; background: transparent; color: inherit; font: inherit; cursor: pointer; text-align: left; }
+.symbol-link:hover { color: var(--el-color-primary); }
+.symbol-link:focus-visible { outline: 2px solid var(--el-color-primary); outline-offset: 3px; border-radius: 3px; }
 .resonance { display: grid; grid-template-columns: repeat(5, 8px); align-items: center; gap: 3px; margin-top: 6px; padding-left: 25px; min-height: 12px; font-size: 11px; }
 .resonance-dot { width: 8px; height: 8px; flex: 0 0 8px; border-radius: 3px; background: currentColor; }
 .resonance-dot.trend-weakening { opacity: .4; }

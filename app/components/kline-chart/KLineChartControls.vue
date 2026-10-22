@@ -562,7 +562,7 @@ watch(() => props.scanTimeRange, (newRange) => {
 }
 
 .timeframe-select {
-  width: 98px;
+  width: 78px;
   flex-shrink: 0;
 }
 

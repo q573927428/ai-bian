@@ -153,7 +153,7 @@
 
             <!-- 技术指标抽屉由状态面板卡片内按钮打开 -->
             <ClientOnly>
-              <IndicatorsList v-model="showIndicatorsDrawer" />
+              <IndicatorsList v-model="showIndicatorsDrawer" @select-symbol="handlePositionChartSelect" />
             </ClientOnly>
 
             <!-- 系统日志抽屉由状态面板卡片内按钮打开 -->
@@ -178,7 +178,7 @@
 
             <!-- 历史订单抽屉由状态面板内的订单按钮打开。 -->
             <ClientOnly v-if="passwordVerified">
-              <TradeHistory v-model="showOrdersDrawer" />
+              <TradeHistory v-model="showOrdersDrawer" @select-symbol="handlePositionChartSelect" />
             </ClientOnly>
 
             <ClientOnly>

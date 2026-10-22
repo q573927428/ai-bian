@@ -379,7 +379,12 @@
 
       <el-table-column label="交易对" width="126" fixed>
         <template #default="{ row }">
-          <span class="symbol">{{ row.symbol }}</span>
+          <button
+            type="button"
+            class="symbol symbol-link"
+            :title="`查看 ${row.symbol}${row.mainTimeframe ? ' ' + row.mainTimeframe : ''} 图表`"
+            @click.stop="selectChart(row.symbol, row.mainTimeframe)"
+          >{{ row.symbol }}</button>
         </template>
       </el-table-column>
 
@@ -626,6 +631,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (event: 'update:modelValue', value: boolean): void
+  (event: 'select-symbol', symbol: string, mainTimeframe?: string): void
 }>()
 
 // 由首页订单按钮统一控制抽屉显隐，组件内部关闭时同步回父组件。
@@ -633,6 +639,12 @@ const visible = computed({
   get: () => props.modelValue,
   set: (value: boolean) => emit('update:modelValue', value),
 })
+
+/** 使用历史订单保存的入场主周期定位图表；旧记录缺失周期时保留图表当前周期。 */
+function selectChart(symbol: string, mainTimeframe?: string) {
+  emit('select-symbol', symbol, mainTimeframe)
+  visible.value = false
+}
 
 const orders = ref<TradeHistory[]>([])
 const currentPage = ref(1)
@@ -1131,6 +1143,10 @@ onUnmounted(() => {
   color: var(--text-primary);
   font-size: 13px;
 }
+
+.symbol-link { padding: 0; border: 0; background: transparent; font-family: inherit; cursor: pointer; text-align: left; }
+.symbol-link:hover { color: var(--el-color-primary); }
+.symbol-link:focus-visible { outline: 2px solid var(--el-color-primary); outline-offset: 3px; border-radius: 3px; }
 
 .text-success,
 .text-warning,
