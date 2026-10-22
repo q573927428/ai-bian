@@ -11,10 +11,10 @@
       <el-radio-group v-model="timeframe" size="small" @change="fetchData">
         <el-radio-button v-for="item in timeframes" :key="item" :value="item">{{ item }}</el-radio-button>
       </el-radio-group>
-      <el-radio-group v-model="signalFilter" size="small" aria-label="当前周期信号筛选">
+      <el-radio-group v-model="signalFilter" size="small" aria-label="五周期方向筛选">
         <el-radio-button value="全部">全部</el-radio-button>
-        <el-radio-button value="做多">做多</el-radio-button>
-        <el-radio-button value="做空">做空</el-radio-button>
+        <el-radio-button value="做多">多头</el-radio-button>
+        <el-radio-button value="做空">空头</el-radio-button>
         <el-radio-button value="观望">观望</el-radio-button>
       </el-radio-group>
       <el-button class="refresh-button" size="small" :loading="loading" @click="fetchData">
@@ -40,22 +40,16 @@
             <span>{{ row.symbol }}</span>
           </div>
           <div class="resonance" :class="signalClass(resonanceSignal(row.symbol))" :title="resonanceTitle(row.symbol)" :aria-label="resonanceTitle(row.symbol)">
-            <!-- 每个点独立表达对应周期的信号，整体共振只控制旁边的方向文字。 -->
+            <!-- 方向与增强/减弱分开展示，避免把趋势回调误读为没有方向。 -->
             <span
               v-for="period in timeframes"
               :key="period"
               class="resonance-dot"
-              :class="signalClass(periodSignals[row.symbol]?.[period] ?? '观望')"
+              :class="periodTrendClass(periodSignals[row.symbol]?.[period])"
               :title="`${period}：${periodSignals[row.symbol]?.[period] ?? '暂无数据'}`"
             ></span>
-            <span v-if="resonanceSignal(row.symbol) !== '观望'">{{ resonanceSignal(row.symbol) }}</span>
+            <span v-if="resonanceSignal(row.symbol) !== '观望'" class="resonance-label">{{ resonanceSignal(row.symbol) === '做多' ? '多头' : '空头' }}</span>
           </div>
-        </template>
-      </el-table-column>
-      <el-table-column label="信号" min-width="80">
-        <template #default="{ row }">
-          <!-- 表格数据来自 filteredRows，显式恢复 Element Plus 插槽丢失的指标行类型。 -->
-          <span class="trade-signal" :class="signalClass(tradeSignal(row as IndicatorRow))">{{ tradeSignal(row as IndicatorRow) }}</span>
         </template>
       </el-table-column>
       <el-table-column label="价格 / K线" min-width="120">
@@ -187,11 +181,11 @@ const loading = ref(false)
 const errorMessage = ref('')
 type TradeSignal = '做多' | '做空' | '观望'
 const signalFilter = ref<TradeSignal | '全部'>('全部')
-// 仅过滤展示数据，保留完整指标行，以便切换筛选时复用数据和排序结果。
+// 筛选与交易对下方的一致性文字使用同一规则，随后台五周期数据更新。
 const filteredRows = computed(() => signalFilter.value === '全部'
   ? rows.value
-  : rows.value.filter(row => tradeSignal(row) === signalFilter.value))
-const periodSignals = ref<Record<string, Partial<Record<string, TradeSignal>>>>({})
+  : rows.value.filter(row => resonanceSignal(row.symbol) === signalFilter.value))
+const periodSignals = ref<Record<string, Partial<Record<string, IndicatorRow['diDirection']>>>>({})
 let fetchVersion = 0
 type SortOrder = 'ascending' | 'descending' | null
 type SortProp = 'candleProgressPercent' | 'rsi' | 'macdHistogram' | 'atrPercent' | 'oiChangePercent' | 'volumeRatio' | null
@@ -235,7 +229,7 @@ async function fetchData() {
   if (version !== fetchVersion) return
   rows.value = results.filter(Boolean) as IndicatorRow[]
   for (const row of rows.value) {
-    periodSignals.value[row.symbol] = { [requestedTimeframe]: tradeSignal(row) }
+    periodSignals.value[row.symbol] = { [requestedTimeframe]: combinedPeriodTrend(row) }
   }
   applySort()
   if (rows.value.length === 0) errorMessage.value = '指标暂不可用，请确认指标中心已完成初始化'
@@ -255,7 +249,7 @@ async function fetchResonance(version: number, selectedTimeframe: string, period
           query: { symbol, timeframe: period, emaPeriods: periods.join(','), includeSlowStats: 'false' }
         })
         if (version !== fetchVersion) return
-        periodSignals.value[symbol] = { ...periodSignals.value[symbol], [period]: tradeSignal(toRow(response.data)) }
+        periodSignals.value[symbol] = { ...periodSignals.value[symbol], [period]: combinedPeriodTrend(toRow(response.data)) }
       } catch {
         // 请求失败保留缺失状态，不能将不完整数据判为五周期共振。
       }
@@ -263,20 +257,32 @@ async function fetchResonance(version: number, selectedTimeframe: string, period
   }))
 }
 
-/** 趋势与 MACD 必须同向增强；减弱、持平及数据缺失均不产生交易信号。 */
-function tradeSignal(row: IndicatorRow): TradeSignal {
+/** 趋势与 MACD 同向才保留方向；只有两者都增强才显示强色。 */
+function combinedPeriodTrend(row: IndicatorRow): IndicatorRow['diDirection'] {
+  const trend = row.diDirection
   const macd = macdResult(row.macdHistogram, row.previousMacdHistogram)
-  if (row.diDirection === '多头增强' && macd === '多头增强') return '做多'
-  if (row.diDirection === '空头增强' && macd === '空头增强') return '做空'
+  if (trend === '--' || macd === '--') return '--'
+  if (trend.startsWith('多头') && macd.startsWith('多头')) {
+    return trend === '多头增强' && macd === '多头增强' ? '多头增强' : '多头减弱'
+  }
+  if (trend.startsWith('空头') && macd.startsWith('空头')) {
+    return trend === '空头增强' && macd === '空头增强' ? '空头增强' : '空头减弱'
+  }
+  return '中性'
+}
+
+/** 五周期的趋势与 MACD 均同向时提示方向一致，不作为入场信号。 */
+function resonanceSignal(symbol: string): TradeSignal {
+  const signals = timeframes.map(period => periodSignals.value[symbol]?.[period])
+  if (signals.every(signal => signal?.startsWith('多头'))) return '做多'
+  if (signals.every(signal => signal?.startsWith('空头'))) return '做空'
   return '观望'
 }
 
-/** 五个周期全部产生相同交易方向才点亮共振颜色。 */
-function resonanceSignal(symbol: string): TradeSignal {
-  const signals = timeframes.map(period => periodSignals.value[symbol]?.[period])
-  if (signals.every(signal => signal === '做多')) return '做多'
-  if (signals.every(signal => signal === '做空')) return '做空'
-  return '观望'
+/** 用颜色表达趋势与 MACD 共同确认的方向，非双增强状态使用淡色。 */
+function periodTrendClass(trend?: IndicatorRow['diDirection']) {
+  const direction = trend?.startsWith('多头') ? 'up' : trend?.startsWith('空头') ? 'down' : 'muted'
+  return [direction, { 'trend-weakening': trend?.endsWith('减弱') === true }]
 }
 
 /** 悬停说明圆点顺序与各周期状态，缺失数据不伪装成观望。 */
@@ -484,10 +490,10 @@ watch(visible, value => {
 .refresh-button { margin-left: auto; }
 .up { color: var(--el-color-success); }.down { color: var(--el-color-danger); }.muted { color: var(--el-text-color-secondary); }
 .symbol-cell { display: flex; align-items: center; gap: 7px; white-space: nowrap; }
-.resonance { display: flex; align-items: center; gap: 3px; margin-top: 6px; padding-left: 25px; min-height: 12px; font-size: 11px; }
-.resonance-dot { width: 9px; height: 9px; flex: 0 0 9px; border-radius: 50%; background: currentColor; }
-.resonance > span:last-child:not(.resonance-dot) { margin-left: 3px; white-space: nowrap; }
-.trade-signal { font-weight: 600; }
+.resonance { display: grid; grid-template-columns: repeat(5, 8px); align-items: center; gap: 3px; margin-top: 6px; padding-left: 25px; min-height: 12px; font-size: 11px; }
+.resonance-dot { width: 8px; height: 8px; flex: 0 0 8px; border-radius: 3px; background: currentColor; }
+.resonance-dot.trend-weakening { opacity: .4; }
+.resonance-label { grid-column: 1 / -1; white-space: nowrap; }
 .coin-icon, .coin-icon-placeholder { width: 18px; height: 18px; flex: 0 0 18px; border-radius: 50%; }
 .coin-icon { display: block; object-fit: cover; }
 .coin-icon-placeholder { display: inline-flex; align-items: center; justify-content: center; color: #fff; font-size: 10px; font-weight: 600; line-height: 1; }
