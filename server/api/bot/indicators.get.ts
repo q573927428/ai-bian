@@ -59,6 +59,8 @@ export default defineEventHandler(async (event) => {
   const timeframe = String(query.timeframe || '1h') as Timeframe
   // 看板首屏先跳过外部慢统计，等表格可见后再单独补齐。
   const includeSlowStats = String(query.includeSlowStats ?? 'true') !== 'false'
+  // 五周期标记只依赖 ADX 和 MACD，跳过其他指标以减少计算和外部请求。
+  const signalOnly = String(query.signalOnly ?? 'false') === 'true'
 
   if (!symbol) {
     throw createError({ statusCode: 400, message: '缺少必需参数: symbol' })
@@ -98,6 +100,7 @@ export default defineEventHandler(async (event) => {
    * 单项失败只记录错误，确保仍能看到其余已正常计算的指标。
    */
   const collect = async (name: string, loader: () => Promise<IndicatorData>): Promise<void> => {
+    if (signalOnly && name !== 'adx' && name !== 'macd') return
     try {
       indicators[name] = toDiagnosticResult(await loader(), requestedAt)
     } catch (error: any) {

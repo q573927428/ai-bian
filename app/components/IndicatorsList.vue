@@ -227,25 +227,27 @@ async function fetchData() {
   loading.value = true; errorMessage.value = ''
   const requestedTimeframe = timeframe.value
   const requestedEmaPeriods = [...emaPeriods.value]
+  // 其他周期不再串行等待整个主表完成，也不与随后启动的慢统计争抢首轮请求。
+  void fetchResonance(version, requestedTimeframe, requestedEmaPeriods)
   const results = await Promise.all(symbols.value.map(async (symbol: string) => {
     try {
       const response: any = await $fetch('/api/bot/indicators', { query: { symbol, timeframe: requestedTimeframe, emaPeriods: requestedEmaPeriods.join(','), includeSlowStats: 'false' } })
-      return toRow(response.data)
+      const row = toRow(response.data)
+      if (version === fetchVersion) {
+        periodSignals.value[row.symbol] = { ...periodSignals.value[row.symbol], [requestedTimeframe]: combinedPeriodTrend(row) }
+      }
+      return row
     } catch { return null }
   }))
   // 切换周期或连续刷新时，旧请求不得覆盖最新表格及共振状态。
   if (version !== fetchVersion) return
   rows.value = results.filter(Boolean) as IndicatorRow[]
-  for (const row of rows.value) {
-    periodSignals.value[row.symbol] = { [requestedTimeframe]: combinedPeriodTrend(row) }
-  }
   applySort()
   if (rows.value.length === 0) errorMessage.value = '指标暂不可用，请确认指标中心已完成初始化'
   loading.value = false
 
   // 首屏不再等待 OI 历史和币安广场分页请求；慢字段在表格显示后后台补齐。
   void enrichSlowStats(version, requestedTimeframe)
-  void fetchResonance(version, requestedTimeframe, requestedEmaPeriods)
 }
 
 /** 后台补齐另外四个周期，复用当前周期数据，避免共振请求阻塞首屏。 */
@@ -254,7 +256,7 @@ async function fetchResonance(version: number, selectedTimeframe: string, period
     await Promise.all(timeframes.filter(period => period !== selectedTimeframe).map(async period => {
       try {
         const response: any = await $fetch('/api/bot/indicators', {
-          query: { symbol, timeframe: period, emaPeriods: periods.join(','), includeSlowStats: 'false' }
+          query: { symbol, timeframe: period, emaPeriods: periods.join(','), includeSlowStats: 'false', signalOnly: 'true' }
         })
         if (version !== fetchVersion) return
         periodSignals.value[symbol] = { ...periodSignals.value[symbol], [period]: combinedPeriodTrend(toRow(response.data)) }
