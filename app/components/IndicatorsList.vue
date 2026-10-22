@@ -11,13 +11,19 @@
       <el-radio-group v-model="timeframe" size="small" @change="fetchData">
         <el-radio-button v-for="item in timeframes" :key="item" :value="item">{{ item }}</el-radio-button>
       </el-radio-group>
-      <el-button size="small" :loading="loading" @click="fetchData">
+      <el-radio-group v-model="signalFilter" size="small" aria-label="当前周期信号筛选">
+        <el-radio-button value="全部">全部</el-radio-button>
+        <el-radio-button value="做多">做多</el-radio-button>
+        <el-radio-button value="做空">做空</el-radio-button>
+        <el-radio-button value="观望">观望</el-radio-button>
+      </el-radio-group>
+      <el-button class="refresh-button" size="small" :loading="loading" @click="fetchData">
         <el-icon><ElIconRefresh /></el-icon>刷新
       </el-button>
     </div>
 
     <el-alert v-if="errorMessage" type="warning" :closable="false" show-icon>{{ errorMessage }}</el-alert>
-    <el-table v-loading="loading" class="indicators-table" :data="rows" stripe size="small" style="width: 100%" @sort-change="handleSortChange">
+    <el-table v-loading="loading" class="indicators-table" :data="filteredRows" :empty-text="rows.length ? '当前筛选下暂无交易对' : '暂无已配置交易对或指标数据'" stripe size="small" style="width: 100%" @sort-change="handleSortChange">
       <el-table-column prop="symbol" label="交易对" fixed min-width="125">
         <template #default="{ row }">
           <div class="symbol-cell">
@@ -33,6 +39,23 @@
             </span>
             <span>{{ row.symbol }}</span>
           </div>
+          <div class="resonance" :class="signalClass(resonanceSignal(row.symbol))" :title="resonanceTitle(row.symbol)" :aria-label="resonanceTitle(row.symbol)">
+            <!-- 每个点独立表达对应周期的信号，整体共振只控制旁边的方向文字。 -->
+            <span
+              v-for="period in timeframes"
+              :key="period"
+              class="resonance-dot"
+              :class="signalClass(periodSignals[row.symbol]?.[period] ?? '观望')"
+              :title="`${period}：${periodSignals[row.symbol]?.[period] ?? '暂无数据'}`"
+            ></span>
+            <span v-if="resonanceSignal(row.symbol) !== '观望'">{{ resonanceSignal(row.symbol) }}</span>
+          </div>
+        </template>
+      </el-table-column>
+      <el-table-column label="信号" min-width="80">
+        <template #default="{ row }">
+          <!-- 表格数据来自 filteredRows，显式恢复 Element Plus 插槽丢失的指标行类型。 -->
+          <span class="trade-signal" :class="signalClass(tradeSignal(row as IndicatorRow))">{{ tradeSignal(row as IndicatorRow) }}</span>
         </template>
       </el-table-column>
       <el-table-column label="价格 / K线" min-width="120">
@@ -60,7 +83,7 @@
       <el-table-column label="RSI" min-width="70" sortable="custom" prop="rsi">
         <template #default="{ row }"><span :class="rsiClass(row.rsi)">{{ format(row.rsi) }}</span></template>
       </el-table-column>
-      <el-table-column label="MACD 实时" min-width="350" sortable="custom" prop="macdHistogram">
+      <el-table-column label="MACD 实时" min-width="320" sortable="custom" prop="macdHistogram">
         <template #default="{ row }">
           <div class="macd-cell">
             <div class="macd-state-line">
@@ -162,6 +185,14 @@ const timeframes = ['5m', '15m', '1h', '4h', '1d']
 const rows = ref<IndicatorRow[]>([])
 const loading = ref(false)
 const errorMessage = ref('')
+type TradeSignal = '做多' | '做空' | '观望'
+const signalFilter = ref<TradeSignal | '全部'>('全部')
+// 仅过滤展示数据，保留完整指标行，以便切换筛选时复用数据和排序结果。
+const filteredRows = computed(() => signalFilter.value === '全部'
+  ? rows.value
+  : rows.value.filter(row => tradeSignal(row) === signalFilter.value))
+const periodSignals = ref<Record<string, Partial<Record<string, TradeSignal>>>>({})
+let fetchVersion = 0
 type SortOrder = 'ascending' | 'descending' | null
 type SortProp = 'candleProgressPercent' | 'rsi' | 'macdHistogram' | 'atrPercent' | 'oiChangePercent' | 'volumeRatio' | null
 const sortProp = ref<SortProp>(null)
@@ -186,33 +217,86 @@ const emaPeriods = computed<[number, number]>(() => {
 
 /** 拉取配置交易对的诊断指标；单个交易对失败不会阻塞其余行。 */
 async function fetchData() {
+  const version = ++fetchVersion
   if (!botStore.botConfig) await botStore.fetchBotConfig()
-  if (symbols.value.length === 0) { rows.value = []; return }
+  if (version !== fetchVersion) return
+  periodSignals.value = {}
+  if (symbols.value.length === 0) { rows.value = []; loading.value = false; return }
   loading.value = true; errorMessage.value = ''
+  const requestedTimeframe = timeframe.value
   const requestedEmaPeriods = [...emaPeriods.value]
   const results = await Promise.all(symbols.value.map(async (symbol: string) => {
     try {
-      const response: any = await $fetch('/api/bot/indicators', { query: { symbol, timeframe: timeframe.value, emaPeriods: requestedEmaPeriods.join(','), includeSlowStats: 'false' } })
+      const response: any = await $fetch('/api/bot/indicators', { query: { symbol, timeframe: requestedTimeframe, emaPeriods: requestedEmaPeriods.join(','), includeSlowStats: 'false' } })
       return toRow(response.data)
     } catch { return null }
   }))
+  // 切换周期或连续刷新时，旧请求不得覆盖最新表格及共振状态。
+  if (version !== fetchVersion) return
   rows.value = results.filter(Boolean) as IndicatorRow[]
+  for (const row of rows.value) {
+    periodSignals.value[row.symbol] = { [requestedTimeframe]: tradeSignal(row) }
+  }
   applySort()
   if (rows.value.length === 0) errorMessage.value = '指标暂不可用，请确认指标中心已完成初始化'
   loading.value = false
 
   // 首屏不再等待 OI 历史和币安广场分页请求；慢字段在表格显示后后台补齐。
-  void enrichSlowStats()
+  void enrichSlowStats(version, requestedTimeframe)
+  void fetchResonance(version, requestedTimeframe, requestedEmaPeriods)
+}
+
+/** 后台补齐另外四个周期，复用当前周期数据，避免共振请求阻塞首屏。 */
+async function fetchResonance(version: number, selectedTimeframe: string, periods: number[]) {
+  await Promise.all(symbols.value.map(async symbol => {
+    await Promise.all(timeframes.filter(period => period !== selectedTimeframe).map(async period => {
+      try {
+        const response: any = await $fetch('/api/bot/indicators', {
+          query: { symbol, timeframe: period, emaPeriods: periods.join(','), includeSlowStats: 'false' }
+        })
+        if (version !== fetchVersion) return
+        periodSignals.value[symbol] = { ...periodSignals.value[symbol], [period]: tradeSignal(toRow(response.data)) }
+      } catch {
+        // 请求失败保留缺失状态，不能将不完整数据判为五周期共振。
+      }
+    }))
+  }))
+}
+
+/** 趋势与 MACD 必须同向增强；减弱、持平及数据缺失均不产生交易信号。 */
+function tradeSignal(row: IndicatorRow): TradeSignal {
+  const macd = macdResult(row.macdHistogram, row.previousMacdHistogram)
+  if (row.diDirection === '多头增强' && macd === '多头增强') return '做多'
+  if (row.diDirection === '空头增强' && macd === '空头增强') return '做空'
+  return '观望'
+}
+
+/** 五个周期全部产生相同交易方向才点亮共振颜色。 */
+function resonanceSignal(symbol: string): TradeSignal {
+  const signals = timeframes.map(period => periodSignals.value[symbol]?.[period])
+  if (signals.every(signal => signal === '做多')) return '做多'
+  if (signals.every(signal => signal === '做空')) return '做空'
+  return '观望'
+}
+
+/** 悬停说明圆点顺序与各周期状态，缺失数据不伪装成观望。 */
+function resonanceTitle(symbol: string) {
+  return timeframes.map(period => `${period}：${periodSignals.value[symbol]?.[period] ?? '暂无数据'}`).join(' / ')
+}
+
+function signalClass(signal: TradeSignal) {
+  return signal === '做多' ? 'up' : signal === '做空' ? 'down' : 'muted'
 }
 
 /** 后台补齐 OI 与广场情绪，避免慢外部请求阻塞首屏表格。 */
-async function enrichSlowStats() {
+async function enrichSlowStats(version: number, requestedTimeframe: string) {
   const pendingRows = [...rows.value]
   await Promise.all(pendingRows.map(async (row) => {
     try {
       const response: any = await $fetch('/api/bot/indicators', {
-        query: { symbol: row.symbol, timeframe: timeframe.value, emaPeriods: emaPeriods.value.join(','), includeSlowStats: 'true' }
+        query: { symbol: row.symbol, timeframe: requestedTimeframe, emaPeriods: emaPeriods.value.join(','), includeSlowStats: 'true' }
       })
+      if (version !== fetchVersion) return
       const next = toRow(response.data)
       const index = rows.value.findIndex(item => item.symbol === row.symbol)
       const current = index >= 0 ? rows.value[index] : undefined
@@ -396,14 +480,19 @@ watch(visible, value => {
 </script>
 
 <style scoped>
-.toolbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 16px; }
+.toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 16px; }
+.refresh-button { margin-left: auto; }
 .up { color: var(--el-color-success); }.down { color: var(--el-color-danger); }.muted { color: var(--el-text-color-secondary); }
 .symbol-cell { display: flex; align-items: center; gap: 7px; white-space: nowrap; }
+.resonance { display: flex; align-items: center; gap: 3px; margin-top: 6px; padding-left: 25px; min-height: 12px; font-size: 11px; }
+.resonance-dot { width: 9px; height: 9px; flex: 0 0 9px; border-radius: 50%; background: currentColor; }
+.resonance > span:last-child:not(.resonance-dot) { margin-left: 3px; white-space: nowrap; }
+.trade-signal { font-weight: 600; }
 .coin-icon, .coin-icon-placeholder { width: 18px; height: 18px; flex: 0 0 18px; border-radius: 50%; }
 .coin-icon { display: block; object-fit: cover; }
 .coin-icon-placeholder { display: inline-flex; align-items: center; justify-content: center; color: #fff; font-size: 10px; font-weight: 600; line-height: 1; }
-.macd-cell { display: flex; flex-direction: column; gap: 3px; min-width: 326px; line-height: 1.35; }
-.macd-state-line, .macd-values { display: grid; align-items: center; column-gap: 8px; }
+.macd-cell { display: flex; flex-direction: column; gap: 3px; min-width: 296px; line-height: 1.35; }
+.macd-state-line, .macd-values { display: grid; align-items: center; column-gap: 6px; }
 .macd-state-line { grid-template-columns: 55px 52px minmax(0, 1fr); }
 .macd-values { grid-template-columns: 28px repeat(3, minmax(0, 1fr)); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .macd-values > span:not(:first-child) { text-align: right; }
@@ -441,6 +530,7 @@ watch(visible, value => {
     align-items: flex-start;
     flex-direction: column;
   }
+  .refresh-button { margin-left: 0; }
 
   /* 手机端占满屏幕，保持与日志抽屉一致的操作体验。 */
   :global(.indicators-drawer) {
