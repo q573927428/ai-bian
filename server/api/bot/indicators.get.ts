@@ -4,6 +4,7 @@ import type { IndicatorData, Timeframe } from '../../../types/strategy'
 import { getStrategyManager } from '../../modules/strategy-manager'
 import { getMaxOIChangePeriod } from '../../utils/strategy-indicators-normalizer'
 import { getSimpleKLineLastUpdatedAt } from '../../utils/kline-simple-storage'
+import { getCachedSquareHeat } from '../../utils/square-heat'
 
 const VALID_TIMEFRAMES: Timeframe[] = ['5m', '15m', '1h', '4h', '1d']
 const TIMEFRAME_MINUTES: Record<Timeframe, number> = {
@@ -128,6 +129,20 @@ export default defineEventHandler(async (event) => {
       lookbackMinutes: squareHeatWindowMinutes
     }))] : [])
   ])
+
+  // 首屏跳过外部慢请求，但仍展示同一统计窗口的有效情绪缓存。
+  // 五周期方向请求不依赖情绪；无缓存时留给后台补齐，避免阻塞技术指标。
+  if (!includeSlowStats && !signalOnly) {
+    const cachedHeat = getCachedSquareHeat(indicatorSymbol, squareHeatWindowMinutes)
+    if (cachedHeat) {
+      indicators.squareHeat = toDiagnosticResult({
+        symbol: indicatorSymbol,
+        timeframe,
+        timestamp: cachedHeat.lastUpdated,
+        values: { ...cachedHeat, dataUpdatedAt: cachedHeat.lastUpdated }
+      }, requestedAt)
+    }
+  }
 
   const klines = indicatorsHub.getKlines(indicatorSymbol, timeframe) || []
   const latestKline = klines[klines.length - 1]

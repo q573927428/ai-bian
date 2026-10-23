@@ -169,6 +169,21 @@ export async function getSquareHeat(symbol: string, windowMinutes: number = DEFA
 }
 
 /**
+ * 只读取指定币种和统计窗口的有效缓存，供看板首屏使用。
+ * 缓存缺失或过期时不发起网络请求，也不等待正在进行的抓取。
+ */
+export function getCachedSquareHeat(symbol: string, windowMinutes: number = DEFAULT_WINDOW_MINUTES): SquareHeatResult | undefined {
+  const baseAsset = symbol.replace(/\/?USDT$/i, '')
+  const normalizedWindowMinutes = Number.isFinite(windowMinutes) && windowMinutes > 0
+    ? Math.floor(windowMinutes)
+    : DEFAULT_WINDOW_MINUTES
+  const cached = cache.get(`${baseAsset}_${normalizedWindowMinutes}`)
+  return cached && Date.now() - cached.timestamp < SQUARE_HEAT_CACHE_TTL_MS
+    ? cached.data
+    : undefined
+}
+
+/**
  * 请求并统计广场帖子。
  * 所有热度与情绪数据严格使用策略最大持仓时间对应的窗口。
  */

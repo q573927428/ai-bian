@@ -24,6 +24,7 @@
 
     <el-alert v-if="errorMessage" type="warning" :closable="false" show-icon>{{ errorMessage }}</el-alert>
     <el-table v-loading="loading" class="indicators-table" height="100%" :data="filteredRows" :empty-text="rows.length ? '当前筛选下暂无交易对' : '暂无已配置交易对或指标数据'" stripe size="small" style="width: 100%" @sort-change="handleSortChange">
+      <el-table-column label="序号" type="index" align="center" header-align="center" width="55" fixed="left" />
       <el-table-column prop="symbol" label="交易对" fixed min-width="110">
         <template #default="{ row }">
           <button type="button" class="symbol-cell symbol-link" :title="`查看 ${row.symbol} ${timeframe} 图表`" @click="selectChart(row.symbol)">
@@ -77,7 +78,7 @@
       <el-table-column label="RSI" align="center" header-align="center" min-width="55" sortable="custom" prop="rsi">
         <template #default="{ row }"><span :class="rsiClass(row.rsi)">{{ format(row.rsi) }}</span></template>
       </el-table-column>
-      <el-table-column label="MACD 实时" min-width="250" sortable="custom" prop="macdHistogram">
+      <el-table-column label="MACD 实时" min-width="210" sortable="custom" prop="macdHistogram">
         <template #default="{ row }">
           <div class="macd-cell">
             <div class="macd-state-line">
@@ -111,8 +112,18 @@
           </div>
         </template>
       </el-table-column>
-      <el-table-column label="OI变化" align="center" header-align="center" min-width="65" prop="oiChangePercent" sortable="custom">
-        <template #default="{ row }"><span :class="directionClass(row.oiChangePercent)">{{ signed(row.oiChangePercent) }}%</span></template>
+      <el-table-column label="OI变化" align="center" header-align="center" min-width="70" prop="oiChangePercent" sortable="custom">
+        <template #default="{ row }">
+          <el-tooltip placement="top">
+            <template #content>
+              <div v-for="(line, index) in row.oiTooltip.split('\n')" :key="index">{{ line }}</div>
+            </template>
+            <div class="oi-cell">
+              <div :class="directionClass(row.oiChangePercent)">{{ signed(row.oiChangePercent) }}{{ row.oiChangePercent == null ? '' : '%' }}</div>
+              <div class="muted">{{ row.oiChangeLabel }}</div>
+            </div>
+          </el-tooltip>
+        </template>
       </el-table-column>
       <el-table-column label="预量比" align="center" header-align="center" min-width="65" prop="volumeRatio" sortable="custom">
         <template #default="{ row }">{{ format(row.volumeRatio) }}x</template>
@@ -149,7 +160,7 @@
             </template>
             <div class="sentiment-cell">
               <div :class="sentimentClass(row.sentiment)">{{ row.sentimentLabel }}<span v-if="row.sentiment != null"> {{ signed(row.sentiment) }}%</span></div>
-              <div class="muted">多 {{ row.bullishCount ?? '--' }} / 空 {{ row.bearishCount ?? '--' }}</div>
+              <div class="muted">多 {{ formatOICompact(row.bullishCount) }} / 空 {{ formatOICompact(row.bearishCount) }}</div>
             </div>
           </el-tooltip>
         </template>
@@ -173,6 +184,8 @@ interface IndicatorRow {
   symbol: string; price?: number; closeChangePercent?: number; candleDirectionLabel: string
   candleProgressPercent?: number
   adx?: number; rsi?: number; atrPercent?: number; oiChangePercent?: number
+  /** OI 增减仓折算额及含实际回看窗口的快照悬停数据。 */
+  oiChangeLabel: string; oiTooltip: string
   /** ADX 方向指标及基于后端 DI 差距变化得出的趋势信号。 */
   pdi?: number; mdi?: number; diDirection: '多头增强' | '多头减弱' | '空头减弱' | '空头增强' | '中性' | '--'
   /** EMA 周期与数值，以及短周期相对长周期的方向。 */
@@ -353,6 +366,8 @@ async function enrichSlowStats(version: number, requestedTimeframe: string) {
         rows.value[index] = {
           ...current,
           oiChangePercent: next.oiChangePercent,
+          oiChangeLabel: next.oiChangeLabel,
+          oiTooltip: next.oiTooltip,
           sentiment: next.sentiment,
           sentimentLabel: next.sentimentLabel,
           bullishCount: next.bullishCount,
@@ -411,6 +426,32 @@ function toRow(data: any): IndicatorRow {
   const flowWindow = flow.startTimestamp && flow.endTimestamp
     ? `${flowTime(flow.startTimestamp)} — ${flowTime(flow.endTimestamp)}` : '暂无数据'
   const heat = values('squareHeat')
+  const oi = values('oi')
+  const oiMemory = data?.oiMemory
+  const oiWindowMinutes = finiteNumber(data?.parameters?.oiLookbackMinutes)
+  // 首屏诊断已按同一回看窗口计算内存 OI 比例，无需等待含社区情绪的慢请求。
+  // 历史基准未就绪时继续保留缺失状态，不能把未知变化展示为零。
+  const oiChangePercent = finiteNumber(oi.changePercent) ?? finiteNumber(oiMemory?.calculatedChangePercent)
+  const oiValue = oiMemory?.current?.value ?? oi.value
+  const oiBaseline = finiteNumber(oiMemory?.baseline?.openInterest)
+  const oiCurrent = finiteNumber(oiValue)
+  // 与变化率使用同一回看基准；缺少任一快照时不将未知变化显示为零。
+  const oiChange = oiCurrent != null && oiBaseline != null ? oiCurrent - oiBaseline : undefined
+  // 将 OI 数量变化按当前价格折算为 USDT，直观表达增减仓的名义规模。
+  const oiChangeAmount = oiChange != null && price > 0 ? oiChange * price : undefined
+  const oiChangeLabel = oiChangeAmount == null
+    ? '--'
+    : `${oiChangeAmount > 0 ? '+' : ''}${formatCompactNumber(oiChangeAmount)}`
+  const oiWindowLabel = oiWindowMinutes == null ? '--' : oiWindowMinutes % 60 === 0 ? `${oiWindowMinutes / 60}h` : `${oiWindowMinutes}m`
+  const oiCurrentAmountLabel = oiCurrent != null && price > 0 ? formatCompactNumber(oiCurrent * price) : '--'
+  const oiBaselineAmount = oiBaseline != null && price > 0 ? formatCompactNumber(oiBaseline * price) : '--'
+  const oiTooltip = [
+    `回看窗口：${oiWindowLabel}`,
+    `当前 OI：${formatOIValue(oiValue)}（额：${oiCurrentAmountLabel}）`,
+    `基准 OI：${formatOIValue(oiMemory?.baseline?.openInterest)}（额：${oiBaselineAmount}）`,
+    `基准时间：${formatOITime(oiMemory?.baseline?.timestamp)}`,
+    `更新时间：${formatOITime(oiMemory?.current?.timestamp)}`
+  ].join('\n')
   const bullishCount = finiteNumber(heat.bullishCount)
   const bearishCount = finiteNumber(heat.bearishCount)
   // 热度涨跌不代表多空情绪；没有方向样本时也不能将默认零值解读成中性。
@@ -418,7 +459,7 @@ function toRow(data: any): IndicatorRow {
     ? finiteNumber(heat.netDirectionalSentimentPercent) : undefined
   const windowMinutes = finiteNumber(data?.parameters?.squareHeatWindowMinutes)
   const sentimentTooltip = [
-    `总帖数：${finiteNumber(heat.postCount) ?? '--'}`,
+    `总帖数：${formatOICompact(heat.postCount)}`,
     `方向覆盖：${format(finiteNumber(heat.directionalCoveragePercent))}%`,
     `热度变化：${signed(finiteNumber(heat.changePercent))}%`,
     `统计窗口：${windowMinutes == null ? '--' : windowMinutes % 60 === 0 ? `${windowMinutes / 60}小时` : `${windowMinutes}分钟`}`
@@ -433,7 +474,8 @@ function toRow(data: any): IndicatorRow {
     macd: Number(macd.macd), macdSignal: Number(macd.signal), macdHistogram: Number(macd.histogram),
     previousMacd: Number(macd.previousMacd), previousMacdSignal: Number(macd.previousSignal), previousMacdHistogram: Number(macd.previousHistogram),
     macdCrossover: normalizeCrossover(macd.crossover), macdHistogramTrend: normalizeHistogramTrend(macd.histogramTrend),
-    atrPercent: price > 0 ? atr / price * 100 : undefined, oiChangePercent: Number(values('oi').changePercent),
+    atrPercent: price > 0 ? atr / price * 100 : undefined, oiChangePercent,
+    oiChangeLabel, oiTooltip,
     netInflow: flow.netInflow ?? undefined,
     netInflowPercent: flow.netInflowPercent ?? undefined,
     cumulativeNetInflow: flow.cumulativeNetInflow ?? undefined,
@@ -450,6 +492,44 @@ function toRow(data: any): IndicatorRow {
   }
 }
 
+/** 大数值统一使用 K / M / B；价格与 EMA 使用独立的完整数字格式。 */
+function formatCompactNumber(value: number, maximumFractionDigits = 2): string {
+  const amount = Math.abs(value)
+  const rounded = Math.round(amount * 100) / 100
+  const unit = rounded >= 1e9 ? 'B' : rounded >= 1e6 ? 'M' : rounded >= 1e3 ? 'K' : ''
+  const divisor = unit === 'B' ? 1e9 : unit === 'M' ? 1e6 : unit === 'K' ? 1e3 : 1
+  // 缩放舍入后跨过百万边界时升级单位，避免显示 1000K。
+  if (unit === 'K' && Math.abs(Number((value / divisor).toFixed(2))) >= 1000) {
+    return `${(value / 1e6).toLocaleString('en-US', { maximumFractionDigits: 2 })}M`
+  }
+  // 舍入后跨过十亿边界时升级单位，避免显示 1000M。
+  if (unit === 'M' && Math.abs(Number((value / divisor).toFixed(2))) >= 1000) {
+    return `${(value / 1e9).toLocaleString('en-US', { maximumFractionDigits: 2 })}B`
+  }
+  return `${(value / divisor).toLocaleString('en-US', { maximumFractionDigits: unit ? 2 : maximumFractionDigits })}${unit}`
+}
+
+/** 数量字段统一使用 K / M / B，缺失值保留 --。 */
+function formatOICompact(value: unknown): string {
+  const number = finiteNumber(value)
+  if (number == null) return '--'
+  return formatCompactNumber(number)
+}
+
+/** OI 悬停数量沿用统一缩写，小数值最多保留五位小数。 */
+function formatOIValue(value: unknown): string {
+  const number = finiteNumber(value)
+  return number == null ? '--' : formatCompactNumber(number, 5)
+}
+
+/** 展示交易所快照时间；缺失时间不显示为 Unix 起点。 */
+function formatOITime(value: unknown): string {
+  const timestamp = finiteNumber(value)
+  if (timestamp == null || timestamp <= 0) return '--'
+  const date = new Date(timestamp)
+  return Number.isNaN(date.getTime()) ? '--' : date.toLocaleString('zh-CN', { hour12: false })
+}
+
 /** 与后端 AI 信号保持一致：当前优势侧配合绝对差距变化，缺失数据不视为中性。 */
 function diTrendSignal(spread: unknown, gapChange: unknown): IndicatorRow['diDirection'] {
   if (typeof spread !== 'number' || typeof gapChange !== 'number'
@@ -459,13 +539,10 @@ function diTrendSignal(spread: unknown, gapChange: unknown): IndicatorRow['diDir
   return gapChange > 0 ? '空头增强' : '空头减弱'
 }
 
-/** 资金金额省略币种单位，保留万、亿缩写；缺失显示 --。 */
+/** 资金金额使用统一缩写并保留正负号；缺失显示 --。 */
 function formatFlowAmount(value?: number | null): string {
   if (value == null || !Number.isFinite(value)) return '--'
-  const amount = Math.abs(value)
-  const unit = amount >= 1e8 ? '亿' : amount >= 1e4 ? '万' : ''
-  const divisor = amount >= 1e8 ? 1e8 : amount >= 1e4 ? 1e4 : 1
-  return `${value > 0 ? '+' : ''}${(value / divisor).toFixed(2)}${unit}`
+  return `${value > 0 ? '+' : ''}${formatCompactNumber(value)}`
 }
 
 /** 保留零值，避免空值被转换成有效的零样本或零情绪。 */
@@ -473,9 +550,10 @@ function finiteNumber(value: unknown): number | undefined {
   return typeof value === 'number' && Number.isFinite(value) ? value : undefined
 }
 
-function format(value?: number) { return value == null || !Number.isFinite(value) ? '--' : value.toFixed(2) }
-function signed(value?: number) { return value == null || !Number.isFinite(value) ? '--' : `${value >= 0 ? '+' : ''}${value.toFixed(2)}` }
-function formatPrice(value?: number) { return value == null || !Number.isFinite(value) ? '--' : value.toLocaleString('en-US', { maximumFractionDigits: value < 1 ? 6 : 2 }) }
+function format(value?: number) { return value == null || !Number.isFinite(value) ? '--' : Math.abs(value) >= 1e3 ? formatCompactNumber(value) : value.toFixed(2) }
+function signed(value?: number) { return value == null || !Number.isFinite(value) ? '--' : `${value >= 0 ? '+' : ''}${format(value)}` }
+/** 价格与 EMA 始终显示完整数字，小额价格保留必要的小数精度。 */
+function formatPrice(value?: number) { return value == null || !Number.isFinite(value) ? '--' : value.toLocaleString('en-US', { maximumFractionDigits: Math.abs(value) < 1 ? 6 : 2 }) }
 /** 资金流只为有效非零数值着色，零值和缺失值沿用正文颜色。 */
 function flowDirectionClass(value?: number) {
   return value == null || !Number.isFinite(value) || value === 0 ? '' : value > 0 ? 'up' : 'down'
@@ -513,6 +591,7 @@ function formatMacd(value?: number) {
   if (value == null || !Number.isFinite(value)) return '--'
   if (value === 0) return '0'
   const absolute = Math.abs(value)
+  if (absolute >= 1e3) return formatCompactNumber(value)
   // 去掉末尾补零，压缩展示宽度；仅影响显示，不改变指标计算和排序精度。
   return absolute >= 1
     ? value.toLocaleString('en-US', { useGrouping: false, maximumFractionDigits: 2 })
@@ -601,8 +680,9 @@ watch(visible, value => {
 .flow-row > span:not(:first-child) { text-align: right; }
 .flow-secondary > span { opacity: .7; }
 .sentiment-cell { display: flex; flex-direction: column; gap: 3px; line-height: 1.35; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.oi-cell { display: flex; flex-direction: column; gap: 3px; line-height: 1.35; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .macd-state-line, .macd-values { display: grid; align-items: center; column-gap: 4px; }
-.macd-state-line { grid-template-columns: 55px 52px minmax(0, 1fr); }
+.macd-state-line { grid-template-columns: 48px 42px minmax(0, 1fr); }
 .macd-values { grid-template-columns: 28px repeat(3, minmax(0, 1fr)); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .macd-values > span:not(:first-child) { text-align: right; }
 .macd-crossover { font-weight: 600; }
