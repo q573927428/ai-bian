@@ -689,11 +689,11 @@ ${promptConfig.userPrompt}
 - riskLevel: 风险等级，LOW/MEDIUM/HIGH
 
 ### scoreBreakdown 计算规则（必须严格遵守）
-- baseScore：基础分，范围 0~30（按照当前策略的趋势适配度、强弱、变化趋势给分，并结合市场背景辅助判断）
+- baseScore：基础分，范围 0~30（按照策略适配度、趋势强弱及市场背景评分；当前交易对 1h、4h、24h 方向一致且符合策略时加分，方向分歧且不利于策略时酌情扣分；缺失或持平周期不参与方向判断）
 - hardScore：硬条件得分，范围 0~50（按硬条件满足比例线性给分）
 - softScore：软条件得分，范围 0~20（按软条件满足比例线性给分）
 - penaltyScore：惩罚分，范围 -10~0（仅对前三项未覆盖且违反当前策略规则的独立异常扣分，如条件冲突、波动异常、过度追价，不得重复扣分）
-- finalScore：策略规则匹配度（微观），必须等于 baseScore + hardScore + softScore + penaltyScore（并限制在 0~100），仅反映策略条件满足程度
+- finalScore：策略规则匹配度（微观），必须等于 max(0, min(100, baseScore + hardScore + softScore + penaltyScore))，仅反映策略条件满足程度
 - 禁止输出不满足上述范围或不满足求和关系的值
 `;
   }
