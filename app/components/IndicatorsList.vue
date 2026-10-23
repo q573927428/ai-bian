@@ -60,9 +60,17 @@
           <span class="muted"> · {{ row.candleDirectionLabel }}</span>
         </template>
       </el-table-column>
-      <el-table-column label="趋势" min-width="85">
+      <el-table-column label="趋势" min-width="115">
         <template #default="{ row }">
-          <div>ADX {{ format(row.adx) }}</div>
+          <div class="adx-line">
+            <span>ADX {{ format(row.adx) }}</span>
+            <el-tooltip placement="top">
+              <template #content>
+                <div v-for="(line, index) in adxSlopeTooltip(row.adxSlope, row.adxSlopePeriod).split('\n')" :key="index">{{ line }}</div>
+              </template>
+              <span :class="row.adxSlope == null || row.adxSlope === 0 ? 'muted' : directionClass(row.adxSlope)"> {{ formatAdxSlope(row.adxSlope) }}</span>
+            </el-tooltip>
+          </div>
           <div class="up">PDI {{ format(row.pdi) }}</div>
           <div class="down">MDI {{ format(row.mdi) }}</div>
           <span :class="[row.diDirection.startsWith('多头') ? 'up' : row.diDirection.startsWith('空头') ? 'down' : 'muted', { 'macd-weakening': row.diDirection.endsWith('减弱') }]">{{ row.diDirection }}</span>
@@ -184,6 +192,8 @@ interface IndicatorRow {
   symbol: string; price?: number; closeChangePercent?: number; candleDirectionLabel: string
   candleProgressPercent?: number
   adx?: number; rsi?: number; atrPercent?: number; oiChangePercent?: number
+  /** 与 ADX 共用后端计算结果，回看窗口以该次计算实际使用的配置为准。 */
+  adxSlope?: number; adxSlopePeriod?: number
   /** OI 增减仓折算额及含实际回看窗口的快照悬停数据。 */
   oiChangeLabel: string; oiTooltip: string
   /** ADX 方向指标及基于后端 DI 差距变化得出的趋势信号。 */
@@ -469,6 +479,7 @@ function toRow(data: any): IndicatorRow {
     candleProgressPercent: Number(data.kline?.candleProgressPercent),
     candleDirectionLabel: data.kline?.candleDirection === 'bullish' ? '阳线' : data.kline?.candleDirection === 'bearish' ? '阴线' : '平',
     adx: Number(adx.adx), rsi: Number(values('rsi').rsi),
+    adxSlope: finiteNumber(adx.adxSlope), adxSlopePeriod: finiteNumber(adx.adxSlopePeriod),
     pdi, mdi, diDirection: diTrendSignal(adx.diSpread, adx.diGapChange),
     fastEmaPeriod: fastPeriod, slowEmaPeriod: slowPeriod, fastEma, slowEma,
     macd: Number(macd.macd), macdSignal: Number(macd.signal), macdHistogram: Number(macd.histogram),
@@ -552,6 +563,17 @@ function finiteNumber(value: unknown): number | undefined {
 
 function format(value?: number) { return value == null || !Number.isFinite(value) ? '--' : Math.abs(value) >= 1e3 ? formatCompactNumber(value) : value.toFixed(2) }
 function signed(value?: number) { return value == null || !Number.isFinite(value) ? '--' : `${value >= 0 ? '+' : ''}${format(value)}` }
+/** 看板斜率统一保留两位小数，仅调整显示精度。 */
+function formatAdxSlope(value?: number) {
+  return value == null || !Number.isFinite(value) ? '--' : `${value > 0 ? '+' : ''}${value.toFixed(2)}`
+}
+
+/** 解释强度与方向的分工，避免将 ADX 上升直接理解为价格上涨。 */
+function adxSlopeTooltip(slope?: number, period?: number) {
+  const formula = period == null ? '当前 ADX − 回看窗口前 ADX' : `当前 ADX − ${period} 根前 ADX（${timeframe.value}）`
+  const strength = slope == null ? '暂无斜率数据' : slope > 0 ? '趋势强度上升' : slope < 0 ? '趋势强度下降' : '趋势强度持平'
+  return `${formula}\n${strength}，数值为差值\n方向看 PDI/MDI，动能看 MACD`
+}
 /** 价格与 EMA 始终显示完整数字，小额价格保留必要的小数精度。 */
 function formatPrice(value?: number) { return value == null || !Number.isFinite(value) ? '--' : value.toLocaleString('en-US', { maximumFractionDigits: Math.abs(value) < 1 ? 6 : 2 }) }
 /** 资金流只为有效非零数值着色，零值和缺失值沿用正文颜色。 */
@@ -661,6 +683,7 @@ watch(visible, value => {
 <style scoped>
 .toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 16px; }
 .refresh-button { margin-left: auto; }
+.adx-line { display: flex; align-items: center; gap: 8px; white-space: nowrap; }
 .up { color: var(--el-color-success); }.down { color: var(--el-color-danger); }.muted { color: var(--el-text-color-secondary); }
 .symbol-cell { display: flex; align-items: center; gap: 4px; white-space: nowrap; }
 .symbol-link { padding: 0; border: 0; background: transparent; color: inherit; font: inherit; cursor: pointer; text-align: left; }

@@ -710,6 +710,8 @@ export class IndicatorsHub {
           indicatorData.values = {
             adx: currentADX,
             adxSlope: adxSlope,
+            // 随计算结果返回实际回看窗口，确保看板说明与缓存中的斜率口径一致。
+            adxSlopePeriod,
             // 保留 ADX 同次计算的方向指标；数据不足时不输出，避免被误认为有效方向。
             pdi: latestADX?.pdi,
             mdi: latestADX?.mdi,
