@@ -25,8 +25,9 @@ export async function getMarketBreadth(config: BotConfig, force = false): Promis
     // 只消费行情中心已有快照，不初始化订阅、不发起 REST 请求或 K 线补数。
     const prices = marketPriceHub.getSnapshot(symbols)
     const periods = {} as MarketBreadthSnapshot['periods']
-    for (const period of ['1h', '4h', '24h'] as const) {
-      const referenceTime = period === '24h' ? null : Math.floor(now / 300000) * 300000 - (period === '4h' ? 4 : 1) * 3600000
+    for (const period of ['5m', '15m', '1h', '4h', '24h'] as const) {
+      const periodMs = period === '5m' ? 300000 : period === '15m' ? 900000 : period === '1h' ? 3600000 : 14400000
+      const referenceTime = period === '24h' ? null : Math.floor(now / 300000) * 300000 - periodMs
       const changes: Record<string, number | null> = {}
       const bases: Record<string, number> = {}
       for (const symbol of symbols) {
@@ -76,7 +77,7 @@ export async function getMarketBreadth(config: BotConfig, force = false): Promis
 /** AI 接收市场聚合值及当前交易对涨跌幅，不展开其他交易对明细。 */
 export function formatMarketBreadth(snapshot?: MarketBreadthSnapshot, symbol?: string): string {
   if (!snapshot) return '市场广度：暂无可用快照。'
-  const lines = (['1h', '4h', '24h'] as const).map(period => {
+  const lines = (['5m', '15m', '1h', '4h', '24h'] as const).map(period => {
     const stats = snapshot.periods[period]
     // 缺失数据明确标注，不能格式化为 0% 而被误解为持平。
     const ratio = stats.upRatioPct === null ? '暂无数据' : `${stats.upRatioPct.toFixed(2)}%`
@@ -87,7 +88,7 @@ export function formatMarketBreadth(snapshot?: MarketBreadthSnapshot, symbol?: s
   const updatedAt = new Date(snapshot.computedAt).toISOString().slice(0, 19).replace('T', ' ') + ' UTC'
   const normalizedSymbol = symbol?.replace('/', '').trim().toUpperCase()
   // 使用同一轮快照，便于 AI 对比个币和整体方向，缺失时不能按持平处理。
-  const currentSymbolLine = normalizedSymbol ? `当前交易对 ${normalizedSymbol}：${(['1h', '4h', '24h'] as const).map(period => {
+  const currentSymbolLine = normalizedSymbol ? `当前交易对 ${normalizedSymbol}：${(['5m', '15m', '1h', '4h', '24h'] as const).map(period => {
     const change = snapshot.periods[period].changes[normalizedSymbol]
     const value = typeof change === 'number' && Number.isFinite(change)
       ? `${change >= 0 ? '+' : ''}${change.toFixed(2)}%` : '暂无数据'

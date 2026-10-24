@@ -15,11 +15,13 @@
         <div class="price-cards-heading">
           <h3 class="price-cards-title">📊 价格看板</h3>
           <el-radio-group v-model="changePeriod" size="small" aria-label="涨跌幅周期">
+            <el-radio-button value="5m">5m</el-radio-button>
+            <el-radio-button value="15m">15m</el-radio-button>
             <el-radio-button value="1h">1h</el-radio-button>
             <el-radio-button value="4h">4h</el-radio-button>
             <el-radio-button value="24h">24h</el-radio-button>
           </el-radio-group>
-          <div class="price-counts" :title="`按已选交易对的${changePeriod}实时涨跌幅统计；AI使用每轮固定快照；上涨占比和中位数仅计算有效行情（含持平）；1h/4h参考价取本地5m K线，精度5分钟；参考价快照时间：${breadthSnapshot ? new Date(breadthSnapshot.computedAt).toLocaleString() : '待更新'}`">
+          <div class="price-counts" :title="`按已选交易对的${changePeriod}实时涨跌幅统计；AI使用每轮固定快照；上涨占比和中位数仅计算有效行情（含持平）；5m/15m/1h/4h参考价取本地5m K线；参考价快照时间：${breadthSnapshot ? new Date(breadthSnapshot.computedAt).toLocaleString() : '待更新'}`">
             <span>总 {{ DEFAULT_CRYPTOS.length }}</span>
             <span class="count-up">涨 {{ priceCounts.up }}</span>
             <span class="count-down">跌 {{ priceCounts.down }}</span>
@@ -181,7 +183,7 @@ const isLoading = ref(false)
 const showChartModal = ref(false)
 const selectedSymbol = ref('')
 const currentPage = ref(0)
-const changePeriod = ref<'1h' | '4h' | '24h'>('24h')
+const changePeriod = ref<'5m' | '15m' | '1h' | '4h' | '24h'>('24h')
 const breadthSnapshot = ref<MarketBreadthSnapshot | null>(null)
 const breadthClock = ref(Date.now())
 let breadthRequestId = 0
