@@ -13,9 +13,10 @@
       </el-radio-group>
       <el-radio-group v-model="signalFilter" size="small" aria-label="五周期方向筛选">
         <el-radio-button value="全部">全部</el-radio-button>
-        <el-radio-button value="做多">多头</el-radio-button>
-        <el-radio-button value="做空">空头</el-radio-button>
-        <el-radio-button value="观望">观望</el-radio-button>
+        <el-radio-button value="多头">多头背景</el-radio-button>
+        <el-radio-button value="空头">空头背景</el-radio-button>
+        <el-radio-button value="反转">反转观察</el-radio-button>
+        <el-radio-button value="观望">分歧观望</el-radio-button>
       </el-radio-group>
       <el-button class="refresh-button" size="small" :loading="loading" @click="fetchData">
         <el-icon><ElIconRefresh /></el-icon>刷新
@@ -40,7 +41,7 @@
             </span>
             <span>{{ row.symbol }}</span>
           </button>
-          <div class="resonance" :class="signalClass(resonanceSignal(row.symbol))" :title="resonanceTitle(row.symbol)" :aria-label="resonanceTitle(row.symbol)">
+          <div class="resonance" :class="signalClass(resonanceInfo(row.symbol).tone)" :title="resonanceTitle(row.symbol)" :aria-label="resonanceTitle(row.symbol)">
             <!-- 方向与增强/减弱分开展示，避免把趋势回调误读为没有方向。 -->
             <span
               v-for="period in timeframes"
@@ -49,7 +50,7 @@
               :class="periodTrendClass(periodSignals[row.symbol]?.[period])"
               :title="`${period}：${periodSignals[row.symbol]?.[period] ?? '暂无数据'}`"
             ></span>
-            <span v-if="resonanceSignal(row.symbol) !== '观望'" class="resonance-label">{{ resonanceSignal(row.symbol) === '做多' ? '多头' : '空头' }}</span>
+            <span class="resonance-label">{{ resonanceInfo(row.symbol).label }}</span>
           </div>
         </template>
       </el-table-column>
@@ -243,12 +244,12 @@ const timeframes = ['5m', '15m', '1h', '4h', '1d']
 const rows = ref<IndicatorRow[]>([])
 const loading = ref(false)
 const errorMessage = ref('')
-type TradeSignal = '做多' | '做空' | '观望'
-const signalFilter = ref<TradeSignal | '全部'>('全部')
+type SignalTone = '多头' | '空头' | '反转' | '观望'
+const signalFilter = ref<SignalTone | '全部'>('全部')
 // 筛选与交易对下方的一致性文字使用同一规则，随后台五周期数据更新。
 const filteredRows = computed(() => signalFilter.value === '全部'
   ? rows.value
-  : rows.value.filter(row => resonanceSignal(row.symbol) === signalFilter.value))
+  : rows.value.filter(row => resonanceInfo(row.symbol).tone === signalFilter.value))
 const periodSignals = ref<Record<string, Partial<Record<string, IndicatorRow['diDirection']>>>>({})
 let fetchVersion = 0
 type SortOrder = 'ascending' | 'descending' | null
@@ -337,12 +338,25 @@ function combinedPeriodTrend(row: IndicatorRow): IndicatorRow['diDirection'] {
   return '中性'
 }
 
-/** 五周期的趋势与 MACD 均同向时提示方向一致，不作为入场信号。 */
-function resonanceSignal(symbol: string): TradeSignal {
-  const signals = timeframes.map(period => periodSignals.value[symbol]?.[period])
-  if (signals.every(signal => signal?.startsWith('多头'))) return '做多'
-  if (signals.every(signal => signal?.startsWith('空头'))) return '做空'
-  return '观望'
+/** 将大周期背景、中间承接和短线触发拆开判断，避免五周期不完全一致就被压成观望。 */
+function resonanceInfo(symbol: string): { label: string; tone: SignalTone } {
+  const signals = periodSignals.value[symbol] || {}
+  const dir = (period: string) => signals[period]?.startsWith('多头') ? '多' : signals[period]?.startsWith('空头') ? '空' : '中'
+  const strength = (period: string) => signals[period]?.endsWith('增强')
+  const bg = [dir('1d'), dir('4h')]; const mid = dir('1h'); const short = [dir('15m'), dir('5m')]
+  if ([...bg, mid, ...short].some((item, index) => item === '中' && ([signals['1d'], signals['4h'], signals['1h'], signals['15m'], signals['5m']][index] == null || [signals['1d'], signals['4h'], signals['1h'], signals['15m'], signals['5m']][index] === '--'))) return { label: '数据不足观望', tone: '观望' }
+  if (bg.includes('中') && bg.some(item => item !== '中') && mid !== '中' && short[0] === mid && short[1] === mid) {
+    return { label: `${mid === '多' ? '多头' : '空头'}承接观察`, tone: mid === '多' ? '多头' : '空头' }
+  }
+  if (bg[0] !== bg[1]) return { label: '大周期分歧', tone: '观望' }
+  const background = bg[0]; const backgroundText = background === '多' ? '多头' : '空头'
+  if (mid === background && short[0] === background && short[1] === background) return { label: `${backgroundText}趋势延续`, tone: background === '多' ? '多头' : '空头' }
+  if (mid === background && short[0] !== background && short[1] !== background) {
+    const weakening = strength('5m') === false && strength('15m') === false
+    return { label: weakening ? `${backgroundText}短线回调` : `${backgroundText}反转观察`, tone: '反转' }
+  }
+  if (mid !== background && short[0] === mid && short[1] === mid) return { label: `${mid === '多' ? '多头' : '空头'}承接观察`, tone: mid === '多' ? '多头' : '空头' }
+  return { label: `${backgroundText}背景分歧`, tone: '观望' }
 }
 
 /** 用颜色表达趋势与 MACD 共同确认的方向，非双增强状态使用淡色。 */
@@ -353,11 +367,11 @@ function periodTrendClass(trend?: IndicatorRow['diDirection']) {
 
 /** 悬停说明圆点顺序与各周期状态，缺失数据不伪装成观望。 */
 function resonanceTitle(symbol: string) {
-  return timeframes.map(period => `${period}：${periodSignals.value[symbol]?.[period] ?? '暂无数据'}`).join(' / ')
+  return `${resonanceInfo(symbol).label}；${timeframes.map(period => `${period}：${periodSignals.value[symbol]?.[period] ?? '暂无数据'}`).join(' / ')}`
 }
 
-function signalClass(signal: TradeSignal) {
-  return signal === '做多' ? 'up' : signal === '做空' ? 'down' : 'muted'
+function signalClass(signal: SignalTone) {
+  return signal === '多头' ? 'up' : signal === '空头' || signal === '反转' ? 'down' : 'muted'
 }
 
 /** 后台补齐 OI 与广场情绪，避免慢外部请求阻塞首屏表格。 */
