@@ -59,6 +59,18 @@ export class DailyTradeLimiter {
 
   constructor(private readonly positionManager: PositionManager) {}
 
+  /** 读取与开仓检查相同的当日计数，不预占名额；跨北京时间零点时自动恢复新日计数。 */
+  async getStatus(strategyId: StrategyId, maxDailyTrades: number, now = Date.now()) {
+    return this.withLock(async () => {
+      const dayKey = this.getDayKey(now)
+      await this.ensureInitialized(dayKey)
+      const limit = Math.max(0, Math.floor(Number(maxDailyTrades) || 0))
+      const openedCount = this.countOpenings(strategyId, dayKey)
+      // 预占名额尚未成交，不能显示为今日已成功开仓。
+      return { todayOpenedCount: openedCount, dailyTradeLimitReached: openedCount >= limit }
+    })
+  }
+
   /**
    * 原子检查并预占一个开仓名额
    */

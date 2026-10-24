@@ -172,6 +172,11 @@ export class StrategyEngine {
     logger.info('StrategyEngine', '策略执行引擎已初始化（新调度架构已启用）')
   }
 
+  /** 为策略列表提供真实开仓计数，复用执行开仓检查的限制器实例。 */
+  async getDailyTradeStatus(strategyId: StrategyId, maxDailyTrades: number, now = Date.now()) {
+    return this.dailyTradeLimiter.getStatus(strategyId, maxDailyTrades, now)
+  }
+
   setIndicatorPrecomputeService(service: IndicatorPrecomputeService | null): void {
     this.indicatorPrecompute = service
   }

@@ -32,11 +32,19 @@ export default defineEventHandler(async (event) => {
     }
     const strategies = await strategyManager.getAllStrategies()
     const statuses = await strategyManager.getAllStrategiesStatus()
+    const engine = strategyManager.getEngine()
+    const now = Date.now()
+    // 运行计数只附加到响应，不写入策略配置或版本快照。
+    const dailyTradeStatuses = Object.fromEntries(await Promise.all(strategies.map(async strategy => [
+      strategy.id,
+      await engine.getDailyTradeStatus(strategy.id, strategy.riskManagement.maxDailyTrades, now)
+    ] as const)))
 
     return {
       success: true,
       data: strategies.map(s => maskStrategyData(s)),
-      statuses
+      statuses,
+      dailyTradeStatuses
     }
   } catch (error: any) {
     throw createError({

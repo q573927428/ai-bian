@@ -67,6 +67,19 @@
             </el-tag>
           </template>
         </el-table-column>
+        <el-table-column label="今日开仓" width="95">
+          <template #default="{ row }">
+            <el-tag
+              v-if="dailyTradeStatuses[row.id]"
+              :type="dailyTradeStatuses[row.id]?.dailyTradeLimitReached ? 'warning' : 'info'"
+              size="small"
+            >
+              {{ dailyTradeStatuses[row.id]?.todayOpenedCount }}/{{ row.riskManagement.maxDailyTrades }}
+              <span v-if="dailyTradeStatuses[row.id]?.dailyTradeLimitReached"> 已达上限</span>
+            </el-tag>
+            <span v-else>—</span>
+          </template>
+        </el-table-column>
         <el-table-column label="时间" width="160">
           <template #default="{ row }">
             {{ formatDate(row.createdAt) }}
@@ -324,7 +337,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { ref, watch, computed } from 'vue'
 import type { Strategy } from '../../types/strategy'
 import StrategyEditor from '../components/StrategyEditor.vue'
 import StrategyVersionHistory from '../components/StrategyVersionHistory.vue'
@@ -351,6 +364,8 @@ const visible = computed({
 })
 
 const strategies = ref<Strategy[]>([])
+// 接口运行状态独立保存，避免编辑或复制策略时把计数写入配置。
+const dailyTradeStatuses = ref<Record<string, { todayOpenedCount: number; dailyTradeLimitReached: boolean }>>({})
 const loading = ref(false)
 const showCreateDialog = ref(false)
 const showVersionHistoryDialog = ref(false)
@@ -430,6 +445,7 @@ const loadStrategies = async () => {
   try {
     const res = await $fetch<any>('/api/strategies')
     strategies.value = res.data || []
+    dailyTradeStatuses.value = res.dailyTradeStatuses || {}
   } catch (error: any) {
     ElMessage.error(`加载策略失败: ${error.message}`)
   } finally {
@@ -718,10 +734,12 @@ const clearAICache = async () => {
   }
 }
 
-// 页面加载时获取数据
-onMounted(() => {
-  loadStrategies()
-})
+// 每次打开抽屉时获取最新计数，停留期间可通过原有刷新按钮手动更新。
+watch(visible, (isVisible) => {
+  if (isVisible) {
+    loadStrategies()
+  }
+}, { immediate: true })
 </script>
 
 <style scoped>
