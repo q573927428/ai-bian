@@ -34,6 +34,14 @@
             <ElIconSunny v-else />
           </el-icon>
         </el-button>
+        <!-- 登录、注册暂时共用页面密码验证，成功后由统一解锁状态切换头像。 -->
+        <div v-if="!passwordVerified" class="auth-actions" role="group" aria-label="登录与注册">
+          <button type="button" class="auth-button auth-login" @click="emit('unlock')">登录</button>
+          <button type="button" class="auth-button auth-register" @click="emit('unlock')">注册</button>
+        </div>
+        <div v-else class="user-avatar" role="img" aria-label="用户头像（已解锁）" title="已解锁">
+          <el-icon :size="17" aria-hidden="true"><ElIconUserFilled /></el-icon>
+        </div>
         <el-button text size="small" class="mobile-nav-toggle" :class="{ 'is-open': mobileNavOpen }" :aria-label="mobileNavOpen ? '收起行情导航' : '展开行情导航'" aria-controls="header-navigation" :aria-expanded="mobileNavOpen" @click="mobileNavOpen = !mobileNavOpen" @keydown.esc="mobileNavOpen = false">
           <el-icon :size="20" aria-hidden="true">
             <ElIconClose v-if="mobileNavOpen" />
@@ -48,13 +56,14 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import type { Component } from 'vue'
-import { ElIconDataAnalysis, ElIconStar, ElIconPlatform, ElIconTrendCharts, ElIconDocument, ElIconTickets } from '#components'
+import { ElIconDataAnalysis, ElIconStar, ElIconPlatform, ElIconTrendCharts, ElIconDocument, ElIconTickets, ElIconUserFilled } from '#components'
 import { useTheme } from '../composables/useTheme'
 import type { HomeNavigationTarget } from '../../types/home'
 
-/** 顶部只接收运行状态和面板激活状态，不直接操作页面弹窗。 */
+/** 顶部接收运行、解锁和面板激活状态，通过事件请求页面操作。 */
 interface Props {
   isRunning: boolean
+  passwordVerified: boolean
   activePanels: Partial<Record<HomeNavigationTarget, boolean>>
 }
 
@@ -70,6 +79,7 @@ defineProps<Props>()
 const emit = defineEmits<{
   navigate: [target: HomeNavigationTarget]
   performance: []
+  unlock: []
 }>()
 const { theme: currentTheme, toggleTheme } = useTheme()
 const mobileNavOpen = ref(false)
@@ -124,6 +134,49 @@ function handleNavigate(target: HomeNavigationTarget) {
 .header-navigation {
   padding-left: 24px;
   border-left: 1px solid var(--el-border-color-lighter);
+}
+
+.auth-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px;
+  border: 1px solid #668dff;
+  border-radius: 10px;
+  background: #182d5b;
+  box-shadow: 0 0 16px rgb(88 135 255 / 18%);
+}
+
+.auth-button {
+  min-height: 26px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 7px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.auth-login { color: #edf4ff; background: transparent; }
+.auth-login:hover { background: #2c467b; }
+.auth-register { color: #10234a; background: #9cc5ff; }
+.auth-register:hover { background: #c4deff; }
+.auth-button:focus-visible { outline: 2px solid #fff; outline-offset: 1px; }
+
+.user-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  border: 1px solid #8db7ff;
+  border-radius: 50%;
+  color: #edf4ff;
+  background: linear-gradient(135deg, #568cff, #7959dc);
+  box-shadow: 0 0 14px rgb(88 135 255 / 22%);
 }
 
 .navigation-inner {
@@ -350,6 +403,16 @@ function handleNavigate(target: HomeNavigationTarget) {
 
 @media (min-width: 769px) and (max-width: 900px) {
   .navigation-item .navigation-icon { display: none; }
+}
+@media (max-width: 1100px) {
+  .header-status-text { display: none; }
+}
+
+@media (max-width: 480px) {
+  .header h1 { font-size: 14px; }
+  .header-status { display: none; }
+  .auth-button { padding: 0 8px; }
+  .header-right { flex-wrap: wrap; }
 }
 @media (max-width: 374px) {
   .header-status-text { display: none; }

@@ -6,9 +6,11 @@
       <!-- 头部 -->
       <HomeHeader
         :is-running="!!botStore.state?.isRunning"
+        :password-verified="passwordVerified"
         :active-panels="activeNavigationPanels"
         @navigate="handleNavigate"
         @performance="showPerformanceDialog = true"
+        @unlock="handleUnlock"
       />
 
       <!-- 主体 -->
