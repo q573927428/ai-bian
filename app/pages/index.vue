@@ -8,18 +8,39 @@
             <img :src="currentTheme === 'light' ? '/logo-light.png' : '/logo.png'" alt="Logo" style="width: 1.5em; height: 1.5em; object-fit: contain; vertical-align: middle; margin-right: 8px" />
             AI自动交易
           </h1>
+          <!-- 桌面直接显示导航，移动端通过右上角菜单展开同一组入口。 -->
+          <nav id="header-navigation" class="header-navigation" :class="{ 'is-open': mobileNavOpen }" aria-label="行情导航">
+            <div class="navigation-inner">
+              <button v-for="item in navigationItems" :key="item.label" type="button" class="navigation-item" :class="{ 'is-active': item.isOpen() }" aria-haspopup="dialog" @click="item.open(); mobileNavOpen = false">
+                <span class="navigation-icon">
+                  <el-icon :size="18" aria-hidden="true">
+                    <component :is="item.icon" />
+                  </el-icon>
+                </span>
+                <span class="navigation-copy">
+                  <span class="navigation-label">{{ item.label }}</span>
+                  <span class="navigation-description">{{ item.description }}</span>
+                </span>
+              </button>
+            </div>
+          </nav>
           <div class="header-right">
             <!-- 运行状态 -->
-            <div class="header-status" @click="showPerformanceDialog = true">
+            <button type="button" class="header-status" aria-label="查看系统运行状态与性能" @click="showPerformanceDialog = true">
               <div :class="['status-dot-sm', botStore.state?.isRunning ? 'status-running' : 'status-stopped']" />
               <span class="header-status-text">{{ botStore.state?.isRunning ? '运行中' : '已停止' }}</span>
-            </div>
-            <el-button text size="small" @click="toggleTheme" class="theme-toggle-btn">
+            </button>
+            <el-button text size="small" @click="toggleTheme" class="theme-toggle-btn" :aria-label="currentTheme === 'light' ? '切换暗色主题' : '切换亮色主题'" :title="currentTheme === 'light' ? '切换暗色主题' : '切换亮色主题'">
               <el-icon :size="18">
                 <ElIconMoon v-if="currentTheme === 'light'" />
                 <ElIconSunny v-else />
               </el-icon>
-              {{ currentTheme === 'light' ? '暗色' : '亮色' }}
+            </el-button>
+            <el-button text size="small" class="mobile-nav-toggle" :class="{ 'is-open': mobileNavOpen }" :aria-label="mobileNavOpen ? '收起行情导航' : '展开行情导航'" aria-controls="header-navigation" :aria-expanded="mobileNavOpen" @click="mobileNavOpen = !mobileNavOpen" @keydown.esc="mobileNavOpen = false">
+              <el-icon :size="20" aria-hidden="true">
+                <ElIconClose v-if="mobileNavOpen" />
+                <ElIconExpand v-else />
+              </el-icon>
             </el-button>
           </div>
         </div>
@@ -35,17 +56,9 @@
                 <div class="card-header">
                   <span>🎛️ 状态面板</span>
                   <div class="card-header-actions">
-                    <el-button v-if="passwordVerified" type="primary" size="small" text @click="showConfigDialog = true">
-                      <el-icon><ElIconSetting /></el-icon>
-                      配置
-                    </el-button>
                     <el-button v-if="!passwordVerified" type="primary" size="small" text @click="handleUnlock">
                       <el-icon><ElIconUnlock /></el-icon>
                       解锁
-                    </el-button>
-                    <el-button v-if="passwordVerified" type="primary" size="small" text @click="showStrategiesDrawer = true">
-                      <el-icon><ElIconOperation /></el-icon>
-                      策略
                     </el-button>
                     <el-button v-if="passwordVerified && hasPassword" type="primary" size="small" text @click="clearPassword">
                       <el-icon><ElIconLock /></el-icon>
@@ -58,35 +71,13 @@
               <div class="control-panel">
                 <!-- 将常用入口放在控制面板正文内，避免标题栏操作过于拥挤。 -->
                 <div class="control-panel-actions">
-                  <el-button class="control-panel-action" type="primary" size="small" text @click="showIndicatorsDrawer = true">
-                    <el-icon><ElIconDataAnalysis /></el-icon>
-                    指标
+                  <el-button class="control-panel-action" type="primary" size="small" text @click="handleOpenProtectedPanel('config')">
+                    <el-icon><ElIconSetting /></el-icon>
+                    配置
                   </el-button>
-                  <el-button class="control-panel-action" type="primary" size="small" text @click="showLogsDrawer = true">
-                    <el-icon><ElIconDocument /></el-icon>
-                    日志
-                  </el-button>
-                  <el-button
-                    class="control-panel-action"
-                    type="primary"
-                    size="small"
-                    text
-                    @click="handleOpenOrders"
-                  >
-                    <el-icon><ElIconTickets /></el-icon>
-                    订单
-                  </el-button>
-                  <el-button class="control-panel-action" type="primary" size="small" text @click="showTopSymbolsDialog = true">
-                    <el-icon><ElIconStar /></el-icon>
-                    热门
-                  </el-button>
-                  <el-button class="control-panel-action" type="primary" size="small" text @click="showMacroDataDrawer = true">
-                    <el-icon><ElIconTrendCharts /></el-icon>
-                    宏观
-                  </el-button>
-                  <el-button class="control-panel-action" type="primary" size="small" text @click="showCryptoTrendsDrawer = true">
-                    <el-icon><ElIconDataAnalysis /></el-icon>
-                    趋势
+                  <el-button class="control-panel-action" type="primary" size="small" text @click="handleOpenProtectedPanel('strategies')">
+                    <el-icon><ElIconOperation /></el-icon>
+                    策略
                   </el-button>
                 </div>
                 <!-- 余额信息 -->
@@ -151,12 +142,12 @@
               <CryptoPriceCards v-model:chart-symbol="selectedChartSymbol" :chart-timeframe="selectedChartTimeframe" />
             </ClientOnly>
 
-            <!-- 技术指标抽屉由状态面板卡片内按钮打开 -->
+            <!-- 技术指标抽屉由顶部导航打开 -->
             <ClientOnly>
               <IndicatorsList v-model="showIndicatorsDrawer" @select-symbol="handlePositionChartSelect" />
             </ClientOnly>
 
-            <!-- 系统日志抽屉由状态面板卡片内按钮打开 -->
+            <!-- 系统日志抽屉由顶部导航打开 -->
             <ClientOnly>
               <SystemLogs v-model="showLogsDrawer" @select-symbol="handlePositionChartSelect" />
             </ClientOnly>
@@ -176,7 +167,7 @@
               <Strategies v-model="showStrategiesDrawer" />
             </ClientOnly>
 
-            <!-- 历史订单抽屉由状态面板内的订单按钮打开。 -->
+            <!-- 顶部订单入口需先解锁，验证成功后再挂载订单抽屉。 -->
             <ClientOnly v-if="passwordVerified">
               <TradeHistory v-model="showOrdersDrawer" @select-symbol="handlePositionChartSelect" />
             </ClientOnly>
@@ -216,6 +207,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
+import { ElIconDataAnalysis, ElIconStar, ElIconPlatform, ElIconTrendCharts, ElIconDocument, ElIconTickets } from '#components'
 import { useBotStore } from '../stores/bot'
 import { useStrategiesStore } from '../stores/strategies'
 import { useTradeHistoryStore } from '../stores/tradeHistory'
@@ -226,7 +218,7 @@ const PASSWORD_STORAGE_KEY = 'page_password_verified'
 const passwordVerified = ref(false)
 const showPasswordDialog = ref(false)
 const hasPassword = ref(false)
-const openOrdersAfterUnlock = ref(false)
+const pendingProtectedPanel = ref<'config' | 'strategies' | 'orders' | null>(null)
 
 const handlePasswordSuccess = () => {
   passwordVerified.value = true
@@ -236,10 +228,11 @@ const handlePasswordSuccess = () => {
     timestamp: Date.now()
   }))
 
-  // 从订单入口发起解锁时，验证成功后继续完成用户原本的打开操作。
-  if (openOrdersAfterUnlock.value) {
-    showOrdersDrawer.value = true
-    openOrdersAfterUnlock.value = false
+  // 只恢复本次验证对应的入口，避免解锁后需要用户再次点击。
+  const panel = pendingProtectedPanel.value
+  pendingProtectedPanel.value = null
+  if (panel) {
+    handleOpenProtectedPanel(panel)
   }
 }
 
@@ -248,26 +241,30 @@ const clearPassword = () => {
   showConfigDialog.value = false
   showStrategiesDrawer.value = false
   showOrdersDrawer.value = false
-  openOrdersAfterUnlock.value = false
+  pendingProtectedPanel.value = null
   localStorage.removeItem(PASSWORD_STORAGE_KEY)
   hasPassword.value = false
 }
 
 const handleUnlock = () => {
+  // 独立解锁不应恢复之前取消验证时留下的面板请求。
+  pendingProtectedPanel.value = null
   showPasswordDialog.value = true
 }
 
 /**
- * 打开历史订单；锁定状态下先完成密码验证，避免绕过原有访问限制。
+ * 配置、策略和订单共用解锁门禁；验证成功后继续打开所选面板。
  */
-const handleOpenOrders = () => {
-  if (passwordVerified.value) {
-    showOrdersDrawer.value = true
+const handleOpenProtectedPanel = (panel: 'config' | 'strategies' | 'orders') => {
+  if (!passwordVerified.value) {
+    pendingProtectedPanel.value = panel
+    showPasswordDialog.value = true
     return
   }
 
-  openOrdersAfterUnlock.value = true
-  handleUnlock()
+  if (panel === 'config') showConfigDialog.value = true
+  else if (panel === 'strategies') showStrategiesDrawer.value = true
+  else showOrdersDrawer.value = true
 }
 
 // 导入组件
@@ -300,6 +297,16 @@ const showTopSymbolsDialog = ref(false)
 const showMacroDataDrawer = ref(false)
 const showCryptoTrendsDrawer = ref(false)
 const showStrategiesDrawer = ref(false)
+const mobileNavOpen = ref(false)
+// 导航共享入口，移动端选择后收起菜单，避免占用行情展示空间。
+const navigationItems = [
+  { label: '指标', description: '技术信号', icon: ElIconDataAnalysis, isOpen: () => showIndicatorsDrawer.value, open: () => { showIndicatorsDrawer.value = true } },
+  { label: '热门', description: '市场焦点', icon: ElIconStar, isOpen: () => showTopSymbolsDialog.value, open: () => { showTopSymbolsDialog.value = true } },
+  { label: '宏观', description: '全球市场', icon: ElIconPlatform, isOpen: () => showMacroDataDrawer.value, open: () => { showMacroDataDrawer.value = true } },
+  { label: '趋势', description: '行情脉络', icon: ElIconTrendCharts, isOpen: () => showCryptoTrendsDrawer.value, open: () => { showCryptoTrendsDrawer.value = true } },
+  { label: '日志', description: '系统动态', icon: ElIconDocument, isOpen: () => showLogsDrawer.value, open: () => { showLogsDrawer.value = true } },
+  { label: '订单', description: '交易记录', icon: ElIconTickets, isOpen: () => showOrdersDrawer.value, open: () => { handleOpenProtectedPanel('orders') } }
+]
 // 首页负责在持仓列表与 K 线区域之间中转交易对和持仓主周期。
 const selectedChartSymbol = ref('')
 const selectedChartTimeframe = ref('')
@@ -625,21 +632,20 @@ onMounted(async () => {
 
 .header {
   background: var(--bg-card);
-  box-shadow: var(--shadow-card);
-  padding: 0 20px;
+  border-bottom: 1px solid var(--el-border-color-lighter);
+  padding: 0 24px;
 }
 
 .header-content {
   display: flex;
-  justify-content: space-between;
   align-items: center;
   height: 100%;
-  gap: 8px 16px;
+  gap: 8px 28px;
 }
 
 .header-content h1, .header-right { flex-shrink: 0; }
 
-@media (max-width: 1100px) {
+@media (max-width: 768px) {
   .header { height: auto; min-height: 60px; }
   .header-content { flex-wrap: wrap; padding: 10px 0; }
 }
@@ -648,6 +654,68 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   gap: 8px;
+  margin-left: auto;
+}
+
+.header-navigation {
+  padding-left: 24px;
+  border-left: 1px solid var(--el-border-color-lighter);
+}
+
+.navigation-inner {
+  display: flex;
+  gap: 6px;
+}
+
+.navigation-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 14px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text-regular);
+  font: inherit;
+  cursor: pointer;
+  transition: color 0.18s ease, background 0.18s ease;
+}
+
+.navigation-icon {
+  display: inline-flex;
+  color: var(--text-secondary);
+  transition: color 0.18s ease;
+}
+
+.navigation-item:hover,
+.navigation-item.is-active {
+  background: var(--el-color-primary-light-9);
+  color: var(--el-color-primary);
+}
+
+.navigation-item:hover .navigation-icon,
+.navigation-item.is-active .navigation-icon {
+  color: var(--el-color-primary);
+}
+
+.navigation-item:focus-visible,
+.header-status:focus-visible {
+  outline: 2px solid var(--el-color-primary);
+  outline-offset: 3px;
+}
+
+.navigation-label {
+  font-size: 14px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.navigation-description {
+  display: none;
+}
+
+.mobile-nav-toggle {
+  display: none;
 }
 
 .header h1 {
@@ -661,6 +729,10 @@ onMounted(async () => {
 
 .theme-toggle-btn {
   color: var(--text-regular) !important;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border-radius: 10px;
 }
 
 .main {
@@ -724,8 +796,11 @@ onMounted(async () => {
   align-items: center;
   gap: 6px;
   cursor: pointer;
-  padding: 4px 8px;
-  border-radius: 6px;
+  padding: 7px 10px;
+  border: 1px solid var(--el-border-color-lighter);
+  background: transparent;
+  font: inherit;
+  border-radius: 20px;
   transition: background 0.2s ease;
 }
 
@@ -891,9 +966,91 @@ onMounted(async () => {
 @media (max-width: 768px) {
   .header { padding: 0 12px; }
 
-  .header-content { gap: 10px 8px; }
+  .header-content { gap: 0 8px; padding: 10px 0; }
 
   .header-right { gap: 4px; }
+
+  .header-navigation {
+    /* 用网格折叠平滑展开，隐藏时不留下可聚焦的导航入口。 */
+    display: grid;
+    grid-template-rows: 0fr;
+    visibility: hidden;
+    order: 3;
+    width: 100%;
+    padding: 0;
+    border: 0;
+    opacity: 0;
+    transition: grid-template-rows 0.22s ease, opacity 0.22s ease, visibility 0.22s;
+  }
+
+  .header-navigation.is-open {
+    grid-template-rows: 1fr;
+    visibility: visible;
+    opacity: 1;
+  }
+
+  .navigation-inner {
+    min-height: 0;
+    overflow: hidden;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .header-navigation.is-open .navigation-inner {
+    margin-top: 14px;
+    padding-top: 12px;
+    padding-bottom: 2px;
+    border-top: 1px solid var(--el-border-color-lighter);
+  }
+
+  .navigation-item {
+    gap: 12px;
+    padding: 12px;
+    text-align: left;
+    background: var(--bg-main);
+    border-radius: 12px;
+  }
+
+  .navigation-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    flex-shrink: 0;
+    border-radius: 10px;
+    color: var(--el-color-primary);
+    background: var(--el-color-primary-light-9);
+  }
+
+  .navigation-copy {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .navigation-description {
+    display: block;
+    font-size: 11px;
+    color: var(--text-secondary);
+  }
+
+  .mobile-nav-toggle {
+    display: inline-flex;
+    width: 36px;
+    height: 36px;
+    margin-left: 0 !important;
+    padding: 0;
+    border-radius: 10px;
+    color: var(--text-regular);
+    background: var(--bg-main);
+  }
+
+  .mobile-nav-toggle.is-open {
+    color: var(--el-color-primary);
+    background: var(--el-color-primary-light-9);
+  }
 
   .header h1 {
     font-size: 16px;
@@ -942,5 +1099,33 @@ onMounted(async () => {
   .balance-row-large {
     flex: none;
   }
+}
+
+/* 平板横屏压缩间距，保持品牌、导航和工具栏在同一行。 */
+@media (min-width: 769px) and (max-width: 1200px) {
+  .header { padding: 0 16px; }
+  .header-content { column-gap: 8px; }
+  .header h1 { font-size: 18px; }
+  .header-navigation { padding-left: 8px; }
+  .navigation-inner { gap: 2px; }
+  .navigation-item { gap: 5px; padding: 9px 6px; }
+  .navigation-label { font-size: 13px; }
+}
+
+@media (min-width: 769px) and (max-width: 900px) {
+  .navigation-item .navigation-icon { display: none; }
+}
+
+/* 窄屏优先保留品牌与触控面积，运行状态仍可通过圆点查看。 */
+@media (max-width: 374px) {
+  .header-status-text { display: none; }
+  .header-status { padding: 10px; }
+  .header-content { column-gap: 4px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .header-navigation,
+  .navigation-item,
+  .navigation-icon { transition: none; }
 }
 </style>
