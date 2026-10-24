@@ -245,7 +245,7 @@ const visibleCryptoPrices = computed(() => {
 /** 根据视口宽度设置每页数量，确保卡片区域始终最多显示两行。 */
 function updatePageSize() {
   if (!import.meta.client) return
-  pageSize.value = window.innerWidth <= 480 ? 4 : 18
+  pageSize.value = window.innerWidth <= 480 ? 10 : 18
   currentPage.value = Math.min(currentPage.value, totalPages.value - 1)
 }
 
