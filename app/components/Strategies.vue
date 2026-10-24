@@ -75,7 +75,6 @@
               size="small"
             >
               {{ dailyTradeStatuses[row.id]?.todayOpenedCount }}/{{ row.riskManagement.maxDailyTrades }}
-              <span v-if="dailyTradeStatuses[row.id]?.dailyTradeLimitReached"> 已达上限</span>
             </el-tag>
             <span v-else>—</span>
           </template>
