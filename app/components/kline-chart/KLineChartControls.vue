@@ -3,33 +3,19 @@
     <div class="controls-left">
       <div class="symbol-badge">{{ displaySymbol }}</div>
 
-      <el-select
-        :model-value="timeline ? 'timeline' : selectedTimeframe"
-        class="timeframe-select"
-        aria-label="K线周期"
-        @change="selectTimeframe"
-      >
-        <el-option
+      <!-- 周期切换沿用原有单选逻辑，分时仍作为独立显示模式。 -->
+      <el-button-group size="small" class="timeframe-buttons" aria-label="K线周期">
+        <el-button
           v-for="option in timeframeOptions"
           :key="option.value"
-          :label="option.label"
-          :value="option.value"
-        />
-      </el-select>
-
-      <!-- EMA周期选择器 -->
-      <el-button-group v-if="!timeline" size="small" class="ema-period-buttons">
-          <el-button
-            v-for="period in availableEmaPeriods"
-            :key="period"
-            size="small"
-            :type="selectedEmaPeriods.includes(period) ? 'primary' : 'default'"
-            @click="toggleEmaPeriod(period)"
-            :disabled="!selectedEmaPeriods.includes(period) && selectedEmaPeriods.length >= 3"
-            class="ema-period-btn"
-          > 
-            {{ period }}
-          </el-button>
+          size="small"
+          :type="(timeline ? 'timeline' : selectedTimeframe) === option.value ? 'primary' : 'default'"
+          :aria-pressed="(timeline ? 'timeline' : selectedTimeframe) === option.value"
+          class="timeframe-btn"
+          @click="selectTimeframe(option.value)"
+        >
+          {{ option.label }}
+        </el-button>
       </el-button-group>
     </div>
 
@@ -145,6 +131,30 @@
             class="marker-switch"
           />
         </el-tooltip>
+        <!-- 菜单保持展开，便于连续调整；继续复用至少两个、最多三个周期的限制。 -->
+        <el-dropdown trigger="click" :hide-on-click="false" @command="toggleEmaPeriod">
+          <el-button size="small" class="ema-period-select" aria-label="选择EMA周期">
+            {{ selectedEmaPeriods.join(' / ') }}
+            <el-icon class="ema-select-arrow"><ElIconArrowDown /></el-icon>
+          </el-button>
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item
+                v-for="period in availableEmaPeriods"
+                :key="period"
+                :command="period"
+                :disabled="!selectedEmaPeriods.includes(period) && selectedEmaPeriods.length >= 3"
+              >
+                <el-checkbox
+                  :model-value="selectedEmaPeriods.includes(period)"
+                  :disabled="!selectedEmaPeriods.includes(period) && selectedEmaPeriods.length >= 3"
+                  style="pointer-events: none"
+                  tabindex="-1"
+                >{{ period }}</el-checkbox>
+              </el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
       </div>
       
       <el-button-group size="small" class="action-buttons">
@@ -547,34 +557,32 @@ watch(() => props.scanTimeRange, (newRange) => {
   box-shadow: 0 2px 4px rgba(64, 158, 255, 0.2);
 }
 
-.ema-period-buttons {
+.timeframe-buttons {
   display: inline-flex;
   border-radius: 12px;
   overflow: hidden;
 }
 
-.ema-period-buttons :deep(.el-button:first-child) {
+.timeframe-buttons :deep(.el-button:first-child) {
   border-radius: 12px 0 0 12px;
 }
 
-.ema-period-buttons :deep(.el-button:last-child) {
+.timeframe-buttons :deep(.el-button:last-child) {
   border-radius: 0 12px 12px 0;
 }
 
-.timeframe-select {
-  width: 78px;
+.ema-period-select {
   flex-shrink: 0;
 }
 
-/* EMA周期选择器 */
-.ema-period-btn {
-  padding: 12px 5px;
-  font-size: 12px;
+.ema-select-arrow {
+  margin-left: 6px;
 }
 
-.ema-period-btn:deep(.el-button.is-disabled) {
-  color: var(--text-disabled);
-  cursor: not-allowed;
+/* 紧凑周期按钮，与原 EMA 按钮组保持一致。 */
+.timeframe-btn {
+  padding: 12px 5px;
+  font-size: 12px;
 }
 
 /* 操作按钮 */
@@ -605,11 +613,7 @@ watch(() => props.scanTimeRange, (newRange) => {
     border-radius: 12px;
   }
   
-  .timeframe-select {
-    width: 100%;
-  }
-
-  .ema-period-buttons {
+  .timeframe-buttons {
     width: 100%;
     justify-content: center;
   }
@@ -618,6 +622,7 @@ watch(() => props.scanTimeRange, (newRange) => {
     width: 100%;
     justify-content: space-between;
     gap: 8px;
+    flex-wrap: wrap;
   }
   
   .marker-controls {
@@ -625,6 +630,7 @@ watch(() => props.scanTimeRange, (newRange) => {
     gap: 8px;
     padding: 2px 8px;
     border-radius: 6px;
+    flex-wrap: wrap;
   }
 
   .scan-controls-group {
