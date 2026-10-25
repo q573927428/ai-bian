@@ -433,6 +433,9 @@ declare global {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  /* 状态面板头部包含 24px 小按钮、上下各 18px 内边距及 1px 底边框。 */
+  min-height: calc((var(--el-card-padding, 20px) - 2px) * 2 + 24px + 1px);
+  box-sizing: border-box;
   padding: 12px 20px;
   background: var(--bg-secondary);
   border-bottom: 1px solid var(--border-color);
@@ -506,6 +509,7 @@ declare global {
   .chart-controls {
     flex-direction: column;
     align-items: stretch;
+    min-height: 0;
     gap: 12px;
     padding: 12px 16px;
   }

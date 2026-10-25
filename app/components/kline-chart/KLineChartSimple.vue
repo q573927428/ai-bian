@@ -1159,7 +1159,8 @@ onUnmounted(() => {
 
 <style scoped>
 .kline-chart-simple-container {
-  margin: -20px;
+  /* 外层引擎容器会裁切溢出内容，负边距会把控制栏顶部移出可视区域。 */
+  margin: 0;
   overflow: hidden;
   background: var(--bg-card);
   border-color: var(--border-color);

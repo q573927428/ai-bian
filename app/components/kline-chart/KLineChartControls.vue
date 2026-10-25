@@ -3,20 +3,21 @@
     <div class="controls-left">
       <div class="symbol-badge">{{ displaySymbol }}</div>
 
-      <!-- 周期切换沿用原有单选逻辑，分时仍作为独立显示模式。 -->
-      <el-button-group size="small" class="timeframe-buttons" aria-label="K线周期">
-        <el-button
+      <!-- 与价格看板共用默认小尺寸单选按钮样式，分时仍作为独立显示模式。 -->
+      <el-radio-group
+        :model-value="timeline ? 'timeline' : selectedTimeframe"
+        class="timeframe-buttons"
+        aria-label="K线周期"
+        @change="value => selectTimeframe(String(value))"
+      >
+        <el-radio-button
           v-for="option in timeframeOptions"
           :key="option.value"
-          size="small"
-          :type="(timeline ? 'timeline' : selectedTimeframe) === option.value ? 'primary' : 'default'"
-          :aria-pressed="(timeline ? 'timeline' : selectedTimeframe) === option.value"
-          class="timeframe-btn"
-          @click="selectTimeframe(option.value)"
+          :value="option.value"
         >
           {{ option.label }}
-        </el-button>
-      </el-button-group>
+        </el-radio-button>
+      </el-radio-group>
     </div>
 
     <div class="controls-right">
@@ -557,18 +558,10 @@ watch(() => props.scanTimeRange, (newRange) => {
   box-shadow: 0 2px 4px rgba(64, 158, 255, 0.2);
 }
 
-.timeframe-buttons {
-  display: inline-flex;
-  border-radius: 12px;
-  overflow: hidden;
-}
-
-.timeframe-buttons :deep(.el-button:first-child) {
-  border-radius: 12px 0 0 12px;
-}
-
-.timeframe-buttons :deep(.el-button:last-child) {
-  border-radius: 0 12px 12px 0;
+/* 略微收紧周期按钮宽度，保留与价格看板一致的高度和选中样式。 */
+.timeframe-buttons :deep(.el-radio-button__inner) {
+  padding-right: 8px;
+  padding-left: 8px;
 }
 
 .ema-period-select {
@@ -577,12 +570,6 @@ watch(() => props.scanTimeRange, (newRange) => {
 
 .ema-select-arrow {
   margin-left: 6px;
-}
-
-/* 紧凑周期按钮，与原 EMA 按钮组保持一致。 */
-.timeframe-btn {
-  padding: 12px 5px;
-  font-size: 12px;
 }
 
 /* 操作按钮 */
@@ -594,11 +581,15 @@ watch(() => props.scanTimeRange, (newRange) => {
 @media (max-width: 576px) {
   .chart-controls {
     flex-direction: column;
+    align-items: stretch;
     gap: 8px;
     padding: 8px 10px;
   }
   
   .controls-left {
+    /* 纵向布局不能沿用桌面端的 20px flex 基准，否则交易对行会被压缩遮挡。 */
+    flex: none;
+    min-width: 0;
     width: 100%;
     flex-wrap: wrap;
     justify-content: center;
@@ -606,6 +597,7 @@ watch(() => props.scanTimeRange, (newRange) => {
   }
   
   .symbol-badge {
+    box-sizing: border-box;
     width: 100%;
     text-align: center;
     padding: 4px 8px;
@@ -615,18 +607,25 @@ watch(() => props.scanTimeRange, (newRange) => {
   
   .timeframe-buttons {
     width: 100%;
+    min-width: 0;
     justify-content: center;
   }
   
   .controls-right {
+    flex: none;
+    min-width: 0;
     width: 100%;
-    justify-content: space-between;
+    margin-left: 0;
+    align-items: stretch;
     gap: 8px;
     flex-wrap: wrap;
   }
   
   .marker-controls {
-    flex: 1;
+    /* 开关独占一行并按可用宽度换行，操作按钮另起一行，避免挤出卡片。 */
+    flex: 1 1 100%;
+    min-width: 0;
+    box-sizing: border-box;
     gap: 8px;
     padding: 2px 8px;
     border-radius: 6px;
@@ -643,7 +642,13 @@ watch(() => props.scanTimeRange, (newRange) => {
   }
   
   .action-buttons {
+    flex: none;
+    margin-left: auto;
     gap: 4px;
+  }
+
+  .action-buttons :deep(.el-button) {
+    margin-left: 0;
   }
   
   .action-btn {

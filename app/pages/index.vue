@@ -392,7 +392,9 @@ onMounted(async () => {
     margin: 0;
   }
 
-  .market-column :deep(.kline-chart-simple-container:not(:fullscreen)) {
+  /* 两种图表引擎共用剩余空间布局，头部增高时由图表区域收缩。 */
+  .market-column :deep(.kline-chart-simple-container:not(:fullscreen)),
+  .market-column :deep(.tradingview-panel) {
     display: flex;
     flex-direction: column;
     height: 100%;
@@ -400,12 +402,19 @@ onMounted(async () => {
     transition: none;
   }
 
-  .market-column :deep(.chart-controls-wrapper) {
+  .market-column :deep(.chart-controls-wrapper),
+  .market-column :deep(.tradingview-panel > .chart-controls) {
     flex-shrink: 0;
   }
 
-  .market-column :deep(.kline-chart-simple-container > .chart-container) {
+  .market-column :deep(.kline-chart-simple-container > .chart-container),
+  .market-column :deep(.tradingview-panel > .chart-container) {
     flex: 1;
+    min-height: 0;
+  }
+
+  .market-column :deep(.tradingview-panel .tradingview-chart) {
+    height: 100% !important;
     min-height: 0;
   }
 
