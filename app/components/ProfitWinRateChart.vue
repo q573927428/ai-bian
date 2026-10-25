@@ -270,6 +270,36 @@ const renderChart = () => {
   const color = isPnl ? '#10b981' : '#3b82f6'
   const yAxisName = isPnl ? '盈亏(USDT)' : '胜率(%)'
 
+  // 面积包含零轴，用零轴在填充区域中的位置分色，跨零时保持明确的红绿边界。
+  const minPnl = Math.min(0, ...data)
+  const maxPnl = Math.max(0, ...data)
+  const zeroOffset = maxPnl / (maxPnl - minPnl || 1)
+  // 跨零折线使用硬切换渐变，让两个采样点之间的曲线也恰好在零轴处变色。
+  const pnlLineColor = minPnl >= 0 ? '#10b981' : maxPnl <= 0 ? '#ef4444'
+    : new graphic.LinearGradient(0, 0, 0, 1, [
+        { offset: 0, color: '#10b981' },
+        { offset: zeroOffset, color: '#10b981' },
+        { offset: zeroOffset, color: '#ef4444' },
+        { offset: 1, color: '#ef4444' }
+      ])
+  const pnlAreaColor = new graphic.LinearGradient(0, 0, 0, 1,
+    minPnl >= 0
+      ? [
+          { offset: 0, color: 'rgba(16, 185, 129, 0.65)' },
+          { offset: 1, color: 'rgba(16, 185, 129, 0.18)' }
+        ]
+      : maxPnl <= 0
+        ? [
+            { offset: 0, color: 'rgba(239, 68, 68, 0.18)' },
+            { offset: 1, color: 'rgba(239, 68, 68, 0.65)' }
+          ]
+        : [
+            { offset: 0, color: 'rgba(16, 185, 129, 0.65)' },
+            { offset: zeroOffset, color: 'rgba(16, 185, 129, 0.18)' },
+            { offset: zeroOffset, color: 'rgba(239, 68, 68, 0.18)' },
+            { offset: 1, color: 'rgba(239, 68, 68, 0.65)' }
+          ])
+
   const option = {
     tooltip: {
       trigger: 'axis',
@@ -325,12 +355,19 @@ const renderChart = () => {
         name: name,
         type: 'line',
         smooth: true,
+        // 限制平滑曲线沿时间轴单调，避免插值超出数据范围导致零轴分色偏移。
+        smoothMonotone: 'x',
         data: data,
+        lineStyle: {
+          color: isPnl ? pnlLineColor : color
+        },
         itemStyle: {
-          color: color
+          // 数据点按自身盈亏值着色，零值沿用盈利绿色。
+          color: isPnl ? (params: { value: number }) => params.value < 0 ? '#ef4444' : '#10b981' : color
         },
         areaStyle: {
-          color: new graphic.LinearGradient(0, 0, 0, 1, [
+          origin: 0,
+          color: isPnl ? pnlAreaColor : new graphic.LinearGradient(0, 0, 0, 1, [
             { offset: 0, color: isPnl ? 'rgba(16, 185, 129, 0.3)' : 'rgba(59, 130, 246, 0.3)' },
             { offset: 1, color: isPnl ? 'rgba(16, 185, 129, 0.05)' : 'rgba(59, 130, 246, 0.05)' }
           ])
