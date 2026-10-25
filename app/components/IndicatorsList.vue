@@ -284,8 +284,7 @@ async function fetchData() {
   loading.value = true; errorMessage.value = ''
   const requestedTimeframe = timeframe.value
   const requestedEmaPeriods = [...emaPeriods.value]
-  // 其他周期不再串行等待整个主表完成，也不与随后启动的慢统计争抢首轮请求。
-  void fetchResonance(version, requestedTimeframe, requestedEmaPeriods)
+  // 首屏只请求当前周期，避免另外四个周期先占满浏览器连接和服务端计算资源。
   const results = await Promise.all(symbols.value.map(async (symbol: string) => {
     try {
       const response: any = await $fetch('/api/bot/indicators', { query: { symbol, timeframe: requestedTimeframe, emaPeriods: requestedEmaPeriods.join(','), includeSlowStats: 'false' } })
@@ -304,13 +303,24 @@ async function fetchData() {
   loading.value = false
 
   // 首屏不再等待 OI 历史和币安广场分页请求；慢字段在表格显示后后台补齐。
-  void enrichSlowStats(version, requestedTimeframe)
+  void fetchBackgroundStats(version, requestedTimeframe, requestedEmaPeriods)
+}
+
+/** 按主表、五周期信号、慢统计的顺序加载，避免三类请求同时争抢资源。 */
+async function fetchBackgroundStats(version: number, selectedTimeframe: string, periods: number[]) {
+  await fetchResonance(version, selectedTimeframe, periods)
+  if (version !== fetchVersion) return
+  await enrichSlowStats(version, selectedTimeframe)
 }
 
 /** 后台补齐另外四个周期，复用当前周期数据，避免共振请求阻塞首屏。 */
 async function fetchResonance(version: number, selectedTimeframe: string, periods: number[]) {
-  await Promise.all(symbols.value.map(async symbol => {
-    await Promise.all(timeframes.filter(period => period !== selectedTimeframe).map(async period => {
+  const tasks = symbols.value.flatMap(symbol => timeframes.filter(period => period !== selectedTimeframe).map(period => ({ symbol, period })))
+  // 最多四个后台请求并行；刷新后不再继续发送旧批次中尚未开始的请求。
+  let nextTask = 0
+  await Promise.all(Array.from({ length: Math.min(4, tasks.length) }, async () => {
+    while (version === fetchVersion && nextTask < tasks.length) {
+      const { symbol, period } = tasks[nextTask++]!
       try {
         const response: any = await $fetch('/api/bot/indicators', {
           query: { symbol, timeframe: period, emaPeriods: periods.join(','), includeSlowStats: 'false', signalOnly: 'true' }
@@ -320,7 +330,7 @@ async function fetchResonance(version: number, selectedTimeframe: string, period
       } catch {
         // 请求失败保留缺失状态，不能将不完整数据判为五周期共振。
       }
-    }))
+    }
   }))
 }
 
@@ -338,18 +348,31 @@ function combinedPeriodTrend(row: IndicatorRow): IndicatorRow['diDirection'] {
   return '中性'
 }
 
-/** 将大周期背景、中间承接和短线触发拆开判断，避免五周期不完全一致就被压成观望。 */
+// 仅在周期信号变化时重算，模板颜色、文字、悬停及筛选共享结果。
+const resonanceResults = computed(() => Object.fromEntries(
+  symbols.value.map(symbol => [symbol, calculateResonanceInfo(symbol)])
+))
+
+/** 读取缓存的组合结论，避免每次单元格渲染重复执行判定。 */
 function resonanceInfo(symbol: string): { label: string; tone: SignalTone } {
+  return resonanceResults.value[symbol] ?? { label: '数据不足观望', tone: '观望' }
+}
+
+/** 将大周期背景、中间承接和短线触发拆开判断，避免五周期不完全一致就被压成观望。 */
+function calculateResonanceInfo(symbol: string): { label: string; tone: SignalTone } {
   const signals = periodSignals.value[symbol] || {}
   const dir = (period: string) => signals[period]?.startsWith('多头') ? '多' : signals[period]?.startsWith('空头') ? '空' : '中'
   const strength = (period: string) => signals[period]?.endsWith('增强')
   const bg = [dir('1d'), dir('4h')]; const mid = dir('1h'); const short = [dir('15m'), dir('5m')]
-  if ([...bg, mid, ...short].some((item, index) => item === '中' && ([signals['1d'], signals['4h'], signals['1h'], signals['15m'], signals['5m']][index] == null || [signals['1d'], signals['4h'], signals['1h'], signals['15m'], signals['5m']][index] === '--'))) return { label: '数据不足观望', tone: '观望' }
+  if (timeframes.some(period => signals[period] == null || signals[period] === '--')) return { label: '数据不足观望', tone: '观望' }
   if (bg.includes('中') && bg.some(item => item !== '中') && mid !== '中' && short[0] === mid && short[1] === mid) {
     return { label: `${mid === '多' ? '多头' : '空头'}承接观察`, tone: mid === '多' ? '多头' : '空头' }
   }
   if (bg[0] !== bg[1]) return { label: '大周期分歧', tone: '观望' }
+  // 中性表示没有确认方向，不能参与多空延续、反转或承接，也不能默认映射为空头。
+  if (bg[0] === '中') return { label: '中性背景观望', tone: '观望' }
   const background = bg[0]; const backgroundText = background === '多' ? '多头' : '空头'
+  if (mid === '中' || short.includes('中')) return { label: `${backgroundText}背景分歧`, tone: '观望' }
   if (mid === background && short[0] === background && short[1] === background) return { label: `${backgroundText}趋势延续`, tone: background === '多' ? '多头' : '空头' }
   if (mid === background && short[0] !== background && short[1] !== background) {
     const weakening = strength('5m') === false && strength('15m') === false
