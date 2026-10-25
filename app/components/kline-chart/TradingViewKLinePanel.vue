@@ -1,5 +1,5 @@
 <template>
-  <div class="tradingview-panel" style="margin-bottom: -43px;">
+  <div class="tradingview-panel">
     <!-- 图表控制栏 -->
     <div class="chart-controls">
       <div class="controls-left">
@@ -406,7 +406,12 @@ declare global {
   background: var(--bg-card);
   border-radius: 12px;
   overflow: hidden;
-  margin: -20px;
+  /* 面板必须服从三列布局宽度，避免 TradingView iframe 产生外层横向滚动。 */
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  margin: 0;
+  box-sizing: border-box;
   transition: all 0.3s ease;
 }
 
@@ -448,6 +453,9 @@ declare global {
 /* 图表容器 */
 .chart-container {
   position: relative;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
   min-height: 423px;
   border-radius: 8px;
   overflow: hidden;
@@ -455,7 +463,16 @@ declare global {
 
 .tradingview-chart {
   width: 100%;
+  max-width: 100%;
+  min-width: 0;
   min-height: 423px;
+}
+
+/* tv.js 会动态注入 iframe，显式收缩可避免其默认尺寸撑开父级。 */
+.tradingview-chart :deep(iframe) {
+  display: block;
+  width: 100% !important;
+  max-width: 100%;
 }
 
 .chart-loading {

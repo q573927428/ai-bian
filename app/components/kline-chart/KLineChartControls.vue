@@ -264,7 +264,7 @@ const availableEmaPeriods = [7, 14, 20, 30, 50, 60, 120, 200]
 
 // 分时仅作为显示模式，其余周期值与 K 线接口保持一致。
 const timeframeOptions = [
-  { label: '分时', value: 'timeline' },
+  { label: '秒', value: 'timeline' },
   { label: '5m', value: '5m' },
   { label: '15m', value: '15m' },
   { label: '1h', value: '1h' },

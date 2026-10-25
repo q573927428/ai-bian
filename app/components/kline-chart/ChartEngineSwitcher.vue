@@ -65,6 +65,9 @@ onMounted(() => {
 <style scoped>
 .chart-engine-switcher {
   margin-bottom: 20px;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: hidden;
 }
 
 .engine-switch-bar {
