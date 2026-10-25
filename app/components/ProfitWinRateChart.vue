@@ -16,6 +16,10 @@
         <el-radio-button value="pnl">盈亏</el-radio-button>
         <el-radio-button value="winRate">胜率</el-radio-button>
       </el-radio-group>
+      <el-radio-group v-model="selectedPeriod" size="small" class="filter-item">
+        <el-radio-button value="all">全部</el-radio-button>
+        <el-radio-button value="today">当日</el-radio-button>
+      </el-radio-group>
       
       <el-select v-model="selectedStrategy" placeholder="选择策略" clearable size="small" class="filter-item">
         <el-option label="全部策略" value="" />
@@ -93,6 +97,7 @@ let chartResizeObserver: ResizeObserver | undefined
 const loading = ref(false)
 const selectedStrategy = ref('')
 const selectedSymbol = ref('')
+const selectedPeriod = ref<'all' | 'today'>('all')
 const chartType = ref<'pnl' | 'winRate'>('pnl')
 const strategies = ref<any[]>([])
 const symbols = ref<string[]>([])
@@ -106,6 +111,20 @@ const stats = ref({
 const { theme } = useTheme()
 let chartInstance: ECharts | null = null
 
+/** 使用浏览器本地自然日边界，确保服务端时区不会改变“当日”的范围。 */
+const getPeriodParams = () => {
+  if (selectedPeriod.value !== 'today') return {}
+  const start = new Date()
+  start.setHours(0, 0, 0, 0)
+  const end = new Date(start)
+  end.setDate(end.getDate() + 1)
+  return {
+    startTime: start.getTime(),
+    endTime: end.getTime(),
+    timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+  }
+}
+
 // 加载历史数据
 const loadData = async (force = false) => {
   loading.value = true
@@ -114,6 +133,7 @@ const loadData = async (force = false) => {
       params: {
         strategyId: selectedStrategy.value || undefined,
         symbol: selectedSymbol.value || undefined,
+        ...getPeriodParams(),
       },
     }) as any
     chartData.value = response.success ? response.data || [] : []
@@ -160,6 +180,7 @@ const loadSummary = async () => {
       params: {
         strategyId: selectedStrategy.value || undefined,
         symbol: selectedSymbol.value || undefined,
+        ...getPeriodParams(),
       },
     }) as any
     chartData.value = response.success ? response.data || [] : []
@@ -322,7 +343,7 @@ const renderChart = () => {
 }
 
 // 监听筛选变化
-watch([selectedStrategy, selectedSymbol], () => {
+watch([selectedStrategy, selectedSymbol, selectedPeriod], () => {
   void loadSummary()
 })
 
@@ -367,12 +388,14 @@ onUnmounted(() => {
 
 .filters {
   display: flex;
+  flex-wrap: wrap;
   gap: 10px;
   margin-bottom: 15px;
 }
 
 .filter-item {
   flex: 1;
+  min-width: 80px;
 }
 
 .chart-container {

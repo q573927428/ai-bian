@@ -28,6 +28,14 @@
           <el-icon><ElIconOperation /></el-icon>
           策略
         </el-button>
+        <el-button class="control-panel-action" type="primary" size="small" text @click="emit('logs')">
+          <el-icon><ElIconDocument /></el-icon>
+          日志
+        </el-button>
+        <el-button class="control-panel-action" type="primary" size="small" text @click="emit('open', 'orders')">
+          <el-icon><ElIconTickets /></el-icon>
+          订单
+        </el-button>
       </div>
       <!-- 余额信息 -->
       <div class="balance-card-large">
@@ -99,7 +107,8 @@ const props = defineProps<Props>()
 const emit = defineEmits<{
   unlock: []
   lock: []
-  open: [panel: 'config' | 'strategies']
+  logs: []
+  open: [panel: 'config' | 'strategies' | 'orders']
 }>()
 const pnlClass = computed(() => props.dailyPnL >= 0 ? 'text-success' : 'text-danger')
 const totalPnLClass = computed(() => props.totalPnL >= 0 ? 'text-success' : 'text-danger')

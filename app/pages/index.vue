@@ -32,6 +32,7 @@
               @unlock="handleUnlock"
               @lock="clearPassword"
               @open="handleOpenProtectedPanel"
+              @logs="showLogsDrawer = true"
             />
 
             <!-- 盈亏胜率走势图表 -->
@@ -54,7 +55,7 @@
               <IndicatorsList v-model="showIndicatorsDrawer" @select-symbol="handlePositionChartSelect" />
             </ClientOnly>
 
-            <!-- 系统日志抽屉由顶部导航打开 -->
+            <!-- 系统日志抽屉由状态面板打开 -->
             <ClientOnly>
               <SystemLogs v-model="showLogsDrawer" @select-symbol="handlePositionChartSelect" />
             </ClientOnly>
@@ -74,7 +75,7 @@
               <Strategies v-model="showStrategiesDrawer" />
             </ClientOnly>
 
-            <!-- 顶部订单入口需先解锁，验证成功后再挂载订单抽屉。 -->
+            <!-- 状态面板的订单入口需先解锁，验证成功后再挂载订单抽屉。 -->
             <ClientOnly v-if="passwordVerified">
               <TradeHistory v-model="showOrdersDrawer" @select-symbol="handlePositionChartSelect" />
             </ClientOnly>

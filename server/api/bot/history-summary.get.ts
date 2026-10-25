@@ -6,9 +6,17 @@ export default defineEventHandler((event) => {
   const query = getQuery(event)
   const strategyId = String(query.strategyId || '')
   const symbol = String(query.symbol || '')
+  const startTime = Number(query.startTime)
+  const endTime = Number(query.endTime)
+  const isIntraday = Number.isFinite(startTime) && Number.isFinite(endTime) && endTime > startTime
+  // 当日使用客户端时区展示时分；自然日边界由客户端传入，避免服务器时区偏差。
+  const timeFormat = new Intl.DateTimeFormat('zh-CN', isIntraday
+    ? { timeZone: String(query.timeZone || 'Asia/Shanghai'), hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }
+    : { month: 'numeric', day: 'numeric' })
   const records = getCachedTradeHistory()
     .filter((trade) => !strategyId || trade.strategyId === strategyId)
     .filter((trade) => !symbol || trade.symbol === symbol)
+    .filter((trade) => !isIntraday || (Number(trade.closeTime) >= startTime && Number(trade.closeTime) < endTime))
     .sort((a, b) => Number(a.closeTime || 0) - Number(b.closeTime || 0))
 
   let cumulativePnl = 0
@@ -19,7 +27,7 @@ export default defineEventHandler((event) => {
     cumulativePnl += Number(trade.pnl || 0)
     if (Number(trade.pnl || 0) > 0) wins++
     totalCount++
-    const date = new Date(Number(trade.closeTime)).toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' })
+    const date = timeFormat.format(new Date(Number(trade.closeTime)))
     dateMap.set(date, {
       time: date,
       pnl: Number(cumulativePnl.toFixed(2)),

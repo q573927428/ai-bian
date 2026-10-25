@@ -56,7 +56,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import type { Component } from 'vue'
-import { ElIconDataAnalysis, ElIconStar, ElIconPlatform, ElIconTrendCharts, ElIconDocument, ElIconTickets, ElIconUserFilled } from '#components'
+import { ElIconDataAnalysis, ElIconStar, ElIconPlatform, ElIconTrendCharts, ElIconUserFilled } from '#components'
 import { useTheme } from '../composables/useTheme'
 import type { HomeNavigationTarget } from '../../types/home'
 
@@ -87,9 +87,7 @@ const navigationItems: NavigationItem[] = [
   { id: 'indicators', label: '指标', description: '技术信号', icon: ElIconDataAnalysis },
   { id: 'hot', label: '热门', description: '市场焦点', icon: ElIconStar },
   { id: 'macro', label: '宏观', description: '全球市场', icon: ElIconPlatform },
-  { id: 'trends', label: '趋势', description: '行情脉络', icon: ElIconTrendCharts },
-  { id: 'logs', label: '日志', description: '系统动态', icon: ElIconDocument },
-  { id: 'orders', label: '订单', description: '交易记录', icon: ElIconTickets }
+  { id: 'trends', label: '趋势', description: '行情脉络', icon: ElIconTrendCharts }
 ]
 
 /** 移动端选择入口后收起菜单，具体面板及权限由首页协调。 */
