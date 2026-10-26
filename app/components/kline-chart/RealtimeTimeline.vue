@@ -38,7 +38,7 @@ const live = computed(() => store.priceConnectionStatus === 'connected'
 const WINDOW_SECONDS = 600
 // 固定时间跨度才能持续平移，不能随已积累的点数扩大视窗。
 const SAMPLE_MS = 100
-const VISIBLE_POINTS = 10 * 1000 / SAMPLE_MS
+const VISIBLE_POINTS = 40 * 1000 / SAMPLE_MS
 const visibleSpan = ref(VISIBLE_POINTS)
 const SMOOTHING_MS = 180
 const MAX_POINTS = WINDOW_SECONDS * 1000 / SAMPLE_MS + 1

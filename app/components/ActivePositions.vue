@@ -1,12 +1,41 @@
 <template>
   <el-card class="active-positions-card" shadow="hover">
     <template #header>
-      <div class="positions-card-header">📌 当前持仓 ({{ positions.length }})</div>
+      <div class="positions-card-header">
+        <span>📌 当前持仓 ({{ hasActiveFilters ? `${filteredPositions.length}/${positions.length}` : positions.length }})</span>
+        <el-button size="small" text :type="hasActiveFilters ? 'primary' : 'default'" :aria-expanded="showFilter" aria-controls="positions-filter" @click="showFilter = !showFilter">
+          <el-icon><ElIconFilter /></el-icon>
+          筛选{{ hasActiveFilters ? '（已启用）' : '' }}
+        </el-button>
+      </div>
     </template>
+
+    <div v-if="showFilter" id="positions-filter" class="positions-filter">
+      <label class="filter-item">
+        <span>交易对</span>
+        <el-select v-model="filter.symbol" placeholder="全部" size="small" clearable filterable aria-label="筛选交易对">
+          <el-option v-for="symbol in availableSymbols" :key="symbol" :label="symbol" :value="symbol" />
+        </el-select>
+      </label>
+      <label class="filter-item">
+        <span>方向</span>
+        <el-select v-model="filter.direction" placeholder="全部" size="small" clearable aria-label="筛选方向">
+          <el-option label="做多" value="long" />
+          <el-option label="做空" value="short" />
+        </el-select>
+      </label>
+      <label class="filter-item">
+        <span>策略</span>
+        <el-select v-model="filter.strategyId" placeholder="全部" size="small" clearable filterable aria-label="筛选策略">
+          <el-option v-for="strategy in availableStrategies" :key="strategy" :label="strategy" :value="strategy" />
+        </el-select>
+      </label>
+      <el-button size="small" text :disabled="!hasActiveFilters" @click="resetFilters">重置</el-button>
+    </div>
 
     <div class="positions-list">
       <div
-        v-for="position in positions"
+        v-for="position in filteredPositions"
         :key="position.symbol"
         class="position-item"
         :class="getPositionItemClass(position)"
@@ -65,6 +94,9 @@
       </div>
     </div>
     <el-empty v-if="positions.length === 0" description="暂无当前持仓" />
+    <el-empty v-else-if="filteredPositions.length === 0" description="暂无符合筛选条件的持仓">
+      <el-button size="small" @click="resetFilters">重置筛选</el-button>
+    </el-empty>
 
     <!-- 密码只保护平仓操作，不影响持仓信息的查看。 -->
     <PasswordDialog v-model="showClosePasswordDialog" @success="handlePasswordSuccess" />
@@ -73,7 +105,7 @@
 
 <script setup lang="ts">
 // ==================== 当前持仓固定面板 ====================
-import { ref, onMounted, onUnmounted } from 'vue'
+import { computed, reactive, ref, onMounted, onUnmounted } from 'vue'
 import { useBotStore } from '../stores/bot'
 import { formatPrice } from './kline-chart/utils/kline-formatters'
 import PasswordDialog from './PasswordDialog.vue'
@@ -85,6 +117,25 @@ const emit = defineEmits<{
 
 const botStore = useBotStore()
 const positions = ref<any[]>([])
+const showFilter = ref(false)
+const filter = reactive({ symbol: '', direction: '', strategyId: '' })
+const hasActiveFilters = computed(() => Boolean(filter.symbol || filter.direction || filter.strategyId))
+// 选项始终来自完整持仓，避免组合筛选后其他可选值消失。
+const availableSymbols = computed(() => [...new Set(positions.value.map(position => position.symbol).filter(Boolean))].sort())
+const availableStrategies = computed(() => [...new Set(positions.value.map(position => position.strategyId).filter(Boolean))].sort())
+const filteredPositions = computed(() => positions.value.filter(position =>
+  (!filter.symbol || position.symbol === filter.symbol)
+  && (!filter.direction || position.direction === filter.direction)
+  && (!filter.strategyId || position.strategyId === filter.strategyId)
+))
+
+/** 清空全部筛选条件，恢复展示完整持仓列表。 */
+function resetFilters() {
+  filter.symbol = ''
+  filter.direction = ''
+  filter.strategyId = ''
+}
+
 const closingSymbols = ref<string[]>([])
 const expandedAISections = ref<string[]>([])
 const showClosePasswordDialog = ref(false)
@@ -670,7 +721,31 @@ onUnmounted(() => {
 }
 
 .positions-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
   color: var(--text-primary);
   font-weight: 600;
+}
+
+.positions-filter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  padding-bottom: 16px;
+}
+
+.filter-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.filter-item .el-select {
+  width: 130px;
 }
 </style>
