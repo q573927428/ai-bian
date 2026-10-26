@@ -1,7 +1,8 @@
-// ==================== 热门交易对 API（支持 24h 热门 / 持续放量 两种模式） ====================
+// ==================== 热门、持续放量及已配置交易对 API ====================
 //
 // 查询参数：
 //   mode=hot（默认）：按 24h 成交额排序取前 100
+//   mode=configured：展示配置文件中的全部交易对，不限制数量和上线时长
 //   mode=stable：按"最近 N 天持续稳定放量"筛选（排除短期热点）
 //     附加参数：days / pool / top / minDaily / activeDaysRatio / minRatio / cvMax / segmentRatio
 //
@@ -394,6 +395,10 @@ function getHotTopSymbols(): ReturnType<typeof fallbackHotMode> {
 
 export default defineEventHandler(async (event) => {
   const query = getQuery(event)
+  // 每次读取当前配置，避免热门榜缓存或筛选条件遗漏已配置交易对。
+  if (query.mode === 'configured') {
+    return { ...await fallbackHotMode(true), mode: 'configured' }
+  }
   const mode = query.mode === 'stable' ? 'stable' : 'hot'
 
   // ============ 持续放量模式 ============
@@ -439,12 +444,15 @@ export default defineEventHandler(async (event) => {
 
 /**
  * 原有 24h 热门逻辑：按 24h 成交额排序取前 TOP_SYMBOLS_LIMIT。
- * 抽成独立函数，供持续放量模式失败时降级复用。
+ * 配置模式复用行情组装，但不应用热门榜的数量、合约和上线时长筛选。
  */
-async function fallbackHotMode() {
+async function fallbackHotMode(configuredOnly = false) {
   // 0. 从 bot-config.json 读取 requiredCandles 作为最少需要的4H K线根数
   const botConfig = await getBotConfig()
   const minKlineCount = botConfig.indicatorsConfig?.requiredCandles || 493
+  const configuredSymbols = [...new Set((botConfig.symbols || [])
+    .map(symbol => symbol.trim().replace(/\//g, '').toUpperCase()).filter(Boolean))]
+  if (configuredOnly && configuredSymbols.length === 0) return { success: true, data: [] }
 
   // 1. 获取所有合约的 exchangeInfo（含上线时间和合约类型）
   const onboardMap = new Map<string, { onboardDate: number; contractType: string }>()
@@ -469,15 +477,21 @@ async function fallbackHotMode() {
   )
 
   // 3. 筛选符合 K 线要求的 USDT 永续合约，再按成交额取前 TOP_SYMBOLS_LIMIT 个
-  const symbols = tickers
-    .filter((t: any) => onboardMap.has(t.symbol)) // 只保留 exchangeInfo 中存在的永久合约
+  // 缺失行情仍保留配置行，以空值展示，确保列表完整反映配置文件。
+  const tickerMap = new Map(tickers.map((ticker: any) => [ticker.symbol, ticker]))
+  const sourceTickers = configuredOnly
+    ? configuredSymbols.map(symbol => tickerMap.get(symbol) || { symbol })
+    : tickers
+  const symbols = sourceTickers
+    .filter((t: any) => configuredOnly || onboardMap.has(t.symbol)) // 配置列表不受市场筛选限制
     // 先排除上线时间不足的交易对，避免截取后榜单数量不足 100
     .filter((t: any) => {
+      if (configuredOnly) return true
       const onboardDate = onboardMap.get(t.symbol)?.onboardDate || 0
       return onboardDate > 0 && Math.floor((Date.now() - onboardDate) / KLINE_4H_MS) >= minKlineCount
     })
     .sort((a: any, b: any) => parseFloat(b.quoteVolume || '0') - parseFloat(a.quoteVolume || '0'))
-    .slice(0, TOP_SYMBOLS_LIMIT)
+    .slice(0, configuredOnly ? undefined : TOP_SYMBOLS_LIMIT)
     .map((t: any) => {
       const { onboardDate = 0, contractType } = onboardMap.get(t.symbol) || {}
       const klineCount4h = onboardDate > 0
@@ -486,9 +500,9 @@ async function fallbackHotMode() {
       return {
         symbol: t.symbol,
         volume: parseFloat(t.quoteVolume || '0'),
-        price: parseFloat(t.lastPrice || '0'),
+        price: parseFloat(t.lastPrice || (configuredOnly ? 'NaN' : '0')),
         referenceTime: Number(t.closeTime) || Date.now(),
-        priceChangePercent: parseFloat(t.priceChangePercent || '0'),
+        priceChangePercent: parseFloat(t.priceChangePercent || (configuredOnly ? 'NaN' : '0')),
         fundingRate: 0,
         klineCount4h,
         onboardDate,

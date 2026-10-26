@@ -15,6 +15,7 @@
         <el-radio-group v-model="mode" size="small" @change="handleModeChange">
           <el-radio-button value="hot">🔥 24h 热门</el-radio-button>
           <el-radio-button value="stable">📈 持续放量</el-radio-button>
+          <el-radio-button value="configured">📋 配置列表</el-radio-button>
         </el-radio-group>
         <div class="toolbar-actions">
           <el-button type="primary" size="small" :loading="loading" @click="fetchData">
@@ -93,7 +94,7 @@
       </div>
 
       <el-alert
-        v-if="mode === 'stable' && message"
+        v-if="message"
         type="warning"
         :closable="false"
         show-icon
@@ -246,7 +247,7 @@
         >
           <template #default="{ row }">
             <span :class="percentClass(row.priceChangePercent)">
-              {{ row.priceChangePercent >= 0 ? '+' : '' }}{{ row.priceChangePercent.toFixed(2) }}%
+              {{ formatChange(row.priceChangePercent) }}
             </span>
           </template>
         </el-table-column>
@@ -299,7 +300,7 @@ import { useCoinIcon } from '../composables/useCoinIcon'
 
 const { getCoinIconUrl } = useCoinIcon()
 
-type Mode = 'hot' | 'stable'
+type Mode = 'hot' | 'stable' | 'configured'
 
 /** 热门及持续放量榜单的交易对行情。 */
 interface TopSymbol {
@@ -435,7 +436,8 @@ const activeDaysPercent = computed({
 const isMobile = computed(() => windowWidth.value < 768)
 
 const dialogTitle = computed(() =>
-  mode.value === 'stable' ? '📈 持续放量交易对 Top' + filterParams.value.top : '🔥 热门交易对 Top 100'
+  mode.value === 'configured' ? `📋 配置列表（${data.value.length}）`
+    : mode.value === 'stable' ? '📈 持续放量交易对 Top' + filterParams.value.top : '🔥 热门交易对 Top 100'
 )
 
 const defaultSort = computed<{ prop: string; order: 'ascending' | 'descending' }>(() =>
@@ -525,7 +527,7 @@ const fetchData = async () => {
           cvMax: filterParams.value.cvMax,
           segmentRatio: filterParams.value.segmentRatio,
         }
-      : {}
+      : { mode: mode.value }
     const [res] = await Promise.all([$fetch<{
       success: boolean
       mode?: string
