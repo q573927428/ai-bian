@@ -22,9 +22,9 @@
             <el-radio-button value="24h">24h</el-radio-button>
           </el-radio-group>
           <div class="price-counts" :title="`按已选交易对的${changePeriod}实时涨跌幅统计；AI使用每轮固定快照；上涨占比和中位数仅计算有效行情（含持平）；5m/15m/1h/4h参考价取本地5m K线；参考价快照时间：${breadthSnapshot ? new Date(breadthSnapshot.computedAt).toLocaleString() : '待更新'}`">
-            <span>总 {{ DEFAULT_CRYPTOS.length }}</span>
-            <span class="count-up">涨 {{ priceCounts.up }}</span>
-            <span class="count-down">跌 {{ priceCounts.down }}</span>
+            <button type="button" class="count-filter" :class="{ 'is-active': priceFilter === 'all' }" :aria-pressed="priceFilter === 'all'" title="显示全部交易对" @click="priceFilter = 'all'">总 {{ DEFAULT_CRYPTOS.length }}</button>
+            <button type="button" class="count-filter count-up" :class="{ 'is-active': priceFilter === 'up' }" :aria-pressed="priceFilter === 'up'" title="仅显示上涨交易对" @click="priceFilter = 'up'">涨 {{ priceCounts.up }}</button>
+            <button type="button" class="count-filter count-down" :class="{ 'is-active': priceFilter === 'down' }" :aria-pressed="priceFilter === 'down'" title="仅显示下跌交易对" @click="priceFilter = 'down'">跌 {{ priceCounts.down }}</button>
             <span>上涨占比 {{ priceCounts.upRatio === null ? '—' : `${priceCounts.upRatio.toFixed(0)}%` }}</span>
             <span :class="{ 'count-up': (priceCounts.median ?? 0) > 0, 'count-down': (priceCounts.median ?? 0) < 0 }">
               中位数 {{ priceCounts.median === null ? '—' : formatPercent(priceCounts.median) }}
@@ -124,6 +124,9 @@
     <div v-else-if="!isLoading && cryptoPrices.length === 0" class="empty-state">
       <el-empty description="暂无价格数据" />
     </div>
+    <div v-else-if="!isLoading && filteredCryptoPrices.length === 0" class="empty-state">
+      <el-empty :description="priceFilter === 'up' ? '当前周期暂无上涨交易对' : '当前周期暂无下跌交易对'" />
+    </div>
     </template>
   </el-card>
 </template>
@@ -183,7 +186,8 @@ const isLoading = ref(false)
 const showChartModal = ref(false)
 const selectedSymbol = ref('')
 const currentPage = ref(0)
-const changePeriod = ref<'5m' | '15m' | '1h' | '4h' | '24h'>('24h')
+const priceFilter = ref<'all' | 'up' | 'down'>('all')
+const changePeriod = ref<'5m' | '15m' | '1h' | '4h' | '24h'>('1h')
 const breadthSnapshot = ref<MarketBreadthSnapshot | null>(null)
 const breadthClock = ref(Date.now())
 let breadthRequestId = 0
@@ -238,11 +242,26 @@ const priceCounts = computed(() => {
     upRatio: stats?.upRatioPct ?? null, median: stats?.medianChangePct ?? null
   }
 })
-const totalPages = computed(() => Math.max(1, Math.ceil(cryptoPrices.value.length / pageSize.value)))
+// 筛选与头部统计共用当前周期涨跌幅，持平和待更新行情只在“总”中显示。
+const filteredCryptoPrices = computed(() => cryptoPrices.value.filter((crypto) => {
+  if (priceFilter.value === 'all') return true
+  const change = getChangePercent(crypto.symbol)
+  return change !== null && (priceFilter.value === 'up' ? change > 0 : change < 0)
+}))
+const totalPages = computed(() => Math.max(1, Math.ceil(filteredCryptoPrices.value.length / pageSize.value)))
 const visibleCryptoPrices = computed(() => {
   const start = currentPage.value * pageSize.value
-  return cryptoPrices.value.slice(start, start + pageSize.value)
+  return filteredCryptoPrices.value.slice(start, start + pageSize.value)
 })
+
+watch([priceFilter, changePeriod], () => {
+  currentPage.value = 0
+}, { flush: 'sync' })
+
+// 实时行情或快照更新可能缩减筛选结果，及时回退页码以避免出现空白页。
+watch(totalPages, (pages) => {
+  currentPage.value = Math.min(currentPage.value, pages - 1)
+}, { flush: 'sync' })
 
 /** 根据视口宽度设置每页数量，确保卡片区域始终最多显示两行。 */
 function updatePageSize() {
@@ -466,11 +485,34 @@ interface CryptoPrice {
   white-space: nowrap;
 }
 
-.count-up {
+.count-up,
+.count-filter.count-up {
   color: var(--color-success);
 }
 
-.count-down {
+.count-filter {
+  padding: 1px 4px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.count-filter:hover,
+.count-filter.is-active {
+  border-color: currentColor;
+  background: var(--el-fill-color-light);
+}
+
+.count-filter:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+.count-down,
+.count-filter.count-down {
   color: var(--color-danger);
 }
 
