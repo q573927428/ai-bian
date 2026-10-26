@@ -933,7 +933,7 @@ function getCloseCategoryLabel(category?: string): string {
     take_profit: '止盈',
     timeout: '超时',
     manual: '手动',
-    trailing_stop: '止损',
+    trailing_stop: '移止',
     unknown: '未知',
   }
   return category ? labels[category] || category : '--'
@@ -958,13 +958,13 @@ function formatSummaryNumber(value: number): string {
 }
 
 // 获取平仓分类类型
-function getCloseCategoryType(category?: string): 'danger' | 'success' | 'warning' | 'info' {
-  const types: Record<string, 'danger' | 'success' | 'warning' | 'info'> = {
+function getCloseCategoryType(category?: string): 'primary' | 'danger' | 'success' | 'warning' | 'info' {
+  const types: Record<string, 'primary' | 'danger' | 'success' | 'warning' | 'info'> = {
     stop_loss: 'danger',
     take_profit: 'success',
     timeout: 'warning',
     manual: 'info',
-    trailing_stop: 'warning',
+    trailing_stop: 'primary',
     unknown: 'info',
   }
   return category ? types[category] || 'info' : 'info'
