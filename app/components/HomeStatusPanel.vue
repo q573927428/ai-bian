@@ -63,10 +63,10 @@
           </div>
         </div>
           <div class="balance-details-large">
-            <div class="balance-row-large">
+            <!-- <div class="balance-row-large">
               <span class="balance-label-large">💰 本金</span>
               <span class="balance-capital-large">$ {{ formatBalance(initialCapital) }}</span>
-            </div>
+            </div> -->
             <div class="balance-row-large">
               <span class="balance-label-large">💵 余额</span>
               <span class="balance-total-large">$ {{ formatBalance(usdtBalance?.total || 0) }}</span>

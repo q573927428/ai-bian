@@ -16,10 +16,14 @@
         <el-radio-button value="pnl">盈亏</el-radio-button>
         <el-radio-button value="winRate">胜率</el-radio-button>
       </el-radio-group>
-      <el-radio-group v-model="selectedPeriod" size="small" class="filter-item">
-        <el-radio-button value="all">全部</el-radio-button>
-        <el-radio-button value="today">当日</el-radio-button>
-      </el-radio-group>
+      <el-select v-model="selectedPeriod" size="small" class="filter-item" aria-label="收益分析时间范围">
+        <el-option label="全部" value="all" />
+        <el-option label="当日" value="today" />
+        <el-option label="昨日" value="yesterday" />
+        <el-option label="近7天" value="7days" />
+        <el-option label="近30天" value="30days" />
+        <el-option label="本月" value="month" />
+      </el-select>
       
       <el-select v-model="selectedStrategy" placeholder="选择策略" clearable size="small" class="filter-item">
         <el-option label="全部策略" value="" />
@@ -90,13 +94,13 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { LineChart } from 'echarts/charts'
-import { GridComponent, TitleComponent, TooltipComponent } from 'echarts/components'
+import { GridComponent, TooltipComponent } from 'echarts/components'
 import { CanvasRenderer } from 'echarts/renderers'
 import { graphic, init, use, type ECharts } from 'echarts/core'
 import { useStrategiesStore } from '../stores/strategies'
 import { useTheme } from '../composables/useTheme'
 
-use([LineChart, GridComponent, TitleComponent, TooltipComponent, CanvasRenderer])
+use([LineChart, GridComponent, TooltipComponent, CanvasRenderer])
 
 const strategiesStore = useStrategiesStore()
 
@@ -105,7 +109,7 @@ let chartResizeObserver: ResizeObserver | undefined
 const loading = ref(false)
 const selectedStrategy = ref('')
 const selectedSymbol = ref('')
-const selectedPeriod = ref<'all' | 'today'>('all')
+const selectedPeriod = ref<'all' | 'today' | 'yesterday' | '7days' | '30days' | 'month'>('all')
 const chartType = ref<'pnl' | 'winRate'>('pnl')
 const strategies = ref<any[]>([])
 const symbols = ref<string[]>([])
@@ -121,16 +125,27 @@ const stats = ref({
 const { theme } = useTheme()
 let chartInstance: ECharts | null = null
 
-/** 使用浏览器本地自然日边界，确保服务端时区不会改变“当日”的范围。 */
+/** 按浏览器本地自然日筛选；最近 N 天包含今天，结束时间不包含次日零点。 */
 const getPeriodParams = () => {
-  if (selectedPeriod.value !== 'today') return {}
+  if (selectedPeriod.value === 'all') return {}
   const start = new Date()
   start.setHours(0, 0, 0, 0)
   const end = new Date(start)
   end.setDate(end.getDate() + 1)
+  if (selectedPeriod.value === 'yesterday') {
+    end.setTime(start.getTime())
+    start.setDate(start.getDate() - 1)
+  } else if (selectedPeriod.value === '7days') {
+    start.setDate(start.getDate() - 6)
+  } else if (selectedPeriod.value === '30days') {
+    start.setDate(start.getDate() - 29)
+  } else if (selectedPeriod.value === 'month') {
+    start.setDate(1)
+  }
   return {
     startTime: start.getTime(),
     endTime: end.getTime(),
+    granularity: selectedPeriod.value === 'today' || selectedPeriod.value === 'yesterday' ? 'minute' : 'day',
     timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
   }
 }
@@ -203,7 +218,6 @@ const renderChart = () => {
   const data = isPnl ? chartData.value.map(d => d.pnl) : chartData.value.map(d => d.winRate)
   const name = isPnl ? '累计盈亏' : '胜率'
   const color = isPnl ? '#10b981' : '#3b82f6'
-  const yAxisName = isPnl ? '盈亏(USDT)' : '胜率(%)'
 
   // 面积包含零轴，用零轴在填充区域中的位置分色，跨零时保持明确的红绿边界。
   const minPnl = Math.min(0, ...data)
@@ -249,20 +263,12 @@ const renderChart = () => {
         return `${item.time}<br/>${name}: ${params[0].value}${isPnl ? ' USDT' : '%'}`
       }
     },
-    title: {
-      text: yAxisName,
-      left: 'center',
-      top: 0,
-      textStyle: {
-        fontSize: 13,
-        color: theme.value === 'dark' ? '#C8C8C8' : '#606266'
-      }
-    },
     grid: {
       left: '3%',
       right: '4%',
       bottom: '3%',
-      top: '15%',
+      // 移除标题后只保留少量顶部间距，避免最高刻度文字贴边。
+      top: 10,
       containLabel: true
     },
     xAxis: {
@@ -270,7 +276,16 @@ const renderChart = () => {
       boundaryGap: false,
       data: chartData.value.map(d => d.time),
       axisLabel: {
-        rotate: 45,
+        rotate: 0,
+        hideOverlap: true,
+        // 每个标签预留约 55px；仅减少文字数量，保留全部交易数据点。
+        interval: (index: number) => {
+          const labelCount = Math.max(2, Math.floor((chartInstance!.getWidth() - 60) / 50))
+          const step = Math.max(1, Math.ceil(chartData.value.length / labelCount))
+          return index % step === 0
+        },
+        // 横轴简写为月/日，悬浮提示继续使用原始完整日期；日内时分不变。
+        formatter: (value: string) => value.replace(/^\d{4}\//, ''),
         fontSize: 10,
         color: theme.value === 'dark' ? '#B8B8B8' : '#333333'
       }

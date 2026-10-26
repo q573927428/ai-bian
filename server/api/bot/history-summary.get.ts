@@ -9,16 +9,18 @@ export default defineEventHandler((event) => {
   const symbol = String(query.symbol || '')
   const startTime = Number(query.startTime)
   const endTime = Number(query.endTime)
-  const isIntraday = Number.isFinite(startTime) && Number.isFinite(endTime) && endTime > startTime
-  // 当日使用客户端时区展示时分；自然日边界由客户端传入，避免服务器时区偏差。
+  const hasTimeRange = Number.isFinite(startTime) && Number.isFinite(endTime) && endTime > startTime
+  // 时间范围与聚合粒度分开处理，避免多日筛选把不同日期的同一分钟合并。
+  // 未指定粒度的旧客户端仍沿用单日展示方式。
+  const isIntraday = hasTimeRange && (query.granularity === 'minute' || (!query.granularity && endTime - startTime <= 25 * 60 * 60 * 1000))
   const timeFormat = new Intl.DateTimeFormat('zh-CN', isIntraday
     ? { timeZone: String(query.timeZone || 'Asia/Shanghai'), hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }
-    : { month: 'numeric', day: 'numeric' })
+    : { timeZone: String(query.timeZone || 'Asia/Shanghai'), year: 'numeric', month: 'numeric', day: 'numeric' })
   const allRecords = getCachedTradeHistory()
   const records = allRecords
     .filter((trade) => !strategyId || trade.strategyId === strategyId)
     .filter((trade) => !symbol || trade.symbol === symbol)
-    .filter((trade) => !isIntraday || (Number(trade.closeTime) >= startTime && Number(trade.closeTime) < endTime))
+    .filter((trade) => !hasTimeRange || (Number(trade.closeTime) >= startTime && Number(trade.closeTime) < endTime))
     .sort((a, b) => Number(a.closeTime || 0) - Number(b.closeTime || 0))
 
   let cumulativePnl = 0
