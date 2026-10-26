@@ -21,7 +21,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, watch } from 'vue'
+import { usePositionChart } from '../../composables/usePositionChart'
 import KLineChartSimple from './KLineChartSimple.vue'
 import TradingViewKLinePanel from './TradingViewKLinePanel.vue'
 
@@ -36,6 +37,11 @@ const STORAGE_KEY = 'chart-engine-preference'
 
 // 活动引擎：'native' | 'tradingview'
 const activeEngine = ref<'native' | 'tradingview'>('native')
+const selectedPosition = usePositionChart()
+// 外部 TradingView 小组件不支持注入仓位绘图，点击持仓时切到可绘制的自研引擎。
+watch(selectedPosition, (position) => {
+  if (position) activeEngine.value = 'native'
+})
 
 // 处理引擎切换
 function handleEngineChange(engine: 'native' | 'tradingview') {
@@ -53,7 +59,7 @@ onMounted(() => {
   // 从 localStorage 恢复用户偏好
   try {
     const saved = localStorage.getItem(STORAGE_KEY)
-    if (saved === 'native' || saved === 'tradingview') {
+    if (!selectedPosition.value && (saved === 'native' || saved === 'tradingview')) {
       activeEngine.value = saved
     }
   } catch {

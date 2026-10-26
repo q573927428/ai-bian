@@ -109,6 +109,7 @@ import { computed, reactive, ref, onMounted, onUnmounted } from 'vue'
 import { useBotStore } from '../stores/bot'
 import { formatPrice } from './kline-chart/utils/kline-formatters'
 import PasswordDialog from './PasswordDialog.vue'
+import { usePositionChart } from '../composables/usePositionChart'
 
 const emit = defineEmits<{
   /** 通知首页将 K 线图切换到当前持仓的交易对及主周期。 */
@@ -117,6 +118,7 @@ const emit = defineEmits<{
 
 const botStore = useBotStore()
 const positions = ref<any[]>([])
+const selectedChartPosition = usePositionChart()
 const showFilter = ref(false)
 const filter = reactive({ symbol: '', direction: '', strategyId: '' })
 const hasActiveFilters = computed(() => Boolean(filter.symbol || filter.direction || filter.strategyId))
@@ -145,6 +147,7 @@ const pendingCloseSymbol = ref('')
  * 将持仓交易对转换为 Binance symbol，并携带持仓主周期通知父组件。
  */
 function selectChartSymbol(symbol: string, mainTimeframe?: string) {
+  selectedChartPosition.value = positions.value.find(position => position.symbol === symbol) ?? null
   emit('selectSymbol', symbol.replace('/', '').toUpperCase(), mainTimeframe)
 }
 
@@ -154,6 +157,10 @@ const loadPositions = async () => {
     const response = await $fetch('/api/positions')
     if (response.success) {
       positions.value = response.data
+      // 以最新仓位替换选中数据，移动止损和平仓结果同步反映到图表。
+      if (selectedChartPosition.value) {
+        selectedChartPosition.value = positions.value.find(position => position.symbol === selectedChartPosition.value?.symbol) ?? null
+      }
     }
   } catch (error) {
     console.error('加载持仓信息失败:', error)

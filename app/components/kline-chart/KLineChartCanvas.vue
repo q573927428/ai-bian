@@ -1,6 +1,7 @@
 <template>
   <div class="chart-wrapper">
     <div ref="chartContainer" class="kline-chart"></div>
+    <PositionRiskOverlay :symbol="symbol" :klines="klineData" :loading="loading || !!error" :get-chart="() => chart" :get-series="() => candlestickSeries" />
 
     <!-- 加载状态 -->
     <div v-if="loading" class="chart-loading">
@@ -26,6 +27,8 @@
 </template>
 
 <script setup lang="ts">
+import PositionRiskOverlay from './PositionRiskOverlay.vue'
+import { usePositionChart } from '../../composables/usePositionChart'
 import { ref, onMounted, onUnmounted, watch, nextTick, computed } from 'vue'
 import { createChart, ColorType, CandlestickSeries, HistogramSeries, LineSeries, createSeriesMarkers } from 'lightweight-charts'
 import type { SimpleKLineData } from '../../../types/kline-simple'
@@ -85,6 +88,7 @@ const props = withDefaults(defineProps<Props>(), {
 
 // 使用Pinia store获取配置
 const botStore = useBotStore()
+const selectedRiskPosition = usePositionChart()
 
 // 计算EMA周期 - 优先使用props.emaPeriods，否则从配置获取
 const emaPeriods = computed(() => {
@@ -660,7 +664,19 @@ const initChart = () => {
     borderVisible: false,
     wickUpColor: '#26a69a',
     wickDownColor: '#ef5350',
-    priceFormat: currentPriceFormat
+    priceFormat: currentPriceFormat,
+    // 自动缩放时纳入风险价位，避免止盈止损超出当前蜡烛价格范围而不可见。
+    autoscaleInfoProvider: (original: () => any) => {
+      const info = original()
+      const position = selectedRiskPosition.value
+      if (!info || !position || position.symbol.replace('/', '').toUpperCase() !== props.symbol.replace('/', '').toUpperCase()) return info
+      const prices = [position.entryPrice, position.stopLoss || position.initialStopLoss, position.takeProfit1, position.takeProfit2]
+        .map(Number).filter(price => Number.isFinite(price) && price > 0)
+      return { ...info, priceRange: {
+        minValue: Math.min(info.priceRange.minValue, ...prices),
+        maxValue: Math.max(info.priceRange.maxValue, ...prices)
+      } }
+    }
   })
   
   // 添加成交量系列
