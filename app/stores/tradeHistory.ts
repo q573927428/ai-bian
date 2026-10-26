@@ -264,7 +264,7 @@ export const useTradeHistoryStore = defineStore('tradeHistory', () => {
     sort.value = { field, direction }
   }
 
-  // 获取完整历史数据（最多1000条）
+  // 暂时加载最近 3000 条，供首页总交易数和本地筛选统计使用。
   const fetchAllHistory = async (force = false) => {
     const now = Date.now()
     
@@ -284,7 +284,7 @@ export const useTradeHistoryStore = defineStore('tradeHistory', () => {
         const response = await $fetch('/api/bot/history', {
           params: {
             page: 1,
-            pageSize: 1000,
+            pageSize: 3000,
           },
         }) as any
 

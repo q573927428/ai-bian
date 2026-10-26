@@ -42,7 +42,7 @@
         <!-- 紧凑统计卡片 -->
         <div class="stats-grid">
           <div class="stat-card">
-            <div class="stat-card-label">📊 交易</div>
+            <div class="stat-card-label">📊 总交易</div>
             <div class="stat-card-value">{{ totalTrades }} </div>
             <div class="stat-card-sub">今日 {{ todayTrades }}</div>
           </div>
@@ -54,12 +54,12 @@
           <div class="stat-card">
             <div class="stat-card-label">🎯 总胜率</div>
             <div class="stat-card-value">{{ formatWinRate(winRate) }}</div>
-            <div class="stat-card-sub">总体</div>
+            <div class="stat-card-sub">今日 {{ formatWinRate(todayWinRate) }}</div>
           </div>
           <div class="stat-card">
-            <div class="stat-card-label">📈 年化</div>
+            <div class="stat-card-label">📈 总年化</div>
             <div :class="['stat-card-value', annualizedReturnClass]">{{ formatAnnualizedReturn(annualizedReturn) }}</div>
-            <div class="stat-card-sub">收益率</div>
+            <div class="stat-card-sub">今日 <span :class="dailyReturn >= 0 ? 'text-success' : 'text-danger'">{{ dailyReturn >= 0 ? '+' : '' }}{{ dailyReturn.toFixed(2) }}%</span></div>
           </div>
         </div>
           <div class="balance-details-large">
@@ -68,7 +68,7 @@
               <span class="balance-capital-large">$ {{ formatBalance(initialCapital) }}</span>
             </div>
             <div class="balance-row-large">
-              <span class="balance-label-large">💵 总余额</span>
+              <span class="balance-label-large">💵 余额</span>
               <span class="balance-total-large">$ {{ formatBalance(usdtBalance?.total || 0) }}</span>
             </div>
             <div class="balance-row-large">
@@ -78,6 +78,10 @@
             <div class="balance-row-large">
               <span class="balance-label-large">🔐 锁定</span>
               <span class="balance-locked-large">$ {{ formatBalance(usdtBalance?.locked || 0) }}</span>
+            </div>
+            <div class="balance-row-large">
+              <span class="balance-label-large">⏳ 未实现</span>
+              <span :class="['balance-unrealized-large', (usdtBalance?.unrealizedProfit || 0) >= 0 ? 'text-success' : 'text-danger']">$ {{ formatPnLShort(usdtBalance?.unrealizedProfit || 0) }}</span>
             </div>
           </div>
       </div>
@@ -98,7 +102,9 @@ interface Props {
   totalPnL: number
   dailyPnL: number
   winRate: number
+  todayWinRate: number
   annualizedReturn: number
+  dailyReturn: number
   initialCapital: number
   usdtBalance: CryptoBalance | null
 }
@@ -318,6 +324,11 @@ function formatAnnualizedReturn(value: number): string {
   font-size: 14px;
   font-weight: 600;
   color: var(--balance-locked-color);
+}
+
+.balance-unrealized-large {
+  font-size: 14px;
+  font-weight: 600;
 }
 
 @media (max-width: 768px) {

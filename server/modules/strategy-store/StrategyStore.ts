@@ -7,12 +7,12 @@ import type { Strategy, StrategyId, CreateStrategyInput, UpdateStrategyInput, AI
 import { logger } from '../../utils/logger'
 import { encrypt, decrypt } from '../../utils/crypto'
 import { normalizeStrategyIndicatorConfig } from '../../utils/strategy-indicators-normalizer'
+import { readTradeHistoryFiles } from '../../utils/trade-history-files'
 
 
 // 项目根目录
 const DATA_DIR = join(process.cwd(), 'data')
 const STRATEGIES_DIR = join(DATA_DIR, 'strategies')
-const TRADE_HISTORY_FILE = join(DATA_DIR, 'trade-history.json')
 
 /**
  * 确保策略数据目录存在
@@ -578,19 +578,15 @@ export class StrategyStore {
    */
   private async getGlobalTradeRecords(strategyId: StrategyId): Promise<import('../../../types/strategy').TradeRecord[]> {
     try {
-      if (!existsSync(TRADE_HISTORY_FILE)) {
-        return []
-      }
-
-      const data = await readFile(TRADE_HISTORY_FILE, 'utf-8')
-      const globalRecords = JSON.parse(data) as any[]
+      const globalRecords = readTradeHistoryFiles()
 
       // 转换全局记录格式为策略存储格式
       return globalRecords
         .filter(record => record.strategyId === strategyId)
         .map(record => ({
           id: record.id,
-          strategyId: record.strategyId,
+          // 已按策略过滤，使用确定的参数，兼容没有 strategyId 的旧历史类型。
+          strategyId,
           strategyVersion: 1, // 全局记录没有版本信息，默认1
           symbol: record.symbol,
           direction: (record.direction?.toLowerCase() || 'long') as 'long' | 'short',

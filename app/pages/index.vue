@@ -26,7 +26,9 @@
               :total-pn-l="totalPnL"
               :daily-pn-l="dailyPnL"
               :win-rate="winRate"
+              :today-win-rate="todayWinRate"
               :annualized-return="annualizedReturn"
+              :daily-return="dailyReturn"
               :initial-capital="initialCapital"
               :usdt-balance="usdtBalance"
               @unlock="handleUnlock"
@@ -215,11 +217,17 @@ const totalTrades = computed(() => {
   return tradeHistoryStore.allHistory.length
 })
 
-// 计算今日交易次数
-const todayTrades = computed(() => {
+/** 按浏览器本地平仓日期筛选，今日次数、盈亏和胜率使用同一批记录。 */
+const todayHistory = computed(() => {
   const today = new Date().toDateString()
-  return tradeHistoryStore.allHistory.filter(trade => new Date(trade.closeTime).toDateString() === today).length
+  return tradeHistoryStore.allHistory.filter(trade => new Date(trade.closeTime).toDateString() === today)
 })
+const todayTrades = computed(() => todayHistory.value.length)
+
+/** 今日无平仓交易时胜率显示为零，与总体胜率保持一致。 */
+const todayWinRate = computed(() => todayTrades.value > 0
+  ? todayHistory.value.filter(trade => trade.pnl > 0).length / todayTrades.value * 100
+  : 0)
 
 // pnl 对新记录表示币安 realizedPnl 扣除真实开平仓手续费后的净收益。
 const totalPnL = computed(() => {
@@ -228,9 +236,7 @@ const totalPnL = computed(() => {
 
 // 计算今日盈亏
 const dailyPnL = computed(() => {
-  const today = new Date().toDateString()
-  return tradeHistoryStore.allHistory
-    .filter(trade => new Date(trade.closeTime).toDateString() === today)
+  return todayHistory.value
     .reduce((sum, trade) => sum + (trade.pnl || 0), 0)
 })
 
@@ -245,6 +251,11 @@ const winRate = computed(() => {
 const initialCapital = computed(() => {
   return botStore.botConfig?.initialCapital || 0
 })
+
+/** 今日收益率沿用年化的初始本金口径，不进行年化换算。 */
+const dailyReturn = computed(() => initialCapital.value > 0
+  ? dailyPnL.value / initialCapital.value * 100
+  : 0)
 
 // 获取USDT余额
 const usdtBalance = computed(() => {
@@ -372,7 +383,8 @@ onMounted(async () => {
 
   .overview-column :deep(.chart-container) {
     flex: 1;
-    min-height: 80px;
+    /* 小高度窗口保留可读的走势区域，由卡片正文滚动承接溢出。 */
+    min-height: 160px;
     height: auto;
   }
 

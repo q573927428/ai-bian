@@ -1,7 +1,7 @@
 // ==================== 交易历史汇总接口 ====================
 import { getCachedTradeHistory } from '../../utils/trade-history-cache'
 
-/** 为盈亏走势返回按日期聚合的数据，避免向浏览器传输完整订单详情。 */
+/** 为收益分析返回按日期聚合的数据，避免向浏览器传输完整订单详情。 */
 export default defineEventHandler((event) => {
   const query = getQuery(event)
   const strategyId = String(query.strategyId || '')
@@ -22,9 +22,18 @@ export default defineEventHandler((event) => {
   let cumulativePnl = 0
   let wins = 0
   let totalCount = 0
+  let totalFee = 0
+  let netPnl = 0
+  let peakNetPnl = 0
+  let maxDrawdown = 0
   const dateMap = new Map<string, any>()
   for (const trade of records) {
     cumulativePnl += Number(trade.pnl || 0)
+    totalFee += Number(trade.totalCommission || 0)
+    netPnl = cumulativePnl - totalFee
+    // 从零收益起逐笔追踪峰谷，避免按日聚合遗漏日内回撤；无本金口径时使用 USDT 金额。
+    peakNetPnl = Math.max(peakNetPnl, netPnl)
+    maxDrawdown = Math.max(maxDrawdown, peakNetPnl - netPnl)
     if (Number(trade.pnl || 0) > 0) wins++
     totalCount++
     const date = timeFormat.format(new Date(Number(trade.closeTime)))
@@ -39,6 +48,8 @@ export default defineEventHandler((event) => {
     totalTrades: records.length,
     totalPnl: cumulativePnl,
     winRate: records.length ? (wins / records.length) * 100 : 0,
-    totalFee: records.reduce((sum, trade) => sum + Number(trade.totalCommission || 0), 0),
+    totalFee,
+    netPnl,
+    maxDrawdown,
   } }
 })

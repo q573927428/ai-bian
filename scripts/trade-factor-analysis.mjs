@@ -1,6 +1,6 @@
 // ==================== 交易因子分析脚本（按策略分组） ====================
 // 用途：按策略分类后，对每个策略分别做 单因子 / 双因子 分析，找出"盈利因子"与"盈利密码"
-// 输入：data/trade-history-20260703.json、data/trade-history-20260729.json、data/trade-history.json
+// 输入：data/trade-history-YYYY-MM.json（兼容旧文件名）
 // 输出：
 //   data/trade-factor-analysis-report.md          （汇总报告）
 //   data/trade-factor-analysis-report-001.md       （strategy_001 5m 报告）
@@ -11,14 +11,11 @@
 // 运行：node scripts/trade-factor-analysis.mjs
 import fs from 'fs';
 import path from 'path';
+import { listTradeHistoryFiles } from '../server/utils/trade-history-files.ts';
 
 // ==================== 配置 ====================
 const DATA_DIR = path.resolve('data');
-const SOURCE_FILES = [
-  'trade-history-20260703.json',
-  'trade-history-20260729.json',
-  'trade-history.json',
-];
+const SOURCE_FILES = listTradeHistoryFiles(DATA_DIR).map(file => path.basename(file));
 const REPORT_PATH = path.join(DATA_DIR, 'trade-factor-analysis-report.md');
 const JSON_PATH = path.join(DATA_DIR, 'trade-factor-analysis.json');
 

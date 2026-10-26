@@ -26,6 +26,10 @@ export default defineEventHandler(async (event) => {
             const free = Number(Number(assetBalance.free || 0).toFixed(5))
             const locked = Number(Number(assetBalance.used || 0).toFixed(5))
             const total = Number((free + locked).toFixed(5))
+            // 原始资产字段保留 USDT 口径；缺失时回退到 CCXT 统一字段及账户汇总。
+            const rawAssets = balance.info?.assets ?? balance.assets
+            const rawAsset = Array.isArray(rawAssets) ? rawAssets.find((item: any) => item.asset === asset) : undefined
+            const unrealizedProfit = Number(rawAsset?.unrealizedProfit ?? assetBalance.unrealizedProfit ?? balance.info?.totalUnrealizedProfit ?? 0)
 
             if (total > 1) {
               cryptoBalances.push({
@@ -33,6 +37,7 @@ export default defineEventHandler(async (event) => {
                 free,
                 locked,
                 total,
+                unrealizedProfit: Number.isFinite(unrealizedProfit) ? unrealizedProfit : 0,
               })
             }
           }

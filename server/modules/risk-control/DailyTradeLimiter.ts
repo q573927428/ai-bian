@@ -1,11 +1,12 @@
 // ==================== 每日开仓次数限制器 ====================
 
 import { existsSync } from 'node:fs'
-import { readFile, readdir, writeFile } from 'node:fs/promises'
+import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { StrategyId } from '../../../types/strategy'
 import type { PositionManager } from '../position-manager/PositionManager'
 import { logger } from '../../utils/logger'
+import { listTradeHistoryFiles } from '../../utils/trade-history-files'
 
 const DATA_DIR = join(process.cwd(), 'data')
 const STATE_FILE = join(DATA_DIR, 'daily-trade-counts.json')
@@ -173,10 +174,10 @@ export class DailyTradeLimiter {
    */
   private async loadTradeHistory(dayKey: string): Promise<void> {
     try {
-      const fileNames = (await readdir(DATA_DIR)).filter(name => /^trade-history(?:-\d{8})?\.json$/.test(name))
+      const fileNames = listTradeHistoryFiles(DATA_DIR)
 
       for (const fileName of fileNames) {
-        const trades = JSON.parse(await readFile(join(DATA_DIR, fileName), 'utf-8'))
+        const trades = JSON.parse(await readFile(fileName, 'utf-8'))
         if (!Array.isArray(trades)) continue
 
         for (const trade of trades) {

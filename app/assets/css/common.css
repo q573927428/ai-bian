@@ -93,7 +93,7 @@
   /* 表格样式 */
   --table-header-bg: #f5f7fa;
   --table-header-color: #303133;
-  /* 抽屉滚动条使用中性灰，避免浅色轨道在暗色面板上突兀。 */
+  /* 全局滚动条共用主题色；沿用变量名以兼容已有抽屉样式。 */
   --drawer-scrollbar-thumb: #c0c4cc;
   --drawer-scrollbar-thumb-hover: #909399;
 }
@@ -267,7 +267,21 @@ body.el-popup-parent--hidden {
   color: var(--text-regular);
 }
 
-/* 原生滚动条与 Element Plus 自绘滚动条统一跟随根主题，适配 Teleport 抽屉。 */
+/* 覆盖所有原生滚动容器，包含图表订单浮层和 Teleport 弹层，避免只匹配抽屉造成遗漏。 */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--drawer-scrollbar-thumb) var(--bg-card);
+}
+
+/* Chromium / Safari 使用伪元素以支持圆角和悬停色；Firefox 保留上面的标准属性。
+   通配选择器优先级低于各组件的隐藏规则，保留原有 scrollbar-width: none 行为。 */
+@supports selector(::-webkit-scrollbar) {
+  * {
+    scrollbar-width: auto;
+    scrollbar-color: auto;
+  }
+}
+
 .el-drawer {
   color-scheme: light;
   scrollbar-color: var(--drawer-scrollbar-thumb) var(--bg-card);
@@ -282,27 +296,35 @@ html.dark .el-drawer {
   scrollbar-width: thin;
 }
 
-.el-drawer ::-webkit-scrollbar {
+*::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
 
-.el-drawer ::-webkit-scrollbar-track,
-.el-drawer ::-webkit-scrollbar-corner {
+*::-webkit-scrollbar-track,
+*::-webkit-scrollbar-corner {
   background: var(--bg-card);
 }
 
-.el-drawer ::-webkit-scrollbar-thumb {
+*::-webkit-scrollbar-thumb {
   background: var(--drawer-scrollbar-thumb);
   border: 2px solid var(--bg-card);
   border-radius: 8px;
 }
 
-.el-drawer ::-webkit-scrollbar-thumb:hover {
+*::-webkit-scrollbar-thumb:hover {
   background: var(--drawer-scrollbar-thumb-hover);
 }
 
-.el-drawer .el-scrollbar {
+/* 去掉原生箭头按钮，避免窄浮层内出现系统默认的亮色按钮。 */
+*::-webkit-scrollbar-button {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+/* Element Plus 自绘滚动条也共用全局配色。 */
+.el-scrollbar {
   --el-scrollbar-bg-color: var(--drawer-scrollbar-thumb);
   --el-scrollbar-hover-bg-color: var(--drawer-scrollbar-thumb-hover);
   --el-scrollbar-opacity: 1;

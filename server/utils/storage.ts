@@ -3,9 +3,9 @@ import { join } from 'path'
 import { existsSync } from 'fs'
 import type { TradeHistory, BotState, BotConfig } from '../../types'
 import type { PositionInfo } from '../modules/position-manager/PositionManager'
+import { readTradeHistoryFiles, writeMonthlyTradeHistory } from './trade-history-files'
 
 const DATA_DIR = join(process.cwd(), 'data')
-const HISTORY_FILE = join(DATA_DIR, 'trade-history.json')
 const ACTIVE_POSITIONS_FILE = join(DATA_DIR, 'active-positions.json')
 const SYMBOL_LOCKS_FILE = join(DATA_DIR, 'symbol-locks.json')
 const BOT_STATE_FILE = join(DATA_DIR, 'bot-state.json')
@@ -50,34 +50,12 @@ export async function addTradeHistory(trade: TradeHistory): Promise<void> {
   try {
     await ensureDataDir()
 
-    let history: TradeHistory[] = []
-
-    if (existsSync(HISTORY_FILE)) {
-      try {
-        const data = await readFile(HISTORY_FILE, 'utf-8')
-        if (data.trim()) {
-          history = JSON.parse(data)
-        }
-      } catch (parseError: any) {
-        console.warn('解析交易历史文件失败，创建新文件:', parseError.message)
-        history = []
-      }
-    }
-
     if (!trade.id) {
       trade.id = `${trade.closeTime}-${trade.symbol.replace('/', '-')}`
     }
 
     // 币安订单ID参与交易ID后，同一平仓订单的重试必须覆盖原记录，避免对账重试重复累计收益。
-    const existingIndex = history.findIndex(item => item.id === trade.id)
-    if (existingIndex >= 0) {
-      history[existingIndex] = trade
-    } else {
-      history.push(trade)
-    }
-    history.sort((a, b) => b.closeTime - a.closeTime)
-
-    await safeWriteFile(HISTORY_FILE, JSON.stringify(history, null, 2))
+    await writeMonthlyTradeHistory(trade)
     console.log(`交易历史已保存: ${trade.symbol} ${trade.direction} PnL: ${trade.pnl.toFixed(2)} USDT`)
   } catch (error: any) {
     console.error('保存交易历史失败:', error.message)
@@ -89,13 +67,7 @@ export async function addTradeHistory(trade: TradeHistory): Promise<void> {
  */
 export async function getTradeHistory(limit?: number): Promise<TradeHistory[]> {
   try {
-    if (!existsSync(HISTORY_FILE)) {
-      return []
-    }
-
-    const data = await readFile(HISTORY_FILE, 'utf-8')
-    const history: TradeHistory[] = JSON.parse(data)
-    history.sort((a, b) => b.closeTime - a.closeTime)
+    const history = readTradeHistoryFiles()
 
     if (limit) {
       return history.slice(0, limit)

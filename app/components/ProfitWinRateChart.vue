@@ -2,7 +2,7 @@
   <el-card class="chart-card">
     <template #header>
       <div class="card-header">
-        <span>📈 盈亏走势</span>
+        <span>📈 收益分析</span>
         <el-button type="primary" size="small" text :loading="loading" @click="refreshData">
           <el-icon><ElIconRefresh /></el-icon>
           刷新
@@ -67,6 +67,16 @@
         <div class="stat-label">总手续费</div>
         <div class="stat-value">{{ stats.totalFee.toFixed(2) }} U</div>
       </div>
+      <div class="stat-item">
+        <div class="stat-label">净盈亏</div>
+        <div :class="['stat-value', stats.netPnl >= 0 ? 'text-success' : 'text-danger']">
+          {{ stats.netPnl >= 0 ? '+' : '' }}{{ stats.netPnl.toFixed(2) }} U
+        </div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-label">最大回撤</div>
+        <div class="stat-value text-danger">{{ stats.maxDrawdown.toFixed(2) }} U</div>
+      </div>
     </div>
 
     <!-- 空状态 -->
@@ -106,7 +116,9 @@ const stats = ref({
   totalTrades: 0,
   totalPnl: 0,
   winRate: 0,
-  totalFee: 0
+  totalFee: 0,
+  netPnl: 0,
+  maxDrawdown: 0
 })
 const { theme } = useTheme()
 let chartInstance: ECharts | null = null
@@ -244,7 +256,9 @@ const processChartData = () => {
     totalTrades: totalCount,
     totalPnl: cumulativePnl,
     winRate: totalCount > 0 ? (winCount / totalCount) * 100 : 0,
-    totalFee: totalFee
+    totalFee: totalFee,
+    netPnl: cumulativePnl - totalFee,
+    maxDrawdown: 0
   }
 
   renderChart()
@@ -464,49 +478,46 @@ onUnmounted(() => {
 }
 
 .stats-container {
-  display: flex;
-  justify-content: space-around;
-  padding: 10px;
-  background: var(--balance-card-bg);
-  border: 1px solid var(--balance-card-border);
-  border-radius: 8px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px 12px;
+  padding-top: 10px;
+  margin-top: 8px;
+  border-top: 1px solid var(--el-border-color-lighter);
 }
 
+/* 用轻量卡片区分指标，保持横排和紧凑留白，将主要空间留给走势。 */
 .stat-item {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 2px 6px;
+  min-width: 0;
+  padding: 6px 8px;
   background: var(--stat-card-bg);
-  border: 1px solid var(--stat-card-border);
-  border-radius: 10px;
-  padding: 12px 15px;
-  text-align: center;
-  transition: all 0.2s ease;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 6px;
 }
 
 .stat-label {
   font-size: 12px;
   color: var(--text-secondary);
-  margin-bottom: 5px;
 }
 
 .stat-value {
-  font-size: 16px;
-  font-weight: 700;
+  font-size: 13px;
+  font-weight: 600;
   color: var(--text-primary);
+  white-space: nowrap;
 }
 
-/* 移动端：4项分成2列显示 */
+/* 移动端统计分成2列显示。 */
 @media (max-width: 640px) {
   .stats-container {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 10px;
-  }
-
-  .stat-item {
-    padding: 10px 12px;
-  }
-
-  .stat-value {
-    font-size: 14px;
+    gap: 8px 16px;
   }
 }
 

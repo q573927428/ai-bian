@@ -391,6 +391,8 @@ export interface CryptoBalance {
   free: number
   locked: number
   total: number
+  /** 合约账户未实现盈亏，优先采用交易所原始资产数据。 */
+  unrealizedProfit?: number
 }
 
 // ==================== 日志 ====================

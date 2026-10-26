@@ -4,11 +4,11 @@
 //   node scripts/backfill-candle-progress.mjs                 # 仅预览，不写入
 //   node scripts/backfill-candle-progress.mjs --write         # 备份后写入
 //   node scripts/backfill-candle-progress.mjs --write --overwrite
-//   node scripts/backfill-candle-progress.mjs --file data/trade-history.json
+//   node scripts/backfill-candle-progress.mjs --file data/trade-history-2026-10.json
 import fs from 'node:fs'
 import path from 'node:path'
+import { listTradeHistoryFiles } from '../server/utils/trade-history-files.ts'
 
-const DEFAULT_HISTORY_FILE = path.resolve('data', 'trade-history.json')
 const STRATEGIES_DIR = path.resolve('data', 'strategies')
 
 /**
@@ -149,13 +149,11 @@ function backfillTrades(trades, strategyTimeframes, overwrite) {
 }
 
 /**
- * 执行预览或带备份的历史文件回填。
+ * 对单个月度文件执行预览或带备份的历史文件回填。
  */
-function main() {
+function processHistoryFile(historyFile) {
   const shouldWrite = process.argv.includes('--write')
   const overwrite = process.argv.includes('--overwrite')
-  const historyArgument = getArgumentValue('--file')
-  const historyFile = path.resolve(historyArgument || DEFAULT_HISTORY_FILE)
 
   if (!fs.existsSync(historyFile)) {
     throw new Error(`历史订单文件不存在: ${historyFile}`)
@@ -201,4 +199,8 @@ function main() {
   console.log(`原文件备份：${backupFile}`)
 }
 
-main()
+// 默认遍历全部月度文件，指定 --file 时只处理该文件。
+const historyArgument = getArgumentValue('--file')
+const historyFiles = historyArgument ? [path.resolve(historyArgument)] : listTradeHistoryFiles()
+if (!historyFiles.length) throw new Error('没有找到交易历史文件')
+for (const historyFile of historyFiles) processHistoryFile(historyFile)

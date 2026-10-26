@@ -6,6 +6,7 @@ import { resolve, join } from 'node:path'
 import vm from 'node:vm'
 import ts from 'typescript'
 import dotenv from 'dotenv'
+import { listTradeHistoryFiles, readTradeHistoryFiles } from '../server/utils/trade-history-files.ts'
 const root = resolve(import.meta.dirname, '..')
 dotenv.config({ path: join(root, '.env'), quiet: true })
 const options = Object.fromEntries(process.argv.slice(2).map(arg => {
@@ -19,7 +20,7 @@ if (!Number.isFinite(at) || (maxTokens !== null && (!Number.isInteger(maxTokens)
 const report = { startedAt: new Date().toISOString(), analysisAt: at, errors: [], responses: [] }
 const historyPath = join(root, 'data/trade-history-analysis.json')
 const original = await readFile(historyPath, 'utf8')
-const trades = JSON.parse(await readFile(join(root, 'data/trade-history.json'), 'utf8'))
+const trades = readTradeHistoryFiles(listTradeHistoryFiles(join(root, 'data')))
 // 重放只使用指定时刻之前已平仓的现存记录；不能还原已删除或修改的历史数据。
 const inputTrades = options.at ? trades.filter(trade => trade.closeTime <= at) : trades
 report.inputTrades = inputTrades.length
@@ -78,10 +79,11 @@ const sandbox = {
       console.error(message, data)
     } } }
     if (name === 'fs/promises') return {
-      readFile: async path => String(path).endsWith('trade-history.json') ? JSON.stringify(inputTrades) : readFile(path, 'utf8'),
+      readFile: async path => readFile(path, 'utf8'),
       // 拦截分析结果写入，避免测试追加或覆盖正式历史分析文件。
       writeFile: async (_path, data) => { report.result = JSON.parse(data).at(-1) },
     }
+    if (name === './trade-history-files') return { readTradeHistoryFiles: () => inputTrades }
     return require(name)
   },
   process: { cwd: () => root }, useRuntimeConfig: () => config, fetch: diagnosticFetch,

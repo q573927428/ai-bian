@@ -1,23 +1,16 @@
 // ==================== 交易历史缓存与查询 ====================
-import { existsSync, readFileSync, statSync } from 'fs'
-import { join } from 'path'
+import { listTradeHistoryFiles, getTradeHistorySignature, readTradeHistoryFiles } from './trade-history-files'
 
 let cachedRecords: any[] = []
-let cachedMtimeMs = 0
-let cachedSize = 0
+let cachedSignature: string | undefined
 
 /** 读取并缓存交易历史；文件未变化时避免重复 JSON.parse。 */
 export function getCachedTradeHistory(): any[] {
-  const filePath = join(process.cwd(), 'data', 'trade-history.json')
-  if (!existsSync(filePath)) return []
-  const fileStat = statSync(filePath)
-  if (cachedMtimeMs !== fileStat.mtimeMs || cachedSize !== fileStat.size) {
-    const rawData = readFileSync(filePath, 'utf-8')
-    const parsed = JSON.parse(rawData)
-    cachedRecords = Array.isArray(parsed) ? parsed : []
-    cachedRecords.sort((a, b) => Number(b.closeTime || 0) - Number(a.closeTime || 0))
-    cachedMtimeMs = fileStat.mtimeMs
-    cachedSize = fileStat.size
+  const files = listTradeHistoryFiles()
+  const signature = getTradeHistorySignature(files)
+  if (cachedSignature !== signature) {
+    cachedRecords = readTradeHistoryFiles(files)
+    cachedSignature = signature
   }
   return cachedRecords
 }

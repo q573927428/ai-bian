@@ -1,17 +1,16 @@
 /**
- * 验证 trade-history.json 中 pnl 和 pnlPercentage 数值是否正确
+ * 验证全部月度交易历史中 pnl 和 pnlPercentage 数值是否正确
  * 
  * 行业标准：pnlPercentage 应基于保证金（含杠杆）计算
  * pnlPercentage = pnl / (entryPrice * quantity / leverage) * 100
  */
 
-import { readFileSync } from 'fs';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { listTradeHistoryFiles, readTradeHistoryFiles } from '../server/utils/trade-history-files.ts';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const dataPath = resolve(__dirname, '../data/trade-history.json');
-const trades = JSON.parse(readFileSync(dataPath, 'utf-8'));
+const trades = readTradeHistoryFiles(listTradeHistoryFiles(resolve(__dirname, '../data')));
 
 let pnlErrors = [];
 let pctErrors = [];

@@ -7,6 +7,7 @@ import { join } from 'path'
 import { existsSync } from 'fs'
 import { logger } from './logger'
 import type { TradeHistory } from '../../types'
+import { readTradeHistoryFiles } from './trade-history-files'
 
 // ==================== 类型定义 ====================
 
@@ -22,7 +23,6 @@ export interface LearningResult {
 
 // ==================== 常量 ====================
 
-const TRADE_HISTORY_PATH = join(process.cwd(), 'data', 'trade-history.json')
 const ANALYSIS_RESULT_PATH = join(process.cwd(), 'data', 'trade-history-analysis.json')
 
 let lastAnalysisTime = 0
@@ -38,8 +38,7 @@ let dailyAnalysisTimer: ReturnType<typeof setTimeout> | null = null
  */
 async function loadTradeHistory(): Promise<TradeHistory[]> {
   try {
-    const data = await readFile(TRADE_HISTORY_PATH, 'utf-8')
-    return JSON.parse(data) as TradeHistory[]
+    return readTradeHistoryFiles()
   } catch (error: any) {
     console.warn('[TradeHistoryAnalyzer] 加载历史交易记录失败:', error.message)
     return []
