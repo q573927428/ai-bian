@@ -1,6 +1,7 @@
 <!-- ==================== 持仓止盈止损价格区域 ==================== -->
 <template>
   <svg v-if="geometry" class="position-risk-overlay" :width="geometry.width" :height="geometry.height" aria-label="持仓止盈止损区域">
+    <text v-if="geometry.strategyId" :x="Math.max(5, geometry.left + 5)" :y="geometry.strategyY" class="price-value">{{ geometry.strategyId }}</text>
     <g v-for="zone in geometry.zones" :key="zone.label">
       <rect :x="geometry.left" :y="Math.min(geometry.entry, zone.y)" :width="geometry.right - geometry.left" :height="Math.abs(geometry.entry - zone.y)" :stroke="zone.color" :fill="zone.color" fill-opacity="0.06" stroke-width="1.5" />
       <text :x="geometry.left + 5" :y="zone.y < geometry.entry ? zone.y + 16 : zone.y - 6" :fill="zone.color">{{ zone.label }}<tspan class="price-value" dx="5">{{ zone.price }}</tspan></text>
@@ -18,7 +19,7 @@
 import { onMounted, onBeforeUnmount, shallowRef } from 'vue'
 import type { IChartApi, ISeriesApi } from 'lightweight-charts'
 import type { SimpleKLineData } from '../../../types/kline-simple'
-import { usePositionChart } from '../../composables/usePositionChart'
+import { useChartPosition } from '../../composables/usePositionChart'
 import { formatPrice } from './utils/kline-formatters'
 
 /** 获取实时图表实例，以适应交易对或指标切换时的图表重建。 */
@@ -30,7 +31,7 @@ interface Props {
   loading?: boolean
 }
 const props = defineProps<Props>()
-const position = usePositionChart()
+const position = useChartPosition(() => props.symbol)
 /** SVG 使用主价格轴坐标；所有区域会随缩放、拖动及实时价格同步移动。 */
 interface Geometry {
   width: number
@@ -39,12 +40,14 @@ interface Geometry {
   right: number
   entry: number
   entryPrice: string
+  strategyId: string
+  strategyY: number
   zones: { label: string; y: number; price: string; color: string }[]
   tp1: { y: number; price: string } | null
 }
 const geometry = shallowRef<Geometry | null>(null)
 // 保证短期持仓的标签空间，同时让框体覆盖持仓期间的全部 K 线。
-const MIN_RISK_BOX_WIDTH = 180
+const MIN_RISK_BOX_WIDTH = 130
 const LATEST_KLINE_PADDING = 30
 let frame = 0
 let previous = ''
@@ -83,6 +86,8 @@ function updateGeometry() {
       const tp1 = Number(selected.takeProfit1)
       const tp1Y = series.priceToCoordinate(tp1)
       next = { width: scale.width(), height: chart.panes()[0]?.getHeight() ?? 0, left, right, entry,
+        // 策略名称放在整个风险框上方，靠近顶部时保留可读的文字基线。
+        strategyId: selected.strategyId || '', strategyY: Math.max(14, Math.min(entry, ...zones.map(zone => zone.y)) - 8),
         entryPrice: formatPrice(Number(selected.entryPrice)), zones,
         tp1: tp1 > 0 && tp1 !== target && tp1Y !== null ? { y: tp1Y, price: formatPrice(tp1) } : null }
     }

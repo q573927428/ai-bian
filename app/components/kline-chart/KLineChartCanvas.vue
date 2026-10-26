@@ -28,7 +28,7 @@
 
 <script setup lang="ts">
 import PositionRiskOverlay from './PositionRiskOverlay.vue'
-import { usePositionChart } from '../../composables/usePositionChart'
+import { useChartPosition } from '../../composables/usePositionChart'
 import { ref, onMounted, onUnmounted, watch, nextTick, computed } from 'vue'
 import { createChart, ColorType, CandlestickSeries, HistogramSeries, LineSeries, createSeriesMarkers } from 'lightweight-charts'
 import type { SimpleKLineData } from '../../../types/kline-simple'
@@ -88,7 +88,7 @@ const props = withDefaults(defineProps<Props>(), {
 
 // 使用Pinia store获取配置
 const botStore = useBotStore()
-const selectedRiskPosition = usePositionChart()
+const selectedRiskPosition = useChartPosition(() => props.symbol)
 
 // 计算EMA周期 - 优先使用props.emaPeriods，否则从配置获取
 const emaPeriods = computed(() => {
