@@ -1,47 +1,12 @@
+// ==================== 历史订单服务端分页接口 ====================
 import { getCachedTradeHistory } from '../../utils/trade-history-cache'
+import { queryTradeHistory } from '../../utils/trade-history-query'
 
-export default defineEventHandler(async (event) => {
+/** 筛选、排序与汇总在完整历史上执行，仅传输当前页。 */
+export default defineEventHandler((event) => {
   try {
-    const query = getQuery(event)
-    const page = parseInt(query.page as string) || 1
-    const pageSize = parseInt(query.pageSize as string) || 10
-    
-    // 从全局交易历史文件读取数据
-    const cachedRecords = getCachedTradeHistory()
-    if (cachedRecords.length === 0) {
-      return {
-        success: true,
-        data: [],
-        pagination: {
-          page,
-          pageSize,
-          total: 0,
-          totalPages: 0,
-        },
-      }
-    }
-    
-    // 计算分页
-    const total = cachedRecords.length
-    const totalPages = Math.ceil(total / pageSize)
-    const startIndex = (page - 1) * pageSize
-    const endIndex = Math.min(startIndex + pageSize, total)
-    const pageData = cachedRecords.slice(startIndex, endIndex)
-    
-    return {
-      success: true,
-      data: pageData,
-      pagination: {
-        page,
-        pageSize,
-        total,
-        totalPages,
-      },
-    }
+    return { success: true, ...queryTradeHistory(getCachedTradeHistory(), getQuery(event)) }
   } catch (error: any) {
-    return {
-      success: false,
-      message: error.message || '获取历史失败',
-    }
+    return { success: false, message: error.message || '获取历史失败' }
   }
 })

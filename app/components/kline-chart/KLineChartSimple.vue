@@ -116,7 +116,6 @@ import KLineScanResultDialog from './KLineScanResultDialog.vue'
 
 // 导入bot store
 import { useBotStore } from '../../stores/bot'
-import { useTradeHistoryStore } from '../../stores/tradeHistory'
 import { useTheme } from '../../composables/useTheme'
 
 // 图表组件引用
@@ -132,7 +131,6 @@ import { calculateADXSeries } from '../../utils/adx-calculator'
 
 // 初始化bot store
 const botStore = useBotStore()
-const tradeHistoryStore = useTradeHistoryStore()
 const { theme: globalTheme, toggleTheme: globalToggleTheme } = useTheme()
 
 // 是否已经初始化过（防止初始加载时不必要的切换）
@@ -301,38 +299,14 @@ const tradeHistory = ref<TradeHistory[]>([])
 const loadingHistory = ref(false)
 
 /**
- * 建立策略与主周期的唯一映射，用于兼容尚未保存 mainTimeframe 的旧订单。
- * 同一策略出现多个主周期时不做推断，避免把订单标记到错误的K线上。
- */
-const getStrategyTimeframeMap = (orders: TradeHistory[]) => {
-  const strategyTimeframes = new Map<string, Set<string>>()
-
-  for (const order of orders) {
-    if (!order.strategyId || !order.mainTimeframe) continue
-    const timeframes = strategyTimeframes.get(order.strategyId) || new Set<string>()
-    timeframes.add(order.mainTimeframe)
-    strategyTimeframes.set(order.strategyId, timeframes)
-  }
-
-  const uniqueTimeframes = new Map<string, string>()
-  for (const [strategyId, timeframes] of strategyTimeframes) {
-    if (timeframes.size === 1) {
-      uniqueTimeframes.set(strategyId, [...timeframes][0]!)
-    }
-  }
-  return uniqueTimeframes
-}
-
-/**
  * 开启周期过滤时，订单优先使用自身 mainTimeframe；旧订单再按 strategyId 推断。
  */
 const visibleTradeHistory = computed(() => {
   if (!filterOrderMarkersByTimeframe.value) return tradeHistory.value
 
-  const strategyTimeframes = getStrategyTimeframeMap(tradeHistoryStore.allHistory)
   return tradeHistory.value.filter((order) => {
     const orderTimeframe = order.mainTimeframe
-      || (order.strategyId ? strategyTimeframes.get(order.strategyId) : undefined)
+      || (order as TradeHistory & { inferredTimeframe?: string }).inferredTimeframe
     return orderTimeframe === selectedTimeframe.value
   })
 })

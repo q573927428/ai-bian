@@ -94,13 +94,11 @@ import { GridComponent, TitleComponent, TooltipComponent } from 'echarts/compone
 import { CanvasRenderer } from 'echarts/renderers'
 import { graphic, init, use, type ECharts } from 'echarts/core'
 import { useStrategiesStore } from '../stores/strategies'
-import { useTradeHistoryStore } from '../stores/tradeHistory'
 import { useTheme } from '../composables/useTheme'
 
 use([LineChart, GridComponent, TitleComponent, TooltipComponent, CanvasRenderer])
 
 const strategiesStore = useStrategiesStore()
-const tradeHistoryStore = useTradeHistoryStore()
 
 const chartRef = ref<HTMLElement | null>(null)
 let chartResizeObserver: ResizeObserver | undefined
@@ -138,7 +136,7 @@ const getPeriodParams = () => {
 }
 
 // 加载历史数据
-const loadData = async (force = false) => {
+const loadData = async () => {
   loading.value = true
   try {
     const response = await $fetch('/api/bot/history-summary', {
@@ -155,23 +153,11 @@ const loadData = async (force = false) => {
     await nextTick()
     renderChart()
 
-    // 策略与完整历史仅用于筛选选项，放在首次绘图之后加载。
-    await Promise.all([
-      tradeHistoryStore.fetchAllHistory(force),
-      strategiesStore.strategies.length === 0 ? strategiesStore.loadStrategies() : Promise.resolve(),
-    ])
-    const allHistory = tradeHistoryStore.allHistory
-
-    const strategySet = new Set<string>()
-    const symbolSet = new Set<string>()
-    
-    allHistory.forEach(trade => {
-      if (trade.strategyId) strategySet.add(trade.strategyId)
-      symbolSet.add(trade.symbol)
-    })
-
+    // 下拉选项由全量历史的服务端元数据提供，不下载完整订单。
+    if (strategiesStore.strategies.length === 0) await strategiesStore.loadStrategies()
+    const strategySet = new Set<string>(response.options?.strategies || [])
     strategies.value = strategiesStore.strategies.filter(s => strategySet.has(s.id))
-    symbols.value = Array.from(symbolSet).sort()
+    symbols.value = response.options?.symbols || []
 
   } catch (error) {
     console.error('加载历史数据失败:', error)
@@ -182,7 +168,7 @@ const loadData = async (force = false) => {
 
 // 强制刷新
 const refreshData = async () => {
-  await loadData(true)
+  await loadData()
 }
 
 /** 根据筛选条件获取服务端汇总，避免在浏览器扫描完整订单。 */
@@ -203,71 +189,6 @@ const loadSummary = async () => {
   } catch (error) {
     console.error('加载盈亏汇总失败:', error)
   }
-}
-
-// 处理图表数据
-const processChartData = () => {
-  // 过滤数据
-  let filteredData = [...tradeHistoryStore.allHistory]
-  
-  if (selectedStrategy.value) {
-    filteredData = filteredData.filter(t => t.strategyId === selectedStrategy.value)
-  }
-  
-  if (selectedSymbol.value) {
-    filteredData = filteredData.filter(t => t.symbol === selectedSymbol.value)
-  }
-
-  // 按时间排序
-  filteredData.sort((a, b) => a.closeTime - b.closeTime)
-
-  // 计算累计盈亏和胜率
-  let cumulativePnl = 0
-  let winCount = 0
-  let totalCount = 0
-  let totalFee = 0
-
-  filteredData.forEach(trade => {
-    totalFee += trade.totalCommission || 0
-  })
-
-  // 按日期分组，保留每个日期最后一笔交易
-  const dateMap = new Map()
-  filteredData.forEach(trade => {
-    cumulativePnl += trade.pnl
-    totalCount++
-    if (trade.pnl > 0) winCount++
-    
-    const date = formatChartTime(trade.closeTime)
-    const winRate = totalCount > 0 ? (winCount / totalCount) * 100 : 0
-    
-    dateMap.set(date, {
-      time: date,
-      pnl: Number(cumulativePnl.toFixed(2)),
-      winRate: Number(winRate.toFixed(2)),
-      tradeCount: totalCount
-    })
-  })
-
-  chartData.value = Array.from(dateMap.values())
-
-  // 更新统计数据
-  stats.value = {
-    totalTrades: totalCount,
-    totalPnl: cumulativePnl,
-    winRate: totalCount > 0 ? (winCount / totalCount) * 100 : 0,
-    totalFee: totalFee,
-    netPnl: cumulativePnl - totalFee,
-    maxDrawdown: 0
-  }
-
-  renderChart()
-}
-
-// 格式化图表时间
-const formatChartTime = (timestamp: number): string => {
-  const date = new Date(timestamp)
-  return `${date.getMonth() + 1}/${date.getDate()}`
 }
 
 // 渲染图表

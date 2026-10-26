@@ -116,10 +116,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useBotStore } from '../stores/bot'
 import { useStrategiesStore } from '../stores/strategies'
-import { useTradeHistoryStore } from '../stores/tradeHistory'
 import HomeHeader from '../components/HomeHeader.vue'
 import HomeStatusPanel from '../components/HomeStatusPanel.vue'
 import { usePageUnlock } from '../composables/usePageUnlock'
@@ -142,7 +141,17 @@ import PerformancePanel from '../components/PerformancePanel.vue'
 
 const botStore = useBotStore()
 const strategiesStore = useStrategiesStore()
-const tradeHistoryStore = useTradeHistoryStore()
+/** 首页交易统计字段，与历史汇总接口返回的数据保持一致。 */
+interface HistoryOverview {
+  totalTrades: number
+  totalPnl: number
+  winRate: number
+  todayTrades: number
+  todayPnl: number
+  todayWinRate: number
+}
+
+const historyOverview = ref<HistoryOverview>({ totalTrades: 0, totalPnl: 0, winRate: 0, todayTrades: 0, todayPnl: 0, todayWinRate: 0 })
 
 // 配置对话框
 const showConfigDialog = ref(false)
@@ -213,39 +222,28 @@ const handleConfigSuccess = () => {
 }
 
 // 首页与盈亏图表统一以交易历史为统计真源，避免策略文件中的 performance 缓存过期。
-const totalTrades = computed(() => {
-  return tradeHistoryStore.allHistory.length
-})
+const totalTrades = computed(() => historyOverview.value.totalTrades)
+const todayTrades = computed(() => historyOverview.value.todayTrades)
+const todayWinRate = computed(() => historyOverview.value.todayWinRate)
+const totalPnL = computed(() => historyOverview.value.totalPnl)
+const dailyPnL = computed(() => historyOverview.value.todayPnl)
+const winRate = computed(() => historyOverview.value.winRate)
 
-/** 按浏览器本地平仓日期筛选，今日次数、盈亏和胜率使用同一批记录。 */
-const todayHistory = computed(() => {
-  const today = new Date().toDateString()
-  return tradeHistoryStore.allHistory.filter(trade => new Date(trade.closeTime).toDateString() === today)
-})
-const todayTrades = computed(() => todayHistory.value.length)
-
-/** 今日无平仓交易时胜率显示为零，与总体胜率保持一致。 */
-const todayWinRate = computed(() => todayTrades.value > 0
-  ? todayHistory.value.filter(trade => trade.pnl > 0).length / todayTrades.value * 100
-  : 0)
-
-// pnl 对新记录表示币安 realizedPnl 扣除真实开平仓手续费后的净收益。
-const totalPnL = computed(() => {
-  return tradeHistoryStore.allHistory.reduce((sum, trade) => sum + (trade.pnl || 0), 0)
-})
-
-// 计算今日盈亏
-const dailyPnL = computed(() => {
-  return todayHistory.value
-    .reduce((sum, trade) => sum + (trade.pnl || 0), 0)
-})
-
-// 计算总胜率
-const winRate = computed(() => {
-  const totalTradesCount = tradeHistoryStore.allHistory.length
-  const totalWinsCount = tradeHistoryStore.allHistory.filter(trade => trade.pnl > 0).length
-  return totalTradesCount > 0 ? (totalWinsCount / totalTradesCount) * 100 : 0
-})
+/** 仅获取汇总；本地自然日边界与原首页统计口径一致。 */
+const loadHistoryOverview = async () => {
+  const start = new Date()
+  start.setHours(0, 0, 0, 0)
+  const end = new Date(start)
+  end.setDate(end.getDate() + 1)
+  try {
+    const response = await $fetch<{ success: boolean; data: HistoryOverview }>('/api/bot/history-overview', { params: { startTime: start.getTime(), endTime: end.getTime() } })
+    if (response.success) historyOverview.value = response.data
+  } catch (error) {
+    console.error('加载交易汇总失败:', error)
+  }
+}
+let overviewTimer: ReturnType<typeof setInterval> | undefined
+onUnmounted(() => { if (overviewTimer) clearInterval(overviewTimer) })
 
 // 从配置中读取初始本金
 const initialCapital = computed(() => {
@@ -294,12 +292,13 @@ const annualizedReturn = computed(() => {
   return (netProfit / initialCapital) * (365 / daysElapsed) * 100
 })
 
-// 页面加载时获取状态
+// 首页统计独立刷新，打开订单抽屉不再承担首页数据更新职责。
 onMounted(async () => {
+  overviewTimer = setInterval(loadHistoryOverview, 30000)
   await Promise.all([
     botStore.fetchStatus(),
     strategiesStore.loadStrategies(),
-    tradeHistoryStore.fetchAllHistory()
+    loadHistoryOverview()
   ])
 })
 </script>

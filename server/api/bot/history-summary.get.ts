@@ -1,5 +1,6 @@
 // ==================== 交易历史汇总接口 ====================
 import { getCachedTradeHistory } from '../../utils/trade-history-cache'
+import { getTradeHistoryOptions } from '../../utils/trade-history-query'
 
 /** 为收益分析返回按日期聚合的数据，避免向浏览器传输完整订单详情。 */
 export default defineEventHandler((event) => {
@@ -13,7 +14,8 @@ export default defineEventHandler((event) => {
   const timeFormat = new Intl.DateTimeFormat('zh-CN', isIntraday
     ? { timeZone: String(query.timeZone || 'Asia/Shanghai'), hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }
     : { month: 'numeric', day: 'numeric' })
-  const records = getCachedTradeHistory()
+  const allRecords = getCachedTradeHistory()
+  const records = allRecords
     .filter((trade) => !strategyId || trade.strategyId === strategyId)
     .filter((trade) => !symbol || trade.symbol === symbol)
     .filter((trade) => !isIntraday || (Number(trade.closeTime) >= startTime && Number(trade.closeTime) < endTime))
@@ -44,7 +46,7 @@ export default defineEventHandler((event) => {
       tradeCount: totalCount,
     })
   }
-  return { success: true, data: Array.from(dateMap.values()), stats: {
+  return { success: true, data: Array.from(dateMap.values()), options: getTradeHistoryOptions(allRecords), stats: {
     totalTrades: records.length,
     totalPnl: cumulativePnl,
     winRate: records.length ? (wins / records.length) * 100 : 0,

@@ -809,37 +809,25 @@ const filter = reactive<FilterConfig>({
   estimatedVolumeMax: undefined,
 })
 
-// 加载历史订单
+// 加载当前页，服务端返回全部筛选结果的汇总。
+let historyRequest = 0
 const loadHistory = async () => {
+  const request = ++historyRequest
   loading.value = true
   try {
-    await tradeHistoryStore.fetchAllHistory(false)
-    const paginated = tradeHistoryStore.getPaginatedHistory(currentPage.value, pageSize.value)
-    orders.value = paginated.data
-    total.value = paginated.total
-    totalPages.value = paginated.totalPages
+    const response = await tradeHistoryStore.fetchPage(currentPage.value, pageSize.value)
+    if (!response || request !== historyRequest) return
+    orders.value = response.data
+    total.value = response.pagination.total
+    totalPages.value = response.pagination.totalPages
+    currentPage.value = response.pagination.page
   } catch (error) {
     console.error('加载历史订单失败:', error)
   } finally {
-    loading.value = false
+    if (request === historyRequest) loading.value = false
   }
 }
-
-// 强制刷新
-const refreshHistory = async () => {
-  loading.value = true
-  try {
-    await tradeHistoryStore.fetchAllHistory(true)
-    const paginated = tradeHistoryStore.getPaginatedHistory(currentPage.value, pageSize.value)
-    orders.value = paginated.data
-    total.value = paginated.total
-    totalPages.value = paginated.totalPages
-  } catch (error) {
-    console.error('加载历史订单失败:', error)
-  } finally {
-    loading.value = false
-  }
-}
+const refreshHistory = () => loadHistory()
 
 // 筛选条件变更
 const handleFilterChange = () => {
