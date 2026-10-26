@@ -407,7 +407,7 @@
             <el-row :gutter="12">
               <el-col :xs="24" :span="12">
                 <el-form-item label="每日交易">
-                  <el-input-number v-model="form.riskManagement.maxDailyTrades" :min="1" :max="20" />
+                  <el-input-number v-model="form.riskManagement.maxDailyTrades" :min="1" :max="100" />
                 </el-form-item>
               </el-col>
               <el-col :xs="24" :span="12">
