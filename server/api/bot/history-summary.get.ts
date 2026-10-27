@@ -34,7 +34,8 @@ export default defineEventHandler((event) => {
   for (const trade of records) {
     cumulativePnl += Number(trade.pnl || 0)
     totalFee += Number(trade.totalCommission || 0)
-    netPnl = cumulativePnl - totalFee
+    // 历史记录 pnl 已扣除交易手续费并计入已结算资金费；手续费仅汇总展示，不能再次扣减。
+    netPnl = cumulativePnl
     // 从零收益起逐笔追踪峰谷，避免按日聚合遗漏日内回撤；无本金口径时使用 USDT 金额。
     peakNetPnl = Math.max(peakNetPnl, netPnl)
     maxDrawdown = Math.max(maxDrawdown, peakNetPnl - netPnl)

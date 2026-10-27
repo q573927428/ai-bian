@@ -58,7 +58,7 @@
         <div class="stat-value">{{ stats.totalTrades }}</div>
       </div>
       <div class="stat-item">
-        <div class="stat-label">累计盈亏</div>
+        <div class="stat-label" title="历史已平仓交易的净盈亏合计，已包含记录中结算的手续费和资金费">累计盈亏</div>
         <div :class="['stat-value', stats.totalPnl >= 0 ? 'text-success' : 'text-danger']">
           {{ stats.totalPnl >= 0 ? '+' : '' }}{{ stats.totalPnl.toFixed(2) }} U
         </div>
@@ -68,17 +68,17 @@
         <div class="stat-value">{{ stats.winRate.toFixed(2) }}%</div>
       </div>
       <div class="stat-item">
-        <div class="stat-label">总手续费</div>
+        <div class="stat-label" title="已计入累计盈亏的交易手续费，仅单独展示，不重复扣除">总手续费</div>
         <div class="stat-value">{{ stats.totalFee.toFixed(2) }} U</div>
       </div>
       <div class="stat-item">
-        <div class="stat-label">净盈亏</div>
+        <div class="stat-label" title="与累计盈亏口径一致，手续费不重复扣除">净盈亏</div>
         <div :class="['stat-value', stats.netPnl >= 0 ? 'text-success' : 'text-danger']">
           {{ stats.netPnl >= 0 ? '+' : '' }}{{ stats.netPnl.toFixed(2) }} U
         </div>
       </div>
       <div class="stat-item">
-        <div class="stat-label">最大回撤</div>
+        <div class="stat-label" title="按逐笔已结算净盈亏计算历史峰值到随后低点的最大跌幅，包含起始零收益">最大回撤</div>
         <div class="stat-value text-danger">{{ stats.maxDrawdown.toFixed(2) }} U</div>
       </div>
     </div>

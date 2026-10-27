@@ -4,7 +4,7 @@ import test from 'node:test'
 import vm from 'node:vm'
 import { readFile } from 'node:fs/promises'
 import ts from 'typescript'
-import { queryTradeHistory } from '../server/utils/trade-history-query.ts'
+import { queryTradeHistory, getTradeHistoryOptions } from '../server/utils/trade-history-query.ts'
 
 const records = Array.from({ length: 3205 }, (_, index) => ({
   id: String(index), symbol: index % 2 ? 'ETH/USDT' : 'BTC/USDT', strategyId: 'strategy_001',
@@ -58,6 +58,7 @@ async function loadHandler(file, trades) {
     module, exports: module.exports, defineEventHandler: handler => handler, getQuery: event => event,
     createError: value => new Error(value.statusMessage),
     require: name => {
+      if (name.endsWith('trade-history-query')) return { getTradeHistoryOptions }
       if (name.endsWith('trade-history-cache')) return {
         getCachedTradeHistory: () => trades,
         toTradeMarker: record => ({ id: record.id, mainTimeframe: record.mainTimeframe }),
@@ -67,6 +68,35 @@ async function loadHandler(file, trades) {
   })
   return module.exports.default
 }
+
+test('收益汇总使用已结算净盈亏，手续费和资金费不重复扣减，回撤保留日内峰谷', async () => {
+  const start = Date.UTC(2026, 9, 1)
+  // 故意打乱顺序，三笔交易同日完成；日线终值为 5，但日内最大回撤为 15。
+  const trades = [
+    { id: 'c', symbol: 'BTC/USDT', strategyId: 'a', closeTime: start + 3000, pnl: 10, totalCommission: 3 },
+    { id: 'a', symbol: 'BTC/USDT', strategyId: 'a', closeTime: start + 1000, pnl: 10, totalCommission: 2, grossRealizedPnl: 11, fundingFee: 1 },
+    { id: 'b', symbol: 'BTC/USDT', strategyId: 'a', closeTime: start + 2000, pnl: -15, totalCommission: 4 },
+  ]
+  const handler = await loadHandler('history-summary.get.ts', trades)
+  const result = handler({})
+  assert.equal(result.stats.totalPnl, 5)
+  assert.equal(result.stats.netPnl, 5)
+  assert.equal(result.stats.totalFee, 9)
+  assert.equal(result.stats.maxDrawdown, 15)
+  assert.equal(result.data.length, 1)
+  assert.equal(result.data[0].pnl, result.stats.netPnl)
+  assert.equal(result.stats.totalTrades, 3)
+  assert.equal(result.stats.winRate, 2 / 3 * 100)
+
+  // 筛选后从零重新计算，第一笔即亏损也必须形成回撤。
+  const filtered = handler({ startTime: start + 2000, endTime: start + 3000 })
+  assert.equal(filtered.stats.netPnl, -15)
+  assert.equal(filtered.stats.totalFee, 4)
+  assert.equal(filtered.stats.maxDrawdown, 15)
+  const empty = handler({ symbol: 'NONE' })
+  for (const value of Object.values(empty.stats)) assert.equal(value, 0)
+  assert.equal(empty.data.length, 0)
+})
 
 test('首页总数包含全部记录，今日统计使用客户端半开时间区间', async () => {
   const handler = await loadHandler('history-overview.get.ts', records)
