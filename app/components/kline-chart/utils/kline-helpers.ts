@@ -139,7 +139,7 @@ export function getChartOptions(theme: 'light' | 'dark') {
     timeScale: {
       timeVisible: true,
       secondsVisible: false,
-      rightOffset: 26,
+      rightOffset: 30,
       borderColor: '#CCCCCC',
       tickMarkFormatter: (time: number) => {
         const date = new Date(time * 1000)

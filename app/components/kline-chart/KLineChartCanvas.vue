@@ -1085,7 +1085,7 @@ const updateChart = (preserveViewport = false) => {
           setTimeout(() => {
             if (chart) {
               chart.timeScale().applyOptions({
-                rightOffset: 26
+                rightOffset: 30
               })
             }
           }, 0)
