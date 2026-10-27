@@ -2,6 +2,8 @@
 
 import { calculateMoneyFlow } from '../../utils/money-flow'
 import { EMA, RSI, ADX, ATR, MACD } from 'technicalindicators'
+import { calculateSupportResistance, type SupportResistanceOptions } from './SupportResistanceCalculator'
+import { SupportResistanceCache } from './SupportResistanceCache'
 import type {
   IndicatorData,
   Timeframe,
@@ -53,6 +55,7 @@ export class IndicatorsHub {
 
   // 统一数据缓存: symbol -> SymbolData
   private symbolDataCache: Map<string, SymbolData> = new Map()
+  private supportResistanceCache = new SupportResistanceCache()
 
   // 所有支持的时间周期
   private readonly ALL_TIMEFRAMES: Timeframe[] = ['5m', '15m', '1h', '4h', '1d']
@@ -470,7 +473,8 @@ export class IndicatorsHub {
     symbol: string,
     timeframe: Timeframe,
     type: IndicatorType | StatisticsType,
-    options?: {
+    options?: SupportResistanceOptions & {
+      refreshSupportResistance?: boolean
       lookbackMinutes?: number
       trendThresholdPercent?: number
       adxPeriod?: number // ADX计算周期，默认14
@@ -482,6 +486,24 @@ export class IndicatorsHub {
     }
   ): Promise<IndicatorData> {
     const symbolData = this.getOrCreateSymbolData(symbol)
+
+    if (type === 'SupportResistance') {
+      // 区域由统一预计算刷新；读取只更新价格距离，冷启动/过期仅兜底构建一次。
+      const now = Date.now()
+      const params = {
+        lookback: options?.lookback ?? 96, pivotLeft: options?.pivotLeft ?? 3,
+        pivotRight: options?.pivotRight ?? 3, mergeDistanceATR: options?.mergeDistanceATR ?? 0.5,
+        minTouches: options?.minTouches ?? 1, breakoutBufferATR: options?.breakoutBufferATR ?? 0.1
+      }
+      const klines = this.getKlines(symbol, timeframe) || []
+      const price = options?.currentPrice ?? klines.at(-1)?.close ?? null
+      return {
+        symbol, timeframe, timestamp: now,
+        values: this.supportResistanceCache.get(`${symbol}:${timeframe}:${shortHash(params)}`, price, now,
+          () => calculateSupportResistance(klines, timeframe,
+            this.timeframeToMinutes(timeframe) * 60_000, { ...params, now }), options?.refreshSupportResistance)
+      }
+    }
 
     if (type === 'MoneyFlow') {
       // 从已加载 K 线计算，沿用 K 线事件驱动更新，避免另建易失效缓存。

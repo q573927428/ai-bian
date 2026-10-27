@@ -145,6 +145,11 @@ export function getStrategyManager(): StrategyManager {
   return strategyManager
 }
 
+/** 只读看板在启动等待期间允许返回空状态，不触发初始化或改变启动顺序。 */
+export function getStrategyManagerIfAvailable(): StrategyManager | null {
+  return strategyManager
+}
+
 /**
  * 销毁策略管理系统
  */

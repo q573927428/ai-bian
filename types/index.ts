@@ -1,5 +1,6 @@
 // ==================== 核心类型定义 ====================
 import type { MarketBreadthSnapshot } from './market-breadth'
+import type { EntrySupportResistance, SupportResistanceSnapshot } from './support-resistance'
 
 // 交易方向
 export type Direction = 'LONG' | 'SHORT' | 'IDLE'
@@ -75,6 +76,8 @@ export interface OHLCV {
 
 // 技术指标
 export interface TechnicalIndicators {
+  /** 五分钟预计算区域与本次行情价格更新后的距离快照。 */
+  supportResistance?: SupportResistanceSnapshot
   /** 本轮已选交易对市场广度，供 AI 作为整体方向背景参考。 */
   marketBreadth?: MarketBreadthSnapshot
   emaMap: Record<string, number>
@@ -500,6 +503,8 @@ export interface TradeHistory {
   
   // 入场技术指标（动态）
   entryIndicators?: Record<string, number>
+  /** AI 决策时的完整结构快照，开仓后冻结，供历史复盘。 */
+  entrySupportResistance?: EntrySupportResistance
 
   /** AI 分析并决定入场时的 K 线完成进度，以百分比表示 */
   candleProgressPercent?: number

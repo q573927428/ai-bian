@@ -117,7 +117,10 @@ export class IndicatorPrecomputeService {
             if (combo.type === 'EMA') {
               return await this.indicatorsHub.getEMAByPeriods(combo.symbol, combo.timeframe, combo.params.periods || [14])
             }
-            return await this.indicatorsHub.getIndicators(combo.symbol, combo.timeframe, combo.type, combo.params)
+            return await this.indicatorsHub.getIndicators(combo.symbol, combo.timeframe, combo.type, {
+              ...combo.params,
+              ...(combo.type === 'SupportResistance' ? { refreshSupportResistance: true } : {})
+            })
           })
           this.cache.set(combo.key, { data, computedAt: Date.now(), stale: false })
           this.dirtyKeys.delete(combo.key)

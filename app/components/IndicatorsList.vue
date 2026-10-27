@@ -77,6 +77,11 @@
           <span :class="[row.diDirection.startsWith('多头') ? 'up' : row.diDirection.startsWith('空头') ? 'down' : 'muted', { 'macd-weakening': row.diDirection.endsWith('减弱') }]">{{ row.diDirection }}</span>
         </template>
       </el-table-column>
+      <el-table-column label="实时支撑 / 阻力" min-width="175">
+        <template #default="{ row }">
+          <SupportResistanceInfo :snapshot="row.supportResistance" />
+        </template>
+      </el-table-column>
       <el-table-column label="EMA" min-width="105">
         <template #default="{ row }">
           <div>EMA{{ row.fastEmaPeriod }} {{ formatPrice(row.fastEma) }}</div>
@@ -184,12 +189,15 @@
 
 <script setup lang="ts">
 // ==================== 指标看板 ====================
-import { computed, ref, watch } from 'vue'
+import { computed, ref, watch, onUnmounted } from 'vue'
 import { useBotStore } from '../stores/bot'
 import { useCoinIcon } from '../composables/useCoinIcon'
+import type { SupportResistanceSnapshot } from '../../types/support-resistance'
+import SupportResistanceInfo from './SupportResistanceInfo.vue'
 
 /** 指标列表中的单个交易对展示数据。 */
 interface IndicatorRow {
+  supportResistance?: SupportResistanceSnapshot
   symbol: string; price?: number; closeChangePercent?: number; candleDirectionLabel: string
   candleProgressPercent?: number
   adx?: number; rsi?: number; atrPercent?: number; oiChangePercent?: number
@@ -252,6 +260,46 @@ const filteredRows = computed(() => signalFilter.value === '全部'
   : rows.value.filter(row => resonanceInfo(row.symbol).tone === signalFilter.value))
 const periodSignals = ref<Record<string, Partial<Record<string, IndicatorRow['diDirection']>>>>({})
 let fetchVersion = 0
+let structureTimer: ReturnType<typeof setInterval> | undefined
+let refreshingStructure = false
+
+/** 打开看板时定期补齐实时结构；限制并发，旧周期请求不可覆盖新周期。 */
+async function refreshStructure() {
+  if (!visible.value || loading.value || refreshingStructure) return
+  // 启动期首屏为空时继续尝试加载，初始化完成后自动恢复看板。
+  if (rows.value.length === 0) {
+    await fetchData()
+    return
+  }
+  refreshingStructure = true
+  const version = fetchVersion
+  const selectedTimeframe = timeframe.value
+  const targets = rows.value.map(row => row.symbol)
+  let cursor = 0
+  try {
+    await Promise.all(Array.from({ length: Math.min(4, targets.length) }, async () => {
+      while (visible.value && version === fetchVersion && cursor < targets.length) {
+        const symbol = targets[cursor++]!
+        try {
+          const response: any = await $fetch('/api/bot/indicators', {
+            query: { symbol, timeframe: selectedTimeframe, includeSlowStats: 'false', structureOnly: 'true' }
+          })
+          if (!visible.value || version !== fetchVersion) return
+          const row = rows.value.find(item => item.symbol === symbol)
+          if (row) row.supportResistance = response.data?.indicators?.supportResistance?.values
+        } catch {
+          // 刷新失败清除旧结构，避免将上轮价格对应的距离伪装成实时结果。
+          if (version === fetchVersion) {
+            const row = rows.value.find(item => item.symbol === symbol)
+            if (row) row.supportResistance = undefined
+          }
+        }
+      }
+    }))
+  } finally {
+    refreshingStructure = false
+  }
+}
 type SortOrder = 'ascending' | 'descending' | null
 type SortProp = 'candleProgressPercent' | 'rsi' | 'macdHistogram' | 'atrPercent' | 'oiChangePercent' | 'volumeRatio' | 'netInflowPercent' | 'cumulativeNetInflow' | null
 const sortProp = ref<SortProp>(null)
@@ -284,10 +332,13 @@ async function fetchData() {
   loading.value = true; errorMessage.value = ''
   const requestedTimeframe = timeframe.value
   const requestedEmaPeriods = [...emaPeriods.value]
+  let initializing = false
   // 首屏只请求当前周期，避免另外四个周期先占满浏览器连接和服务端计算资源。
   const results = await Promise.all(symbols.value.map(async (symbol: string) => {
     try {
       const response: any = await $fetch('/api/bot/indicators', { query: { symbol, timeframe: requestedTimeframe, emaPeriods: requestedEmaPeriods.join(','), includeSlowStats: 'false' } })
+      if (response.initializing) { initializing = true; return null }
+      if (!response.success || !response.data) return null
       const row = toRow(response.data)
       if (version === fetchVersion) {
         periodSignals.value[row.symbol] = { ...periodSignals.value[row.symbol], [requestedTimeframe]: combinedPeriodTrend(row) }
@@ -299,11 +350,12 @@ async function fetchData() {
   if (version !== fetchVersion) return
   rows.value = results.filter(Boolean) as IndicatorRow[]
   applySort()
-  if (rows.value.length === 0) errorMessage.value = '指标暂不可用，请确认指标中心已完成初始化'
+  if (rows.value.length === 0) errorMessage.value = initializing
+    ? '行情初始化中，稍后自动刷新' : '指标暂不可用，请确认指标中心已完成初始化'
   loading.value = false
 
   // 首屏不再等待 OI 历史和币安广场分页请求；慢字段在表格显示后后台补齐。
-  void fetchBackgroundStats(version, requestedTimeframe, requestedEmaPeriods)
+  if (rows.value.length > 0) void fetchBackgroundStats(version, requestedTimeframe, requestedEmaPeriods)
 }
 
 /** 按主表、五周期信号、慢统计的顺序加载，避免三类请求同时争抢资源。 */
@@ -513,6 +565,7 @@ function toRow(data: any): IndicatorRow {
   ].join('\n')
   return {
     symbol: data.symbol, price, closeChangePercent: Number(data.kline?.closeChangePercent),
+    supportResistance: data?.indicators?.supportResistance?.values,
     candleProgressPercent: Number(data.kline?.candleProgressPercent),
     candleDirectionLabel: data.kline?.candleDirection === 'bullish' ? '阳线' : data.kline?.candleDirection === 'bearish' ? '阴线' : '平',
     adx: Number(adx.adx), rsi: Number(values('rsi').rsi),
@@ -713,7 +766,19 @@ watch(() => emaPeriods.value.join(','), () => {
   if (visible.value) fetchData()
 })
 watch(visible, value => {
-  if (value) fetchData()
+  if (structureTimer) clearInterval(structureTimer)
+  structureTimer = undefined
+  if (value) {
+    void fetchData()
+    structureTimer = setInterval(() => { void refreshStructure() }, 15_000)
+  } else {
+    // 关闭后使首屏及后台尚未完成的旧请求失效。
+    fetchVersion++
+  }
+}, { immediate: true })
+onUnmounted(() => {
+  fetchVersion++
+  if (structureTimer) clearInterval(structureTimer)
 })
 </script>
 

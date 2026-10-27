@@ -67,6 +67,8 @@ export class IndicatorCombinationRegistry {
         }
 
         for (const indicator of strategy.indicators.filter(indicator => indicator.enabled)) {
+          // 支撑阻力在下方按主周期及看板默认周期统一注册。
+          if (indicator.type === 'SupportResistance') continue
           const timeframe = indicator.timeframes?.[0] || mainTimeframe
           const params = this.normalizeIndicatorParams(indicator.type, indicator.params)
           const key = this.register(symbol, timeframe, indicator.type, params)
@@ -76,6 +78,13 @@ export class IndicatorCombinationRegistry {
           if (indicator.type === 'MACD') binding.keys.macd = key
           if (indicator.type === 'ATR') binding.keys.atr = key
         }
+
+        // 看板提供五周期结构，全部按默认参数预计算；相同组合跨策略自动去重。
+        for (const timeframe of Object.keys(timeframeOrder) as Timeframe[]) {
+          this.register(symbol, timeframe, 'SupportResistance', {})
+        }
+        const structure = strategy.indicators.find(i => i.type === 'SupportResistance')
+        if (structure?.enabled) this.register(symbol, mainTimeframe, 'SupportResistance', structure.params)
 
         for (const stat of strategy.statistics.filter(stat => stat.enabled)) {
           const timeframe = stat.type === 'SquareHeat'

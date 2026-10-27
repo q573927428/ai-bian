@@ -356,6 +356,10 @@
                 </el-tag>
               </div>
             </div>
+            <div v-if="row.entrySupportResistance" class="detail-section">
+              <span class="detail-label">入场支撑阻力快照</span>
+              <SupportResistanceInfo :snapshot="row.entrySupportResistance" detailed />
+            </div>
             <div v-if="row.entryCommunitySentiment" class="detail-section">
               <span class="detail-label">入场社区情绪</span>
               <div class="indicators-tags">
@@ -621,6 +625,7 @@
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
 import type { TradeHistory } from '../../types'
+import SupportResistanceInfo from './SupportResistanceInfo.vue'
 import { useTradeHistoryStore, type FilterConfig } from '../stores/tradeHistory'
 
 const tradeHistoryStore = useTradeHistoryStore()

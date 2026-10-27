@@ -23,6 +23,10 @@ export function getMacroSyncStatus(id: string, period: string): MacroSyncStatus 
 /** 顺序请求减少上游限流；失败只影响当前标的周期，缓存始终保留。 */
 async function syncMarkets(): Promise<void> {
   await initKLineDb()
+  const startedAt = Date.now()
+  let attempted = 0
+  let succeeded = 0
+  let totalBars = 0
   for (const market of MACRO_MARKETS.filter(item => item.source === 'yahoo')) {
     for (const period of MACRO_PERIODS) {
       if (stopped) return
@@ -30,8 +34,7 @@ async function syncMarkets(): Promise<void> {
       const status = statuses.get(key) || { updatedAt: null, failures: 0, nextAttempt: 0 }
       if (Date.now() < status.nextAttempt) continue
       const symbol = macroStorageSymbol(market)
-      const startedAt = Date.now()
-      console.log(`[MacroSync] 开始同步: ${market.name} (${market.symbol})/${period}`)
+      attempted += 1
       try {
         const cached = getSimpleKLineData(symbol, period, { limit: 495 })
         // 数据不足时重新补历史；否则回退两根，修正上游的末根修订。
@@ -39,10 +42,11 @@ async function syncMarkets(): Promise<void> {
         const bars = await fetchYahooKlines(market.symbol, period, from)
         if (!bars.length) throw new Error('Yahoo 未返回有效 K 线')
         if (!appendSimpleKLineData(symbol, period, bars)) throw new Error('宏观 K 线写入失败')
-        const refreshMs = { '15m': 120000, '1h': 300000, '4h': 600000, '1d': 1800000, '1w': 3600000 }[period]
+        // 宏观数据按周期降低刷新频率，减少上游请求和同步汇总日志。
+        const refreshMs = { '15m': 5 * 60000, '1h': 15 * 60000, '4h': 30 * 60000, '1d': 2 * 3600000, '1w': 6 * 3600000 }[period]
         statuses.set(key, { updatedAt: Date.now(), failures: 0, nextAttempt: Date.now() + refreshMs })
-        // 条数包含末根修订和历史回填，不能作为新增 K 线数量解读。
-        console.log(`[MacroSync] 同步成功: ${market.name} (${market.symbol})/${period}，写入 ${bars.length} 条K线，耗时 ${Date.now() - startedAt}ms`)
+        succeeded += 1
+        totalBars += bars.length
       } catch (error) {
         const failures = status.failures + 1
         const message = error instanceof Error ? error.message : String(error)
@@ -50,6 +54,10 @@ async function syncMarkets(): Promise<void> {
         console.warn(`[MacroSync] ${market.symbol}/${period}: ${message}`)
       }
     }
+  }
+  // 空轮询保持静默；条数包含历史回填和旧 K 线更新，并非净新增数量。
+  if (attempted > 0) {
+    console.log(`[MacroSync] 宏观同步完成: ${succeeded}/${attempted} 成功，写入 ${totalBars} 条K线，耗时 ${Date.now() - startedAt}ms`)
   }
 }
 

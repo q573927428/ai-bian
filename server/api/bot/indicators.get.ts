@@ -1,7 +1,7 @@
 // ==================== 完整指标只读诊断接口 ====================
 
 import type { IndicatorData, Timeframe } from '../../../types/strategy'
-import { getStrategyManager } from '../../modules/strategy-manager'
+import { getStrategyManagerIfAvailable } from '../../modules/strategy-manager'
 import { getMaxOIChangePeriod } from '../../utils/strategy-indicators-normalizer'
 import { getSimpleKLineLastUpdatedAt } from '../../utils/kline-simple-storage'
 import { getCachedSquareHeat } from '../../utils/square-heat'
@@ -62,6 +62,8 @@ export default defineEventHandler(async (event) => {
   const includeSlowStats = String(query.includeSlowStats ?? 'true') !== 'false'
   // 五周期标记只依赖 ADX 和 MACD，跳过其他指标以减少计算和外部请求。
   const signalOnly = String(query.signalOnly ?? 'false') === 'true'
+  // 看板自动更新结构时仅做本地计算，避免反复请求 OI、社区情绪等慢统计。
+  const structureOnly = String(query.structureOnly ?? 'false') === 'true'
 
   if (!symbol) {
     throw createError({ statusCode: 400, message: '缺少必需参数: symbol' })
@@ -70,7 +72,9 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, message: `无效的 timeframe: ${timeframe}` })
   }
 
-  const manager = getStrategyManager()
+  const manager = getStrategyManagerIfAvailable()
+  // K线首次同步尚未完成属于正常启动状态，不应抛出未处理的服务端异常。
+  if (!manager) return { success: false, initializing: true, message: '行情初始化中，请稍候', data: null }
   const indicatorsHub = manager.getIndicatorsHub()
   const configuredSymbols = indicatorsHub.getCacheStatus().symbols
   // 指标中心沿用配置文件中的交易对格式，后续读取必须使用匹配到的真实缓存键。
@@ -101,6 +105,7 @@ export default defineEventHandler(async (event) => {
    * 单项失败只记录错误，确保仍能看到其余已正常计算的指标。
    */
   const collect = async (name: string, loader: () => Promise<IndicatorData>): Promise<void> => {
+    if (structureOnly && name !== 'supportResistance') return
     if (signalOnly && name !== 'adx' && name !== 'macd') return
     try {
       indicators[name] = toDiagnosticResult(await loader(), requestedAt)
@@ -125,6 +130,7 @@ export default defineEventHandler(async (event) => {
     }))] : []),
     collect('moneyFlow', () => indicatorsHub.getIndicators(indicatorSymbol, timeframe, 'MoneyFlow')),
     collect('volume', () => indicatorsHub.getIndicators(indicatorSymbol, timeframe, 'Volume')),
+    collect('supportResistance', () => indicatorsHub.getIndicators(indicatorSymbol, timeframe, 'SupportResistance')),
     ...(includeSlowStats ? [collect('squareHeat', () => indicatorsHub.getIndicators(indicatorSymbol, timeframe, 'SquareHeat', {
       lookbackMinutes: squareHeatWindowMinutes
     }))] : [])
@@ -132,7 +138,7 @@ export default defineEventHandler(async (event) => {
 
   // 首屏跳过外部慢请求，但仍展示同一统计窗口的有效情绪缓存。
   // 五周期方向请求不依赖情绪；无缓存时留给后台补齐，避免阻塞技术指标。
-  if (!includeSlowStats && !signalOnly) {
+  if (!includeSlowStats && !signalOnly && !structureOnly) {
     const cachedHeat = getCachedSquareHeat(indicatorSymbol, squareHeatWindowMinutes)
     if (cachedHeat) {
       indicators.squareHeat = toDiagnosticResult({

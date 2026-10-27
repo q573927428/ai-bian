@@ -2,6 +2,7 @@
 
 import type { StrategyId, TradeDirection } from '../../../types/strategy'
 import type { EntryCommunitySentiment, Position, ScoreBreakdown } from '../../../types'
+import type { EntrySupportResistance } from '../../../types/support-resistance'
 import { logger } from '../../utils/logger'
 import { 
   saveActivePositions,
@@ -47,6 +48,8 @@ export interface PositionInfo {
   
   // 入场指标（新增）
   entryIndicators?: Record<string, number>;  // 入场时的技术指标
+  /** 冻结 AI 决策时的支撑阻力，持仓监控不得覆盖该快照。 */
+  entrySupportResistance?: EntrySupportResistance;
   /** AI 决定入场时的 K 线完成进度，以百分比表示，平仓后原样写入历史订单 */
   candleProgressPercent?: number;
   /** 入场时的社区情绪快照，平仓后原样写入历史订单 */

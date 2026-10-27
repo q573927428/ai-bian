@@ -5,6 +5,7 @@ import type { TradeSignal } from '../../../types/signal'
 import type { BotConfig, OrderExecutionSummary } from '../../../types'
 import { StrategyStore } from '../strategy-store/StrategyStore'
 import { IndicatorsHub } from '../indicators/IndicatorsHub'
+import { summarizeEntrySupportResistance } from '../indicators/support-resistance-entry'
 import { getMarketBreadth } from '../../utils/market-breadth'
 import { PositionManager } from '../position-manager/PositionManager'
 import { BinanceService } from '../../utils/binance'
@@ -725,7 +726,7 @@ export class StrategyEngine {
       }
     }
 
-    for (const indicator of strategy.indicators.filter((i: any) => i.enabled && i.type !== 'EMA')) {
+    for (const indicator of strategy.indicators.filter((i: any) => i.enabled && i.type !== 'EMA' && i.type !== 'SupportResistance')) {
       const dataKey = `${mainTimeframe}_${indicator.type}`
       const bindingKey = indicator.type === 'RSI' ? bindKeys.rsi
         : indicator.type === 'ADX' ? bindKeys.adx
@@ -913,6 +914,12 @@ export class StrategyEngine {
 
       // 使用快照中的价格
       const price = snapshot.price
+      // 读取五分钟区域缓存，仅按扫描价格更新距离与盘中状态。
+      const structureConfig = instance.strategy.indicators.find(i => i.type === 'SupportResistance')
+      const supportResistance = structureConfig?.enabled === false ? undefined
+        : (await this.indicatorsHub.getIndicators(symbol, mainTimeframe, 'SupportResistance', {
+            ...structureConfig?.params, currentPrice: price
+          })).values
       // 所有交易对复用本轮缓存，同时把快照加入 AI 缓存键，防止复用旧市场背景的结论。
       const marketBreadth = await getMarketBreadth(this.config)
 
@@ -923,6 +930,7 @@ export class StrategyEngine {
         (instance.strategy as any).structuredRules,
         {
           price: Number(price.toFixed(8)),
+          supportResistance,
           marketBreadth,
           lastCandle,
           prevCandle,
@@ -978,6 +986,7 @@ export class StrategyEngine {
       }
 
       const indicators: any = {
+        supportResistance,
         emaList: enabledEMAs && Array.isArray(emaData.emaList) ? emaData.emaList : [],
         emaMap: enabledEMAs ? (emaData.emaMap || {}) : {},
         rsi: enabledRSI ? rsiData.rsi : undefined,
@@ -1616,6 +1625,8 @@ export class StrategyEngine {
         // 固化 AI 决策时的 K 线进度，不能在平仓时用另一根 K 线重新计算。
         candleProgressPercent: signal.indicators.candleProgressPercent,
         entryCommunitySentiment,
+        // 直接固化 AI 看到的结构；不能在成交后重新计算并冒充决策依据。
+        entrySupportResistance: summarizeEntrySupportResistance(signal.indicators.supportResistance),
         maxFloatingProfit: 0,
         maxFloatingProfitPercent: 0,
         maxFloatingLoss: 0,

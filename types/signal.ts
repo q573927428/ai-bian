@@ -2,6 +2,7 @@
 
 import type { StrategyId, TradeDirection, TradeAction } from './strategy';
 import type { Timeframe } from './strategy';
+import type { SupportResistanceSnapshot } from './support-resistance';
 
 // ==================== 标准交易信号 ====================
 
@@ -31,6 +32,8 @@ export interface TradeSignal {
 
 // 指标值（AI返回的结构化数据）
 export interface IndicatorValues {
+  /** AI 实际使用的实时支撑阻力，必须随开仓信号保留。 */
+  supportResistance?: SupportResistanceSnapshot;
   ema?: EMAValues;
   rsi?: number;
   macd?: MACDValues;

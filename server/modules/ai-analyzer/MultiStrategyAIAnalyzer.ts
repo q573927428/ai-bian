@@ -12,6 +12,28 @@ import { getAIAnalysisWriter } from '../../utils/jsonl-batch-writer'
 import { getLatestAnalysis, formatAnalysisToPromptSection } from '../../utils/trade-history-analyzer'
 import { shortHash } from '../../utils/stable-hash'
 import { formatMarketBreadth } from '../../utils/market-breadth'
+import type { PriceZone, SupportResistanceSnapshot } from '../../../types/support-resistance'
+
+/** AI 只接收入场位置摘要；完整区域及时间信息仍由信号和交易记录保存。 */
+function formatSupportResistance(snapshot?: SupportResistanceSnapshot): string {
+  if (!snapshot) return ''
+  const price = (value: number) => Number(value.toPrecision(7)).toString()
+  const distance = (value: number | null) => value == null || !Number.isFinite(value) ? '未知' : value.toFixed(2)
+  const zone = (value: PriceZone | null) => value
+    ? `${price(value.lower)}～${price(value.upper)}（${value.touches}次触碰${value.touches === 1 ? '，候选待验证' : ''}）` : '未识别'
+  const states: Record<SupportResistanceSnapshot['status'], string> = {
+    insufficient_data: '数据不足', no_levels: '未识别到有效区域', between_levels: '区域之间',
+    at_support: '位于支撑区', at_resistance: '位于阻力区',
+    breakdown_pending: '价格跌破支撑，待收盘确认', breakout_pending: '价格突破阻力，待收盘确认',
+    breakdown_confirmed: '区域更新时已收盘确认跌破', breakout_confirmed: '区域更新时已收盘确认突破'
+  }
+  return `### 支撑阻力（${snapshot.timeframe}）
+- 最近支撑：${zone(snapshot.nearestSupport)}；距离 ${distance(snapshot.supportDistancePercent)}% / ${distance(snapshot.supportDistanceATR)} ATR
+- 最近阻力：${zone(snapshot.nearestResistance)}；距离 ${distance(snapshot.resistanceDistancePercent)}% / ${distance(snapshot.resistanceDistanceATR)} ATR
+- 状态：${states[snapshot.status]}
+区域每5分钟更新，距离随价格更新；未识别不代表没有障碍，收盘突破不代表回踩确认。仅作位置参考，开仓按策略规则判断。
+`
+}
 
 /**
  * AI 分析缓存
@@ -259,6 +281,7 @@ export class MultiStrategyAIAnalyzer {
         confidence: aiResult.confidence,
         reasoning: aiResult.reasoning,
         indicators: {
+          supportResistance: indicators.supportResistance,
           ema: {
             fast: indicators.emaList[0]?.value ?? 0,
             slow: indicators.emaList[indicators.emaList.length - 1]?.value ?? 0
@@ -650,6 +673,7 @@ ${data.prevCandle ? `- 前一根K线\n${data.prevCandle}` : ''}
 ${data.candleBodyLines.length > 0 ? data.candleBodyLines.join('\n') : ''}
 
 ## 三、技术指标（仅启用的指标有效）
+${formatSupportResistance(indicators.supportResistance)}
 ${data.technicalIndicatorLines.join('\n')}
 ${macdTrendResult ? `- MACD趋势结果（实时未收盘）：${macdTrendResult}` : ''}
 ${data.adxLines.length > 0 ? data.adxLines.join('\n') : ''}
@@ -916,6 +940,7 @@ ${historySection}
             adx: indicators?.adx ?? 0,
             adxPeriodLabel: indicators?.adxPeriodLabel,
             adxSlope: indicators?.adxSlope,
+            supportResistance: indicators.supportResistance,
             support: aiResult.support,
             resistance: aiResult.resistance,
           },
