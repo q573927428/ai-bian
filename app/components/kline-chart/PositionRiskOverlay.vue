@@ -1,5 +1,6 @@
 <!-- ==================== 持仓止盈止损价格区域 ==================== -->
 <template>
+  <button class="risk-toggle" type="button" :aria-pressed="enabled" @click="enabled = !enabled">{{ enabled ? '隐藏止盈止损' : '止盈止损' }}</button>
   <svg v-if="geometry" class="position-risk-overlay" :width="geometry.width" :height="geometry.height" aria-label="持仓止盈止损区域">
     <text v-if="geometry.strategyId" :x="Math.max(5, geometry.left + 5)" :y="geometry.strategyY" class="price-value">{{ geometry.strategyId }}</text>
     <g v-for="zone in geometry.zones" :key="zone.label">
@@ -16,7 +17,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, onBeforeUnmount, shallowRef } from 'vue'
+import { onMounted, onBeforeUnmount, shallowRef, ref } from 'vue'
 import type { IChartApi, ISeriesApi } from 'lightweight-charts'
 import type { SimpleKLineData } from '../../../types/kline-simple'
 import { useChartPosition } from '../../composables/usePositionChart'
@@ -46,6 +47,8 @@ interface Geometry {
   tp1: { y: number; price: string } | null
 }
 const geometry = shallowRef<Geometry | null>(null)
+// 沿用默认显示，允许用户单独关闭风险区域，不影响订单标记及持仓监控。
+const enabled = ref(true)
 // 保证短期持仓的标签空间，同时让框体覆盖持仓期间的全部 K 线。
 const MIN_RISK_BOX_WIDTH = 100
 const LATEST_KLINE_PADDING = 30
@@ -58,7 +61,7 @@ function updateGeometry() {
   const series = props.getSeries()
   const selected = position.value
   let next: Geometry | null = null
-  if (chart && series && selected && !props.loading && props.klines.length &&
+  if (enabled.value && chart && series && selected && !props.loading && props.klines.length &&
       selected.symbol.replace('/', '').toUpperCase() === props.symbol?.replace('/', '').toUpperCase()) {
     const scale = chart.timeScale()
     const entry = series.priceToCoordinate(Number(selected.entryPrice))
@@ -105,6 +108,7 @@ onBeforeUnmount(() => cancelAnimationFrame(frame))
 </script>
 
 <style scoped>
+.risk-toggle { position: absolute; left: 12px; bottom: 58px; z-index: 3; border: 1px solid var(--border-color); border-radius: 4px; background: var(--bg-card, #141414); color: var(--text-secondary); cursor: pointer; font-size: 11px; padding: 3px 6px; }
 .position-risk-overlay { position: absolute; top: 0; left: 0; pointer-events: none; overflow: hidden; z-index: 1; }
 text { font-size: 12px; font-weight: 600; paint-order: stroke; stroke: var(--bg-card, #141414); stroke-width: 3px; stroke-linejoin: round; }
 /* 数值使用主题正文色，标签颜色继续表达价位的业务含义。 */

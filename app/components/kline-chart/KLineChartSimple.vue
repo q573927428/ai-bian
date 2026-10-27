@@ -44,6 +44,7 @@
         ref="chartCanvasRef"
         :kline-data="klineData"
         :trade-history="visibleTradeHistory"
+        :historical-order="orderTooltipVisible ? orderTooltipOrders[0] : null"
         :scan-results="scanResults"
         :theme="theme"
         :symbol="displaySymbol"

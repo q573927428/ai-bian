@@ -1,6 +1,7 @@
 <template>
   <div class="chart-wrapper">
     <div ref="chartContainer" class="kline-chart"></div>
+    <SupportResistanceOverlay :symbol="symbol" :timeframe="timeframe" :klines="klineData" :loading="loading || !!error" :historical-order="historicalOrder" :get-chart="() => chart" :get-series="() => candlestickSeries" />
     <PositionRiskOverlay :symbol="symbol" :klines="klineData" :loading="loading || !!error" :get-chart="() => chart" :get-series="() => candlestickSeries" />
 
     <!-- 加载状态 -->
@@ -28,6 +29,7 @@
 
 <script setup lang="ts">
 import PositionRiskOverlay from './PositionRiskOverlay.vue'
+import SupportResistanceOverlay from './SupportResistanceOverlay.vue'
 import { useChartPosition } from '../../composables/usePositionChart'
 import { ref, onMounted, onUnmounted, watch, nextTick, computed } from 'vue'
 import { createChart, ColorType, CandlestickSeries, HistogramSeries, LineSeries, createSeriesMarkers } from 'lightweight-charts'
@@ -53,6 +55,7 @@ import { useBotStore } from '../../stores/bot'
 
 // 定义props
 interface Props {
+  historicalOrder?: TradeHistory | null
   klineData: SimpleKLineData[]
   tradeHistory?: TradeHistory[]
   scanResults?: StrategyScanResult[]
