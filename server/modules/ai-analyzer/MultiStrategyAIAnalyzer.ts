@@ -718,7 +718,7 @@ ${formatEnvironmentConfidence(environmentContext)}
 }
 
 ### 输出字段说明：
-- confidence: 对应direction的上述置信度结果（0~100）
+- confidence: LONG/SHORT使用对应方向的上述置信度结果；IDLE使用多空两个方向中较低的置信度（0~100）
 - scoreBreakdown: 评分拆解，包含 baseScore/hardScore/softScore/penaltyScore/finalScore
 - riskLevel: 风险等级，LOW/MEDIUM/HIGH
 
@@ -762,7 +762,7 @@ ${historySection}
 2. 先根据策略规则及所需数据确定唯一方向（LONG/SHORT），之后只按该方向执行交易判断：LONG只用做多规则，SHORT只用做空规则。
 3. 所有条件必须逐条验证，带上真实数值。
 4. 输出必须是合法JSON，无任何多余内容。
-5. confidence 使用用户提示词中对应方向的置信度结果（0-100）。
+5. confidence 使用用户提示词中对应方向的置信度结果（0-100）；IDLE使用多空两个方向中较低的置信度。
 6. scoreBreakdown.finalScore 为策略规则匹配度（0-100），仅反映策略条件满足程度（微观）。
 7. scoreBreakdown 必须满足：baseScore∈[0,30]，hardScore∈[0,50]，softScore∈[0,20]，penaltyScore∈[-10,0]。
 8. finalScore 必须严格等于 baseScore + hardScore + softScore + penaltyScore（再截断到0~100）。
@@ -909,9 +909,14 @@ ${historySection}
         
         // AI决定交易方向，程序按该方向绑定环境分，避免误用反方向的置信度。
         const assessment = direction === 'LONG' ? environmentContext?.long : direction === 'SHORT' ? environmentContext?.short : undefined
-        const confidence = assessment?.available ? assessment.confidence! : 0
-        // 没有对应方向的有效分数时不放行开仓；IDLE也不借用任一方向的分数。
+        // 没有对应方向的有效分数时不放行开仓。
         if (direction !== 'IDLE' && !assessment?.available) direction = 'IDLE'
+        // 观望时保留双方向中较低的环境分，便于观察；数据不足仍不伪造有效分数。
+        const confidence = direction === 'IDLE'
+          ? environmentContext?.long.available && environmentContext?.short.available
+            ? Math.min(environmentContext.long.confidence!, environmentContext.short.confidence!)
+            : 0
+          : assessment!.confidence!
 
         const normalizedScoreBreakdown = this.normalizeScoreBreakdown(aiResult.scoreBreakdown)
 
