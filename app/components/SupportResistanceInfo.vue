@@ -1,6 +1,6 @@
 <!-- ==================== 看板及交易记录共用支撑阻力展示 ==================== -->
 <template>
-  <div v-if="snapshot" class="structure-info">
+  <div v-if="snapshot" class="structure-info" :class="{ 'structure-info-detailed': detailed }">
     <el-tooltip placement="top">
       <template #content>
         <template v-if="'algorithm' in snapshot">
@@ -17,12 +17,16 @@
         </template>
         <div>未识别不代表无支撑阻力。</div>
       </template>
-      <div>
+      <div class="structure-levels">
+        <div class="level-group">
         <div class="support">支撑 {{ zone(snapshot.nearestSupport) }}{{ snapshot.nearestSupport ? `（${snapshot.nearestSupport.touches}）` : '' }}</div>
         <div class="distance">距离 {{ number(snapshot.supportDistancePercent) }}% / {{ number(snapshot.supportDistanceATR) }} ATR</div>
+        </div>
+        <div class="level-group">
         <div class="resistance">阻力 {{ zone(snapshot.nearestResistance) }}{{ snapshot.nearestResistance ? `（${snapshot.nearestResistance.touches}）` : '' }}</div>
         <div class="distance">距离 {{ number(snapshot.resistanceDistancePercent) }}% / {{ number(snapshot.resistanceDistanceATR) }} ATR</div>
-        <div>{{ statusLabel }}</div>
+        </div>
+        <div class="structure-status">{{ statusLabel }}</div>
       </div>
     </el-tooltip>
     <div v-if="detailed" class="distance">
@@ -61,4 +65,27 @@ const time = (value: number | null) => value == null ? '--' : new Date(value).to
 .support { color: #67c23a; }
 .resistance { color: #f56c6c; }
 .distance { color: var(--el-text-color-secondary); font-size: 12px; }
+/* 历史快照利用详情区域横向展示，避免多行信息挤在左侧；看板继续使用紧凑纵排。 */
+.structure-info-detailed {
+  font-size: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.structure-info-detailed .structure-levels {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 24px;
+}
+.structure-info-detailed .level-group {
+  padding: 8px 12px;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 4px;
+  background: var(--el-fill-color-light);
+  overflow-wrap: anywhere;
+}
+.structure-info-detailed .structure-status {
+  color: var(--el-text-color-regular);
+}
 </style>
