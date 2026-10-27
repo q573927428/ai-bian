@@ -170,24 +170,28 @@ function analyzerFixture() {
   }
 }
 
-test('真实分析器保留AI方向、置信度与理由，不因参考快照缺失覆盖结果', async () => {
+test('分析器按AI方向绑定正确分数，缺失时观望且不替换理由文字', async () => {
   const fixture = analyzerFixture()
   const environment = buildEnvironmentContext(all('多头增强'), breadth(), 'BTCUSDT')
   const long = await fixture.call(environment)
-  assert.equal(long.confidence, 72)
+  assert.equal(long.confidence, 100)
   assert.equal(long.reasoning, '方向：LONG；置信度：72')
+  fixture.respond({ direction: 'SHORT', confidence: 100 })
+  const short = await fixture.call(environment)
+  assert.equal(short.direction, 'SHORT')
+  assert.equal(short.confidence, 0)
   const missing = await fixture.call(undefined)
-  assert.equal(missing.direction, 'LONG')
-  assert.equal(missing.confidence, 72)
+  assert.equal(missing.direction, 'IDLE')
+  assert.equal(missing.confidence, 0)
   assert.equal(missing.reasoning, '方向：LONG；置信度：72')
   fixture.respond({ direction: 'IDLE', confidence: 80, reasoning: '方向：IDLE；置信度：80' })
   const idle = await fixture.call(environment)
   assert.equal(idle.direction, 'IDLE')
-  assert.equal(idle.confidence, 80)
+  assert.equal(idle.confidence, 0)
   fixture.respond({ direction: 'BAD' })
   const invalid = await fixture.call(environment)
   assert.equal(invalid.direction, 'IDLE')
-  assert.equal(invalid.confidence, 80)
+  assert.equal(invalid.confidence, 0)
 })
 
 test('提示词仅输出文字化的多空结果，不传观望固定分、内部JSON或额外输出字段', () => {

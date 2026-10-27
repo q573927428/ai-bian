@@ -902,12 +902,16 @@ ${historySection}
         const jsonContent = extractJSONContent(content)
         const aiResult = JSON.parse(jsonContent)
 
-        const direction: Direction = ['LONG', 'SHORT', 'IDLE'].includes(aiResult.direction) ? aiResult.direction : 'IDLE'
+        let direction: Direction = ['LONG', 'SHORT', 'IDLE'].includes(aiResult.direction) ? aiResult.direction : 'IDLE'
         
         // 构建分析理由
         const reasoning = typeof aiResult.reasoning === 'string' ? aiResult.reasoning : '无分析理由'
         
-        const confidence = aiResult.confidence
+        // AI决定交易方向，程序按该方向绑定环境分，避免误用反方向的置信度。
+        const assessment = direction === 'LONG' ? environmentContext?.long : direction === 'SHORT' ? environmentContext?.short : undefined
+        const confidence = assessment?.available ? assessment.confidence! : 0
+        // 没有对应方向的有效分数时不放行开仓；IDLE也不借用任一方向的分数。
+        if (direction !== 'IDLE' && !assessment?.available) direction = 'IDLE'
 
         const normalizedScoreBreakdown = this.normalizeScoreBreakdown(aiResult.scoreBreakdown)
 
