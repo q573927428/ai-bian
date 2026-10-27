@@ -72,9 +72,9 @@
         <div class="stat-value">{{ stats.totalFee.toFixed(2) }} U</div>
       </div>
       <div class="stat-item">
-        <div class="stat-label" title="与累计盈亏口径一致，手续费不重复扣除">净盈亏</div>
-        <div :class="['stat-value', stats.netPnl >= 0 ? 'text-success' : 'text-danger']">
-          {{ stats.netPnl >= 0 ? '+' : '' }}{{ stats.netPnl.toFixed(2) }} U
+        <div class="stat-label" title="平均盈利 ÷ 平均亏损绝对值，按已结算净盈亏计算；保本交易不参与，仅有盈利时显示 ∞，无盈利时显示 0.00">盈亏比</div>
+        <div class="stat-value">
+          {{ stats.payoffRatio === null ? '∞' : stats.payoffRatio.toFixed(2) }}
         </div>
       </div>
       <div class="stat-item">
@@ -119,7 +119,7 @@ const stats = ref({
   totalPnl: 0,
   winRate: 0,
   totalFee: 0,
-  netPnl: 0,
+  payoffRatio: 0 as number | null,
   maxDrawdown: 0
 })
 const { theme } = useTheme()

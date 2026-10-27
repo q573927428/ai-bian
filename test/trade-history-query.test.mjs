@@ -82,6 +82,7 @@ test('收益汇总使用已结算净盈亏，手续费和资金费不重复扣�
   assert.equal(result.stats.totalPnl, 5)
   assert.equal(result.stats.netPnl, 5)
   assert.equal(result.stats.totalFee, 9)
+  assert.equal(result.stats.payoffRatio, 10 / 15)
   assert.equal(result.stats.maxDrawdown, 15)
   assert.equal(result.data.length, 1)
   assert.equal(result.data[0].pnl, result.stats.netPnl)
@@ -92,10 +93,23 @@ test('收益汇总使用已结算净盈亏，手续费和资金费不重复扣�
   const filtered = handler({ startTime: start + 2000, endTime: start + 3000 })
   assert.equal(filtered.stats.netPnl, -15)
   assert.equal(filtered.stats.totalFee, 4)
+  assert.equal(filtered.stats.payoffRatio, 0)
   assert.equal(filtered.stats.maxDrawdown, 15)
   const empty = handler({ symbol: 'NONE' })
   for (const value of Object.values(empty.stats)) assert.equal(value, 0)
   assert.equal(empty.data.length, 0)
+})
+
+test('盈亏比按每笔平均值计算，排除保本交易并处理无亏损边界', async () => {
+  const trades = [30, 10, -5, 0].map((pnl, index) => ({
+    id: String(index), symbol: 'BTC/USDT', closeTime: 1000 + index, pnl,
+  }))
+  const handler = await loadHandler('history-summary.get.ts', trades)
+  assert.equal(handler({}).stats.payoffRatio, 4)
+  const winning = handler({ startTime: 1000, endTime: 1002 })
+  assert.equal(winning.stats.payoffRatio, null)
+  assert.equal(JSON.parse(JSON.stringify(winning)).stats.payoffRatio, null)
+  assert.equal(handler({ startTime: 1003, endTime: 1004 }).stats.payoffRatio, 0)
 })
 
 test('首页总数包含全部记录，今日统计使用客户端半开时间区间', async () => {

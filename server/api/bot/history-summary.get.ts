@@ -25,6 +25,9 @@ export default defineEventHandler((event) => {
 
   let cumulativePnl = 0
   let wins = 0
+  let losses = 0
+  let totalProfit = 0
+  let totalLoss = 0
   let totalCount = 0
   let totalFee = 0
   let netPnl = 0
@@ -39,7 +42,15 @@ export default defineEventHandler((event) => {
     // 从零收益起逐笔追踪峰谷，避免按日聚合遗漏日内回撤；无本金口径时使用 USDT 金额。
     peakNetPnl = Math.max(peakNetPnl, netPnl)
     maxDrawdown = Math.max(maxDrawdown, peakNetPnl - netPnl)
-    if (Number(trade.pnl || 0) > 0) wins++
+    const pnl = Number(trade.pnl || 0)
+    // 保本交易不参与平均盈利或平均亏损，费用沿用已结算净盈亏口径。
+    if (pnl > 0) {
+      wins++
+      totalProfit += pnl
+    } else if (pnl < 0) {
+      losses++
+      totalLoss += -pnl
+    }
     totalCount++
     const date = timeFormat.format(new Date(Number(trade.closeTime)))
     dateMap.set(date, {
@@ -54,6 +65,8 @@ export default defineEventHandler((event) => {
     totalPnl: cumulativePnl,
     winRate: records.length ? (wins / records.length) * 100 : 0,
     totalFee,
+    // 仅有盈利时用 null 表示无穷大，避免 Infinity 经 JSON 序列化后丢失含义。
+    payoffRatio: losses > 0 ? (wins > 0 ? (totalProfit / wins) / (totalLoss / losses) : 0) : (wins > 0 ? null : 0),
     netPnl,
     maxDrawdown,
   } }
