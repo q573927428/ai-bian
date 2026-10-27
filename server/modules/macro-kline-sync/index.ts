@@ -30,6 +30,8 @@ async function syncMarkets(): Promise<void> {
       const status = statuses.get(key) || { updatedAt: null, failures: 0, nextAttempt: 0 }
       if (Date.now() < status.nextAttempt) continue
       const symbol = macroStorageSymbol(market)
+      const startedAt = Date.now()
+      console.log(`[MacroSync] 开始同步: ${market.name} (${market.symbol})/${period}`)
       try {
         const cached = getSimpleKLineData(symbol, period, { limit: 495 })
         // 数据不足时重新补历史；否则回退两根，修正上游的末根修订。
@@ -39,6 +41,8 @@ async function syncMarkets(): Promise<void> {
         if (!appendSimpleKLineData(symbol, period, bars)) throw new Error('宏观 K 线写入失败')
         const refreshMs = { '15m': 120000, '1h': 300000, '4h': 600000, '1d': 1800000, '1w': 3600000 }[period]
         statuses.set(key, { updatedAt: Date.now(), failures: 0, nextAttempt: Date.now() + refreshMs })
+        // 条数包含末根修订和历史回填，不能作为新增 K 线数量解读。
+        console.log(`[MacroSync] 同步成功: ${market.name} (${market.symbol})/${period}，写入 ${bars.length} 条K线，耗时 ${Date.now() - startedAt}ms`)
       } catch (error) {
         const failures = status.failures + 1
         const message = error instanceof Error ? error.message : String(error)
@@ -53,6 +57,7 @@ async function syncMarkets(): Promise<void> {
 export function startMacroSync(): void {
   if (!stopped) return
   stopped = false
+  console.log('[MacroSync] 宏观K线后台同步服务已启动（Yahoo 来源）')
   const tick = () => {
     if (stopped) return
     running = syncMarkets().catch(error => console.warn('[MacroSync]', error)).finally(() => {
