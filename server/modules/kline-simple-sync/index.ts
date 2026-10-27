@@ -764,7 +764,7 @@ export class KLineSimpleSyncService {
 
   // ==================== 高频同步 ====================
   
-  // 高频同步：仅更新最后一根未收盘K线
+  // 高频同步：回看最近9根K线，修正近期历史数据并更新未收盘K线。
   private async highFrequencySync(): Promise<void> {
     const startedAt = Date.now()
     const highFreqTimeframes: KLineTimeframe[] = ['5m', '15m', '1h', '4h', '1d']
@@ -823,47 +823,36 @@ export class KLineSimpleSyncService {
     }
   }
   
-  // 仅同步最后一根K线（用于高频更新）
+  /** 高频同步最近9根K线，覆盖历史记录以接收上游对近期数据的修订。 */
   private async syncLastBarOnly(symbol: string, timeframe: KLineTimeframe): Promise<void> {
     const lastTimestamp = getSimpleLastKLineTimestamp(symbol, timeframe)
     if (!lastTimestamp) {
       return // 没有数据，跳过
     }
     
-    // 获取旧K线与可能已经开启的新K线，避免周期切换后只更新旧K线而遗漏追加。
+    // 不传开始时间，始终获取最新9根，避免滞后的本地时间戳限制回看窗口。
     const klineData = await this.fetchKLineFromBinance(
       symbol,
       timeframe,
-      lastTimestamp * 1000,
       undefined,
-      3
+      undefined,
+      9
     )
     
     if (klineData.length === 0) {
       return
     }
     
-    const updateBar = klineData.find(item => item.timestamp === lastTimestamp)
-    const newBars = klineData.filter(item => item.timestamp > lastTimestamp)
-    let updated = false
-    let appended = false
+    const appended = klineData.some(item => item.timestamp > lastTimestamp)
+    // 按时间戳覆盖全部回看数据，不能只更新最后一根，否则历史异常仍无法修正。
+    const saved = appendSimpleKLineData(symbol, timeframe, klineData)
 
-    // 当前未收盘K线仍需原地更新，保持成交量和收盘价实时变化。
-    if (updateBar) {
-      updated = updateLastKLine(symbol, timeframe, updateBar)
-    }
-
-    // 周期已切换时追加新K线；append 函数负责去重和保留最新数据。
-    if (newBars.length > 0) {
-      appended = appendSimpleKLineData(symbol, timeframe, newBars)
-    }
-
-    if (updated || appended) {
+    if (saved) {
       this.eventEmitter.emit('klineUpdated', {
         symbol,
         timeframe,
         type: appended ? 'append' : 'update',
-        timestamp: newBars.at(-1)?.timestamp ?? updateBar?.timestamp ?? lastTimestamp
+        timestamp: klineData.at(-1)?.timestamp ?? lastTimestamp
       })
     }
   }
