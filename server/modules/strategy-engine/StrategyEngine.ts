@@ -160,7 +160,7 @@ export class StrategyEngine {
     aiPreScreener.initFromBotConfig()
 
     // 初始化AI分析器
-    this.aiAnalyzer = new MultiStrategyAIAnalyzer(binance, config)
+    this.aiAnalyzer = new MultiStrategyAIAnalyzer(binance, config, indicatorsHub)
 
     // 初始化持仓相关模块
     this.positionCloser = new StrategyPositionCloser(binance, positionManager, config, state)

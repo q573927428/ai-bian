@@ -21,7 +21,7 @@
             <el-radio-button value="4h">4h</el-radio-button>
             <el-radio-button value="24h">24h</el-radio-button>
           </el-radio-group>
-          <div class="price-counts" :title="`按已选交易对的${changePeriod}实时涨跌幅统计；AI使用每轮固定快照；上涨占比和中位数仅计算有效行情（含持平）；5m/15m/1h/4h参考价取本地5m K线；参考价快照时间：${breadthSnapshot ? new Date(breadthSnapshot.computedAt).toLocaleString() : '待更新'}`">
+          <div class="price-counts" :title="`按已选交易对的${changePeriod}实时涨跌幅统计；AI使用每轮固定快照；上涨占比和中位数仅计算有效行情（含持平）；所有周期参考价取本地5m K线（24h为滚动窗口）；参考价快照时间：${breadthSnapshot ? new Date(breadthSnapshot.computedAt).toLocaleString() : '待更新'}`">
             <button type="button" class="count-filter" :class="{ 'is-active': priceFilter === 'all' }" :aria-pressed="priceFilter === 'all'" title="显示全部交易对" @click="priceFilter = 'all'">总 {{ DEFAULT_CRYPTOS.length }}</button>
             <button type="button" class="count-filter count-up" :class="{ 'is-active': priceFilter === 'up' }" :aria-pressed="priceFilter === 'up'" title="仅显示上涨交易对" @click="priceFilter = 'up'">涨 {{ priceCounts.up }}</button>
             <button type="button" class="count-filter count-down" :class="{ 'is-active': priceFilter === 'down' }" :aria-pressed="priceFilter === 'down'" title="仅显示下跌交易对" @click="priceFilter = 'down'">跌 {{ priceCounts.down }}</button>
@@ -193,7 +193,7 @@ const breadthClock = ref(Date.now())
 let breadthRequestId = 0
 let breadthTimer: ReturnType<typeof setInterval> | undefined
 
-// 短周期复用服务端历史基准；24h 直接读取实时 ticker，不依赖快照是否加载。
+// 所有周期（含滚动24h）复用服务端本地5m基准，结合实时价格重算。
 const activeBreadth = computed(() => {
   const snapshot = breadthSnapshot.value
   const validSnapshot = snapshot && breadthClock.value < snapshot.expiresAt

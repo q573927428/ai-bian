@@ -1,6 +1,7 @@
 // ==================== 核心类型定义 ====================
 import type { MarketBreadthSnapshot } from './market-breadth'
 import type { EntrySupportResistance, SupportResistanceSnapshot } from './support-resistance'
+import type { EnvironmentContext } from '../app/utils/environment-confidence'
 
 // 交易方向
 export type Direction = 'LONG' | 'SHORT' | 'IDLE'
@@ -153,6 +154,8 @@ export interface TechnicalIndicators {
 
 // AI分析结果
 export interface AIAnalysis {
+  /** 提供给AI的环境置信度参考快照。 */
+  environmentContext?: EnvironmentContext
   symbol: string
   timestamp: number
   strategyId?: string

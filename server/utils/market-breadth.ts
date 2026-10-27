@@ -26,17 +26,17 @@ export async function getMarketBreadth(config: BotConfig, force = false): Promis
     const prices = marketPriceHub.getSnapshot(symbols)
     const periods = {} as MarketBreadthSnapshot['periods']
     for (const period of ['5m', '15m', '1h', '4h', '24h'] as const) {
-      const periodMs = period === '5m' ? 300000 : period === '15m' ? 900000 : period === '1h' ? 3600000 : 14400000
-      const referenceTime = period === '24h' ? null : Math.floor(now / 300000) * 300000 - periodMs
+      const periodMs = period === '5m' ? 300000 : period === '15m' ? 900000 : period === '1h' ? 3600000 : period === '4h' ? 14400000 : 86400000
+      // 所有窗口统一使用本地5m开盘价；24h是滚动窗口，不是当日日线涨跌幅。
+      const referenceTime = Math.floor(now / 300000) * 300000 - periodMs
       const changes: Record<string, number | null> = {}
       const bases: Record<string, number> = {}
       for (const symbol of symbols) {
         const ticker = prices[symbol]
         changes[symbol] = null
         // 历史基准独立于当前行情保存，ticker 稍后到达时前端即可计算，无需等待下轮快照。
-        const timestamp = (referenceTime ?? Math.floor(now / 300000) * 300000 - 86400000) / 1000
-        const historicalBar = referenceTime === null ? undefined
-          : getSimpleKLineData(symbol, '5m', { from: timestamp, to: timestamp, limit: 1 })[0]
+        const timestamp = referenceTime / 1000
+        const historicalBar = getSimpleKLineData(symbol, '5m', { from: timestamp, to: timestamp, limit: 1 })[0]
         if (historicalBar && Number.isFinite(historicalBar.o) && historicalBar.o > 0) bases[symbol] = historicalBar.o
         // 后台策略不能依赖浏览器启动 ticker 订阅；没有新鲜 ticker 时复用本地最新 5m 收盘价。
         const freshTicker = ticker && Number.isFinite(ticker.price) && ticker.price > 0 && Number.isFinite(ticker.timestamp)
@@ -45,17 +45,10 @@ export async function getMarketBreadth(config: BotConfig, force = false): Promis
         const price = freshTicker ? ticker.price
           : latest && now - latest.t * 1000 <= 600000 && Number.isFinite(latest.c) && latest.c > 0 ? latest.c : null
         if (price === null) continue
-        if (referenceTime === null && freshTicker && typeof ticker.change24hPercent === 'number' && Number.isFinite(ticker.change24hPercent)) {
-          const change = ticker.change24hPercent
-          changes[symbol] = change
-        } else {
-          // ticker 无 24h 统计时同样从本地 K 线计算，绝不为补齐指标调用外部接口。
-          const bar = historicalBar ?? (referenceTime === null
-            ? getSimpleKLineData(symbol, '5m', { from: timestamp, to: timestamp, limit: 1 })[0] : undefined)
-          if (bar && Number.isFinite(bar.o) && bar.o > 0) {
-            const change = (price / bar.o - 1) * 100
-            if (Number.isFinite(change)) changes[symbol] = change
-          }
+        // 缺基准时保留未知，不能退回ticker的24h统计造成前后端口径不同。
+        if (historicalBar && Number.isFinite(historicalBar.o) && historicalBar.o > 0) {
+          const change = (price / historicalBar.o - 1) * 100
+          if (Number.isFinite(change)) changes[symbol] = change
         }
       }
       periods[period] = summarizeBreadth(changes, referenceTime, bases)

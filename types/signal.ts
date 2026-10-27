@@ -3,6 +3,7 @@
 import type { StrategyId, TradeDirection, TradeAction } from './strategy';
 import type { Timeframe } from './strategy';
 import type { SupportResistanceSnapshot } from './support-resistance';
+import type { EnvironmentContext } from '../app/utils/environment-confidence';
 
 // ==================== 标准交易信号 ====================
 
@@ -10,6 +11,8 @@ import type { EntryCommunitySentiment, RiskLevel, ScoreBreakdown } from './index
 
 // AI 返回的标准交易信号
 export interface TradeSignal {
+  /** AI分析时实际采用的五周期结构和环境评分，便于日志复核。 */
+  environmentContext?: EnvironmentContext;
   strategyId: StrategyId;              // 触发策略ID
   symbol: string;                      // 交易对
   direction: TradeDirection;           // 方向: 'long' | 'short'

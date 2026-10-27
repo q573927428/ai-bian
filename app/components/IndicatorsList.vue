@@ -194,6 +194,7 @@ import { useBotStore } from '../stores/bot'
 import { useCoinIcon } from '../composables/useCoinIcon'
 import type { SupportResistanceSnapshot } from '../../types/support-resistance'
 import SupportResistanceInfo from './SupportResistanceInfo.vue'
+import { TREND_PERIODS, combinePeriodTrend, classifyTrendStructure } from '../utils/environment-confidence'
 
 /** 指标列表中的单个交易对展示数据。 */
 interface IndicatorRow {
@@ -248,7 +249,7 @@ function selectChart(symbol: string) {
   visible.value = false
 }
 
-const timeframes = ['5m', '15m', '1h', '4h', '1d']
+const timeframes = TREND_PERIODS
 const rows = ref<IndicatorRow[]>([])
 const loading = ref(false)
 const errorMessage = ref('')
@@ -388,16 +389,7 @@ async function fetchResonance(version: number, selectedTimeframe: string, period
 
 /** 趋势与 MACD 同向才保留方向；只有两者都增强才显示强色。 */
 function combinedPeriodTrend(row: IndicatorRow): IndicatorRow['diDirection'] {
-  const trend = row.diDirection
-  const macd = macdResult(row.macdHistogram, row.previousMacdHistogram)
-  if (trend === '--' || macd === '--') return '--'
-  if (trend.startsWith('多头') && macd.startsWith('多头')) {
-    return trend === '多头增强' && macd === '多头增强' ? '多头增强' : '多头减弱'
-  }
-  if (trend.startsWith('空头') && macd.startsWith('空头')) {
-    return trend === '空头增强' && macd === '空头增强' ? '空头增强' : '空头减弱'
-  }
-  return '中性'
+  return combinePeriodTrend(row.diDirection, row.macdHistogram, row.previousMacdHistogram)
 }
 
 // 仅在周期信号变化时重算，模板颜色、文字、悬停及筛选共享结果。
@@ -412,26 +404,7 @@ function resonanceInfo(symbol: string): { label: string; tone: SignalTone } {
 
 /** 将大周期背景、中间承接和短线触发拆开判断，避免五周期不完全一致就被压成观望。 */
 function calculateResonanceInfo(symbol: string): { label: string; tone: SignalTone } {
-  const signals = periodSignals.value[symbol] || {}
-  const dir = (period: string) => signals[period]?.startsWith('多头') ? '多' : signals[period]?.startsWith('空头') ? '空' : '中'
-  const strength = (period: string) => signals[period]?.endsWith('增强')
-  const bg = [dir('1d'), dir('4h')]; const mid = dir('1h'); const short = [dir('15m'), dir('5m')]
-  if (timeframes.some(period => signals[period] == null || signals[period] === '--')) return { label: '数据不足观望', tone: '观望' }
-  if (bg.includes('中') && bg.some(item => item !== '中') && mid !== '中' && short[0] === mid && short[1] === mid) {
-    return { label: `${mid === '多' ? '多头' : '空头'}承接观察`, tone: mid === '多' ? '多头' : '空头' }
-  }
-  if (bg[0] !== bg[1]) return { label: '大周期分歧', tone: '观望' }
-  // 中性表示没有确认方向，不能参与多空延续、反转或承接，也不能默认映射为空头。
-  if (bg[0] === '中') return { label: '中性背景观望', tone: '观望' }
-  const background = bg[0]; const backgroundText = background === '多' ? '多头' : '空头'
-  if (mid === '中' || short.includes('中')) return { label: `${backgroundText}背景分歧`, tone: '观望' }
-  if (mid === background && short[0] === background && short[1] === background) return { label: `${backgroundText}趋势延续`, tone: background === '多' ? '多头' : '空头' }
-  if (mid === background && short[0] !== background && short[1] !== background) {
-    const weakening = strength('5m') === false && strength('15m') === false
-    return { label: weakening ? `${backgroundText}短线回调` : `${backgroundText}反转观察`, tone: '反转' }
-  }
-  if (mid !== background && short[0] === mid && short[1] === mid) return { label: `${mid === '多' ? '多头' : '空头'}承接观察`, tone: mid === '多' ? '多头' : '空头' }
-  return { label: `${backgroundText}背景分歧`, tone: '观望' }
+  return classifyTrendStructure(periodSignals.value[symbol] || {})
 }
 
 /** 用颜色表达趋势与 MACD 共同确认的方向，非双增强状态使用淡色。 */

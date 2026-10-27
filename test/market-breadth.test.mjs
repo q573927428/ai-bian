@@ -52,7 +52,7 @@ test('占比分母含持平、排除缺失，中位数覆盖奇数、偶数及�
   assert.equal(api.summarizeBreadth({}, null).medianChangePct, null)
 })
 
-test('仅统计已选去重交易对，三周期复用缓存和并发任务，强制刷新及配置变更可生效', async () => {
+test('仅统计已选去重交易对，五周期复用缓存和并发任务，强制刷新及配置变更可生效', async () => {
   const f = fixture()
   const config = { symbols: ['BTC/USDT', 'BTCUSDT', 'ETHUSDT'] }
   const [first, second] = await Promise.all([f.api.getMarketBreadth(config), f.api.getMarketBreadth(config)])
@@ -60,7 +60,9 @@ test('仅统计已选去重交易对，三周期复用缓存和并发任务，�
   assert.equal(first.selectedCount, 2)
   assert.equal(first.periods['1h'].upCount, 1)
   assert.equal(first.periods['4h'].referenceTime, f.now - 14400000)
-  assert.equal(first.periods['24h'].medianChangePct, 5)
+  assert.ok(Math.abs(first.periods['24h'].medianChangePct - 10) < 1e-10)
+  assert.equal(first.periods['24h'].referenceTime, f.now - 86400000)
+  assert.equal(first.periods['24h'].bases.BTCUSDT, 100)
   assert.equal(first.periods['1h'].missingCount, 1)
   const reads = f.reads()
   assert.equal(await f.api.getMarketBreadth(config), first)
@@ -84,13 +86,27 @@ test('没有 ticker 时仍能从本地 K 线计算；过期本地行情或缺失
   assert.equal(expired.periods['24h'].validCount, 0)
 })
 
-test('提示词包含范围、统计时间及三周期聚合值，不传入逐币种数据', async () => {
+test('24h缺少本地基准不能退回ticker；基准按5m对齐并随快照滚动', async () => {
+  const f = fixture()
+  const config = { symbols: ['BTCUSDT'] }
+  f.bars.delete(`BTCUSDT:${f.now / 1000 - 86400}`)
+  assert.equal((await f.api.getMarketBreadth(config)).periods['24h'].changes.BTCUSDT, null)
+  f.advance(300001)
+  f.prices.BTCUSDT.timestamp = f.now + 300001
+  f.bars.set(`BTCUSDT:${f.now / 1000 + 300 - 86400}`, 125)
+  const stats = (await f.api.getMarketBreadth(config)).periods['24h']
+  assert.equal(stats.referenceTime, f.now + 300000 - 86400000)
+  assert.equal(stats.bases.BTCUSDT, 125)
+  assert.ok(Math.abs(stats.changes.BTCUSDT + 12) < 1e-10)
+})
+
+test('提示词包含范围、统计时间及五周期聚合值，不传入逐币种数据', async () => {
   const f = fixture()
   const snapshot = await f.api.getMarketBreadth({ symbols: ['BTCUSDT'] })
   const prompt = f.api.formatMarketBreadth(snapshot)
   assert.ok(prompt.includes('已筛选1个币安') && prompt.includes('更新时间：') && prompt.includes('4h'))
   assert.ok(prompt.includes('1h：涨1，跌0，平0；上涨占比100.00%，涨跌幅中位数+10.00%；有效1，缺失0。'))
-  assert.ok(prompt.includes('24h：涨1，跌0，平0；上涨占比100.00%，涨跌幅中位数+5.00%'))
+  assert.ok(prompt.includes('24h：涨1，跌0，平0；上涨占比100.00%，涨跌幅中位数+10.00%'))
   assert.ok(!prompt.includes('changes') && !prompt.includes('BTCUSDT'))
   assert.ok(!prompt.includes('bases'))
   f.advance(300001)
@@ -101,13 +117,13 @@ test('提示词包含范围、统计时间及三周期聚合值，不传入逐�
   assert.ok(f.api.formatMarketBreadth(empty).includes('涨跌幅中位数-1.23%'))
 })
 
-test('提示词仅补充当前交易对三周期涨跌幅，兼容交易对格式及缺失数据', async () => {
+test('提示词仅补充当前交易对五周期涨跌幅，兼容交易对格式及缺失数据', async () => {
   const f = fixture()
   const snapshot = await f.api.getMarketBreadth({ symbols: ['BTCUSDT', 'ETHUSDT'] })
   snapshot.periods['4h'].changes.BTCUSDT = -1.234
   snapshot.periods['24h'].changes.BTCUSDT = null
   const prompt = f.api.formatMarketBreadth(snapshot, ' btc/usdt ')
-  assert.ok(prompt.includes('当前交易对 BTCUSDT：1h涨跌幅+10.00%；4h涨跌幅-1.23%；24h涨跌幅暂无数据。'))
+  assert.ok(prompt.includes('当前交易对 BTCUSDT：5m涨跌幅暂无数据；15m涨跌幅暂无数据；1h涨跌幅+10.00%；4h涨跌幅-1.23%；24h涨跌幅暂无数据。'))
   assert.ok(!prompt.includes('ETHUSDT'))
   assert.ok(!f.api.formatMarketBreadth(snapshot).includes('当前交易对'))
   assert.ok(f.api.formatMarketBreadth(snapshot, 'UNKNOWN').includes('1h涨跌幅暂无数据'))
@@ -116,7 +132,7 @@ test('提示词仅补充当前交易对三周期涨跌幅，兼容交易对格�
 test('实时价格变化立即更新涨跌数量和中位数，不改变 AI 固定快照且不读取数据库', async () => {
   const f = fixture()
   f.prices.ETHUSDT = { price: 90, timestamp: f.now, change24hPercent: -2 }
-  for (const hours of [1, 4]) f.bars.set(`ETHUSDT:${f.now / 1000 - hours * 3600}`, 100)
+  for (const hours of [1, 4, 24]) f.bars.set(`ETHUSDT:${f.now / 1000 - hours * 3600}`, 100)
   const snapshot = await f.api.getMarketBreadth({ symbols: ['BTCUSDT', 'ETHUSDT'] })
   const saved = JSON.stringify(snapshot)
   const reads = f.reads()
@@ -134,16 +150,19 @@ test('实时价格变化立即更新涨跌数量和中位数，不改变 AI 固�
     assert.equal(after.upCount, 2)
     assert.equal(after.downCount, 0)
     assert.equal(after.upRatioPct, 100)
-    assert.ok(Math.abs(after.medianChangePct - (period === '24h' ? 6.5 : 15)) < 1e-10)
+    assert.ok(Math.abs(after.medianChangePct - 15) < 1e-10)
   }
   assert.equal(JSON.stringify(snapshot), saved)
   assert.equal(f.reads(), reads)
 })
 
-test('24h 实时统计不依赖参考价；缺失基准和过期行情显示待更新', () => {
+test('24h实时统计统一使用本地基准；忽略ticker涨跌幅，缺失与过期保留未知', () => {
   const now = 1800000000000
   const prices = { BTCUSDT: { price: 100, change24hPercent: 2, timestamp: now } }
-  assert.equal(calculateLiveBreadth(['BTCUSDT'], prices, '24h', {}, null, now).upCount, 1)
+  assert.equal(calculateLiveBreadth(['BTCUSDT'], prices, '24h', {}, null, now).missingCount, 1)
+  const stats = calculateLiveBreadth(['BTCUSDT'], prices, '24h', { BTCUSDT: 125 }, now - 86400000, now)
+  assert.equal(stats.downCount, 1)
+  assert.ok(Math.abs(stats.changes.BTCUSDT + 20) < 1e-10)
   assert.equal(calculateLiveBreadth(['BTCUSDT'], prices, '1h', {}, null, now).missingCount, 1)
   assert.equal(calculateLiveBreadth(['BTCUSDT'], prices, '24h', {}, null, now + 120001).missingCount, 1)
 })

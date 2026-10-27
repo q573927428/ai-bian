@@ -13,6 +13,9 @@ import { getLatestAnalysis, formatAnalysisToPromptSection } from '../../utils/tr
 import { shortHash } from '../../utils/stable-hash'
 import { formatMarketBreadth } from '../../utils/market-breadth'
 import type { PriceZone, SupportResistanceSnapshot } from '../../../types/support-resistance'
+import type { IndicatorsHub } from '../indicators/IndicatorsHub'
+import { formatEnvironmentConfidence, type EnvironmentContext } from '../../../app/utils/environment-confidence'
+import { loadEnvironmentContext } from '../../utils/environment-context'
 
 /** AI 只接收入场位置摘要；完整区域及时间信息仍由信号和交易记录保存。 */
 function formatSupportResistance(snapshot?: SupportResistanceSnapshot): string {
@@ -83,7 +86,7 @@ export class MultiStrategyAIAnalyzer {
     cooldownCount: 0
   }
 
-  constructor(binance: BinanceService, config: BotConfig) {
+  constructor(binance: BinanceService, config: BotConfig, private indicatorsHub?: IndicatorsHub) {
     this.binance = binance
     this.config = config
     logger.info('MultiStrategyAIAnalyzer', '多策略 AI 分析器已初始化（含并发控制）')
@@ -196,7 +199,9 @@ export class MultiStrategyAIAnalyzer {
       // 1. 获取策略规则并检查缓存
       const strategy = await strategyStore.getStrategy(strategyId)
       const structuredRules = (strategy as any)?.structuredRules as StructuredRules | undefined
-      const cacheKey = this.buildCacheKey(strategyId, symbol, indicators, price, volume, candleProgress, promptConfig, structuredRules)
+      const environmentContext = await loadEnvironmentContext(this.indicatorsHub, symbol, indicators.marketBreadth)
+      // 环境版本与五周期变化都必须参与缓存，不能复用旧口径的置信度。
+      const cacheKey = this.buildCacheKey(strategyId, symbol, { ...indicators, environmentContext }, price, volume, candleProgress, promptConfig, structuredRules)
       const cached = aiCache.get(cacheKey)
       if (cached && (Date.now() - cached.timestamp < this.getAiCacheTtl())) {
         logger.info('MultiStrategyAIAnalyzer', `AI缓存命中: ${symbol} [策略 ${strategyId}]`)
@@ -212,11 +217,12 @@ export class MultiStrategyAIAnalyzer {
         indicators,
         volume,
         candleProgress,
-        structuredRules
+        structuredRules,
+        environmentContext
       )
 
       // 3. 调用原有的 AI 分析函数
-      const aiResult = await this.callAI(fullPrompt, symbol, price, indicators, volume, strategyId, promptConfig)
+      const aiResult = await this.callAI(fullPrompt, symbol, price, indicators, volume, strategyId, promptConfig, environmentContext)
 
 
       // 即使是 IDLE 也返回完整信息，以便统一记录日志
@@ -272,6 +278,7 @@ export class MultiStrategyAIAnalyzer {
           }
         : undefined
       const signal: TradeSignal = {
+        environmentContext: aiResult.environmentContext,
         strategyId,
         symbol,
         direction: aiResult.direction === 'LONG' ? 'long' : aiResult.direction === 'SHORT' ? 'short' : 'idle',
@@ -639,7 +646,8 @@ export class MultiStrategyAIAnalyzer {
     indicators: TechnicalIndicators,
     volume: number,
     candleProgress: number = 0.1,
-    structuredRules?: StructuredRules
+    structuredRules?: StructuredRules,
+    environmentContext?: EnvironmentContext
   ): string {
     const data = this.preparePromptData(symbol, price, indicators, volume, candleProgress)
     const macdTrendResult = indicators.enabledIndicators?.macd && indicators.macd
@@ -692,6 +700,8 @@ ${formatMarketBreadth(indicators.marketBreadth, symbol)}
 ## 四、策略（唯一规则）
 ${promptConfig.userPrompt}
 --------------------------
+## 五、置信度结果
+${formatEnvironmentConfidence(environmentContext)}
 ## 输出（必须严格JSON）
 {
   "direction": "LONG | SHORT | IDLE",
@@ -708,7 +718,7 @@ ${promptConfig.userPrompt}
 }
 
 ### 输出字段说明：
-- confidence: 开仓信心度（宏观）
+- confidence: 对应direction的上述置信度结果（0~100）
 - scoreBreakdown: 评分拆解，包含 baseScore/hardScore/softScore/penaltyScore/finalScore
 - riskLevel: 风险等级，LOW/MEDIUM/HIGH
 
@@ -736,11 +746,7 @@ ${promptConfig.userPrompt}
       historySection = historyAnalysis ? formatAnalysisToPromptSection(historyAnalysis) : ''
     }
 
-    // 根据 squareHeat 是否启用来决定 confidence 描述中是否包含币安广场热度相关字段
     const squareHeatWindow = this.formatSquareHeatWindow(squareHeatWindowMinutes)
-    const confidenceMacroFactors = hasSquareHeat
-      ? `市场波动性、趋势强度、风险等级、币安广场热度、${squareHeatWindow}社区情绪`
-      : '市场波动性、趋势强度、风险等级'
 
     // 根据 squareHeat 是否启用来决定 reasoning 格式示例中是否包含币安广场热度相关展示
     const squareHeatReasoningExample = hasSquareHeat
@@ -749,19 +755,18 @@ ${promptConfig.userPrompt}
 
     return `
 你是专业的量化交易策略执行引擎。
-对当前市场数据进行客观分析、计算真实置信度。
+对当前市场数据进行客观分析。
 ${historySection}
 【核心原则】
 1. 你只做分析，不替用户做最终决策。
 2. 先根据策略规则及所需数据确定唯一方向（LONG/SHORT），之后只按该方向执行交易判断：LONG只用做多规则，SHORT只用做空规则。
 3. 所有条件必须逐条验证，带上真实数值。
 4. 输出必须是合法JSON，无任何多余内容。
-5. confidence 不代表是否开仓，而是是结合${confidenceMacroFactors}等宏观因素的开仓信心度（0-100）（宏观）
-6. 禁止因为单个条件不满足直接输出 confidence=0。
-7. scoreBreakdown.finalScore 为策略规则匹配度（0-100），仅反映策略条件满足程度（微观）。
-8. scoreBreakdown 必须满足：baseScore∈[0,30]，hardScore∈[0,50]，softScore∈[0,20]，penaltyScore∈[-10,0]。
-9. finalScore 必须严格等于 baseScore + hardScore + softScore + penaltyScore（再截断到0~100）。
-10. riskLevel 综合市场波动性、趋势强度等给出风险等级。
+5. confidence 使用用户提示词中对应方向的置信度结果（0-100）。
+6. scoreBreakdown.finalScore 为策略规则匹配度（0-100），仅反映策略条件满足程度（微观）。
+7. scoreBreakdown 必须满足：baseScore∈[0,30]，hardScore∈[0,50]，softScore∈[0,20]，penaltyScore∈[-10,0]。
+8. finalScore 必须严格等于 baseScore + hardScore + softScore + penaltyScore（再截断到0~100）。
+9. riskLevel 综合市场波动性、趋势强度等给出风险等级。
 
 
 ----------------------------------
@@ -845,7 +850,8 @@ ${historySection}
     indicators: TechnicalIndicators,
     volume: number = 0,
     strategyId: StrategyId,
-    promptConfig?: AIPromptConfig
+    promptConfig?: AIPromptConfig,
+    environmentContext?: EnvironmentContext
   ): Promise<AIAnalysis | null> {
     // 使用并发池控制AI调用并发数
     return concurrencyPoolManager.getAIPool().submit(async () => {
@@ -896,21 +902,17 @@ ${historySection}
         const jsonContent = extractJSONContent(content)
         const aiResult = JSON.parse(jsonContent)
 
-        const direction = (aiResult.direction || 'IDLE') as Direction
+        const direction: Direction = ['LONG', 'SHORT', 'IDLE'].includes(aiResult.direction) ? aiResult.direction : 'IDLE'
         
         // 构建分析理由
-        let reasoning = aiResult.reasoning || '无分析理由'
+        const reasoning = typeof aiResult.reasoning === 'string' ? aiResult.reasoning : '无分析理由'
         
-        // 验证防护：如果 reasoning 包含 IDLE 或 idle，只降低置信度
-        let confidence = aiResult.confidence
-        const hasIdleKeyword = reasoning.toLowerCase().includes('idle')
-        if (hasIdleKeyword) {
-          confidence = Math.min(confidence, 70)
-        }
+        const confidence = aiResult.confidence
 
         const normalizedScoreBreakdown = this.normalizeScoreBreakdown(aiResult.scoreBreakdown)
 
         const analysis: AIAnalysis = {
+          environmentContext,
           symbol,
           timestamp: Date.now(),
           strategyId,

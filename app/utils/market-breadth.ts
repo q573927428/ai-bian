@@ -29,8 +29,8 @@ export function calculateLiveBreadth(symbols: string[], prices: Record<string, P
     if (!ticker || !Number.isFinite(ticker.price) || ticker.price <= 0 || !Number.isFinite(ticker.timestamp)
       || now - ticker.timestamp > 120000 || ticker.timestamp > now + 60000) continue
     const base = bases[symbol]
-    const change = period === '24h' ? ticker.change24hPercent
-      : Number.isFinite(base) && base! > 0 ? (ticker.price / base! - 1) * 100 : null
+    // 包括24h在内均复用服务端5m基准，不使用ticker的滚动统计字段。
+    const change = Number.isFinite(base) && base! > 0 ? (ticker.price / base! - 1) * 100 : null
     if (typeof change === 'number' && Number.isFinite(change)) changes[symbol] = change
   }
   return summarizeBreadth(changes, referenceTime, bases)
