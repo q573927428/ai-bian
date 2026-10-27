@@ -2,6 +2,7 @@ import * as ccxt from 'ccxt'
 import type { OHLCV, Order, AccountInfo, Position, CryptoBalance, OrderExecutionSummary } from '../../types'
 import { binanceApiGateway } from './binance-api-gateway'
 import { binanceRateLimiter } from './binance-rate-limiter'
+import { logger } from './logger'
 
 /**
  * 脱敏错误文本中的签名和常见凭据，避免诊断日志泄露请求认证信息。
@@ -214,15 +215,46 @@ export class BinanceService {
   }
 
   /**
-   * 设置杠杆（使用私有实例）
+   * 先按交易对实际杠杆上限截断，再设置杠杆并返回成功倍数。
    */
-  async setLeverage(symbol: string, leverage: number): Promise<void> {
+  async setLeverage(symbol: string, leverage: number): Promise<number> {
+    if (!Number.isInteger(leverage) || leverage < 1 || leverage > 125) {
+      throw new Error(`设置杠杆失败: 请求值 ${leverage} 必须为1到125之间的整数（接口参数范围，交易对实际上限需另行查询）`)
+    }
+
+    let startingLeverage = leverage
+    try {
+      const tiers = await binanceApiGateway.account(`fetchLeverageTiers:${symbol}`, async () => {
+        await this.privateExchange.loadMarkets()
+        // 使用 CCXT 规范合约名称，避免 TUT/USDT 与 TUT/USDT:USDT 的字典键不一致。
+        const market = this.privateExchange.market(symbol)
+        const result = await this.privateExchange.fetchLeverageTiers([market.symbol], { symbol: market.id })
+        return result[market.symbol]
+      })
+      const validLimits = (tiers ?? []).map(tier => Number(tier.maxLeverage))
+        .filter(value => Number.isInteger(value) && value >= 1 && value <= 125)
+      if (validLimits.length === 0) {
+        throw new Error('交易所未返回有效的杠杆档位')
+      }
+      // 档位上限用于避免明显无效的请求；账户或现有持仓的额外限制仍以设置接口为准。
+      const exchangeMaxLeverage = Math.max(...validLimits)
+      startingLeverage = Math.min(leverage, exchangeMaxLeverage)
+      if (startingLeverage < leverage) {
+        logger.warn('杠杆', `${symbol} 请求 ${leverage} X 超过交易对上限 ${exchangeMaxLeverage} X，改用 ${startingLeverage} X`)
+      }
+    } catch (error: any) {
+      // 上限未知时停止本次开仓，避免盲试杠杆并增加交易接口请求。
+      throw new Error(`${symbol} 查询杠杆上限失败，跳过本次开仓: ${sanitizeBinanceErrorText(error?.message ?? error)}`)
+    }
+
+    // 每次开仓仅设置一次；额外的账户限制由交易所确认，拒绝后不再猜测其他倍数。
     try {
       await binanceApiGateway.trade(`setLeverage:${symbol}`, () =>
-        this.privateExchange.setLeverage(leverage, symbol)
+        this.privateExchange.setLeverage(startingLeverage, symbol)
       )
+      return startingLeverage
     } catch (error: any) {
-      throw new Error(`设置杠杆失败: ${error.message}`)
+      throw new Error(`设置杠杆失败 (${symbol}, ${startingLeverage} X)，跳过本次开仓: ${sanitizeBinanceErrorText(error?.message ?? error)}`)
     }
   }
 

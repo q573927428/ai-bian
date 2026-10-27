@@ -1383,10 +1383,12 @@ export class StrategyEngine {
         }
       }
 
-      logger.info('杠杆', `使用杠杆: ${finalLeverage} X`, leverageCalculationDetails)
-
       // 4. 设置杠杆和保证金模式
-      await this.binance.setLeverage(signal.symbol, finalLeverage)
+      const requestedLeverage = finalLeverage
+      // 必须先使用交易所确认的杠杆覆盖计算值，后续仓位、保证金及持仓记录才能保持一致。
+      finalLeverage = await this.binance.setLeverage(signal.symbol, requestedLeverage)
+      leverageCalculationDetails = { ...leverageCalculationDetails, requestedLeverage, finalLeverage }
+      logger.info('杠杆', `${signal.symbol} [${strategy.id}] 使用杠杆: ${finalLeverage} X`, leverageCalculationDetails)
       await this.binance.setMarginMode(signal.symbol, 'cross')
 
       // 5. 计算仓位大小
