@@ -718,7 +718,7 @@ ${formatEnvironmentConfidence(environmentContext)}
 }
 
 ### 输出字段说明：
-- confidence: LONG/SHORT使用对应方向的上述置信度结果；IDLE使用多空两个方向中较低的置信度（0~100）
+- confidence: LONG/SHORT使用对应方向的上述置信度结果（0~100）
 - scoreBreakdown: 评分拆解，包含 baseScore/hardScore/softScore/penaltyScore/finalScore
 - riskLevel: 风险等级，LOW/MEDIUM/HIGH
 
@@ -762,7 +762,7 @@ ${historySection}
 2. 先根据策略规则及所需数据确定唯一方向（LONG/SHORT），之后只按该方向执行交易判断：LONG只用做多规则，SHORT只用做空规则。
 3. 所有条件必须逐条验证，带上真实数值。
 4. 输出必须是合法JSON，无任何多余内容。
-5. confidence 使用用户提示词中对应方向的置信度结果（0-100）；IDLE使用多空两个方向中较低的置信度。
+5. confidence 使用用户提示词中对应方向的置信度结果（0-100）。
 6. scoreBreakdown.finalScore 为策略规则匹配度（0-100），仅反映策略条件满足程度（微观）。
 7. scoreBreakdown 必须满足：baseScore∈[0,30]，hardScore∈[0,50]，softScore∈[0,20]，penaltyScore∈[-10,0]。
 8. finalScore 必须严格等于 baseScore + hardScore + softScore + penaltyScore（再截断到0~100）。
