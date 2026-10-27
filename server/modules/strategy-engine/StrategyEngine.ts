@@ -1114,13 +1114,13 @@ export class StrategyEngine {
         logger.info('🔍扫描结果', `${signal.symbol} @${signal.price} IDLE ${metricsSummary} ｜ 观望 [${signal.strategyId}] ===详细AI日志=== ${enhancedLog}`, scanContext)
         return null
       } else if (!isThresholdOK) {
-        logger.info('🔍扫描结果', `${signal.symbol} @${signal.price} ${signal.direction.toUpperCase()} ${metricsSummary} ｜ 未达开仓阈值 [${signal.strategyId}] ===详细AI日志=== ${enhancedLog}`, scanContext)
+        logger.info('🔍扫描结果', `${signal.symbol} @${signal.price} ${signal.direction.toUpperCase()} ${metricsSummary} [${signal.strategyId}] ===详细AI日志=== ${enhancedLog}`, scanContext)
         return null
       } else if (!isRiskLevelOK) {
         logger.info('🔍扫描结果', `${signal.symbol} @${signal.price} ${signal.direction.toUpperCase()} ${metricsSummary} ｜ 风险等级（${signal.riskLevel} > ${maxRiskLevel}）❌ [${signal.strategyId}] ===详细AI日志=== ${enhancedLog}`, scanContext)
         return null
       } else {
-        logger.success('🔍扫描结果', `${signal.symbol} @${signal.price} ${signal.direction.toUpperCase()} ${metricsSummary}${maxRiskLevel !== undefined && signal.riskLevel !== undefined ? ` ｜ 风险等级（${signal.riskLevel} <= ${maxRiskLevel}）✔️` : ''} ｜ 开仓检查通过 [${signal.strategyId}] ===详细AI日志=== ${enhancedLog}`, scanContext)
+        logger.success('🔍扫描结果', `${signal.symbol} @${signal.price} ${signal.direction.toUpperCase()} ${metricsSummary}${maxRiskLevel !== undefined && signal.riskLevel !== undefined ? ` ｜ 风险等级（${signal.riskLevel} <= ${maxRiskLevel}）✔️` : ''} [${signal.strategyId}] ===详细AI日志=== ${enhancedLog}`, scanContext)
       }
 
       // 信号中的止损价用于缓存和后续扩展展示，必须与正式下单使用同一套策略 ATR 口径。
