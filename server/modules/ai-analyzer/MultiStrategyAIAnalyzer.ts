@@ -704,7 +704,7 @@ ${promptConfig.userPrompt}
 ${formatEnvironmentConfidence(environmentContext)}
 ## 输出（必须严格JSON）
 {
-  "direction": "LONG | SHORT | IDLE",
+  "direction": "LONG | SHORT",
   "confidence": number,
   "reasoning": string,
   "scoreBreakdown": {
@@ -772,7 +772,7 @@ ${historySection}
 ----------------------------------
 【输出格式】
 {
-  "direction": "LONG | SHORT | IDLE",
+  "direction": "LONG | SHORT",
   "confidence": number,
   "reasoning": "一行中文，最多 500 个字符，包含所有条件的判断结果和数值",
   "scoreBreakdown": {
