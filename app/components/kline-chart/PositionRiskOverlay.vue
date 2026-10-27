@@ -47,7 +47,7 @@ interface Geometry {
 }
 const geometry = shallowRef<Geometry | null>(null)
 // 保证短期持仓的标签空间，同时让框体覆盖持仓期间的全部 K 线。
-const MIN_RISK_BOX_WIDTH = 130
+const MIN_RISK_BOX_WIDTH = 100
 const LATEST_KLINE_PADDING = 30
 let frame = 0
 let previous = ''
