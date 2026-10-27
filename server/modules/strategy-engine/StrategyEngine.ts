@@ -1088,8 +1088,17 @@ export class StrategyEngine {
         confidence: signal.confidence
       }
       const thresholdState = this.evaluateEntryThreshold(instance, signal)
-      const thresholdValue = thresholdState.displayValue
-      const threshold = thresholdState.displayThreshold
+      const thresholdMode = instance.strategy.entryThresholdMode ?? 'confidence'
+      // 每个启用的指标独立比较，避免双阈值模式下把达标的置信度也误显示为不达标。
+      const formatMetric = (label: string, value: number | undefined, threshold: number, enabled: boolean): string => {
+        if (!enabled) return `${label}（${value ?? '缺失'}）`
+        const passed = typeof value === 'number' && value >= threshold
+        return `${label}（${value ?? '缺失'} ${passed ? '>=' : typeof value === 'number' ? '<' : '未能比较，阈值'} ${threshold}）${passed ? '✔️' : '❌'}`
+      }
+      const metricsSummary = [
+        formatMetric('置信度', thresholdState.confidence, thresholdState.confidenceThreshold, thresholdMode !== 'finalScore'),
+        formatMetric('评分', thresholdState.finalScore, thresholdState.finalScoreThreshold, thresholdMode !== 'confidence')
+      ].join(' ｜ ')
       const isThresholdOK = thresholdState.passed
 
       const maxRiskLevel = strategyMaxRiskLevel
@@ -1102,16 +1111,16 @@ export class StrategyEngine {
       }
 
       if (signal.direction === 'idle') {
-        logger.info('🔍扫描结果', `${signal.symbol} @${signal.price} IDLE ${thresholdState.label}（${thresholdValue}，阈值 ${threshold}）置信度（${signal.confidence}）评分（${finalScore}） [${signal.strategyId}] ===详细AI日志=== ${enhancedLog}`, scanContext)
+        logger.info('🔍扫描结果', `${signal.symbol} @${signal.price} IDLE ${metricsSummary} ｜ 观望 [${signal.strategyId}] ===详细AI日志=== ${enhancedLog}`, scanContext)
         return null
       } else if (!isThresholdOK) {
-        logger.info('🔍扫描结果', `${signal.symbol} @${signal.price} ${signal.direction.toUpperCase()} ${thresholdState.label}（${thresholdValue} < ${threshold}）置信度（${signal.confidence}）评分（${finalScore}）[${signal.strategyId}] ===详细AI日志=== ${enhancedLog}`, scanContext)
+        logger.info('🔍扫描结果', `${signal.symbol} @${signal.price} ${signal.direction.toUpperCase()} ${metricsSummary} ｜ 未达开仓阈值 [${signal.strategyId}] ===详细AI日志=== ${enhancedLog}`, scanContext)
         return null
       } else if (!isRiskLevelOK) {
-        logger.info('🔍扫描结果', `${signal.symbol} @${signal.price} ${signal.direction.toUpperCase()} ${thresholdState.label}（${thresholdValue} >= ${threshold}）置信度（${signal.confidence}）评分（${finalScore}）风险等级（${signal.riskLevel} > ${maxRiskLevel}）[${signal.strategyId}] ===详细AI日志=== ${enhancedLog}`, scanContext)
+        logger.info('🔍扫描结果', `${signal.symbol} @${signal.price} ${signal.direction.toUpperCase()} ${metricsSummary} ｜ 风险等级（${signal.riskLevel} > ${maxRiskLevel}）❌ [${signal.strategyId}] ===详细AI日志=== ${enhancedLog}`, scanContext)
         return null
       } else {
-        logger.success('🔍扫描结果', `${signal.symbol} @${signal.price} ${signal.direction.toUpperCase()} ${thresholdState.label}（${thresholdValue} >= ${threshold}）置信度（${signal.confidence}）评分（${finalScore}）风险等级（${signal.riskLevel} <= ${maxRiskLevel}）[${signal.strategyId}] ===详细AI日志=== ${enhancedLog}`, scanContext)
+        logger.success('🔍扫描结果', `${signal.symbol} @${signal.price} ${signal.direction.toUpperCase()} ${metricsSummary}${maxRiskLevel !== undefined && signal.riskLevel !== undefined ? ` ｜ 风险等级（${signal.riskLevel} <= ${maxRiskLevel}）✔️` : ''} ｜ 开仓检查通过 [${signal.strategyId}] ===详细AI日志=== ${enhancedLog}`, scanContext)
       }
 
       // 信号中的止损价用于缓存和后续扩展展示，必须与正式下单使用同一套策略 ATR 口径。
