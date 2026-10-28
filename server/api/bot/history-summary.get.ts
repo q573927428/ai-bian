@@ -33,6 +33,10 @@ export default defineEventHandler((event) => {
   let netPnl = 0
   let peakNetPnl = 0
   let maxDrawdown = 0
+  let totalHoldDurationMs = 0
+  let validHoldCount = 0
+  let consecutiveLosses = 0
+  let maxConsecutiveLosses = 0
   const dateMap = new Map<string, any>()
   for (const trade of records) {
     cumulativePnl += Number(trade.pnl || 0)
@@ -43,6 +47,16 @@ export default defineEventHandler((event) => {
     peakNetPnl = Math.max(peakNetPnl, netPnl)
     maxDrawdown = Math.max(maxDrawdown, peakNetPnl - netPnl)
     const pnl = Number(trade.pnl || 0)
+    // 连亏仅按筛选结果的平仓顺序统计；盈利或保本都会中断连续亏损。
+    consecutiveLosses = pnl < 0 ? consecutiveLosses + 1 : 0
+    maxConsecutiveLosses = Math.max(maxConsecutiveLosses, consecutiveLosses)
+    const openTime = Number(trade.openTime)
+    const closeTime = Number(trade.closeTime)
+    // 平仓时间决定是否入选，但持仓时长保留完整区间；缺失或异常时间不参与平均。
+    if (trade.openTime != null && trade.openTime !== '' && Number.isFinite(openTime) && Number.isFinite(closeTime) && closeTime >= openTime) {
+      totalHoldDurationMs += closeTime - openTime
+      validHoldCount++
+    }
     // 保本交易不参与平均盈利或平均亏损，费用沿用已结算净盈亏口径。
     if (pnl > 0) {
       wins++
@@ -69,5 +83,9 @@ export default defineEventHandler((event) => {
     payoffRatio: losses > 0 ? (wins > 0 ? (totalProfit / wins) / (totalLoss / losses) : 0) : (wins > 0 ? null : 0),
     netPnl,
     maxDrawdown,
+    averagePnl: records.length ? cumulativePnl / records.length : 0,
+    averageHoldDurationMs: validHoldCount ? totalHoldDurationMs / validHoldCount : 0,
+    validHoldCount,
+    maxConsecutiveLosses,
   } }
 })

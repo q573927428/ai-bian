@@ -81,6 +81,20 @@
         <div class="stat-label" title="按逐笔已结算净盈亏计算历史峰值到随后低点的最大跌幅，包含起始零收益">最大回撤</div>
         <div class="stat-value text-danger">{{ stats.maxDrawdown.toFixed(2) }} U</div>
       </div>
+      <div class="stat-item">
+        <div class="stat-label" title="当前筛选范围内已平仓交易的净盈亏合计 ÷ 交易次数，已包含结算费用">单笔均盈亏</div>
+        <div :class="['stat-value', stats.averagePnl >= 0 ? 'text-success' : 'text-danger']">
+          {{ stats.averagePnl >= 0 ? '+' : '' }}{{ stats.averagePnl.toFixed(2) }} U
+        </div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-label" title="按平仓时间筛选，统计入选交易的完整持仓时长；缺失或异常时间不参与平均">平均持仓</div>
+        <div class="stat-value">{{ stats.validHoldCount ? formatHoldDuration(stats.averageHoldDurationMs) : '—' }}</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-label" title="当前筛选结果按平仓时间排序后的最长连续亏损笔数，盈利或保本交易中断连亏">最大连亏</div>
+        <div class="stat-value" :class="{ 'text-danger': stats.maxConsecutiveLosses > 0 }">{{ stats.maxConsecutiveLosses }} 笔</div>
+      </div>
     </div>
 
     <!-- 空状态 -->
@@ -120,10 +134,21 @@ const stats = ref({
   winRate: 0,
   totalFee: 0,
   payoffRatio: 0 as number | null,
-  maxDrawdown: 0
+  maxDrawdown: 0,
+  averagePnl: 0,
+  averageHoldDurationMs: 0,
+  validHoldCount: 0,
+  maxConsecutiveLosses: 0
 })
 const { theme } = useTheme()
 let chartInstance: ECharts | null = null
+
+/** 小时最多保留一位小数并省略末尾 .0；短线持仓保留分钟，避免显示为 0h。 */
+const formatHoldDuration = (durationMs: number) => {
+  if (durationMs < 60_000) return '<1m'
+  if (durationMs >= 3_600_000) return `${Number((durationMs / 3_600_000).toFixed(1))}h`
+  return `${Math.floor(durationMs / 60_000)}m`
+}
 
 /** 按浏览器本地自然日筛选；最近 N 天包含今天，结束时间不包含次日零点。 */
 const getPeriodParams = () => {

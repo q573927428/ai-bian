@@ -112,6 +112,35 @@ test('盈亏比按每笔平均值计算，排除保本交易并处理无亏损�
   assert.equal(handler({ startTime: 1003, endTime: 1004 }).stats.payoffRatio, 0)
 })
 
+test('新增收益指标随时间、策略和交易对筛选重算，保本中断连亏且异常时间不参与平均', async () => {
+  const start = Date.UTC(2026, 9, 1)
+  const trades = [-2, -4, 0, -6, -8, -10, 12].map((pnl, index) => ({
+    id: String(index), symbol: 'BTC/USDT', strategyId: 'a', pnl,
+    closeTime: start + index * 60_000,
+    openTime: start + index * 60_000 - (index + 1) * 60_000,
+  }))
+  // 缺失时间和开仓晚于平仓的旧记录，不能当作零时长拉低平均值。
+  delete trades[0].openTime
+  trades[1].openTime = trades[1].closeTime + 1
+  const handler = await loadHandler('history-summary.get.ts', [
+    ...trades.slice().reverse(),
+    { symbol: 'ETH/USDT', strategyId: 'a', pnl: -100, closeTime: start },
+    { symbol: 'BTC/USDT', strategyId: 'b', pnl: -200, closeTime: start },
+  ])
+  const stats = handler({ symbol: 'BTC/USDT', strategyId: 'a' }).stats
+  assert.equal(stats.averagePnl, -18 / 7)
+  assert.equal(stats.maxConsecutiveLosses, 3)
+  assert.equal(stats.validHoldCount, 5)
+  assert.equal(stats.averageHoldDurationMs, 5 * 60_000)
+  const filtered = handler({ symbol: 'BTC/USDT', strategyId: 'a', startTime: start + 4 * 60_000, endTime: start + 6 * 60_000 }).stats
+  assert.equal(filtered.averagePnl, -9)
+  assert.equal(filtered.maxConsecutiveLosses, 2)
+  assert.equal(filtered.averageHoldDurationMs, 5.5 * 60_000)
+  const missingTime = handler({ symbol: 'ETH/USDT' }).stats
+  assert.equal(missingTime.validHoldCount, 0)
+  assert.equal(missingTime.averageHoldDurationMs, 0)
+})
+
 test('首页总数包含全部记录，今日统计使用客户端半开时间区间', async () => {
   const handler = await loadHandler('history-overview.get.ts', records)
   const { data } = handler({ startTime: 10000, endTime: 10002 })
