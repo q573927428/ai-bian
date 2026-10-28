@@ -45,7 +45,7 @@ import { MACRO_MARKETS } from '../../types/macro-market'
 import MacroKLineChart from './macro-data/MacroKLineChart.vue'
 import { macroCrosshairKey, type MacroCrosshairPosition } from './macro-data/crosshair-sync'
 
-// 通道仅在当前九宫格内广播，组件卸载时各自移除订阅。
+// 通道仅在当前图表网格内广播，组件卸载时各自移除订阅。
 const crosshairListeners = new Set<(position: MacroCrosshairPosition | null) => void>()
 provide(macroCrosshairKey, {
   publish: position => crosshairListeners.forEach(listener => listener(position)),
@@ -87,7 +87,7 @@ const selectedPeriods = reactive<Record<string, Period>>(
   Object.fromEntries(markets.map(item => [item.symbol, '1d' as Period])),
 )
 
-/** 顶部周期切换同步更新九张图，单卡切换仍可独立覆盖。 */
+/** 顶部周期切换同步更新全部图表，单卡切换仍可独立覆盖。 */
 function setGlobalPeriod(period: Period) {
   globalPeriod.value = period
   markets.forEach(item => { selectedPeriods[item.symbol] = period })
@@ -107,7 +107,7 @@ function chartUrl(symbol: string, period: Period): string {
 <style scoped>
 .macro-toolbar { min-height: 34px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 12px; padding: 0 5px 5px; box-sizing: border-box; background: #080808; }
 .overview-title { color: #f3f4f6; font-size: 14px; font-weight: 600; line-height: 22px; }
-.chart-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.chart-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
 .chart-panel { min-width: 0; height: calc((100vh - 118px) / 3); min-height: 235px; border: 1px solid #343434; border-radius: 5px; overflow: hidden; background: #111; }
 .panel-header { height: 32px; display: flex; align-items: center; justify-content: space-between; gap: 5px; padding: 0 8px; border-bottom: 1px solid #333; box-sizing: border-box; }
 .panel-caption { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 12px; }

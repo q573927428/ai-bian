@@ -17,8 +17,11 @@ export interface MacroMarket {
 
 export const MACRO_MARKETS: MacroMarket[] = [
   { id: 'btc', name: '比特币', description: '投机资金风险偏好', source: 'binance', symbol: 'BTCUSDT', tradingView: 'BINANCE:BTCUSDT.P' },
+  { id: 'eth', name: '以太坊（ETH）', description: '加密生态资金风险偏好', source: 'binance', symbol: 'ETHUSDT', tradingView: 'BINANCE:ETHUSDT.P' },
   { id: 'qqq', name: '纳指100（QQQ）', description: '美股科技股资金流向', source: 'binance', symbol: 'QQQUSDT', tradingView: 'BINANCE:QQQUSDT.P' },
+  { id: 'spy', name: '标普500（SPY）', description: '美股大盘资金风险偏好', source: 'binance', symbol: 'SPYUSDT', tradingView: 'BINANCE:SPYUSDT.P' },
   { id: 'gold', name: '黄金', description: '大钱避险资金', source: 'binance', symbol: 'XAUUSDT', tradingView: 'BINANCE:XAUUSDT.P' },
+  { id: 'silver', name: '白银', description: '贵金属避险与工业需求', source: 'binance', symbol: 'XAGUSDT', tradingView: 'BINANCE:XAGUSDT.P' },
   { id: 'dxy', name: '美元指数', description: '全球美元流动性', source: 'yahoo', symbol: 'DX-Y.NYB', tradingView: 'PEPPERSTONE:USDX' },
   { id: 'tnx', name: '10年期美债收益率', description: '全球流动性闸门', source: 'yahoo', symbol: '^TNX', tradingView: 'PYTH:US10Y', yield: true },
   { id: 'oil', name: '原油 CL', description: '能源供需与通胀冲击', source: 'binance', symbol: 'CLUSDT', tradingView: 'BINANCE:CLUSDT.P' },

@@ -2,6 +2,10 @@
 <template>
   <div class="macro-local-chart">
     <div ref="container" class="canvas" @mouseenter="enterChart" @mouseleave="clearSyncedCrosshair" />
+    <div v-if="comparison" class="crosshair-comparison">
+      <div>光标收盘 {{ comparison.from }} → 最新 {{ comparison.to }}</div>
+      <div>至最新涨跌 <span :class="comparison.changeClass">{{ comparison.percent }}</span> · 相隔 {{ comparison.duration }}</div>
+    </div>
     <div v-if="!hasData" class="empty-state">
       <span>{{ loading ? '正在读取本地数据…' : error || '暂无本地数据，等待同步' }}</span>
       <button v-if="!loading" type="button" @click="load">重试</button>
@@ -15,7 +19,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onMounted, onBeforeUnmount, inject } from 'vue'
+import { computed, ref, watch, onMounted, onBeforeUnmount, inject } from 'vue'
 import { createChart, ColorType, CandlestickSeries, TickMarkType, type Time, type IChartApi, type ISeriesApi, type UTCTimestamp, type MouseEventParams } from 'lightweight-charts'
 import type { MacroMarket, MacroPeriod, MacroKlineResponse } from '../../../types/macro-market'
 import { macroCrosshairKey, crosshairTimeKey, type MacroCrosshairPosition } from './crosshair-sync'
@@ -55,6 +59,27 @@ let pointerInside = false
 let applyingCrosshair = false
 let unsubscribeCrosshair: (() => void) | undefined
 const crosshairBars = new Map<number, { time: UTCTimestamp; close: number }>()
+const selectedBar = ref<{ time: UTCTimestamp; close: number } | null>(null)
+const latestBar = ref<{ time: UTCTimestamp; close: number } | null>(null)
+
+// 用所选 K 线收盘价作为收益基准；时间差使用真实时间戳，包含休市时段。
+const comparison = computed(() => {
+  const selected = selectedBar.value
+  const latest = latestBar.value
+  if (!selected || !latest) return null
+  const percent = selected.close !== 0 ? (latest.close - selected.close) / selected.close * 100 : null
+  const minutes = Math.floor(Math.abs(latest.time - selected.time) / 60)
+  const formatPrice = (price: number) => `${price.toLocaleString('zh-CN', {
+    minimumFractionDigits: props.market.yield ? 3 : props.market.id === 'btc' ? 1 : 2,
+    maximumFractionDigits: props.market.yield ? 3 : props.market.id === 'btc' ? 1 : 2,
+  })}${props.market.yield ? '%' : ''}`
+  return {
+    from: formatPrice(selected.close), to: formatPrice(latest.close),
+    percent: percent === null ? '—' : `${percent > 0 ? '+' : ''}${percent.toFixed(2)}%`,
+    changeClass: percent === null || percent === 0 ? '' : percent > 0 ? 'positive' : 'negative',
+    duration: `${Math.floor(minutes / 1440)}天${Math.floor(minutes % 1440 / 60)}小时${minutes % 60}分钟`,
+  }
+})
 
 /** 使用独立处理函数标记当前鼠标所在的来源图。 */
 function enterChart() {
@@ -67,9 +92,11 @@ function onCrosshairMove(event: MouseEventParams) {
   const point = event.point
   if (typeof event.time !== 'number' || !point || point.x < 0 || point.y < 0
     || point.x >= (chart?.timeScale().width() ?? 0) || point.y >= (chart?.paneSize().height ?? 0)) {
+    selectedBar.value = null
     crosshairChannel?.publish(null)
     return
   }
+  selectedBar.value = crosshairBars.get(crosshairTimeKey(event.time, props.period, props.market.id)) ?? null
   crosshairChannel?.publish({ source: props.market.id, period: props.period,
     key: crosshairTimeKey(event.time, props.period, props.market.id) })
 }
@@ -81,8 +108,13 @@ function receiveCrosshair(position: MacroCrosshairPosition | null) {
   try {
     const bar = position?.period === props.period ? crosshairBars.get(position.key) : undefined
     const x = bar ? chart.timeScale().timeToCoordinate(bar.time) : null
-    if (!bar || x === null || x < 0 || x >= chart.timeScale().width()) chart.clearCrosshairPosition()
-    else chart.setCrosshairPosition(bar.close, bar.time, series)
+    if (!bar || x === null || x < 0 || x >= chart.timeScale().width()) {
+      selectedBar.value = null
+      chart.clearCrosshairPosition()
+    } else {
+      selectedBar.value = bar
+      chart.setCrosshairPosition(bar.close, bar.time, series)
+    }
   } finally {
     applyingCrosshair = false
   }
@@ -91,6 +123,7 @@ function receiveCrosshair(position: MacroCrosshairPosition | null) {
 /** 离开来源图后清理所有同步线，避免停留在过期日期。 */
 function clearSyncedCrosshair() {
   pointerInside = false
+  selectedBar.value = null
   crosshairChannel?.publish(null)
 }
 
@@ -108,6 +141,10 @@ async function load() {
     const firstLoad = !hasData.value
     crosshairBars.clear()
     for (const bar of result.data) crosshairBars.set(crosshairTimeKey(bar.t, props.period, props.market.id), { time: bar.t as UTCTimestamp, close: bar.c })
+    const last = result.data[result.data.length - 1]
+    latestBar.value = last ? { time: last.t as UTCTimestamp, close: last.c } : null
+    // 定时刷新后更新比较基准，已移出缓存的光标数据不再继续显示。
+    if (selectedBar.value) selectedBar.value = crosshairBars.get(crosshairTimeKey(selectedBar.value.time, props.period, props.market.id)) ?? null
     series?.setData(result.data.map(bar => ({ time: bar.t as UTCTimestamp, open: bar.o, high: bar.h, low: bar.l, close: bar.c })))
     hasData.value = result.data.length > 0
     updatedAt.value = result.updatedAt
@@ -157,6 +194,8 @@ onMounted(() => {
 watch(() => props.period, () => {
   crosshairChannel?.publish(null)
   crosshairBars.clear()
+  selectedBar.value = null
+  latestBar.value = null
   series?.setData([])
   hasData.value = false
   updatedAt.value = null
@@ -178,6 +217,9 @@ onBeforeUnmount(() => {
 <style scoped>
 .macro-local-chart { position: relative; height: 100%; }
 .canvas { position: absolute; inset: 0 0 22px; }
+.crosshair-comparison { position: absolute; top: 6px; left: 8px; max-width: calc(100% - 16px); box-sizing: border-box; padding: 4px 6px; border-radius: 4px; background: rgba(17, 17, 17, 0.88); color: #d1d5db; font-size: 11px; line-height: 18px; pointer-events: none; z-index: 2; font-variant-numeric: tabular-nums; }
+.positive { color: #26a69a; }
+.negative { color: #ef5350; }
 .empty-state { position: absolute; inset: 0 0 22px; display: flex; align-items: center; justify-content: center; gap: 8px; color: #aeb5c3; font-size: 12px; background: #111; z-index: 1; }
 .empty-state button { background: #2962ff; color: white; border: none; border-radius: 3px; cursor: pointer; padding: 4px 8px; }
 .source-status { position: absolute; bottom: 0; left: 8px; right: 8px; height: 22px; line-height: 22px; color: #9299a5; font-size: 10px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
