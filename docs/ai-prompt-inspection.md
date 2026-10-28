@@ -11,6 +11,8 @@
 - 成功返回 `{ success: true, data: { strategyId, symbol, timestamp, messages } }`。`messages` 包含实际请求的 `system` 和 `user` 消息；用户消息即 `buildFullPrompt()` 的结果。
 - 此接口只读，不重新计算、不调用 AI、不下单。无效参数返回 400，未命中返回 404，响应禁止浏览器缓存。
 
+在完整请求接口追加 `&format=text&role=user`，直接返回用户消息正文（即 fullPrompt），保留原始换行；`role=system` 返回系统消息正文。纯文本模式省略 role 时默认 user，省略 format 时仍返回原来的完整 JSON。format 仅允许 json/text，role 仅允许 user/system，其他值返回400。缓存限制及精确时间戳匹配规则不变。
+
 完整提示词仅在真实 AI 分析成功解析后缓存于当前服务进程内，不写入 AI JSONL。保留最长 30 分钟、最多 100 条、总计 4 MiB；超限淘汰较早记录，单条大于总预算不缓存。服务重启、开发热重载或淘汰后不可恢复，旧记录不可追溯。多进程部署须访问产生该分析的进程。
 
 新增 AI 文件记录保留 `technicalData` 的 DI、成交量复算字段和精简的 `strategySnapshot`，但不包含 `fullPrompt`、系统提示词或 API 连接配置。
