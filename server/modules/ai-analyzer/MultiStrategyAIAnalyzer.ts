@@ -16,6 +16,9 @@ import type { PriceZone, SupportResistanceSnapshot } from '../../../types/suppor
 import type { IndicatorsHub } from '../indicators/IndicatorsHub'
 import { formatEnvironmentConfidence, type EnvironmentContext } from '../../../app/utils/environment-confidence'
 import { loadEnvironmentContext } from '../../utils/environment-context'
+import { createStrategySnapshot, createQuantitativeSnapshot } from '../../utils/ai-analysis-snapshot'
+import { aiPromptCache } from '../../utils/ai-prompt-cache'
+import { saveAIRules } from '../../utils/ai-rules-store'
 
 /** AI 只接收入场位置摘要；完整区域及时间信息仍由信号和交易记录保存。 */
 function formatSupportResistance(snapshot?: SupportResistanceSnapshot): string {
@@ -222,7 +225,9 @@ export class MultiStrategyAIAnalyzer {
       )
 
       // 3. 调用原有的 AI 分析函数
-      const aiResult = await this.callAI(fullPrompt, symbol, price, indicators, volume, strategyId, promptConfig, environmentContext)
+      const strategySnapshot = createStrategySnapshot(strategy, promptConfig)
+      const quantitativeSnapshot = createQuantitativeSnapshot(indicators, volume, candleProgress)
+      const aiResult = await this.callAI(fullPrompt, symbol, price, indicators, volume, strategyId, promptConfig, environmentContext, strategySnapshot, quantitativeSnapshot)
 
 
       // 即使是 IDLE 也返回完整信息，以便统一记录日志
@@ -814,7 +819,7 @@ ${historySection}
   /**
    * 保存AI分析结果到JSONL文件（批量写入）
    */
-  private async saveAIAnalysisToFile(analysis: AIAnalysis): Promise<void> {
+  private async saveAIAnalysisToFile(analysis: AIAnalysis, userPrompt?: string): Promise<void> {
     try {
       const saveConfig = this.getAiAnalysisSaveConfig()
       
@@ -833,6 +838,12 @@ ${historySection}
         return
       }
       
+      // 先确保持久化规则存在；失败时不写出无法追溯正文的悬空引用。
+      if (analysis.strategySnapshot?.rulesHash) {
+        if (userPrompt === undefined || await saveAIRules(userPrompt) !== analysis.strategySnapshot.rulesHash) {
+          throw new Error('AI 分析引用的规则与实际提示词不一致')
+        }
+      }
       // 使用批量写入器
       await getAIAnalysisWriter().write(analysis)
     } catch (error: any) {
@@ -851,7 +862,9 @@ ${historySection}
     volume: number = 0,
     strategyId: StrategyId,
     promptConfig?: AIPromptConfig,
-    environmentContext?: EnvironmentContext
+    environmentContext?: EnvironmentContext,
+    strategySnapshot?: AIAnalysis['strategySnapshot'],
+    quantitativeSnapshot?: ReturnType<typeof createQuantitativeSnapshot>
   ): Promise<AIAnalysis | null> {
     // 使用并发池控制AI调用并发数
     return concurrencyPoolManager.getAIPool().submit(async () => {
@@ -921,6 +934,7 @@ ${historySection}
         const normalizedScoreBreakdown = this.normalizeScoreBreakdown(aiResult.scoreBreakdown)
 
         const analysis: AIAnalysis = {
+          strategySnapshot,
           environmentContext,
           symbol,
           timestamp: Date.now(),
@@ -932,6 +946,7 @@ ${historySection}
           reasoning: reasoning,
           scoreBreakdown: normalizedScoreBreakdown,
           technicalData: {
+            ...quantitativeSnapshot,
             price,
             ...Object.fromEntries(emaEntries.map(item => [item.name, item.value])),
             ...(indicators.emaMap || {}),
@@ -957,8 +972,11 @@ ${historySection}
           },
         }
 
+        // 与分析记录 timestamp 精确关联；完整请求只保留在有界内存中，不写入 JSONL。
+        aiPromptCache.put({ strategyId, symbol, timestamp: analysis.timestamp, messages })
+
         // 异步保存到文件，不阻塞主流程
-        this.saveAIAnalysisToFile(analysis).catch(() => {})
+        this.saveAIAnalysisToFile(analysis, promptConfig?.userPrompt).catch(() => {})
 
         return analysis
       } catch (error: any) {

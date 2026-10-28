@@ -154,6 +154,28 @@ export interface TechnicalIndicators {
 
 // AI分析结果
 export interface AIAnalysis {
+  /** 请求发出前冻结的规则与配置；完整请求仅供短期内存查询，旧记录可能缺失。 */
+  strategySnapshot?: {
+    schemaVersion: 1 | 2 | 3 | 4 | 5
+    capturedAt: number
+    id?: string
+    name?: string
+    version?: number
+    updatedAt?: string
+    /** 旧版直接保存正文；新版通过 rulesHash 引用 data/ai-rules 中的规则。 */
+    userPrompt?: string
+    rulesHash?: string
+    marketData?: Pick<import('./strategy').MarketDataConfig, 'timeframes'>
+    indicators?: Array<Omit<import('./strategy').IndicatorConfig, 'id'>>
+    statistics?: Array<Omit<import('./strategy').StatisticsConfig, 'id'>>
+    riskManagement?: import('./strategy').Strategy['riskManagement']
+    executionConfig?: Pick<import('./strategy').ExecutionConfig, 'leverage' | 'dynamicLeverageMin' | 'dynamicLeverageMax'>
+    preScreenConfig?: import('./strategy').Strategy['preScreenConfig']
+    minConfidence?: number
+    minFinalScore?: number
+    entryThresholdMode?: import('./strategy').EntryThresholdMode
+    maxRiskLevel?: RiskLevel
+  }
   /** 提供给AI的环境置信度参考快照。 */
   environmentContext?: EnvironmentContext
   symbol: string
@@ -184,6 +206,25 @@ export interface AIAnalysis {
     adx?: number
     adxPeriodLabel?: string
     adxSlope?: number
+    /** DI 原始值与相邻 K 线变化；null 表示缺失或无效。 */
+    pdi?: number | null
+    mdi?: number | null
+    previousPdi?: number | null
+    previousMdi?: number | null
+    diSpread?: number | null
+    diGapChange?: number | null
+    atr?: number | null
+    enabledIndicators?: TechnicalIndicators['enabledIndicators']
+    candleTimestamp?: number | null
+    /** K 线进度使用 0～1 比例，与提示词预估口径一致。 */
+    candleProgress?: number | null
+    currentCandleVolume?: number | null
+    estimatedVolume?: number | null
+    volumeEmaAverage?: number | null
+    volumeEmaPeriod?: number | null
+    /** 倍数，例如 1.3；百分数乘100即可，旧版记录可能同时保存百分数。 */
+    estimatedVolumeEmaRatio?: number | null
+    estimatedVolumeEmaRatioPercent?: number | null
     support?: number
     resistance?: number
     [key: string]: any
