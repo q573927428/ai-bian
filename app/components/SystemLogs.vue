@@ -61,6 +61,7 @@
           <template v-if="hasDetailedLog(log.message)">
             <div class="log-summary-line">
               <span><b>[{{ log.category }}]</b> {{ getLogSummary(log.message) }}</span>
+              <el-button size="small" text type="primary" @click="openAnalysisDetail(log)">AI 详情</el-button>
             </div>
             <div v-if="showDetailedLogs" class="detailed-log">
               <!-- <div class="detailed-log-header">=== 详细AI日志 ===</div> -->
@@ -73,10 +74,30 @@
       <el-empty v-if="filteredLogs.length === 0" description="暂无日志" />
     </div>
   </el-drawer>
+  <el-dialog
+    v-model="analysisDetailVisible"
+    title="AI 分析详情"
+    width="min(860px, calc(100vw - 32px))"
+    append-to-body
+  >
+    <template v-if="selectedAnalysis">
+      <div class="analysis-detail-meta">
+        {{ dayjs(selectedAnalysis.timestamp).format('YYYY-MM-DD HH:mm:ss') }} · {{ selectedAnalysis.category }}
+      </div>
+      <p class="analysis-detail-summary">{{ getLogSummary(selectedAnalysis.message) }}</p>
+      <div class="analysis-detail-body detailed-log-content">{{ getDetailedLog(selectedAnalysis.message) }}</div>
+    </template>
+    <template #footer>
+      <el-button @click="analysisDetailVisible = false">关闭</el-button>
+      <el-button type="primary" :disabled="!selectedAnalysis || !getScanSymbol(selectedAnalysis)" @click="selectedAnalysis && viewAnalysisChart(selectedAnalysis)">
+        查看 K 线
+      </el-button>
+    </template>
+  </el-dialog>
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, h, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { ElMessage, ElNotification } from 'element-plus'
 import type { LogEntry } from '../../types'
 import { useBotStore } from '../stores/bot'
@@ -102,6 +123,38 @@ const visible = computed({
 })
 
 const botStore = useBotStore()
+const analysisDetailVisible = ref(false)
+// 保存点击时的结果快照，避免轮询清理日志后弹窗内容丢失。
+const selectedAnalysis = ref<LogEntry | null>(null)
+
+/** 新日志使用结构化交易对，历史日志从摘要回退读取。 */
+function getScanSymbol(log: LogEntry): string | undefined {
+  return log.data?.symbol || getLogSummary(log.message).match(/^\s*(\S+)\s+@/)?.[1]
+}
+
+/** 查询该策略和交易对最近一次实际请求；日志时间不等于分析时间，不能作为精确查询时间戳。 */
+function getUserPromptUrl(log: LogEntry): string | undefined {
+  const strategyId = log.data?.strategyId || getLogSummary(log.message).match(/\[([^\]]+)\]/)?.[1]
+  const symbol = getScanSymbol(log)
+  if (!strategyId || !symbol) return undefined
+  const query = new URLSearchParams({ strategyId, symbol, format: 'text' })
+  return `/api/ai/prompt?${query.toString()}`
+}
+
+/** 展示本次扫描的完整 AI 结果，保持当前图表不变。 */
+function openAnalysisDetail(log: LogEntry): void {
+  selectedAnalysis.value = { ...log }
+  analysisDetailVisible.value = true
+}
+
+/** 从详情或通知切换到扫描对应的交易对及周期。 */
+function viewAnalysisChart(log: LogEntry): void {
+  const symbol = getScanSymbol(log)
+  if (!symbol) return
+  analysisDetailVisible.value = false
+  visible.value = false
+  emit('select-symbol', symbol, getScanTimeframe(log))
+}
 
 // 日志关键字，可自由匹配日志分类或正文内容
 const logKeyword = ref<string>('')
@@ -312,12 +365,46 @@ function showAnalysisNotification(log: LogEntry): void {
     type,
     duration: 8000,
     customClass: `ai-analysis-notification ${directionClass}`.trim(),
-    message: `评分 ${score} · 置信度 ${confidence} · ${strategyId}`,
+    message: h('div', [
+      h('div', `评分 ${score} · 置信度 ${confidence} · ${strategyId}`),
+      h('div', { class: 'ai-analysis-actions' }, [
+        h('button', {
+          type: 'button',
+          class: 'ai-analysis-action',
+          onClick: (event: MouseEvent) => {
+            // 详情按钮阻止冒泡，避免同时触发通知主体的 K 线跳转。
+            event.stopPropagation()
+            openAnalysisDetail(log)
+            notification.close()
+          }
+        }, 'AI 详情'),
+        h('button', {
+          type: 'button',
+          class: 'ai-analysis-action',
+          onClick: (event: MouseEvent) => {
+            event.stopPropagation()
+            viewAnalysisChart(log)
+            notification.close()
+          }
+        }, '查看 K 线'),
+        h('a', {
+          class: 'ai-analysis-action',
+          href: getUserPromptUrl(log),
+          target: '_blank',
+          rel: 'noopener noreferrer',
+          title: '查看该策略和交易对最近一次分析的用户提示词（缓存保留 30 分钟）',
+          onClick: (event: MouseEvent) => {
+            // 链接沿用浏览器新标签页行为，阻止通知主体同时跳转 K 线。
+            event.stopPropagation()
+          }
+        }, '查看提示词')
+      ])
+    ]),
     position: 'bottom-right',
     // 在固定行情栏上方保留 16px 间距，实际高度包含移动端底部安全区。
     offset: Math.ceil(document.querySelector('.market-ticker')?.getBoundingClientRect().height ?? 0) + 16,
     onClick: () => {
-      emit('select-symbol', symbol, getScanTimeframe(log))
+      viewAnalysisChart(log)
       notification.close()
     },
     onClose: () => {
@@ -415,6 +502,23 @@ onUnmounted(() => {
   width: 100%;
   gap: 16px;
   padding-bottom: 10px;
+}
+
+.analysis-detail-meta {
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.analysis-detail-summary {
+  overflow-wrap: anywhere;
+}
+
+.analysis-detail-body {
+  max-height: 55vh;
+  overflow-y: auto;
+  padding: 16px;
+  border-radius: 6px;
+  background: var(--bg-code-block);
 }
 
 .filter-group {
@@ -643,5 +747,27 @@ onUnmounted(() => {
 .ai-analysis-notification .el-notification__content {
   font-size: 12px;
   text-align: left;
+}
+.ai-analysis-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-top: 8px;
+}
+.ai-analysis-action {
+  padding: 2px 0;
+  border: 0;
+  background: transparent;
+  color: var(--el-color-primary);
+  font: inherit;
+  cursor: pointer;
+  text-decoration: none;
+}
+.ai-analysis-action:hover {
+  text-decoration: underline;
+}
+.ai-analysis-action:focus-visible {
+  outline: 2px solid var(--el-color-primary);
+  outline-offset: 2px;
 }
 </style>
