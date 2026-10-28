@@ -1134,13 +1134,12 @@ onUnmounted(() => {
 
 <style scoped>
 .kline-chart-simple-container {
-  /* 外层引擎容器会裁切溢出内容，负边距会把控制栏顶部移出可视区域。 */
+  /* 保留完整布局高度，避免负边距触发外层引擎容器的纵向滚动。 */
   margin: 0;
   overflow: hidden;
   background: var(--bg-card);
   border-color: var(--border-color);
   transition: all 0.3s ease;
-  margin-bottom: -50px;
 }
 
 .kline-chart-simple-container:fullscreen {
@@ -1150,11 +1149,6 @@ onUnmounted(() => {
   height: 100vh;
   margin: 0;
   padding: 0;
-}
-
-/* 分时保留完整底部空间，避免继承 K 线负边距后被外层卡片裁掉时间轴。 */
-.kline-chart-simple-container.timeline-active {
-  margin-bottom: 0;
 }
 
 .chart-container {
