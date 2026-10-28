@@ -9,6 +9,9 @@ export interface MarketMetric<T> {
 /** 本站市场概览接口，不向浏览器暴露上游请求。 */
 export interface MarketOverview {
   fearGreed: MarketMetric<{ score: number; timestamp: number }>
+  /** Binance 原始汇率：1 USD 对应的日元及人民币数量。 */
+  jpyUsd: MarketMetric<number>
+  cnyUsd: MarketMetric<number>
   dominance: MarketMetric<{ btc: number; eth: number }>
   btcEtf: MarketMetric<EtfNetFlow>
   ethEtf: MarketMetric<EtfNetFlow>

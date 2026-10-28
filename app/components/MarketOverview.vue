@@ -10,6 +10,14 @@
       <el-tag v-if="score !== undefined" size="small" class="sentiment-tag" :style="sentimentTagStyle" effect="light">{{ sentiment }}</el-tag><small v-if="overview?.fearGreed.stale">（待更新）</small>
     </span>
     </MarketMetricTooltip>
+    <span class="metric-group etf-group">
+      <span class="metric-label">美元汇率</span>
+      <template v-for="item in currencyItems" :key="item.currency">
+        <MarketMetricTooltip :details="`${sourceTitle('Binance', item.metric)}；汇率口径：1 美元 = ${item.metric?.value ?? '--'} ${item.currency}`" @visible-change="tooltipVisibility">
+          <span class="metric-group">{{ item.currency }} <strong>{{ item.metric?.value == null ? '--' : item.metric.value.toFixed(2) }}</strong><small v-if="item.metric?.stale">（待更新）</small></span>
+        </MarketMetricTooltip>
+      </template>
+    </span>
     <MarketMetricTooltip :details="`${sourceTitle('CoinGecko', overview?.dominance)}；统计口径：币种市值占加密货币总市值比例`" @visible-change="tooltipVisibility">
     <span class="metric-group dominance-group">
       <span class="metric-label">市占率</span> <span class="metric-value">BTC <strong class="btc-dominance">{{ percent(overview?.dominance.value?.btc) }}</strong></span>
@@ -82,6 +90,10 @@ const sentimentTagStyle = computed(() => ({
   '--el-tag-border-color': `color-mix(in srgb, ${sentimentColor.value} 35%, transparent)`,
 }))
 const percent = (value?: number) => value === undefined ? '--' : `${value.toFixed(2)}%`
+const currencyItems = computed(() => [
+  { currency: '日元', metric: overview.value?.jpyUsd },
+  { currency: '人民币', metric: overview.value?.cnyUsd },
+])
 const etfItems = computed(() => [
   { label: 'BTC', metric: overview.value?.btcEtf },
   { label: 'ETH', metric: overview.value?.ethEtf },

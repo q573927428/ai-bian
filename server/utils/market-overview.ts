@@ -6,6 +6,8 @@ import { markTrendStale, persistTrendHistories } from './crypto-trends'
 export const MARKET_REFRESH_MS = 60 * 60_000
 const cache: MarketOverview = {
   fearGreed: { value: null, updatedAt: null, stale: true },
+  jpyUsd: { value: null, updatedAt: null, stale: true },
+  cnyUsd: { value: null, updatedAt: null, stale: true },
   dominance: { value: null, updatedAt: null, stale: true },
   btcEtf: { value: null, updatedAt: null, stale: true },
   ethEtf: { value: null, updatedAt: null, stale: true },
@@ -28,6 +30,26 @@ async function readJson(url: string): Promise<any> {
 export function refreshMarketOverview(): Promise<void> {
   if (pending) return pending
   pending = Promise.allSettled([
+    (async () => {
+      try {
+        const data = await readJson('https://www.binance.com/bapi/asset/v1/public/asset-service/product/currency')
+        if (data?.code !== '000000' || !Array.isArray(data.data)) throw new Error('汇率数据格式异常')
+        // 两种汇率独立校验，单个交易对缺失时保留该项旧值，不影响另一项更新。
+        for (const [key, pair] of [['jpyUsd', 'JPY_USD'], ['cnyUsd', 'CNY_USD']] as const) {
+          const rate = data.data.find((row: { pair?: string }) => row?.pair === pair)?.rate
+          if (typeof rate === 'number' && Number.isFinite(rate) && rate > 0) {
+            cache[key] = { value: rate, updatedAt: new Date().toISOString(), stale: false }
+          } else {
+            cache[key].stale = true
+            console.warn(`[MarketOverview] ${pair} 汇率数据异常`)
+          }
+        }
+      } catch (error) {
+        cache.jpyUsd.stale = true
+        cache.cnyUsd.stale = true
+        console.warn('[MarketOverview] Binance 汇率同步失败:', error instanceof Error ? error.message : error)
+      }
+    })(),
     ...MARKET_AMOUNT_KEYS.map(async (key) => {
       try {
         const value = await fetchMarketData(key)
