@@ -23,6 +23,7 @@ import { computed, ref, watch, onMounted, onBeforeUnmount, inject } from 'vue'
 import { createChart, ColorType, CandlestickSeries, TickMarkType, type Time, type IChartApi, type ISeriesApi, type UTCTimestamp, type MouseEventParams } from 'lightweight-charts'
 import type { MacroMarket, MacroPeriod, MacroKlineResponse } from '../../../types/macro-market'
 import { macroCrosshairKey, crosshairTimeKey, type MacroCrosshairPosition } from './crosshair-sync'
+import { macroViewportKey, logicalToCalendar, calendarToLogical, type MacroViewport } from './viewport-sync'
 
 const props = defineProps<{ market: MacroMarket; period: MacroPeriod }>()
 const DEFAULT_VISIBLE_BARS = 366
@@ -55,6 +56,46 @@ let request: AbortController | undefined
 let timer: ReturnType<typeof setInterval> | undefined
 let disposed = false
 const crosshairChannel = inject(macroCrosshairKey, undefined)
+const viewportChannel = inject(macroViewportKey, undefined)
+let unsubscribeViewport: (() => void) | undefined
+let applyingViewport = false
+let calendarKeys: number[] = []
+let viewportFrame: number | undefined
+const periodSeconds = () => ({ '15m': 900, '1h': 3600, '4h': 14400, '1d': 86400, '1w': 604800 })[props.period]
+
+/** 只由鼠标所在图表广播横向窗口；每帧合并事件，避免十二张图重复重绘。 */
+function publishViewport() {
+  if (!pointerInside || applyingViewport || !viewportChannel?.enabled.value || !calendarKeys.length) return
+  if (viewportFrame !== undefined) return
+  viewportFrame = requestAnimationFrame(() => {
+    viewportFrame = undefined
+    if (!pointerInside || applyingViewport || !viewportChannel.enabled.value || !calendarKeys.length) return
+    const range = chart?.timeScale().getVisibleLogicalRange()
+    if (!range) return
+    viewportChannel.publish({ source: props.market.id, period: props.period,
+      from: logicalToCalendar(calendarKeys, range.from, periodSeconds()),
+      to: logicalToCalendar(calendarKeys, range.to, periodSeconds()) })
+  })
+}
+
+/** 各市场用自己的交易日历换算窗口，仅修改时间轴，绝不修改价格轴。 */
+function receiveViewport(viewport: MacroViewport) {
+  if (!chart || !calendarKeys.length || !viewportChannel?.enabled.value
+    || viewport.source === props.market.id || viewport.period !== props.period) return
+  applyingViewport = true
+  try {
+    chart.timeScale().setVisibleLogicalRange({
+      from: calendarToLogical(calendarKeys, viewport.from, periodSeconds()),
+      to: calendarToLogical(calendarKeys, viewport.to, periodSeconds()),
+    })
+  } finally { applyingViewport = false }
+}
+
+// 重新开启时沿用该周期最近一次联动窗口；关闭后各图可以独立操作。
+watch(() => viewportChannel?.enabled.value, enabled => {
+  const viewport = viewportChannel?.latest.get(props.period)
+  if (enabled && viewport) receiveViewport(viewport)
+})
 let pointerInside = false
 let applyingCrosshair = false
 let unsubscribeCrosshair: (() => void) | undefined
@@ -145,7 +186,17 @@ async function load() {
     latestBar.value = last ? { time: last.t as UTCTimestamp, close: last.c } : null
     // 定时刷新后更新比较基准，已移出缓存的光标数据不再继续显示。
     if (selectedBar.value) selectedBar.value = crosshairBars.get(crosshairTimeKey(selectedBar.value.time, props.period, props.market.id)) ?? null
+    // 更新数据前保存日期窗口，新增 K 线或历史扩充时也不会挤走用户观察位置。
+    const previousRange = chart?.timeScale().getVisibleLogicalRange()
+    const previousViewport = !firstLoad && previousRange && calendarKeys.length ? {
+      source: '', period: props.period,
+      from: logicalToCalendar(calendarKeys, previousRange.from, periodSeconds()),
+      to: logicalToCalendar(calendarKeys, previousRange.to, periodSeconds()),
+    } : undefined
+    calendarKeys = result.data.map(bar => crosshairTimeKey(bar.t, props.period, props.market.id))
+    applyingViewport = true
     series?.setData(result.data.map(bar => ({ time: bar.t as UTCTimestamp, open: bar.o, high: bar.h, low: bar.l, close: bar.c })))
+    applyingViewport = false
     hasData.value = result.data.length > 0
     updatedAt.value = result.updatedAt
     error.value = result.error || (!hasData.value && props.market.source === 'binance' ? '暂无本地数据，请添加交易对并等待同步' : '')
@@ -156,6 +207,18 @@ async function load() {
         from: count - Math.min(DEFAULT_VISIBLE_BARS, count) - 0.5,
         to: count - 0.5 + RIGHT_OFFSET_BARS,
       })
+    }
+    const sharedViewport = viewportChannel?.enabled.value ? viewportChannel.latest.get(props.period) : undefined
+    if (sharedViewport && sharedViewport.source !== props.market.id) receiveViewport(sharedViewport)
+    else if (previousViewport && chart && calendarKeys.length) {
+      // 关闭联动时仍保持本图窗口，恢复过程不向其他图广播。
+      applyingViewport = true
+      try {
+        chart.timeScale().setVisibleLogicalRange({
+          from: calendarToLogical(calendarKeys, previousViewport.from, periodSeconds()),
+          to: calendarToLogical(calendarKeys, previousViewport.to, periodSeconds()),
+        })
+      } finally { applyingViewport = false }
     }
   } catch (cause) {
     if (!disposed && !controller.signal.aborted) error.value = '读取失败，请稍后重试'
@@ -186,6 +249,8 @@ onMounted(() => {
       : { type: 'price', precision: props.market.id === 'btc' ? 1 : 2, minMove: props.market.id === 'btc' ? 0.1 : 0.01 },
   })
   chart.subscribeCrosshairMove(onCrosshairMove)
+  chart.timeScale().subscribeVisibleLogicalRangeChange(publishViewport)
+  unsubscribeViewport = viewportChannel?.subscribe(receiveViewport)
   unsubscribeCrosshair = crosshairChannel?.subscribe(receiveCrosshair)
   void load()
   timer = setInterval(() => { if (!document.hidden && !loading.value) void load() }, 30000)
@@ -194,6 +259,7 @@ onMounted(() => {
 watch(() => props.period, () => {
   crosshairChannel?.publish(null)
   crosshairBars.clear()
+  calendarKeys = []
   selectedBar.value = null
   latestBar.value = null
   series?.setData([])
@@ -208,6 +274,9 @@ onBeforeUnmount(() => {
   request?.abort()
   clearSyncedCrosshair()
   unsubscribeCrosshair?.()
+  unsubscribeViewport?.()
+  if (viewportFrame !== undefined) cancelAnimationFrame(viewportFrame)
+  chart?.timeScale().unsubscribeVisibleLogicalRangeChange(publishViewport)
   chart?.unsubscribeCrosshairMove(onCrosshairMove)
   if (timer) clearInterval(timer)
   chart?.remove()

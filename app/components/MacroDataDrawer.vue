@@ -3,6 +3,8 @@
   <component :is="embedded ? 'section' : ElDrawer" v-model="visible" :class="embedded ? 'macro-content' : 'macro-drawer'" title="宏观数据" direction="rtl" size="90%" destroy-on-close>
     <div class="macro-toolbar">
       <span class="overview-title">全球流动性+市场风险偏好总览</span>
+      <div class="macro-toolbar-actions">
+      <el-switch v-model="timeSyncEnabled" :disabled="dataSource !== 'local'" active-text="时间联动" size="small" :title="dataSource === 'local' ? '同步同周期图表的横向缩放和拖动，价格轴保持独立' : '时间联动仅支持本地图表'" />
       <div class="periods" aria-label="数据源">
         <button type="button" :class="{ active: dataSource === 'local' }" :aria-pressed="dataSource === 'local'" @click="dataSource = 'local'">本地数据</button>
         <button type="button" :class="{ active: dataSource === 'tradingview' }" :aria-pressed="dataSource === 'tradingview'" @click="dataSource = 'tradingview'">TradingView</button>
@@ -12,6 +14,7 @@
           :class="{ active: globalPeriod === period.value }"
           :aria-pressed="globalPeriod === period.value"
           @click="setGlobalPeriod(period.value)">{{ period.label }}</button>
+      </div>
       </div>
     </div>
 
@@ -45,6 +48,25 @@ import { ElDrawer } from 'element-plus'
 import { MACRO_MARKETS } from '../../types/macro-market'
 import MacroKLineChart from './macro-data/MacroKLineChart.vue'
 import { macroCrosshairKey, type MacroCrosshairPosition } from './macro-data/crosshair-sync'
+import { macroViewportKey, type MacroViewport } from './macro-data/viewport-sync'
+import type { MacroPeriod } from '../../types/macro-market'
+
+const timeSyncEnabled = ref(true)
+const viewportListeners = new Set<(viewport: MacroViewport) => void>()
+const latestViewports = new Map<MacroPeriod, MacroViewport>()
+provide(macroViewportKey, {
+  enabled: timeSyncEnabled,
+  latest: latestViewports,
+  publish: viewport => {
+    if (!timeSyncEnabled.value) return
+    latestViewports.set(viewport.period, viewport)
+    viewportListeners.forEach(listener => listener(viewport))
+  },
+  subscribe: listener => {
+    viewportListeners.add(listener)
+    return () => { viewportListeners.delete(listener) }
+  },
+})
 
 // 通道仅在当前图表网格内广播，组件卸载时各自移除订阅。
 const crosshairListeners = new Set<(position: MacroCrosshairPosition | null) => void>()
@@ -110,6 +132,7 @@ function chartUrl(symbol: string, period: Period): string {
 .macro-content { padding: 6px; background: #080808; }
 .macro-toolbar { min-height: 34px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 12px; padding: 0 5px 5px; box-sizing: border-box; background: #080808; }
 .overview-title { color: #f3f4f6; font-size: 14px; font-weight: 600; line-height: 22px; }
+.macro-toolbar-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; }
 .chart-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
 .chart-panel { min-width: 0; height: calc((100vh - 118px) / 3); min-height: 235px; border: 1px solid #343434; border-radius: 5px; overflow: hidden; background: #111; }
 .panel-header { height: 32px; display: flex; align-items: center; justify-content: space-between; gap: 5px; padding: 0 8px; border-bottom: 1px solid #333; box-sizing: border-box; }
