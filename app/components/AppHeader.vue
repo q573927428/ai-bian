@@ -4,8 +4,6 @@
     <HomeHeader :is-running="!!botStore.state?.isRunning" :password-verified="passwordVerified" :active-panels="activePanels" @navigate="handleNavigate" @performance="showPerformance = true" @unlock="handleUnlock" />
     <ClientOnly>
       <PasswordDialog v-model="showPasswordDialog" @success="handlePasswordSuccess" />
-      <MacroDataDrawer v-model="showMacro" />
-      <CryptoTrendsDrawer v-model="showTrends" />
       <el-dialog v-model="showPerformance" title="系统性能面板" :style="{ width: '90%', maxWidth: '600px' }" draggable destroy-on-close>
         <PerformancePanel />
       </el-dialog>
@@ -19,20 +17,16 @@ import { usePageUnlock } from '../composables/usePageUnlock'
 const route = useRoute()
 const botStore = useBotStore()
 const headerRoot = ref<HTMLElement>()
-const showMacro = ref(false)
-const showTrends = ref(false)
 const showPerformance = ref(false)
 const { passwordVerified, showPasswordDialog, handleUnlock, handlePasswordSuccess, handleOpenProtectedPanel } = usePageUnlock({
   onOpen: () => { void navigateTo('/orders') },
   onLock: () => {}
 })
-const activePanels = computed(() => ({ home: route.path === '/', indicators: route.path === '/indicators', orders: route.path === '/orders', macro: showMacro.value, trends: showTrends.value }))
-/** 页面入口直接跳转，公共面板在当前页打开，订单入口沿用密码门禁。 */
+const activePanels = computed(() => ({ home: route.path === '/', indicators: route.path === '/indicators', orders: route.path === '/orders', macro: route.path === '/macro', trends: route.path === '/trends' }))
+/** 行情入口跳转独立页面，订单入口沿用密码门禁。 */
 function handleNavigate(target: HomeNavigationTarget) {
-  if (target === 'macro') { showMacro.value = true; return }
-  if (target === 'trends') { showTrends.value = true; return }
   if (target === 'orders') { handleOpenProtectedPanel('orders'); return }
-  if (target === 'home' || target === 'indicators') void navigateTo(target === 'home' ? '/' : '/indicators')
+  void navigateTo(target === 'home' ? '/' : `/${target}`)
 }
 let observer: ResizeObserver | undefined
 onMounted(() => {

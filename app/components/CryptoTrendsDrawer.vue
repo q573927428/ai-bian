@@ -1,6 +1,6 @@
 <!-- ==================== 加密市场六图趋势看板 ==================== -->
 <template>
-  <el-drawer v-model="visible" title="加密市场趋势" size="90%" destroy-on-close class="crypto-trends-drawer">
+  <component :is="embedded ? 'section' : ElDrawer" v-model="visible" title="加密市场趋势" size="90%" destroy-on-close :class="embedded ? 'trends-content' : 'crypto-trends-drawer'">
     <div class="trends-toolbar">
       <span>价格 · 机构资金 · 流动性 · 杠杆风险</span>
       <div class="toolbar-actions">
@@ -23,15 +23,17 @@
         <footer>{{ panel.note }}</footer>
       </section>
     </div>
-  </el-drawer>
+  </component>
 </template>
 <script setup lang="ts">
 import { computed, onUnmounted, ref, watch } from 'vue'
+import { ElDrawer } from 'element-plus'
 import type { CryptoTrendsResponse, CryptoTrendKey, TrendPoint } from '../../types/crypto-trends'
 import { rollingDisclosedFlows, changeOver30Days } from '../utils/crypto-trend-calculations'
 import CryptoTrendChart from './CryptoTrendChart.vue'
 
-const props = defineProps<{ modelValue: boolean }>()
+// 页面模式沿用抽屉的数据请求与卸载清理，避免维护两套业务逻辑。
+const props = withDefaults(defineProps<{ modelValue: boolean; embedded?: boolean }>(), { embedded: false })
 const emit = defineEmits<{ 'update:modelValue': [value: boolean] }>()
 const visible = computed({ get: () => props.modelValue, set: value => emit('update:modelValue', value) })
 const data = ref<CryptoTrendsResponse | null>(null)
@@ -78,6 +80,7 @@ watch(visible, value => {
 onUnmounted(() => { clearInterval(timer); controller?.abort() })
 </script>
 <style scoped>
+.trends-content { padding: 10px; background: var(--bg-main); }
 .trends-toolbar { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 10px; color: var(--text-regular); font-size: 13px; }
 .toolbar-actions { display: flex; gap: 10px; align-items: center; }
 .trends-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }

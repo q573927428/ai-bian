@@ -1,6 +1,6 @@
 <!-- ==================== 宏观数据抽屉 ==================== -->
 <template>
-  <el-drawer v-model="visible" class="macro-drawer" title="宏观数据" direction="rtl" size="90%" destroy-on-close>
+  <component :is="embedded ? 'section' : ElDrawer" v-model="visible" :class="embedded ? 'macro-content' : 'macro-drawer'" title="宏观数据" direction="rtl" size="90%" destroy-on-close>
     <div class="macro-toolbar">
       <span class="overview-title">全球流动性+市场风险偏好总览</span>
       <div class="periods" aria-label="数据源">
@@ -36,11 +36,12 @@
         </div>
       </section>
     </div>
-  </el-drawer>
+  </component>
 </template>
 
 <script setup lang="ts">
 import { computed, reactive, ref, onMounted, watch, provide } from 'vue'
+import { ElDrawer } from 'element-plus'
 import { MACRO_MARKETS } from '../../types/macro-market'
 import MacroKLineChart from './macro-data/MacroKLineChart.vue'
 import { macroCrosshairKey, type MacroCrosshairPosition } from './macro-data/crosshair-sync'
@@ -55,7 +56,8 @@ provide(macroCrosshairKey, {
   },
 })
 
-const props = defineProps<{ modelValue: boolean }>()
+// 页面模式复用完整看板，抽屉模式保留给已有入口。
+const props = withDefaults(defineProps<{ modelValue: boolean; embedded?: boolean }>(), { embedded: false })
 const emit = defineEmits<{ 'update:modelValue': [value: boolean] }>()
 const visible = computed({
   get: () => props.modelValue,
@@ -105,6 +107,7 @@ function chartUrl(symbol: string, period: Period): string {
 </script>
 
 <style scoped>
+.macro-content { padding: 6px; background: #080808; }
 .macro-toolbar { min-height: 34px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 12px; padding: 0 5px 5px; box-sizing: border-box; background: #080808; }
 .overview-title { color: #f3f4f6; font-size: 14px; font-weight: 600; line-height: 22px; }
 .chart-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
@@ -123,6 +126,13 @@ function chartUrl(symbol: string, period: Period): string {
 :global(.macro-drawer .el-drawer__header) { margin-bottom: 0; padding: 12px 16px; background: #111; color: #f3f4f6; }
 :global(.macro-drawer .el-drawer__title) { color: #f3f4f6; }
 :global(.macro-drawer .el-drawer__body) { padding: 6px; overflow: auto; background: #080808; }
+/* 独立页面按实际可用高度分配三行，包含工具栏、间距和边框，避免轻微溢出。 */
+@media (min-width: 1101px) {
+  .macro-content { height: 100%; box-sizing: border-box; display: flex; flex-direction: column; }
+  .macro-content .macro-toolbar { flex-shrink: 0; }
+  .macro-content .chart-grid { flex: 1; min-height: 0; grid-template-rows: repeat(3, minmax(235px, 1fr)); }
+  .macro-content .chart-panel { height: auto; box-sizing: border-box; }
+}
 @media (max-width: 1100px) { .chart-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .chart-panel { height: 300px; } }
 @media (max-width: 680px) { .chart-grid { grid-template-columns: minmax(0, 1fr); } .chart-panel { height: 300px; } .panel-caption span { display: none; } }
 </style>

@@ -11,7 +11,7 @@
       <!-- 桌面直接显示导航，移动端通过右上角菜单展开同一组入口。 -->
       <nav id="header-navigation" class="header-navigation" :class="{ 'is-open': mobileNavOpen }" aria-label="行情导航">
         <div class="navigation-inner">
-          <button v-for="item in navigationItems" :key="item.label" type="button" class="navigation-item" :class="{ 'is-active': activePanels[item.id] }" :aria-haspopup="item.id === 'macro' || item.id === 'trends' ? 'dialog' : undefined" @click="handleNavigate(item.id)">
+          <button v-for="item in navigationItems" :key="item.label" type="button" class="navigation-item" :class="{ 'is-active': activePanels[item.id] }" :aria-current="activePanels[item.id] ? 'page' : undefined" @click="handleNavigate(item.id)">
             <span class="navigation-icon">
               <el-icon :size="18" aria-hidden="true">
                 <component :is="item.icon" />
