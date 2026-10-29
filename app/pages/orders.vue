@@ -1,14 +1,6 @@
 <!-- ==================== 订单复盘页面：共用首页导航与等宽复盘布局 ==================== -->
 <template>
   <div class="orders-page">
-    <HomeHeader
-      :is-running="!!botStore.state?.isRunning"
-      :password-verified="passwordVerified"
-      :active-panels="{ orders: true }"
-      @navigate="handleNavigate"
-      @performance="showPerformanceDialog = true"
-      @unlock="handleUnlock"
-    />
     <main class="orders-main">
     <ClientOnly>
       <PasswordDialog v-model="showPasswordDialog" @success="handlePasswordSuccess" />
@@ -36,9 +28,6 @@
       <el-empty v-else description="解锁后查看订单复盘">
         <el-button type="primary" @click="handleUnlock">解锁订单</el-button>
       </el-empty>
-      <el-dialog v-model="showPerformanceDialog" title="系统性能面板" :style="{ width: '90%', maxWidth: '600px' }" draggable destroy-on-close>
-        <PerformancePanel />
-      </el-dialog>
     </ClientOnly>
     </main>
   </div>
@@ -47,9 +36,6 @@
 <script setup lang="ts">
 import { computed, ref, onMounted } from 'vue'
 import type { TradeHistory as HistoricalOrder } from '../../types'
-import type { HomeNavigationTarget } from '../../types/home'
-import HomeHeader from '../components/HomeHeader.vue'
-import PerformancePanel from '../components/PerformancePanel.vue'
 import { useBotStore } from '../stores/bot'
 import TradeHistory from '../components/TradeHistory.vue'
 import TradeOrderDetail from '../components/TradeOrderDetail.vue'
@@ -60,22 +46,12 @@ import { formatTradePrice } from '../components/kline-chart/utils/kline-formatte
 
 const selectedOrder = ref<HistoricalOrder | null>(null)
 const botStore = useBotStore()
-const showPerformanceDialog = ref(false)
 // 快照周期是旧订单的可靠回退来源，缺失时使用现有图表默认的 1h。
 const orderTimeframe = computed(() => selectedOrder.value?.mainTimeframe || selectedOrder.value?.entrySupportResistance?.timeframe || '1h')
 const { passwordVerified, showPasswordDialog, handleUnlock, handlePasswordSuccess } = usePageUnlock({
   onOpen: () => {},
   onLock: () => { selectedOrder.value = null }
 })
-
-/** 共用导航的行情入口返回首页后打开对应面板，订单入口保持当前复盘。 */
-function handleNavigate(target: HomeNavigationTarget) {
-  if (target === 'home') {
-    void navigateTo('/')
-    return
-  }
-  if (target !== 'orders') void navigateTo({ path: '/', query: { panel: target } })
-}
 
 // 直接访问订单页时也加载真实运行状态，供共用头部和图表配置使用。
 onMounted(() => { void botStore.fetchStatus() })
@@ -89,8 +65,8 @@ function selectOrder(order: HistoricalOrder) {
 <style scoped>
 .orders-page {
   /* AppFooter 在文档流中另占一行，页面需扣除其高度，避免空白区域撑出整页滚动。 */
-  min-height: calc(100vh - var(--app-footer-height, 27px));
-  min-height: calc(100dvh - var(--app-footer-height, 27px));
+  min-height: calc(100vh - var(--app-footer-height, 27px) - var(--app-header-height, 60px));
+  min-height: calc(100dvh - var(--app-footer-height, 27px) - var(--app-header-height, 60px));
   box-sizing: border-box;
   background: var(--bg-main);
 }

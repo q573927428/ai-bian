@@ -1,13 +1,13 @@
 // ==================== 首页解锁门禁与面板恢复回归测试 ====================
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { createRenderer } from 'vue'
-import { usePageUnlock } from '../app/composables/usePageUnlock.ts'
+import { createRenderer, ref } from 'vue'
+import { PAGE_UNLOCK_KEY, usePageUnlock } from '../app/composables/usePageUnlock.ts'
 
 const storageKey = 'page_password_verified'
 
 /** 使用无 DOM 渲染器运行真实挂载钩子，验证存储恢复而不启动交易服务。 */
-function mountUnlock(t, stored) {
+function mountUnlock(t, stored, shared = false) {
   const previousStorage = globalThis.localStorage
   const storage = new Map(stored === undefined ? [] : [[storageKey, stored]])
   globalThis.localStorage = {
@@ -23,20 +23,39 @@ function mountUnlock(t, stored) {
   const opened = []
   let lockCount = 0
   let unlock
+  let peer
+  let peerLockCount = 0
   const app = renderer.createApp({
     setup() {
       unlock = usePageUnlock({ onOpen: panel => opened.push(panel), onLock: () => lockCount++ })
+      if (shared) peer = usePageUnlock({ onOpen: panel => opened.push(`peer:${panel}`), onLock: () => peerLockCount++ })
       return () => null
     }
   })
+  if (shared) app.provide(PAGE_UNLOCK_KEY, { passwordVerified: ref(false), hasPassword: ref(false) })
   app.mount({})
   t.after(() => {
     app.unmount()
     if (previousStorage === undefined) delete globalThis.localStorage
     else globalThis.localStorage = previousStorage
   })
-  return { unlock, opened, storage, get lockCount() { return lockCount } }
+  return { unlock, peer, opened, storage, get lockCount() { return lockCount }, get peerLockCount() { return peerLockCount } }
 }
+
+test('全局头部与页面共享验证结果，待办独立且锁定会同时关闭受保护面板', t => {
+  const fixture = mountUnlock(t, undefined, true)
+  fixture.unlock.handleOpenProtectedPanel('orders')
+  assert.equal(fixture.peer.showPasswordDialog.value, false)
+  fixture.unlock.handlePasswordSuccess()
+  assert.equal(fixture.peer.passwordVerified.value, true)
+  assert.equal(fixture.peer.hasPassword.value, true)
+  fixture.peer.handleOpenProtectedPanel('config')
+  assert.deepEqual(fixture.opened, ['orders', 'peer:config'])
+  fixture.peer.clearPassword()
+  assert.equal(fixture.unlock.passwordVerified.value, false)
+  assert.equal(fixture.lockCount, 1)
+  assert.equal(fixture.peerLockCount, 1)
+})
 
 for (const panel of ['config', 'strategies', 'orders']) {
   test(`${panel} 在验证前不打开，验证成功后恢复且已解锁可直接打开`, t => {

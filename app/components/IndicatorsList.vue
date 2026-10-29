@@ -1,5 +1,6 @@
 <template>
-  <el-drawer
+  <component
+    :is="embedded ? 'section' : ElDrawer"
     v-model="visible"
     class="indicators-drawer"
     title="指标看板"
@@ -18,17 +19,20 @@
         <el-radio-button value="反转">反转观察</el-radio-button>
         <el-radio-button value="观望">分歧观望</el-radio-button>
       </el-radio-group>
+      <el-input v-model="symbolSearch" class="symbol-search" size="small" placeholder="搜索交易对" aria-label="搜索交易对" clearable>
+        <template #prefix><el-icon><ElIconSearch /></el-icon></template>
+      </el-input>
       <el-button class="refresh-button" size="small" :loading="loading" @click="fetchData">
         <el-icon><ElIconRefresh /></el-icon>刷新
       </el-button>
     </div>
 
     <el-alert v-if="errorMessage" type="warning" :closable="false" show-icon>{{ errorMessage }}</el-alert>
-    <el-table v-loading="loading" class="indicators-table" height="100%" :data="filteredRows" :empty-text="rows.length ? '当前筛选下暂无交易对' : '暂无已配置交易对或指标数据'" stripe size="small" style="width: 100%" @sort-change="handleSortChange">
+    <el-table v-loading="loading" class="indicators-table" height="100%" :data="filteredRows" row-key="symbol" :current-row-key="selectedSymbol" :row-class-name="selectedRowClass" :highlight-current-row="embedded" :empty-text="rows.length ? '当前筛选下暂无交易对' : '暂无已配置交易对或指标数据'" stripe size="small" style="width: 100%" @sort-change="handleSortChange" @row-click="handleRowClick">
       <el-table-column label="序号" type="index" align="center" header-align="center" width="55" fixed="left" />
       <el-table-column prop="symbol" label="交易对" fixed min-width="110">
         <template #default="{ row }">
-          <button type="button" class="symbol-cell symbol-link" :title="`查看 ${row.symbol} ${timeframe} 图表`" @click="selectChart(row.symbol)">
+          <button type="button" class="symbol-cell symbol-link" :title="`查看 ${row.symbol} ${timeframe} 图表`" @click.stop="selectChart(row.symbol)">
             <img
               v-if="!iconFailed[row.symbol] && coinIconUrl(row.symbol)"
               :src="coinIconUrl(row.symbol)"
@@ -184,12 +188,13 @@
       </el-table-column>
     </el-table>
     <el-empty v-if="!loading && rows.length === 0" description="暂无已配置交易对或指标数据" />
-  </el-drawer>
+  </component>
 </template>
 
 <script setup lang="ts">
 // ==================== 指标看板 ====================
 import { computed, ref, watch, onUnmounted } from 'vue'
+import { ElDrawer } from 'element-plus'
 import { useBotStore } from '../stores/bot'
 import { useCoinIcon } from '../composables/useCoinIcon'
 import type { SupportResistanceSnapshot } from '../../types/support-resistance'
@@ -224,12 +229,15 @@ interface IndicatorRow {
 /** 指标抽屉的外部控制参数。 */
 interface Props {
   modelValue: boolean
+  embedded?: boolean
+  selectedSymbol?: string
 }
 
 /** 指标抽屉向父组件同步开关状态的事件。 */
 interface Emits {
   (event: 'update:modelValue', value: boolean): void
   (event: 'select-symbol', symbol: string, timeframe: string): void
+  (event: 'symbols-ready', symbols: string[]): void
 }
 
 const props = defineProps<Props>()
@@ -246,7 +254,20 @@ const timeframe = ref('1h')
 /** 将看板当前交易对和周期同步到首页，关闭抽屉以展示图表。 */
 function selectChart(symbol: string) {
   emit('select-symbol', symbol, timeframe.value)
-  visible.value = false
+  if (!props.embedded) visible.value = false
+}
+
+/** 整行点击联动图表；文字选择和交互控件保留自身行为，交易对按钮继续支持键盘操作。 */
+function handleRowClick(row: IndicatorRow, _column: unknown, event: MouseEvent) {
+  if (window.getSelection()?.toString().trim()) return
+  const target = event.target
+  if (target instanceof Element && target.closest('button, a, input, select, textarea, [role="button"], [role="tooltip"], .el-tooltip__trigger')) return
+  selectChart(row.symbol)
+}
+
+/** 以右侧实际展示的交易对为选中真源，刷新、排序后仍保持同一行高亮。 */
+function selectedRowClass({ row }: { row: IndicatorRow }) {
+  return props.embedded && row.symbol === props.selectedSymbol ? 'indicator-selected-row current-row' : ''
 }
 
 const timeframes = TREND_PERIODS
@@ -255,10 +276,14 @@ const loading = ref(false)
 const errorMessage = ref('')
 type SignalTone = '多头' | '空头' | '反转' | '观望'
 const signalFilter = ref<SignalTone | '全部'>('全部')
+const symbolSearch = ref('')
 // 筛选与交易对下方的一致性文字使用同一规则，随后台五周期数据更新。
-const filteredRows = computed(() => signalFilter.value === '全部'
-  ? rows.value
-  : rows.value.filter(row => resonanceInfo(row.symbol).tone === signalFilter.value))
+const filteredRows = computed(() => {
+  // 搜索仅过滤已加载数据，与方向筛选叠加，不触发额外指标请求或改变当前排序。
+  const keyword = symbolSearch.value.toUpperCase().replace(/[\s/_-]/g, '')
+  return rows.value.filter(row => row.symbol.toUpperCase().replace(/[\s/_-]/g, '').includes(keyword)
+    && (signalFilter.value === '全部' || resonanceInfo(row.symbol).tone === signalFilter.value))
+})
 const periodSignals = ref<Record<string, Partial<Record<string, IndicatorRow['diDirection']>>>>({})
 let fetchVersion = 0
 let structureTimer: ReturnType<typeof setInterval> | undefined
@@ -351,6 +376,7 @@ async function fetchData() {
   if (version !== fetchVersion) return
   rows.value = results.filter(Boolean) as IndicatorRow[]
   applySort()
+  emit('symbols-ready', rows.value.map(row => row.symbol))
   if (rows.value.length === 0) errorMessage.value = initializing
     ? '行情初始化中，稍后自动刷新' : '指标暂不可用，请确认指标中心已完成初始化'
   loading.value = false
@@ -757,12 +783,20 @@ onUnmounted(() => {
 
 <style scoped>
 .toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 16px; }
-.refresh-button { margin-left: auto; }
+.symbol-search { width: 170px; margin-left: auto; }
 .adx-line { display: flex; align-items: center; gap: 8px; white-space: nowrap; }
 .up { color: var(--el-color-success); }.down { color: var(--el-color-danger); }.muted { color: var(--el-text-color-secondary); }
 .symbol-cell { display: flex; align-items: center; gap: 4px; white-space: nowrap; }
 .symbol-link { padding: 0; border: 0; background: transparent; color: inherit; font: inherit; cursor: pointer; text-align: left; }
 .symbol-link:hover { color: var(--el-color-primary); }
+.indicators-table :deep(.el-table__body .el-table__row) { cursor: pointer; }
+/* 显式设置单元格背景，避免暗色主题的 inherit、固定列与斑马纹覆盖选中颜色。 */
+.indicators-table :deep(.el-table__body tr.indicator-selected-row > td.el-table__cell) {
+  background-color: color-mix(in srgb, var(--el-color-primary) 18%, var(--el-table-bg-color)) !important;
+}
+.indicators-table :deep(.el-table__body tr.indicator-selected-row > td.el-table__cell:first-child) {
+  box-shadow: inset 3px 0 0 var(--el-color-primary);
+}
 .symbol-link:focus-visible { outline: 2px solid var(--el-color-primary); outline-offset: 3px; border-radius: 3px; }
 .resonance { display: grid; grid-template-columns: repeat(5, 8px); align-items: center; gap: 3px; margin-top: 6px; padding-left: 25px; min-height: 12px; font-size: 11px; }
 .resonance-dot { width: 8px; height: 8px; flex: 0 0 8px; border-radius: 3px; background: currentColor; }
@@ -845,7 +879,7 @@ onUnmounted(() => {
     align-items: flex-start;
     flex-direction: column;
   }
-  .refresh-button { margin-left: 0; }
+  .symbol-search { width: 100%; margin-left: 0; }
 
   /* 手机端占满屏幕，保持与日志抽屉一致的操作体验。 */
   :global(.indicators-drawer) {

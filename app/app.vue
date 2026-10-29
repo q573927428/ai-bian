@@ -1,17 +1,21 @@
+<!-- ==================== 全局头部、页面与底部布局 ==================== -->
 <template>
   <div id="app">
+    <AppHeader />
     <NuxtPage />
     <AppFooter />
   </div>
 </template>
 
 <script setup lang="ts">
-import { onMounted, onUnmounted } from 'vue'
+import { onMounted, onUnmounted, provide, ref } from 'vue'
+import { PAGE_UNLOCK_KEY } from './composables/usePageUnlock'
 import { useBotStore } from './stores/bot'
 import { useTheme } from './composables/useTheme'
 
 const botStore = useBotStore()
 const { initTheme } = useTheme()
+provide(PAGE_UNLOCK_KEY, { passwordVerified: ref(false), hasPassword: ref(false) })
 
 // 全局设置浏览器标签页名称，首次渲染和页面切换时均使用项目名称。
 useHead({

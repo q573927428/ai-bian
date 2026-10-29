@@ -3,15 +3,6 @@
   <div class="container">
     <!-- 头部封装后不再是直接的 ElHeader 子节点，需要显式指定纵向布局。 -->
     <el-container direction="vertical">
-      <!-- 头部 -->
-      <HomeHeader
-        :is-running="!!botStore.state?.isRunning"
-        :password-verified="passwordVerified"
-        :active-panels="activeNavigationPanels"
-        @navigate="handleNavigate"
-        @performance="showPerformanceDialog = true"
-        @unlock="handleUnlock"
-      />
 
       <!-- 主体 -->
       <el-main class="main">
@@ -101,12 +92,6 @@
         <BotConfigDialog v-model="showConfigDialog" @success="handleConfigSuccess" />
       </ClientOnly>
 
-      <!-- 性能面板对话框 -->
-      <ClientOnly>
-        <el-dialog v-model="showPerformanceDialog" title="系统性能面板" :style="{ width: '90%', maxWidth: '600px' }" draggable destroy-on-close>
-          <PerformancePanel />
-        </el-dialog>
-      </ClientOnly>
     </el-container>
   </div>
 </template>
@@ -115,7 +100,6 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useBotStore } from '../stores/bot'
 import { useStrategiesStore } from '../stores/strategies'
-import HomeHeader from '../components/HomeHeader.vue'
 import HomeStatusPanel from '../components/HomeStatusPanel.vue'
 import { usePageUnlock } from '../composables/usePageUnlock'
 import type { HomeNavigationTarget, HomeProtectedPanel } from '../../types/home'
@@ -132,7 +116,6 @@ import Strategies from '../components/Strategies.vue'
 import TopSymbolsTable from '../components/TopSymbolsTable.vue'
 import BotConfigDialog from '../components/BotConfigDialog.vue'
 import ProfitWinRateChart from '../components/ProfitWinRateChart.vue'
-import PerformancePanel from '../components/PerformancePanel.vue'
 
 const botStore = useBotStore()
 const route = useRoute()
@@ -151,23 +134,12 @@ const historyOverview = ref<HistoryOverview>({ totalTrades: 0, totalPnl: 0, winR
 
 // 配置对话框
 const showConfigDialog = ref(false)
-const showPerformanceDialog = ref(false)
 const showIndicatorsDrawer = ref(false)
 const showLogsDrawer = ref(false)
 const showTopSymbolsDialog = ref(false)
 const showMacroDataDrawer = ref(false)
 const showCryptoTrendsDrawer = ref(false)
 const showStrategiesDrawer = ref(false)
-// 页面统一持有面板开关，子组件通过事件请求打开。
-const activeNavigationPanels = computed(() => ({
-  home: true,
-  indicators: showIndicatorsDrawer.value,
-  hot: showTopSymbolsDialog.value,
-  macro: showMacroDataDrawer.value,
-  trends: showCryptoTrendsDrawer.value,
-  logs: showLogsDrawer.value,
-  orders: false
-}))
 
 const { passwordVerified, showPasswordDialog, hasPassword, handleUnlock, handleOpenProtectedPanel, handlePasswordSuccess, clearPassword } = usePageUnlock({
   onOpen: openProtectedPanel,
@@ -186,6 +158,10 @@ function openProtectedPanel(panel: HomeProtectedPanel) {
 
 /** 将顶部导航事件映射到面板开关，订单入口继续经过解锁门禁。 */
 function handleNavigate(target: HomeNavigationTarget) {
+  if (target === 'indicators') {
+    void navigateTo('/indicators')
+    return
+  }
   if (target === 'home') {
     void navigateTo('/')
     return
@@ -310,8 +286,8 @@ onMounted(async () => {
 <style scoped>
 .container {
   /* 公共底部统一占位，首页仅使用剩余视口，避免重复预留空间。 */
-  height: calc(100vh - var(--app-footer-height));
-  height: calc(100dvh - var(--app-footer-height));
+  height: calc(100vh - var(--app-footer-height) - var(--app-header-height, 60px));
+  height: calc(100dvh - var(--app-footer-height) - var(--app-header-height, 60px));
   box-sizing: border-box;
   overflow: hidden;
   display: flex;
