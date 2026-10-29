@@ -22,6 +22,10 @@ export interface MacroPinnedSummary {
   duration?: string
   selectedTime?: number
   latestTime?: number
+  /** 原始区间收益率、结束交易日期及收盘价最大回撤，避免从展示字符串反推。 */
+  returnPercent?: number
+  latestKey?: number
+  maxDrawdown?: number
 }
 
 /** 每个抽屉独享同步通道，避免不同页面实例间互相影响。 */

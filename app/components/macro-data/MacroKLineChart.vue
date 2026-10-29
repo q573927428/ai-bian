@@ -21,6 +21,7 @@ import type { MacroMarket, MacroPeriod, MacroKlineResponse } from '../../../type
 import { macroCrosshairKey, crosshairTimeKey, type MacroCrosshairPosition, type MacroPinnedSummary } from './crosshair-sync'
 import { macroViewportKey, logicalToCalendar, calendarToLogical, type MacroViewport } from './viewport-sync'
 import { useTheme } from '../../composables/useTheme'
+import { maxCloseDrawdown } from '../../utils/macro-performance'
 
 const { theme } = useTheme()
 // Canvas 不会继承 CSS 主题变量，主题切换时仅更新配色，不重建图表或重置视区。
@@ -163,7 +164,11 @@ watch(() => {
     percent: percent === null ? '—' : `${percent > 0 ? '+' : ''}${percent.toFixed(2)}%`,
     changeClass: percent === null || percent === 0 ? '' : percent > 0 ? 'positive' : 'negative',
     duration: `${Math.floor(minutes / 1440)}天${Math.floor(minutes % 1440 / 60)}小时${minutes % 60}分钟`,
-    selectedTime: selected.time, latestTime: latest.time }
+    selectedTime: selected.time, latestTime: latest.time,
+    returnPercent: percent ?? undefined,
+    latestKey: crosshairTimeKey(latest.time, props.period, props.market.id),
+    maxDrawdown: maxCloseDrawdown([...crosshairBars.values()]
+      .filter(bar => bar.time >= selected.time && bar.time <= latest.time).map(bar => bar.close)) ?? undefined }
 }, summary => { if (summary) emit('pinned-summary', summary) }, { immediate: true })
 
 /** 使用独立处理函数标记当前鼠标所在的来源图。 */

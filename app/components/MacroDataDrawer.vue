@@ -55,15 +55,18 @@
         <div>固定{{ pinnedCrosshair.period === '1d' || pinnedCrosshair.period === '1w' ? '交易日期' : '时间' }}：{{ pinnedTimeLabel }} · 周期 {{ pinnedCrosshair.period }}</div>
         <div>{{ overallDuration }}</div>
         <small>各市场以固定 K 线收盘价对比自身最新 K 线收盘价；相隔时间包含休市，按 K 线时间戳计算。美债涨跌为收益率相对变化。</small>
+        <small>相对 BTC 为本市场/BTC 比值在同起止日期的涨跌幅；最大回撤按区间 K 线收盘价计算，不含柱内波动。最新未收盘 K 线随行情变化。</small>
       </div>
-      <el-table :data="pinnedSummaryRows" max-height="55vh" size="small">
-        <el-table-column prop="name" label="市场" min-width="145" fixed />
-        <el-table-column prop="from" label="固定收盘" min-width="105"><template #default="{ row }">{{ row.from ?? '—' }}</template></el-table-column>
-        <el-table-column prop="to" label="最新收盘" min-width="105"><template #default="{ row }">{{ row.to ?? '—' }}</template></el-table-column>
-        <el-table-column label="至最新涨跌" min-width="100"><template #default="{ row }"><span :class="row.changeClass">{{ row.percent ?? '—' }}</span></template></el-table-column>
-        <el-table-column prop="duration" label="相隔时间" min-width="165"><template #default="{ row }">{{ row.duration ?? '—' }}</template></el-table-column>
-        <el-table-column label="最新K线（北京时间）" min-width="175"><template #default="{ row }">{{ row.latestTime ? formatSummaryTime(row.latestTime) : '—' }}</template></el-table-column>
-        <el-table-column prop="status" label="状态" min-width="160" />
+      <el-table class="summary-table" :data="pinnedSummaryRows" max-height="55vh" size="small">
+        <el-table-column prop="name" label="市场" min-width="125" fixed show-overflow-tooltip />
+        <el-table-column prop="from" label="固定收盘" min-width="85"><template #default="{ row }">{{ row.from ?? '—' }}</template></el-table-column>
+        <el-table-column prop="to" label="最新收盘" min-width="85"><template #default="{ row }">{{ row.to ?? '—' }}</template></el-table-column>
+        <el-table-column label="涨跌幅" min-width="75"><template #default="{ row }"><span :class="row.changeClass">{{ row.percent ?? '—' }}</span></template></el-table-column>
+        <el-table-column label="相对 BTC" min-width="80"><template #default="{ row }"><span :class="row.relativeClass" :title="row.relativeHint">{{ row.relativeLabel }}</span></template></el-table-column>
+        <el-table-column label="最大回撤" min-width="80"><template #default="{ row }"><span :class="row.maxDrawdown > 0 ? 'negative' : ''">{{ row.maxDrawdown == null ? '—' : `${row.maxDrawdown > 0 ? '-' : ''}${row.maxDrawdown.toFixed(2)}%` }}</span></template></el-table-column>
+        <el-table-column label="相隔时间" min-width="110"><template #default="{ row }"><span :title="row.duration">{{ row.duration?.replace('小时', '时').replace('分钟', '分') ?? '—' }}</span></template></el-table-column>
+        <el-table-column label="最新K线（北京时间）" min-width="155"><template #default="{ row }">{{ row.latestTime ? formatSummaryTime(row.latestTime) : '—' }}</template></el-table-column>
+        <el-table-column prop="status" label="状态" min-width="90" show-overflow-tooltip />
       </el-table>
       <template #footer><el-button @click="showPinnedSummary = false">关闭窗口</el-button><el-button type="primary" @click="clearPinnedCrosshair">解除固定</el-button></template>
     </el-dialog>
@@ -75,11 +78,12 @@ import { computed, reactive, ref, onMounted, onBeforeUnmount, watch, provide } f
 import { ElDrawer } from 'element-plus'
 import { MACRO_MARKETS } from '../../types/macro-market'
 import MacroKLineChart from './macro-data/MacroKLineChart.vue'
-import { macroCrosshairKey, type MacroCrosshairPosition, type MacroPinnedSummary } from './macro-data/crosshair-sync'
+import { macroCrosshairKey, crosshairTimeKey, type MacroCrosshairPosition, type MacroPinnedSummary } from './macro-data/crosshair-sync'
 import { macroViewportKey, type MacroViewport } from './macro-data/viewport-sync'
-import type { MacroPeriod, LocalMacroMarket } from '../../types/macro-market'
+import type { MacroPeriod, LocalMacroMarket, MacroKlineResponse } from '../../types/macro-market'
 import { macroGridLayout } from '../utils/macro-grid'
 import { useTheme } from '../composables/useTheme'
+import { relativeToBtc } from '../utils/macro-performance'
 
 const { theme } = useTheme()
 
@@ -105,6 +109,34 @@ const crosshairListeners = new Set<(position: MacroCrosshairPosition | null) => 
 const pinnedCrosshair = ref<MacroCrosshairPosition | null>(null)
 const showPinnedSummary = ref(false)
 const pinnedSummaries = reactive<Record<string, MacroPinnedSummary>>({})
+const btcCloses = ref(new Map<number, number>())
+const btcLoading = ref(false)
+const btcError = ref(false)
+let btcRequest: AbortController | undefined
+// BTC 即使未出现在网格中，也从本地读取；固定日期或最新数据更新时刷新基准。
+watch(() => {
+  const pinned = pinnedCrosshair.value
+  return pinned ? `${pinned.period}:${pinned.key}:${Math.max(0, ...Object.values(pinnedSummaries).map(row => row.latestTime ?? 0))}` : ''
+}, async key => {
+  btcRequest?.abort()
+  btcCloses.value = new Map()
+  btcLoading.value = false
+  btcError.value = false
+  const pinned = pinnedCrosshair.value
+  if (!key || !pinned) return
+  const controller = new AbortController()
+  btcRequest = controller
+  btcLoading.value = true
+  try {
+    const result = await $fetch<MacroKlineResponse>('/api/macro/kline', {
+      query: { market: 'btc', period: pinned.period }, signal: controller.signal, timeout: 15000, retry: 0,
+    })
+    if (controller.signal.aborted) return
+    btcCloses.value = new Map(result.data.map(bar => [crosshairTimeKey(bar.t, pinned.period, 'btc'), bar.c]))
+  } catch { if (!controller.signal.aborted) btcError.value = true }
+  finally { if (btcRequest === controller) btcLoading.value = false }
+})
+onBeforeUnmount(() => { btcRequest?.abort() })
 const summaryClock = new Intl.DateTimeFormat('zh-CN', { timeZone: 'Asia/Shanghai', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
 /** 日期型固定键按交易日期显示，分钟周期及各图时间按北京时间展示。 */
 const formatSummaryTime = (time: number) => summaryClock.format(new Date(time * 1000))
@@ -116,9 +148,18 @@ const pinnedTimeLabel = computed(() => {
 })
 const pinnedSummaryRows = computed(() => markets.value.map(market => {
   const pinned = pinnedCrosshair.value
-  const summary = pinnedSummaries[market.id]
-  return { name: market.name, ...(pinned && summary?.key === pinned.key && summary.period === pinned.period
-    ? summary : { status: selectedPeriods[market.symbol] !== pinned?.period ? '周期不同' : '等待数据' }) }
+  const report = pinnedSummaries[market.id]
+  const summary: Partial<MacroPinnedSummary> = pinned && report?.key === pinned.key && report.period === pinned.period
+    && selectedPeriods[market.symbol] === report.period
+    ? report : { status: selectedPeriods[market.symbol] !== pinned?.period ? '周期不同' : '等待数据' }
+  // 收益率标的不与 BTC 价格收益做强弱排名，避免将利率变化误解为投资回报。
+  const relative = market.yield ? null : relativeToBtc(summary.returnPercent, pinned?.key, summary.latestKey, btcCloses.value)
+  return { name: market.name, ...summary,
+    relativeLabel: market.yield ? '不适用' : relative == null ? '—' : Math.abs(relative) < 0.005 ? '0.00%' : `${relative > 0 ? '+' : ''}${relative.toFixed(2)}%`,
+    relativeClass: relative == null || Math.abs(relative) < 0.005 ? '' : relative > 0 ? 'positive' : 'negative',
+    relativeHint: market.yield ? '收益率相对变化不等于资产价格收益' : relative != null ? '本市场/BTC 比值的区间涨跌幅；正值跑赢，负值跑输；使用相同起止日期'
+      : btcLoading.value ? 'BTC 本地数据读取中' : btcError.value ? 'BTC 本地数据读取失败' : '本市场或 BTC 缺少同起止日期数据',
+  }
 }))
 // 最新数据时点可能不同，汇总展示间隔范围而非将各市场时间相加。
 const overallDuration = computed(() => {
@@ -311,6 +352,7 @@ function chartUrl(symbol: string, period: Period): string {
 .crosshair-unpin { border: 1px solid var(--el-color-primary); border-radius: 4px; padding: 3px 6px; background: var(--el-color-primary-light-9); color: var(--el-color-primary); font-size: 11px; cursor: pointer; }
 .summary-description { display: grid; gap: 8px; margin-bottom: 14px; line-height: 1.5; color: var(--text-regular); }
 .summary-description small { color: var(--text-secondary); }
+.summary-table :deep(.cell) { padding: 0 6px; font-variant-numeric: tabular-nums; }
 .positive { color: #26a69a; }
 .negative { color: #ef5350; }
 .chart-grid { display: grid; flex: 1; min-height: 0; gap: 6px; }
