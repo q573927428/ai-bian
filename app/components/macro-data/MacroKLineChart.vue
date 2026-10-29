@@ -1,7 +1,7 @@
 <!-- ==================== 宏观本地轻量 K 线图 ==================== -->
 <template>
   <div class="macro-local-chart">
-    <div ref="container" class="canvas" title="单击固定联动光标，再次单击解除" @mouseenter="enterChart" @mouseleave="clearSyncedCrosshair" />
+    <div ref="container" class="canvas" :title="chartHint" @mouseenter="enterChart" @mouseleave="clearSyncedCrosshair" />
     <div v-if="comparison" class="crosshair-comparison">
       <div>光标收盘 {{ comparison.from }} → 最新 {{ comparison.to }}</div>
       <div>至最新涨跌 <span :class="comparison.changeClass">{{ comparison.percent }}</span> · 相隔 {{ comparison.duration }}</div>
@@ -10,11 +10,7 @@
       <span>{{ loading ? '正在读取本地数据…' : error || '暂无本地数据，等待同步' }}</span>
       <button v-if="!loading" type="button" @click="load">重试</button>
     </div>
-    <div class="source-status" :title="error">
-      {{ market.source === 'yahoo' ? 'Yahoo Finance · 本地缓存' : '币安合约 · 本地缓存' }}
-      <span v-if="updatedAt"> · 同步 {{ beijingClock.format(new Date(updatedAt)) }}（北京时间）</span>
-      <span v-if="error && hasData"> · 同步异常，显示缓存</span>
-    </div>
+    <div v-if="error && hasData" class="sync-warning" :title="chartHint">同步异常，显示缓存</div>
   </div>
 </template>
 
@@ -51,6 +47,13 @@ const loading = ref(false)
 const error = ref('')
 const hasData = ref(false)
 const updatedAt = ref<number | null>(null)
+// 来源与同步信息按需查看，不再占用每张图的常驻底栏。
+const chartHint = computed(() => [
+  '单击固定联动光标，再次单击解除',
+  `${props.market.source === 'yahoo' ? 'Yahoo Finance' : '币安合约'} · 本地缓存`,
+  updatedAt.value ? `同步 ${beijingClock.format(new Date(updatedAt.value))}（北京时间）` : '',
+  error.value,
+].filter(Boolean).join('\n'))
 let chart: IChartApi | undefined
 let series: ISeriesApi<'Candlestick'> | undefined
 let request: AbortController | undefined
@@ -342,11 +345,11 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .macro-local-chart { position: relative; height: 100%; }
-.canvas { position: absolute; inset: 0 0 22px; }
+.canvas { position: absolute; inset: 0; }
 .crosshair-comparison { position: absolute; top: 6px; left: 8px; max-width: calc(100% - 16px); box-sizing: border-box; padding: 4px 6px; border-radius: 4px; background: rgba(17, 17, 17, 0.88); color: #d1d5db; font-size: 11px; line-height: 18px; pointer-events: none; z-index: 2; font-variant-numeric: tabular-nums; }
 .positive { color: #26a69a; }
 .negative { color: #ef5350; }
-.empty-state { position: absolute; inset: 0 0 22px; display: flex; align-items: center; justify-content: center; gap: 8px; color: #aeb5c3; font-size: 12px; background: #111; z-index: 1; }
+.empty-state { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; gap: 8px; color: #aeb5c3; font-size: 12px; background: #111; z-index: 1; }
 .empty-state button { background: #2962ff; color: white; border: none; border-radius: 3px; cursor: pointer; padding: 4px 8px; }
-.source-status { position: absolute; bottom: 0; left: 8px; right: 8px; height: 22px; line-height: 22px; color: #9299a5; font-size: 10px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.sync-warning { position: absolute; bottom: 28px; left: 8px; max-width: calc(100% - 16px); padding: 2px 5px; border-radius: 3px; background: #352713; color: #e6a23c; font-size: 10px; z-index: 2; }
 </style>
