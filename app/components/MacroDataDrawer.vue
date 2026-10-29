@@ -1,7 +1,7 @@
 <!-- ==================== 宏观数据抽屉 ==================== -->
 <template>
   <component :is="embedded ? 'section' : ElDrawer" v-model="visible" :class="embedded ? 'macro-content' : 'macro-drawer'" title="宏观数据" direction="rtl" size="90%" destroy-on-close>
-    <div class="macro-toolbar">
+    <div class="macro-toolbar" :inert="!marketsInitialized">
       <span class="overview-title">全球流动性+市场风险偏好总览</span>
       <div class="macro-toolbar-actions">
       <el-select v-model="marketToAdd" class="add-market-selector" size="small" filterable placeholder="添加图表" :disabled="markets.length >= 12" :loading="loadingMarkets" aria-label="添加图表" @visible-change="open => { if (open) loadLocalMarkets() }" @change="addMarket">
@@ -24,7 +24,7 @@
       </div>
     </div>
 
-    <div ref="gridContainer" class="chart-grid" :style="gridStyle">
+    <div ref="gridContainer" v-loading="!marketsInitialized" class="chart-grid" :style="gridStyle">
       <section v-for="(item, index) in markets" :key="item.id" class="chart-panel">
         <header class="panel-header">
           <div class="panel-caption">
@@ -200,8 +200,9 @@ const visible = computed({
   set: value => emit('update:modelValue', value),
 })
 
-// 首次使用默认十二格，用户可以保留一至十二个图表。
-const selectedMarketIds = ref(MACRO_MARKETS.map(market => market.id))
+// 配置恢复完成前不挂载图表，避免默认交易对先请求数据再被本地配置替换。
+const marketsInitialized = ref(false)
+const selectedMarketIds = ref<string[]>([])
 const localMarkets = ref<LocalMacroMarket[]>([])
 const markets = computed(() => selectedMarketIds.value.map((id, index) =>
   localMarkets.value.find(market => market.id === id) ?? MACRO_MARKETS.find(market => market.id === id) ?? MACRO_MARKETS[index]!))
@@ -282,10 +283,15 @@ function changeMarket(index: number, id: string) {
 }
 const dataSource = ref<'local' | 'tradingview'>('local')
 onMounted(async () => {
-  await loadLocalMarkets()
+  let saved: unknown = null
   try {
     if (localStorage.getItem('macro-data-source') === 'tradingview') dataSource.value = 'tradingview'
-    const saved: unknown = JSON.parse(localStorage.getItem('macro-market-slots') || 'null')
+    saved = JSON.parse(localStorage.getItem('macro-market-slots') || 'null')
+  } catch { /* 浏览器禁用存储或配置损坏时使用默认值。 */ }
+
+  // 先读取浏览器配置，再加载用于校验自选交易对和周期的本地目录。
+  await loadLocalMarkets()
+  try {
     if (Array.isArray(saved) && saved.length >= 1 && saved.length <= 12) {
       const used = new Set<string>()
       selectedMarketIds.value = saved.map((id, index) => {
@@ -298,8 +304,12 @@ onMounted(async () => {
         if (market) selectedPeriods[market.symbol] = market.periods.includes('1d') ? '1d' : market.periods[0]!
         return resolved
       })
+    } else {
+      selectedMarketIds.value = MACRO_MARKETS.map(market => market.id)
     }
-  } catch { /* 浏览器禁用存储时使用本地默认值。 */ }
+  } finally {
+    marketsInitialized.value = true
+  }
 })
 watch(dataSource, value => {
   clearPinnedCrosshair()
