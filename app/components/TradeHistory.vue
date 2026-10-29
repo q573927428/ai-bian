@@ -620,7 +620,8 @@ function selectChart(symbol: string, mainTimeframe?: string) {
 
 const orders = ref<TradeHistory[]>([])
 const currentPage = ref(1)
-const pageSize = ref(15)
+// 筛选区展开后减少行数，为筛选条件留出显示空间。
+const pageSize = computed(() => showFilter.value ? 13 : 18)
 const total = ref(0)
 const totalPages = ref(0)
 const loading = ref(false)
@@ -804,6 +805,12 @@ const loadHistory = async () => {
   }
 }
 const refreshHistory = () => loadHistory()
+
+// 每页数量改变后回到第一页，避免原页码越界或连续序号与数据错位。
+watch(showFilter, () => {
+  currentPage.value = 1
+  if (visible.value) void loadHistory()
+})
 
 // 筛选条件变更
 const handleFilterChange = () => {
