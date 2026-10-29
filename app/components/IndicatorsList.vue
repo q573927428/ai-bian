@@ -29,7 +29,7 @@
 
     <el-alert v-if="errorMessage" type="warning" :closable="false" show-icon>{{ errorMessage }}</el-alert>
     <el-table v-loading="loading" class="indicators-table" height="100%" :data="filteredRows" row-key="symbol" :current-row-key="selectedSymbol" :row-class-name="selectedRowClass" :highlight-current-row="embedded" :empty-text="rows.length ? '当前筛选下暂无交易对' : '暂无已配置交易对或指标数据'" stripe size="small" style="width: 100%" @sort-change="handleSortChange" @row-click="handleRowClick">
-      <el-table-column label="序号" type="index" align="center" header-align="center" width="55" fixed="left" />
+      <el-table-column label="" type="index" align="center" header-align="center" width="35" fixed="left" />
       <el-table-column prop="symbol" label="交易对" fixed min-width="110">
         <template #default="{ row }">
           <button type="button" class="symbol-cell symbol-link" :title="`查看 ${row.symbol} ${timeframe} 图表`" @click.stop="selectChart(row.symbol)">
@@ -58,7 +58,7 @@
           </div>
         </template>
       </el-table-column>
-      <el-table-column label="价格 / K线" min-width="100">
+      <el-table-column label="价格 / K线" min-width="90">
         <template #default="{ row }">
           <div>{{ formatPrice(row.price) }}</div>
           <span :class="directionClass(row.closeChangePercent)">{{ signed(row.closeChangePercent) }}%</span>
@@ -143,7 +143,7 @@
           </el-tooltip>
         </template>
       </el-table-column>
-      <el-table-column label="预量比" align="center" header-align="center" min-width="65" prop="volumeRatio" sortable="custom">
+      <el-table-column label="预量比" align="center" header-align="center" min-width="68" prop="volumeRatio" sortable="custom">
         <template #default="{ row }">{{ format(row.volumeRatio) }}x</template>
       </el-table-column>
       <el-table-column label="资金流" width="145" prop="netInflowPercent" sortable="custom">
@@ -167,7 +167,7 @@
           </el-tooltip>
         </template>
       </el-table-column>
-      <el-table-column label="ATR%" align="center" header-align="center" min-width="60" prop="atrPercent" sortable="custom">
+      <el-table-column label="ATR%" align="center" header-align="center" min-width="68" prop="atrPercent" sortable="custom">
         <template #default="{ row }">{{ format(row.atrPercent) }}%</template>
       </el-table-column>
       <el-table-column label="社区情绪" min-width="80">
@@ -183,7 +183,7 @@
           </el-tooltip>
         </template>
       </el-table-column>
-      <el-table-column label="进度%" align="center" header-align="center" min-width="65" prop="candleProgressPercent" sortable="custom">
+      <el-table-column label="进度" align="center" header-align="center" min-width="65" prop="candleProgressPercent" sortable="custom">
         <template #default="{ row }">{{ format(row.candleProgressPercent) }}%</template>
       </el-table-column>
     </el-table>
