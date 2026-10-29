@@ -621,7 +621,7 @@ function selectChart(symbol: string, mainTimeframe?: string) {
 const orders = ref<TradeHistory[]>([])
 const currentPage = ref(1)
 // 筛选区展开后减少行数，为筛选条件留出显示空间。
-const pageSize = computed(() => showFilter.value ? 13 : 18)
+const pageSize = computed(() => showFilter.value ? 14 : 19)
 const total = ref(0)
 const totalPages = ref(0)
 const loading = ref(false)

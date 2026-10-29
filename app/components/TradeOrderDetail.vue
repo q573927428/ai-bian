@@ -43,11 +43,11 @@
                 <span class="detail-value">${{ formatPrice(row.stopLossPrice) }}</span>
               </div>
               <div class="detail-item">
-                <span class="detail-label">最终止损价</span>
+                <span class="detail-label">最终止损</span>
                 <span class="detail-value">${{ formatPrice(row.finalStopLossPrice) }}</span>
               </div>
               <div class="detail-item">
-                <span class="detail-label">移动止损次数</span>
+                <span class="detail-label">移动止损数</span>
                 <span class="detail-value">{{ formatTrailingStopCount(row.trailingStopCount) }}</span>
               </div>
               <div class="detail-item">
