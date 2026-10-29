@@ -119,7 +119,6 @@
               </div>
             </details>
             <div v-if="row.aiReasoning" class="detail-section">
-              <span class="detail-label">AI 推理</span>
               <span class="detail-value reason-text">平仓原因：{{ row.reason }}； {{ row.aiReasoning }}</span>
             </div>
           </div>
