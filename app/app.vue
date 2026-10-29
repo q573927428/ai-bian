@@ -1,6 +1,7 @@
 <template>
   <div id="app">
     <NuxtPage />
+    <AppFooter />
   </div>
 </template>
 
@@ -28,3 +29,10 @@ onUnmounted(() => {
   window.removeEventListener('beforeunload', botStore.cleanupOnUnload)
 })
 </script>
+
+<style>
+:root {
+  /* 行情栏单行高度及移动端安全区，供页面计算可用视口高度。 */
+  --app-footer-height: calc(27px + env(safe-area-inset-bottom, 0px));
+}
+</style>

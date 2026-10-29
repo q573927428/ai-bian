@@ -108,7 +108,6 @@
         </el-dialog>
       </ClientOnly>
     </el-container>
-    <MarketOverview />
   </div>
 </template>
 
@@ -310,11 +309,10 @@ onMounted(async () => {
 
 <style scoped>
 .container {
-  /* 预留底部固定行情栏及安全区，页面高度始终跟随实际可视区域。 */
-  height: 100vh;
-  height: 100dvh;
+  /* 公共底部统一占位，首页仅使用剩余视口，避免重复预留空间。 */
+  height: calc(100vh - var(--app-footer-height));
+  height: calc(100dvh - var(--app-footer-height));
   box-sizing: border-box;
-  padding-bottom: calc(27px + env(safe-area-inset-bottom, 0px));
   overflow: hidden;
   display: flex;
   flex-direction: column;
