@@ -27,7 +27,8 @@
                 </span>
               </div>
             </div>
-            <KLineChartSimple :key="selectedOrder.id" :symbol="selectedOrder.symbol" :timeframe="orderTimeframe" :historical-order="selectedOrder" :height="500" />
+            <KLineChartSimple :key="selectedOrder.id" :symbol="selectedOrder.symbol" :timeframe="orderTimeframe" :historical-order="selectedOrder" :height="410" />
+            <TradeOrderDetail :row="selectedOrder" compact :show-structure="false" />
           </template>
           <el-empty v-else description="点击左侧订单，查看开仓位置和入场支撑阻力" />
         </el-col>
@@ -51,6 +52,7 @@ import HomeHeader from '../components/HomeHeader.vue'
 import PerformancePanel from '../components/PerformancePanel.vue'
 import { useBotStore } from '../stores/bot'
 import TradeHistory from '../components/TradeHistory.vue'
+import TradeOrderDetail from '../components/TradeOrderDetail.vue'
 import KLineChartSimple from '../components/kline-chart/KLineChartSimple.vue'
 import PasswordDialog from '../components/PasswordDialog.vue'
 import { usePageUnlock } from '../composables/usePageUnlock'
@@ -85,10 +87,16 @@ function selectOrder(order: HistoricalOrder) {
 </script>
 
 <style scoped>
-.orders-page { min-height: 100vh; box-sizing: border-box; background: var(--bg-main); }
+.orders-page {
+  /* AppFooter 在文档流中另占一行，页面需扣除其高度，避免空白区域撑出整页滚动。 */
+  min-height: calc(100vh - var(--app-footer-height, 27px));
+  min-height: calc(100dvh - var(--app-footer-height, 27px));
+  box-sizing: border-box;
+  background: var(--bg-main);
+}
 .orders-main { padding: 20px; }
 .orders-sidebar, .orders-chart { min-width: 0; }
-.orders-sidebar { max-height: calc(100dvh - 100px); overflow-y: auto; scrollbar-width: none; }
+.orders-sidebar { max-height: calc(100dvh - 100px - var(--app-footer-height, 27px)); overflow-y: auto; scrollbar-width: none; }
 .orders-sidebar::-webkit-scrollbar { display: none; width: 0; height: 0; }
 .order-summary { display: flex; flex-direction: column; gap: 10px; padding-bottom: 16px; font-size: 13px; color: var(--text-regular); }
 .order-summary-row { display: flex; flex-wrap: wrap; gap: 8px 20px; overflow-wrap: anywhere; line-height: 1.5; }

@@ -338,129 +338,7 @@
       <!-- 展开行 -->
       <el-table-column type="expand" width="1">
         <template #default="{ row }">
-          <div class="expand-detail">
-            <div class="detail-grid">
-              <div class="detail-item">
-                <span class="detail-label">入场置信度</span>
-                <span class="detail-value">{{ row.entryConfidence ?? '--' }}</span>
-              </div>
-              <div class="detail-item">
-                <span class="detail-label">总评分</span>
-                <span class="detail-value">{{ formatScore(row.entryScoreBreakdown?.finalScore ?? row.entryScore) }}</span>
-              </div>
-              <div class="detail-item">
-                <span class="detail-label">基础分</span>
-                <span class="detail-value">{{ formatScore(row.entryScoreBreakdown?.baseScore) }}</span>
-              </div>
-              <div class="detail-item">
-                <span class="detail-label">硬条件分</span>
-                <span class="detail-value">{{ formatScore(row.entryScoreBreakdown?.hardScore) }}</span>
-              </div>
-              <div class="detail-item">
-                <span class="detail-label">软条件分</span>
-                <span class="detail-value">{{ formatScore(row.entryScoreBreakdown?.softScore) }}</span>
-              </div>
-              <div class="detail-item">
-                <span class="detail-label">扣分</span>
-                <span class="detail-value">{{ formatScore(row.entryScoreBreakdown?.penaltyScore) }}</span>
-              </div>
-              <div class="detail-item">
-                <span class="detail-label">风险等级</span>
-                <span class="detail-value">
-                  <el-tag
-                    :type="getRiskLevelType(row.entryRiskLevel)"
-                    size="small"
-                  >
-                    {{ row.entryRiskLevel ?? '--' }}
-                  </el-tag>
-                </span>
-              </div>
-
-              <div class="detail-item">
-                <span class="detail-label">止损价</span>
-                <span class="detail-value">${{ formatPrice(row.stopLossPrice) }}</span>
-              </div>
-              <div class="detail-item">
-                <span class="detail-label">最终止损价</span>
-                <span class="detail-value">${{ formatPrice(row.finalStopLossPrice) }}</span>
-              </div>
-              <div class="detail-item">
-                <span class="detail-label">移动止损次数</span>
-                <span class="detail-value">{{ formatTrailingStopCount(row.trailingStopCount) }}</span>
-              </div>
-              <div class="detail-item">
-                <span class="detail-label">止盈1价</span>
-                <span class="detail-value">${{ formatPrice(row.takeProfit1Price) }}</span>
-              </div>
-              <div class="detail-item">
-                <span class="detail-label">止盈2价</span>
-                <span class="detail-value">${{ formatPrice(row.takeProfit2Price) }}</span>
-              </div>
-              <div class="detail-item">
-                <span class="detail-label">最高价</span>
-                <span class="detail-value">${{ formatPrice(row.highestPrice) }}</span>
-              </div>
-              <div class="detail-item">
-                <span class="detail-label">最低价</span>
-                <span class="detail-value">${{ formatPrice(row.lowestPrice) }}</span>
-              </div>
-              <div class="detail-item">
-                <span class="detail-label">最大浮盈</span>
-                <span class="detail-value text-success">${{ formatPrice(row.maxFloatingProfit) }}</span>
-              </div>
-              <div class="detail-item">
-                <span class="detail-label">最大浮亏</span>
-                <span class="detail-value text-danger">${{ formatPrice(row.maxFloatingLoss) }}</span>
-              </div>
-              <div class="detail-item">
-                <span class="detail-label">最大浮盈%</span>
-                <span class="detail-value text-success">{{ formatPrice(row.maxFloatingProfitPercent) }}%</span>
-              </div>
-              <div class="detail-item">
-                <span class="detail-label">最大浮亏%</span>
-                <span class="detail-value text-danger">{{ formatPrice(row.maxFloatingLossPercent) }}%</span>
-              </div>
-              <!--K线完成进度%-->
-              <div class="detail-item">
-                <span class="detail-label">K 线完成进度</span>
-                <span class="detail-value">{{ formatPrice(row.candleProgressPercent) }}%</span>
-              </div>
-            </div>
-            <div v-if="row.entryIndicators" class="detail-section">
-              <span class="detail-label">入场指标</span>
-              <div class="indicators-tags">
-                <el-tag
-                  v-for="(val, key) in getEntryIndicators(row.entryIndicators)"
-                  :key="key"
-                  size="small"
-                  effect="plain"
-                >
-                  {{ formatIndicatorLabel(String(key)) }}: {{ formatIndicatorValue(String(key), val) }}
-                </el-tag>
-              </div>
-            </div>
-            <div v-if="row.entrySupportResistance" class="detail-section">
-              <span class="detail-label">入场支撑阻力快照</span>
-              <SupportResistanceInfo :snapshot="row.entrySupportResistance" detailed />
-            </div>
-            <div v-if="row.entryCommunitySentiment" class="detail-section">
-              <span class="detail-label">入场社区情绪</span>
-              <div class="indicators-tags">
-                <el-tag
-                  v-for="(val, key) in row.entryCommunitySentiment"
-                  :key="key"
-                  size="small"
-                  effect="plain"
-                >
-                  {{ formatCommunitySentimentLabel(String(key)) }}: {{ formatCommunitySentimentValue(String(key), val) }}
-                </el-tag>
-              </div>
-            </div>
-            <div v-if="row.aiReasoning" class="detail-section">
-              <span class="detail-label">AI 推理</span>
-              <span class="detail-value reason-text">平仓原因：{{ row.reason }}； {{ row.aiReasoning }}</span>
-            </div>
-          </div>
+          <TradeOrderDetail :row="row as TradeHistory" />
         </template>
       </el-table-column>
 
@@ -709,7 +587,7 @@
 import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
 import { ElDrawer } from 'element-plus'
 import type { TradeHistory } from '../../types'
-import SupportResistanceInfo from './SupportResistanceInfo.vue'
+import TradeOrderDetail from './TradeOrderDetail.vue'
 import { useTradeHistoryStore, type FilterConfig } from '../stores/tradeHistory'
 import { formatTradePrice } from './kline-chart/utils/kline-formatters'
 
