@@ -1,5 +1,13 @@
 // ==================== 宏观区间收益比较与收盘最大回撤 ====================
 
+/** 按实际经过秒数格式化间隔，一年按 365 天折算，未满一年保持原显示。 */
+export function formatMacroDuration(seconds: number): string {
+  const minutes = Math.floor(Math.abs(seconds) / 60)
+  const days = Math.floor(minutes / 1440)
+  const years = Math.floor(days / 365)
+  return `${years ? `${years}年` : ''}${years ? days % 365 : days}天${Math.floor(minutes % 1440 / 60)}小时${minutes % 60}分钟`
+}
+
 /** 按时间顺序计算收盘价峰值至后续谷值的最大跌幅，返回正百分数；无效价格不生成结果。 */
 export function maxCloseDrawdown(closes: number[]): number | null {
   if (!closes.length || closes.some(close => !Number.isFinite(close) || close <= 0)) return null

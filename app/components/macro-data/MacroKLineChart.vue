@@ -21,7 +21,7 @@ import type { MacroMarket, MacroPeriod, MacroKlineResponse } from '../../../type
 import { macroCrosshairKey, crosshairTimeKey, type MacroCrosshairPosition, type MacroPinnedSummary } from './crosshair-sync'
 import { macroViewportKey, logicalToCalendar, calendarToLogical, type MacroViewport } from './viewport-sync'
 import { useTheme } from '../../composables/useTheme'
-import { maxCloseDrawdown } from '../../utils/macro-performance'
+import { maxCloseDrawdown, formatMacroDuration } from '../../utils/macro-performance'
 
 const { theme } = useTheme()
 // Canvas 不会继承 CSS 主题变量，主题切换时仅更新配色，不重建图表或重置视区。
@@ -132,7 +132,6 @@ const comparison = computed(() => {
   const latest = latestBar.value
   if (!selected || !latest) return null
   const percent = selected.close !== 0 ? (latest.close - selected.close) / selected.close * 100 : null
-  const minutes = Math.floor(Math.abs(latest.time - selected.time) / 60)
   const formatPrice = (price: number) => `${price.toLocaleString('zh-CN', {
     minimumFractionDigits: props.market.yield ? 3 : props.market.id === 'btc' ? 1 : 2,
     maximumFractionDigits: props.market.yield ? 3 : props.market.id === 'btc' ? 1 : 2,
@@ -141,7 +140,7 @@ const comparison = computed(() => {
     from: formatPrice(selected.close), to: formatPrice(latest.close),
     percent: percent === null ? '—' : `${percent > 0 ? '+' : ''}${percent.toFixed(2)}%`,
     changeClass: percent === null || percent === 0 ? '' : percent > 0 ? 'positive' : 'negative',
-    duration: `${Math.floor(minutes / 1440)}天${Math.floor(minutes % 1440 / 60)}小时${minutes % 60}分钟`,
+    duration: formatMacroDuration(latest.time - selected.time),
   }
 })
 
@@ -159,11 +158,10 @@ watch(() => {
     maximumFractionDigits: props.market.yield ? 3 : props.market.id === 'btc' ? 1 : 2,
   })}${props.market.yield ? '%' : ''}`
   const percent = selected.close === 0 ? null : (latest.close - selected.close) / selected.close * 100
-  const minutes = Math.floor(Math.abs(latest.time - selected.time) / 60)
   return { ...summary, status: '可比较', from: formatPrice(selected.close), to: formatPrice(latest.close),
     percent: percent === null ? '—' : `${percent > 0 ? '+' : ''}${percent.toFixed(2)}%`,
     changeClass: percent === null || percent === 0 ? '' : percent > 0 ? 'positive' : 'negative',
-    duration: `${Math.floor(minutes / 1440)}天${Math.floor(minutes % 1440 / 60)}小时${minutes % 60}分钟`,
+    duration: formatMacroDuration(latest.time - selected.time),
     selectedTime: selected.time, latestTime: latest.time,
     returnPercent: percent ?? undefined,
     latestKey: crosshairTimeKey(latest.time, props.period, props.market.id),

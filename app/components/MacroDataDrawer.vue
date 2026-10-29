@@ -83,7 +83,7 @@ import { macroViewportKey, type MacroViewport } from './macro-data/viewport-sync
 import type { MacroPeriod, LocalMacroMarket, MacroKlineResponse } from '../../types/macro-market'
 import { macroGridLayout } from '../utils/macro-grid'
 import { useTheme } from '../composables/useTheme'
-import { relativeToBtc } from '../utils/macro-performance'
+import { relativeToBtc, formatMacroDuration } from '../utils/macro-performance'
 
 const { theme } = useTheme()
 
@@ -166,12 +166,8 @@ const overallDuration = computed(() => {
   const durations = pinnedSummaryRows.value.flatMap(row => 'latestTime' in row && row.latestTime != null && row.selectedTime != null
     ? [Math.abs(row.latestTime - row.selectedTime)] : [])
   if (!durations.length) return '暂无可比较数据'
-  const format = (seconds: number) => {
-    const minutes = Math.floor(seconds / 60)
-    return `${Math.floor(minutes / 1440)}天${Math.floor(minutes % 1440 / 60)}小时${minutes % 60}分钟`
-  }
   const min = Math.min(...durations), max = Math.max(...durations)
-  return min === max ? `至最新相隔：${format(max)}` : `至各市场最新数据相隔：${format(min)} ～ ${format(max)}`
+  return min === max ? `至最新相隔：${formatMacroDuration(max)}` : `至各市场最新数据相隔：${formatMacroDuration(min)} ～ ${formatMacroDuration(max)}`
 })
 /** 只接收当前固定日期的报告，防止旧日期的延迟更新混入弹窗。 */
 function updatePinnedSummary(summary: MacroPinnedSummary) {
