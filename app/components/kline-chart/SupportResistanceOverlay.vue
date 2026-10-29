@@ -13,7 +13,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, shallowRef, watch, onMounted, onBeforeUnmount } from 'vue'
+import { computed, shallowRef, watch, onMounted, onBeforeUnmount } from 'vue'
+import { useChartOverlayPreference } from '../../composables/useChartOverlayPreference'
 import SupportResistanceInfo from '../SupportResistanceInfo.vue'
 import type { IChartApi, ISeriesApi } from 'lightweight-charts'
 import type { SimpleKLineData } from '../../../types/kline-simple'
@@ -31,9 +32,8 @@ interface Props {
   getSeries: () => ISeriesApi<'Candlestick'> | null
 }
 const props = defineProps<Props>()
-const enabled = ref(!!props.historicalOrder)
-// 从订单列表进入复盘时自动显示入场快照，仍允许用户手动隐藏。
-watch(() => props.historicalOrder, (order) => { if (order) enabled.value = true })
+// 已保存的显示偏好优先，切换历史订单时也不覆盖用户的选择。
+const enabled = useChartOverlayPreference('chart-support-resistance-enabled', !!props.historicalOrder)
 const snapshot = shallowRef<SupportResistanceSnapshot | null>(null)
 // 历史模式只读入场快照，切换到其他周期不把原周期快照当作当前周期结构。
 const summary = computed(() => {

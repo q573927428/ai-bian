@@ -17,11 +17,12 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onBeforeUnmount, shallowRef, ref } from 'vue'
+import { computed, onMounted, onBeforeUnmount, shallowRef } from 'vue'
 import type { TradeHistory } from '../../../types'
 import type { IChartApi, ISeriesApi } from 'lightweight-charts'
 import type { SimpleKLineData } from '../../../types/kline-simple'
 import { useChartPosition } from '../../composables/usePositionChart'
+import { useChartOverlayPreference } from '../../composables/useChartOverlayPreference'
 import { formatPrice } from './utils/kline-formatters'
 
 /** 获取实时图表实例，以适应交易对或指标切换时的图表重建。 */
@@ -56,7 +57,7 @@ interface Geometry {
 }
 const geometry = shallowRef<Geometry | null>(null)
 // 沿用默认显示，允许用户单独关闭风险区域，不影响订单标记及持仓监控。
-const enabled = ref(true)
+const enabled = useChartOverlayPreference('chart-position-risk-enabled', true)
 // 保证短期持仓的标签空间，同时让框体覆盖持仓期间的全部 K 线。
 const MIN_RISK_BOX_WIDTH = 100
 const LATEST_KLINE_PADDING = 30
