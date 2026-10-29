@@ -1,5 +1,8 @@
 <!-- ==================== 图表支撑阻力区域 ==================== -->
 <template>
+  <div v-if="enabled && !loading && klines.length" class="structure-summary">
+    <SupportResistanceInfo :snapshot="summary" compact :historical="!!historicalOrder" />
+  </div>
   <button class="structure-toggle" type="button" :aria-pressed="enabled" @click="enabled = !enabled">{{ enabled ? '隐藏支撑阻力' : '支撑阻力' }}</button>
   <svg v-if="enabled && geometry" class="structure-overlay" :width="geometry.width" :height="geometry.height" aria-label="支撑阻力区域">
     <g v-for="item in geometry.zones" :key="item.label">
@@ -10,7 +13,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, shallowRef, watch, onMounted, onBeforeUnmount } from 'vue'
+import { computed, ref, shallowRef, watch, onMounted, onBeforeUnmount } from 'vue'
+import SupportResistanceInfo from '../SupportResistanceInfo.vue'
 import type { IChartApi, ISeriesApi } from 'lightweight-charts'
 import type { SimpleKLineData } from '../../../types/kline-simple'
 import type { TradeHistory } from '../../../types'
@@ -27,8 +31,15 @@ interface Props {
   getSeries: () => ISeriesApi<'Candlestick'> | null
 }
 const props = defineProps<Props>()
-const enabled = ref(false)
+const enabled = ref(!!props.historicalOrder)
+// 从订单列表进入复盘时自动显示入场快照，仍允许用户手动隐藏。
+watch(() => props.historicalOrder, (order) => { if (order) enabled.value = true })
 const snapshot = shallowRef<SupportResistanceSnapshot | null>(null)
+// 历史模式只读入场快照，切换到其他周期不把原周期快照当作当前周期结构。
+const summary = computed(() => {
+  const data = props.historicalOrder ? props.historicalOrder.entrySupportResistance : snapshot.value
+  return data?.timeframe === props.timeframe ? data : null
+})
 /** 区域几何只取当前坐标，缩放与拖动不重新请求行情。 */
 interface Geometry {
   width: number
@@ -77,8 +88,11 @@ function draw() {
       if (!zone) continue
       const start = order ? new Date(order.openTime).getTime() / 1000
         : 'lastConfirmedAt' in zone ? Number(zone.lastConfirmedAt) / 1000 : NaN
-      // 使用首个不早于确认时刻的K线，避免把区域提前画到确认之前。
-      const index = props.klines.findIndex(bar => bar.t >= start)
+      // 历史入场定位到开仓所在蜡烛；实时区域仍从确认之后开始，避免提前展示。
+      const nextIndex = props.klines.findIndex(bar => bar.t > start)
+      const index = order
+        ? (nextIndex < 0 ? props.klines.length - 1 : Math.max(0, nextIndex - 1))
+        : props.klines.findIndex(bar => bar.t >= start)
       if (!Number.isFinite(start) || index < 0) continue
       const x = scale.logicalToCoordinate(index as any)
       const upper = series.priceToCoordinate(zone.upper)
@@ -95,11 +109,13 @@ function draw() {
   if (serialized !== previous) { geometry.value = next; previous = serialized }
   frame = requestAnimationFrame(draw)
 }
-watch(() => [props.symbol, props.timeframe, enabled.value, props.historicalOrder], () => {
+watch(() => [props.symbol, props.timeframe, props.historicalOrder], () => {
   version++
   snapshot.value = null
   void refresh()
 })
+// 开启后立即获取摘要，关闭时连同区域一起隐藏并停止后续轮询请求。
+watch(enabled, (visible) => { if (visible) void refresh() })
 onMounted(() => {
   void refresh()
   timer = setInterval(() => { void refresh() }, 15_000)
@@ -113,6 +129,8 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
+/* 放在原有两行行情指标下方，透明摘要不拦截十字光标与图表拖动。 */
+.structure-summary { position: absolute; top: 56px; left: 20px; right: 90px; z-index: 2; pointer-events: none; }
 .structure-overlay { position: absolute; top: 0; left: 0; pointer-events: none; overflow: hidden; z-index: 1; }
 .structure-toggle { position: absolute; left: 12px; bottom: 30px; z-index: 3; border: 1px solid var(--border-color); border-radius: 4px; background: var(--bg-card, #141414); color: var(--text-secondary); cursor: pointer; font-size: 11px; padding: 3px 6px; }
 text { font-size: 11px; paint-order: stroke; stroke: var(--bg-card, #141414); stroke-width: 3px; }

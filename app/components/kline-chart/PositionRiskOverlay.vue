@@ -17,7 +17,8 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, onBeforeUnmount, shallowRef, ref } from 'vue'
+import { computed, onMounted, onBeforeUnmount, shallowRef, ref } from 'vue'
+import type { TradeHistory } from '../../../types'
 import type { IChartApi, ISeriesApi } from 'lightweight-charts'
 import type { SimpleKLineData } from '../../../types/kline-simple'
 import { useChartPosition } from '../../composables/usePositionChart'
@@ -30,9 +31,16 @@ interface Props {
   getChart: () => IChartApi | null
   getSeries: () => ISeriesApi<'Candlestick'> | null
   loading?: boolean
+  historicalOrder?: TradeHistory | null
 }
 const props = defineProps<Props>()
-const position = useChartPosition(() => props.symbol)
+const livePosition = useChartPosition(() => props.symbol)
+// 历史复盘使用冻结的入场风险价格，避免混入同一交易对当前持仓的数据。
+const position = computed(() => {
+  const order = props.historicalOrder
+  return order ? { ...order, initialStopLoss: order.stopLossPrice, stopLoss: order.stopLossPrice,
+    takeProfit1: order.takeProfit1Price, takeProfit2: order.takeProfit2Price } : livePosition.value
+})
 /** SVG 使用主价格轴坐标；所有区域会随缩放、拖动及实时价格同步移动。 */
 interface Geometry {
   width: number

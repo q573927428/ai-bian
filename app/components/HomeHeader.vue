@@ -3,13 +3,15 @@
   <el-header class="header">
     <div class="header-content">
       <h1>
+        <NuxtLink to="/" class="brand-link" aria-label="返回首页">
         <img :src="currentTheme === 'light' ? '/logo-light.png' : '/logo.png'" alt="Logo" style="width: 1.5em; height: 1.5em; object-fit: contain; vertical-align: middle; margin-right: 8px" />
         AI自动交易
+        </NuxtLink>
       </h1>
       <!-- 桌面直接显示导航，移动端通过右上角菜单展开同一组入口。 -->
       <nav id="header-navigation" class="header-navigation" :class="{ 'is-open': mobileNavOpen }" aria-label="行情导航">
         <div class="navigation-inner">
-          <button v-for="item in navigationItems" :key="item.label" type="button" class="navigation-item" :class="{ 'is-active': activePanels[item.id] }" aria-haspopup="dialog" @click="handleNavigate(item.id)">
+          <button v-for="item in navigationItems" :key="item.label" type="button" class="navigation-item" :class="{ 'is-active': activePanels[item.id] }" :aria-haspopup="item.id === 'home' || item.id === 'orders' ? undefined : 'dialog'" @click="handleNavigate(item.id)">
             <span class="navigation-icon">
               <el-icon :size="18" aria-hidden="true">
                 <component :is="item.icon" />
@@ -56,7 +58,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import type { Component } from 'vue'
-import { ElIconDataAnalysis, ElIconStar, ElIconPlatform, ElIconTrendCharts, ElIconUserFilled } from '#components'
+import { ElIconHouse, ElIconDataAnalysis, ElIconTickets, ElIconPlatform, ElIconTrendCharts, ElIconUserFilled } from '#components'
 import { useTheme } from '../composables/useTheme'
 import type { HomeNavigationTarget } from '../../types/home'
 
@@ -84,8 +86,9 @@ const emit = defineEmits<{
 const { theme: currentTheme, toggleTheme } = useTheme()
 const mobileNavOpen = ref(false)
 const navigationItems: NavigationItem[] = [
+  { id: 'home', label: '首页', description: '交易总览', icon: ElIconHouse },
   { id: 'indicators', label: '指标', description: '技术信号', icon: ElIconDataAnalysis },
-  { id: 'hot', label: '热门', description: '市场焦点', icon: ElIconStar },
+  { id: 'orders', label: '订单', description: '交易复盘', icon: ElIconTickets },
   { id: 'macro', label: '宏观', description: '全球市场', icon: ElIconPlatform },
   { id: 'trends', label: '趋势', description: '行情脉络', icon: ElIconTrendCharts }
 ]
@@ -98,6 +101,7 @@ function handleNavigate(target: HomeNavigationTarget) {
 </script>
 
 <style scoped>
+.brand-link { display: flex; align-items: center; color: inherit; text-decoration: none; }
 .header {
   flex-shrink: 0;
 }

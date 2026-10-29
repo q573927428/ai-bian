@@ -43,8 +43,8 @@
         v-if="!timeline"
         ref="chartCanvasRef"
         :kline-data="klineData"
-        :trade-history="visibleTradeHistory"
-        :historical-order="orderTooltipVisible ? orderTooltipOrders[0] : null"
+        :trade-history="historicalOrder ? [historicalOrder] : visibleTradeHistory"
+        :historical-order="historicalOrder || (orderTooltipVisible ? orderTooltipOrders[0] : null)"
         :scan-results="scanResults"
         :theme="theme"
         :symbol="displaySymbol"
@@ -52,7 +52,7 @@
         :loading="loading"
         :error="error"
         :show-ema-markers="showEMAMarkers"
-        :show-order-markers="showOrderMarkers"
+        :show-order-markers="!!historicalOrder || showOrderMarkers"
         :show-scan-markers="showScanMarkers"
         :show-ema-lines="showEMALines"
         :ema-periods="selectedEmaPeriods"
@@ -156,17 +156,21 @@ const debounce = <T extends (...args: any[]) => any>(
 }
 
 
-// 定义props
+/** 图表参数；复盘模式固定使用订单入场时的快照和历史时间窗口。 */
 interface Props {
   symbol?: string
   timeframe?: string
   activeEngine?: 'native' | 'tradingview'
+  historicalOrder?: TradeHistory | null
+  /** 常规画布高度，允许订单复盘页独立调整，不影响首页布局与全屏尺寸。 */
+  height?: number
 }
 
 const props = withDefaults(defineProps<Props>(), {
   symbol: 'BTCUSDT',
   timeframe: '',  // 默认为空字符串，表示没有提供timeframe
-  activeEngine: 'native'
+  activeEngine: 'native',
+  height: 423
 })
 
 // 定义emits
@@ -285,8 +289,7 @@ const meta = ref({
 const loading = ref(false)
 const error = ref('')
 const theme = ref<'light' | 'dark'>(globalTheme.value)
-const normalChartHeight = 423
-const chartHeight = ref(normalChartHeight)
+const chartHeight = ref(props.height)
 const isFullscreen = ref(false)
 let layoutObserver: ResizeObserver | undefined
 
@@ -415,6 +418,13 @@ const loadKLineData = async (silent = false) => {
       timeframe: timeframeToUse,
       limit: '495'
     })
+    if (props.historicalOrder) {
+      // 在开仓前预留足够的走势用于观察结构，避免老订单被最新行情窗口排除。
+      const open = Math.floor(new Date(props.historicalOrder.openTime).getTime() / 1000)
+      const step = getTimeframeSeconds(timeframeToUse)
+      params.set('from', String(open - step * 200))
+      params.set('to', String(open + step * 100))
+    }
     
     const response = await fetch(`/api/kline-simple?${params}`)
     const result: KLineApiResponse = await response.json()
@@ -431,6 +441,16 @@ const loadKLineData = async (silent = false) => {
     
     if (result.success && result.data) {
       let nextKlineData = result.data.data
+      if (props.historicalOrder) {
+        const open = Math.floor(new Date(props.historicalOrder.openTime).getTime() / 1000)
+        const step = getTimeframeSeconds(timeframeToUse)
+        if (!nextKlineData.some(bar => bar.t <= open && bar.t + step > open)) {
+          // 本地行情存在保存期限，禁止把不包含入场时刻的行情当作订单复盘。
+          klineData.value = []
+          error.value = '本地缺少该订单开仓时段的 K 线数据'
+          return
+        }
+      }
 
       // 周期边界后，后端同步和前端临时柱可能存在几秒竞态。
       // 后端若仍返回上一根已收盘柱，不能用旧快照覆盖临时新柱，否则时间范围会在两个边界间反复跳动。
@@ -509,7 +529,7 @@ const updateChartHeight = () => {
       chartHeight.value = Math.max(250, container.clientHeight - (controlsWrapperRef.value?.offsetHeight || 0))
       return
     }
-    chartHeight.value = normalChartHeight
+    chartHeight.value = props.height
     return
   }
 
@@ -522,6 +542,9 @@ const handleFullscreenChange = () => {
   isFullscreen.value = document.fullscreenElement === simpleContainerRef.value
   updateChartHeight()
 }
+
+// 页面调整高度参数时同步画布；全屏仍由视口高度决定。
+watch(() => props.height, updateChartHeight)
 
 const handleWindowResize = () => {
   updateChartHeight()
@@ -908,7 +931,7 @@ const checkAndUpdatePrice = () => {
 
 // 监听 botStore 共享价格变化，自动更新K线
 watch(() => botStore.prices[(props.symbol || 'BTCUSDT')], (newPrice) => {
-  if (newPrice) {
+  if (newPrice && !props.historicalOrder) {
     checkAndUpdatePrice()
   }
 }, { deep: true })
@@ -1013,6 +1036,8 @@ const checkForNewKline = (syncLastBar = true) => {
 
 // 启动新K线检测（复用共享轮询）
 const startNewKlineCheck = () => {
+  // 历史复盘不得追加当前蜡烛或被实时行情覆盖。
+  if (props.historicalOrder) return
   // 订阅共享轮询，传递回调函数，每次轮询时检查新K线
   botStore.subscribeToPolling(klineCheckSubscriberId, checkForNewKline)
 
@@ -1094,7 +1119,7 @@ watch(() => props.timeframe, (newTimeframe, oldTimeframe) => {
 // 组件挂载时初始化
 onMounted(() => {
   // 如果配置已经加载完成，直接加载数据；否则等待配置加载
-  if (botStore.config) {
+  if (botStore.config || props.historicalOrder) {
     // 配置已加载，设置正确的初始周期并加载数据
     selectedTimeframe.value = computedTimeframe.value
     loadKLineData()

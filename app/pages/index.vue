@@ -35,6 +35,7 @@
               @lock="clearPassword"
               @open="handleOpenProtectedPanel"
               @logs="showLogsDrawer = true"
+              @hot="showTopSymbolsDialog = true"
             />
 
             <!-- 盈亏胜率走势图表 -->
@@ -77,10 +78,6 @@
               <Strategies v-model="showStrategiesDrawer" />
             </ClientOnly>
 
-            <!-- 状态面板的订单入口需先解锁，验证成功后再挂载订单抽屉。 -->
-            <ClientOnly v-if="passwordVerified">
-              <TradeHistory v-model="showOrdersDrawer" @select-symbol="handlePositionChartSelect" />
-            </ClientOnly>
 
             <ClientOnly>
               <TopSymbolsTable v-model="showTopSymbolsDialog" :selectable="false" />
@@ -133,13 +130,13 @@ import MacroDataDrawer from '../components/MacroDataDrawer.vue'
 import ActivePositions from '../components/ActivePositions.vue'
 import LatestNews from '../components/LatestNews.vue'
 import Strategies from '../components/Strategies.vue'
-import TradeHistory from '../components/TradeHistory.vue'
 import TopSymbolsTable from '../components/TopSymbolsTable.vue'
 import BotConfigDialog from '../components/BotConfigDialog.vue'
 import ProfitWinRateChart from '../components/ProfitWinRateChart.vue'
 import PerformancePanel from '../components/PerformancePanel.vue'
 
 const botStore = useBotStore()
+const route = useRoute()
 const strategiesStore = useStrategiesStore()
 /** 首页交易统计字段，与历史汇总接口返回的数据保持一致。 */
 interface HistoryOverview {
@@ -158,19 +155,19 @@ const showConfigDialog = ref(false)
 const showPerformanceDialog = ref(false)
 const showIndicatorsDrawer = ref(false)
 const showLogsDrawer = ref(false)
-const showOrdersDrawer = ref(false)
 const showTopSymbolsDialog = ref(false)
 const showMacroDataDrawer = ref(false)
 const showCryptoTrendsDrawer = ref(false)
 const showStrategiesDrawer = ref(false)
 // 页面统一持有面板开关，子组件通过事件请求打开。
 const activeNavigationPanels = computed(() => ({
+  home: true,
   indicators: showIndicatorsDrawer.value,
   hot: showTopSymbolsDialog.value,
   macro: showMacroDataDrawer.value,
   trends: showCryptoTrendsDrawer.value,
   logs: showLogsDrawer.value,
-  orders: showOrdersDrawer.value
+  orders: false
 }))
 
 const { passwordVerified, showPasswordDialog, hasPassword, handleUnlock, handleOpenProtectedPanel, handlePasswordSuccess, clearPassword } = usePageUnlock({
@@ -178,7 +175,6 @@ const { passwordVerified, showPasswordDialog, hasPassword, handleUnlock, handleO
   onLock: () => {
     showConfigDialog.value = false
     showStrategiesDrawer.value = false
-    showOrdersDrawer.value = false
   }
 })
 
@@ -186,11 +182,15 @@ const { passwordVerified, showPasswordDialog, hasPassword, handleUnlock, handleO
 function openProtectedPanel(panel: HomeProtectedPanel) {
   if (panel === 'config') showConfigDialog.value = true
   else if (panel === 'strategies') showStrategiesDrawer.value = true
-  else showOrdersDrawer.value = true
+  else void navigateTo('/orders')
 }
 
 /** 将顶部导航事件映射到面板开关，订单入口继续经过解锁门禁。 */
 function handleNavigate(target: HomeNavigationTarget) {
+  if (target === 'home') {
+    void navigateTo('/')
+    return
+  }
   if (target === 'orders') {
     handleOpenProtectedPanel('orders')
     return
@@ -294,6 +294,11 @@ const annualizedReturn = computed(() => {
 
 // 首页统计独立刷新，打开订单抽屉不再承担首页数据更新职责。
 onMounted(async () => {
+  // 从订单页共用导航返回时，恢复用户刚点击的行情面板。
+  const panel = route.query.panel
+  if (typeof panel === 'string' && ['indicators', 'hot', 'macro', 'trends', 'logs'].includes(panel)) {
+    handleNavigate(panel as HomeNavigationTarget)
+  }
   overviewTimer = setInterval(loadHistoryOverview, 30000)
   await Promise.all([
     botStore.fetchStatus(),

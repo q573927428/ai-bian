@@ -1,6 +1,10 @@
 <!-- ==================== 看板及交易记录共用支撑阻力展示 ==================== -->
 <template>
-  <div v-if="snapshot" class="structure-info" :class="{ 'structure-info-detailed': detailed }">
+  <div v-if="compact && snapshot" class="structure-info-compact">
+    <span class="support">支撑 {{ zone(snapshot.nearestSupport) }}<template v-if="snapshot.nearestSupport"> · {{ number(snapshot.supportDistancePercent) }}% / {{ number(snapshot.supportDistanceATR) }} ATR</template></span>
+    <span class="resistance">阻力 {{ zone(snapshot.nearestResistance) }}<template v-if="snapshot.nearestResistance"> · {{ number(snapshot.resistanceDistancePercent) }}% / {{ number(snapshot.resistanceDistanceATR) }} ATR</template></span>
+  </div>
+  <div v-else-if="snapshot" class="structure-info" :class="{ 'structure-info-detailed': detailed }">
     <el-tooltip placement="top">
       <template #content>
         <template v-if="'algorithm' in snapshot">
@@ -33,7 +37,7 @@
       {{ snapshot.timeframe }} · 决策参考价 {{ price(snapshot.referencePrice) }}
     </div>
   </div>
-  <span v-else class="distance">暂无结构数据</span>
+  <span v-else class="distance">{{ historical ? '暂无入场支撑阻力快照' : '暂无结构数据' }}</span>
 </template>
 
 <script setup lang="ts">
@@ -44,6 +48,9 @@ import type { EntrySupportResistance, PriceZone, SupportResistanceSnapshot } fro
 interface Props {
   snapshot?: SupportResistanceSnapshot | EntrySupportResistance | null
   detailed?: boolean
+  /** 图表内紧凑显示价位、百分比距离及 ATR 距离倍数。 */
+  compact?: boolean
+  historical?: boolean
 }
 const props = defineProps<Props>()
 const labels: Record<SupportResistanceSnapshot['status'], string> = {
@@ -62,6 +69,7 @@ const time = (value: number | null) => value == null ? '--' : new Date(value).to
 
 <style scoped>
 .structure-info { line-height: 1.55; }
+.structure-info-compact { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 11px; line-height: 1.5; }
 .support { color: #67c23a; }
 .resistance { color: #f56c6c; }
 .distance { color: var(--el-text-color-secondary); font-size: 12px; }

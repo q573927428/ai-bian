@@ -2,7 +2,7 @@
   <div class="chart-wrapper">
     <div ref="chartContainer" class="kline-chart"></div>
     <SupportResistanceOverlay :symbol="symbol" :timeframe="timeframe" :klines="klineData" :loading="loading || !!error" :historical-order="historicalOrder" :get-chart="() => chart" :get-series="() => candlestickSeries" />
-    <PositionRiskOverlay :symbol="symbol" :klines="klineData" :loading="loading || !!error" :get-chart="() => chart" :get-series="() => candlestickSeries" />
+    <PositionRiskOverlay :symbol="symbol" :historical-order="historicalOrder" :klines="klineData" :loading="loading || !!error" :get-chart="() => chart" :get-series="() => candlestickSeries" />
 
     <!-- 加载状态 -->
     <div v-if="loading" class="chart-loading">
@@ -303,7 +303,7 @@ const generateMarkers = () => {
   
   // 日线展示历史订单开平仓标记，周线仍隐藏以保持长周期图表可读性。
   const hideMarkersTimeframes = ['1w']
-  if (hideMarkersTimeframes.includes(currentTimeframe)) {
+  if (!props.historicalOrder && hideMarkersTimeframes.includes(currentTimeframe)) {
     return []
   }
   

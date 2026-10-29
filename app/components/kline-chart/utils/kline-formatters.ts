@@ -56,6 +56,18 @@ export function formatPrice(value: number | undefined | null): string {
   })
 }
 
+/** 成交价格展示：常规价格最多两位小数，小额币保留四位有效数字，省略尾零。 */
+export function formatTradePrice(value: number | undefined | null): string {
+  if (value == null || !Number.isFinite(value)) return '--'
+  if (value === 0) return '0'
+  // 按数量级增加小数位，避免低价币在格式化后显示为零。
+  const decimals = Math.min(20, Math.max(2, 3 - Math.floor(Math.log10(Math.abs(value)))))
+  return value.toLocaleString('en-US', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: Math.abs(value) >= 1 ? 2 : decimals,
+  })
+}
+
 /**
  * 格式化成交量
  * @param volume 成交量

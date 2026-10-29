@@ -367,11 +367,12 @@ html.dark .el-table {
 }
 
 /* 表格条纹行 */
-html.dark .el-table--striped .el-table__body tr.el-table__row--striped td,
-html.dark .el-table--striped .el-table__body tr.el-table__row--striped th {
+/* 选中行由表格选中色接管，避免条纹与悬停的强制背景覆盖选中状态。 */
+html.dark .el-table--striped .el-table__body tr.el-table__row--striped:not(.current-row) td,
+html.dark .el-table--striped .el-table__body tr.el-table__row--striped:not(.current-row) th {
   background-color: #222324 !important;
 }
-html.dark .el-table--striped .el-table__body tr.el-table__row--striped:hover td {
+html.dark .el-table--striped .el-table__body tr.el-table__row--striped:not(.current-row):hover td {
   background-color: #252627 !important;
 }
 html.dark .el-table .el-table__body td.el-table__cell {

@@ -1,11 +1,21 @@
+<!-- ==================== 历史订单列表与筛选 ==================== -->
 <template>
-  <el-drawer
+  <component
+    :is="embedded ? 'section' : ElDrawer"
     v-model="visible"
     class="history-drawer"
+    :class="{ 'is-embedded': embedded }"
     direction="rtl"
     size="75%"
     destroy-on-close
   >
+    <div v-if="embedded" class="card-header embedded-header">
+      <span>历史订单 ({{ total }})</span>
+      <div class="header-actions">
+        <el-button size="small" text @click="showFilter = !showFilter">筛选</el-button>
+        <el-button size="small" text :loading="loading" @click="refreshHistory">刷新</el-button>
+      </div>
+    </div>
     <template #header>
       <div class="card-header">
         <span>📋 历史订单 ({{ total }})</span>
@@ -239,10 +249,82 @@
       <span>暂无历史订单</span>
     </div>
 
+    <!-- 常用字段直接展示，所选订单的策略与平仓详情由右侧图表区域展示。 -->
+    <el-table
+      v-else-if="embedded"
+      v-loading="loading"
+      class="compact-orders-table"
+      scrollbar-always-on
+      :data="orders"
+      row-key="id"
+      :current-row-key="selectedId"
+      highlight-current-row
+      stripe
+      border
+      size="small"
+      style="width: 100%"
+      @row-click="(order: TradeHistory) => emit('select-order', order)"
+      @sort-change="handleSortChange"
+    >
+      <el-table-column type="index" label="" width="30" align="center" :index="(index: number) => (currentPage - 1) * pageSize + index + 1" />
+      <el-table-column label="交易对" prop="symbol" min-width="104" show-overflow-tooltip>
+        <template #default="{ row }">
+          <el-button link type="primary" size="small" @click.stop="emit('select-order', row as TradeHistory)">{{ row.symbol }}</el-button>
+        </template>
+      </el-table-column>
+      <el-table-column label="方向" width="40" align="center">
+        <template #default="{ row }"><span :class="row.direction === 'LONG' ? 'text-success' : 'text-danger'">{{ row.direction === 'LONG' ? '多' : '空' }}</span></template>
+      </el-table-column>
+      <el-table-column label="周期" width="38" align="center">
+        <template #default="{ row }">{{ row.mainTimeframe || row.entrySupportResistance?.timeframe || '1h' }}</template>
+      </el-table-column>
+      <el-table-column label="开仓" prop="entryPrice" min-width="70" align="right" show-overflow-tooltip>
+        <template #default="{ row }">{{ formatTradePrice(row.entryPrice) }}</template>
+      </el-table-column>
+      <el-table-column label="平仓" prop="exitPrice" min-width="70" align="right" show-overflow-tooltip>
+        <template #default="{ row }">{{ formatTradePrice(row.exitPrice) }}</template>
+      </el-table-column>
+      <el-table-column label="杠杆" width="38" align="center">
+        <template #default="{ row }">{{ row.leverage }}x</template>
+      </el-table-column>
+      <el-table-column label="盈亏" prop="pnl" min-width="99" align="right" sortable="custom">
+        <template #default="{ row }"><span :class="row.pnl >= 0 ? 'text-success' : 'text-danger'">{{ row.pnl.toFixed(2) }} ({{ formatPercent2(row.pnlPercentage) }})</span></template>
+      </el-table-column>
+      <el-table-column label="评分" prop="entryScore" width="68" align="center" sortable="custom">
+        <template #default="{ row }">{{ formatScore(row.entryScoreBreakdown?.finalScore ?? row.entryScore) }}</template>
+      </el-table-column>
+      <el-table-column label="置信" prop="entryConfidence" width="68" align="center" sortable="custom">
+        <template #default="{ row }">{{ formatScore(row.entryConfidence) }}</template>
+      </el-table-column>
+      <el-table-column label="OI" prop="oiChangePercent" width="62" align="right" sortable="custom">
+        <template #default="{ row }">
+          <span :class="getOiChangeClass(row.entryIndicators?.OIChangePercent)">{{ formatPercent2(row.entryIndicators?.OIChangePercent) }}</span>
+        </template>
+      </el-table-column>
+      <el-table-column label="预量" prop="estimatedVolumeEmaRatioPercent" width="72" align="right" sortable="custom">
+        <template #default="{ row }">{{ formatPercent2(row.entryIndicators?.EstimatedVolumeEmaRatioPercent) }}</template>
+      </el-table-column>
+      <el-table-column label="持仓" prop="holdingMinutes" width="80" align="center" sortable="custom" show-overflow-tooltip>
+        <template #default="{ row }">{{ formatHoldingTime(row.openTime, row.closeTime) }}</template>
+      </el-table-column>
+      <el-table-column label="开仓" prop="openTime" width="80" sortable="custom">
+        <template #default="{ row }">{{ formatTime(row.openTime) }}</template>
+      </el-table-column>
+      <el-table-column label="原因" width="64" align="center">
+        <template #default="{ row }">
+          <el-tooltip :content="row.reason || '暂无平仓原因'" placement="top">
+            <el-tag :type="getCloseCategoryType(row.closeCategory)" size="small">
+              {{ getCloseCategoryLabel(row.closeCategory) }}
+            </el-tag>
+          </el-tooltip>
+        </template>
+      </el-table-column>
+    </el-table>
     <!-- 表格 -->
     <el-table
       ref="tableRef"
       v-else
+      class="history-detail-table"
       :data="orders"
       stripe
       border
@@ -252,6 +334,7 @@
       @sort-change="handleSortChange"
       :row-key="(row: any) => row.id"
     >
+      <el-table-column type="index" label="序号" width="52" align="center" :index="(index: number) => (currentPage - 1) * pageSize + index + 1" />
       <!-- 展开行 -->
       <el-table-column type="expand" width="1">
         <template #default="{ row }">
@@ -420,7 +503,7 @@
         prop="entryPrice"
       >
         <template #default="{ row }">
-          ${{ formatPrice(row.entryPrice) }}
+          ${{ formatTradePrice(row.entryPrice) }}
         </template>
       </el-table-column>
 
@@ -431,7 +514,7 @@
         prop="exitPrice"
       >
         <template #default="{ row }">
-          ${{ formatPrice(row.exitPrice) }}
+          ${{ formatTradePrice(row.exitPrice) }}
         </template>
       </el-table-column>
 
@@ -619,27 +702,33 @@
         @current-change="handlePageChange"
       />
     </div>
-  </el-drawer>
+  </component>
 </template>
 
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
+import { ElDrawer } from 'element-plus'
 import type { TradeHistory } from '../../types'
 import SupportResistanceInfo from './SupportResistanceInfo.vue'
 import { useTradeHistoryStore, type FilterConfig } from '../stores/tradeHistory'
+import { formatTradePrice } from './kline-chart/utils/kline-formatters'
 
 const tradeHistoryStore = useTradeHistoryStore()
 
 const props = defineProps<{
   modelValue: boolean
+  /** 页面内嵌模式使用窄栏订单卡片，不打开抽屉。 */
+  embedded?: boolean
+  selectedId?: string
 }>()
 
 const emit = defineEmits<{
   (event: 'update:modelValue', value: boolean): void
   (event: 'select-symbol', symbol: string, mainTimeframe?: string): void
+  (event: 'select-order', order: TradeHistory): void
 }>()
 
-// 由首页订单按钮统一控制抽屉显隐，组件内部关闭时同步回父组件。
+// 页面内嵌时保持加载；抽屉兼容模式仍向父组件同步显隐。
 const visible = computed({
   get: () => props.modelValue,
   set: (value: boolean) => emit('update:modelValue', value),
@@ -653,7 +742,7 @@ function selectChart(symbol: string, mainTimeframe?: string) {
 
 const orders = ref<TradeHistory[]>([])
 const currentPage = ref(1)
-const pageSize = ref(16)
+const pageSize = ref(15)
 const total = ref(0)
 const totalPages = ref(0)
 const loading = ref(false)
@@ -823,6 +912,10 @@ const loadHistory = async () => {
     const response = await tradeHistoryStore.fetchPage(currentPage.value, pageSize.value)
     if (!response || request !== historyRequest) return
     orders.value = response.data
+    // 首次打开自动展示最新订单，轮询、分页和排序不覆盖用户已经选中的复盘。
+    if (props.embedded && !props.selectedId && orders.value[0]) {
+      emit('select-order', orders.value[0])
+    }
     total.value = response.pagination.total
     totalPages.value = response.pagination.totalPages
     currentPage.value = response.pagination.page
@@ -893,7 +986,7 @@ function formatTime(timestamp: number): string {
   })
 }
 
-// 格式化持仓时间
+/** 持仓时长最多使用小时单位，跨天仍累计小时，方便直接比较订单。 */
 function formatHoldingTime(openTime: number, closeTime: number): string {
   if (!openTime || !closeTime) return '--'
   const diffMs = closeTime - openTime
@@ -902,21 +995,7 @@ function formatHoldingTime(openTime: number, closeTime: number): string {
   if (totalMinutes < 60) return `${totalMinutes}分钟`
   const hours = Math.floor(totalMinutes / 60)
   const remainMinutes = totalMinutes % 60
-  if (hours >= 24) {
-    const days = Math.floor(hours / 24)
-    const remainHours = hours % 24
-    if (remainHours > 0 && remainMinutes > 0) {
-      return `${days}天 ${remainHours}时 ${remainMinutes}分`
-    }
-    if (remainHours > 0) {
-      return `${days}天 ${remainHours}小时`
-    }
-    if (remainMinutes > 0) {
-      return `${days}天 ${remainMinutes}分`
-    }
-    return `${days}天`
-  }
-  return remainMinutes > 0 ? `${hours}小时 ${remainMinutes}分` : `${hours}小时`
+  return remainMinutes > 0 ? `${hours}时 ${remainMinutes}分` : `${hours}时`
 }
 
 // 获取平仓分类标签
@@ -967,6 +1046,8 @@ function getCloseCategoryType(category?: string): 'primary' | 'danger' | 'succes
 let pollTimer: ReturnType<typeof setInterval> | null = null
 
 onMounted(() => {
+  // 复盘页首次进入按最近平仓排序，保证默认图表对应最新一笔已完成订单。
+  if (props.embedded) tradeHistoryStore.setSort('closeTime', 'desc')
   // 抽屉打开后才加载和轮询，避免页面隐藏时持续传输历史数据。
   if (visible.value) {
     loadHistory()
@@ -993,6 +1074,22 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+.embedded-header { margin-bottom: 16px; font-size: 15px !important; }
+.compact-orders-table :deep(.el-table__row) { cursor: pointer; }
+.compact-orders-table :deep(.el-table__cell) { padding: 5px 0; }
+.compact-orders-table :deep(.cell) { padding: 0 6px; white-space: nowrap; font-size: 12px; }
+.compact-orders-table :deep(.current-row > .el-table__cell) { background: var(--el-color-primary-light-9) !important; }
+/* 只隐藏纵向条及重复的原生条；横向溢出时必须保留可拖动入口，避免右侧列像被裁掉。 */
+.is-embedded :deep(.el-scrollbar__bar.is-vertical) { display: none; }
+.compact-orders-table :deep(.el-scrollbar__bar.is-horizontal) { height: 6px; }
+.is-embedded :deep(.el-scrollbar__wrap),
+.is-embedded .pagination-wrapper { scrollbar-width: none; }
+.is-embedded :deep(.el-scrollbar__wrap)::-webkit-scrollbar,
+.is-embedded .pagination-wrapper::-webkit-scrollbar { display: none; width: 0; height: 0; }
+.history-drawer :deep(.filter-row) { flex-wrap: wrap; }
+.is-embedded .history-summary { flex-wrap: wrap; gap: 8px; padding: 8px; }
+.is-embedded .summary-divider { display: none; }
+.is-embedded .pagination-wrapper { overflow-x: auto; justify-content: flex-start; }
 .card-header {
   display: flex;
   align-items: center;
@@ -1012,7 +1109,8 @@ onUnmounted(() => {
   margin-bottom: 8px;
 }
 
-:deep(.el-table__expand-icon) {
+/* 旧表格通过原因标签展开详情；隐藏箭头的兼容规则不能影响复盘表格。 */
+.history-detail-table :deep(.el-table__expand-icon) {
   display: none !important;
 }
 

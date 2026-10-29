@@ -32,9 +32,9 @@
           <el-icon><ElIconDocument /></el-icon>
           日志
         </el-button>
-        <el-button class="control-panel-action" type="primary" size="small" text @click="emit('open', 'orders')">
-          <el-icon><ElIconTickets /></el-icon>
-          订单
+        <el-button class="control-panel-action" type="primary" size="small" text @click="emit('hot')">
+          <el-icon><ElIconStar /></el-icon>
+          热门
         </el-button>
       </div>
       <!-- 余额信息 -->
@@ -114,6 +114,7 @@ const emit = defineEmits<{
   unlock: []
   lock: []
   logs: []
+  hot: []
   open: [panel: 'config' | 'strategies' | 'orders']
 }>()
 const pnlClass = computed(() => props.dailyPnL >= 0 ? 'text-success' : 'text-danger')
