@@ -79,6 +79,9 @@ import { macroCrosshairKey, type MacroCrosshairPosition, type MacroPinnedSummary
 import { macroViewportKey, type MacroViewport } from './macro-data/viewport-sync'
 import type { MacroPeriod, LocalMacroMarket } from '../../types/macro-market'
 import { macroGridLayout } from '../utils/macro-grid'
+import { useTheme } from '../composables/useTheme'
+
+const { theme } = useTheme()
 
 const timeSyncEnabled = ref(true)
 const viewportListeners = new Set<(viewport: MacroViewport) => void>()
@@ -291,51 +294,51 @@ function setGlobalPeriod(period: Period) {
 /** 使用 TradingView 公开嵌入图表提供市场数据，周期变化时 iframe 会重新加载。 */
 function chartUrl(symbol: string, period: Period): string {
   const params = new URLSearchParams({
-    symbol, interval: { '15m': '15', '1h': '60', '4h': '240', '1d': 'D', '1w': 'W' }[period], theme: 'dark', style: '1', locale: 'zh_CN',
+    symbol, interval: { '15m': '15', '1h': '60', '4h': '240', '1d': 'D', '1w': 'W' }[period], theme: theme.value, style: '1', locale: 'zh_CN',
     timezone: 'Etc/UTC', hidesidetoolbar: '1', hide_legend: '1',
-    symboledit: '0', saveimage: '0', toolbarbg: '#111111',
+    symboledit: '0', saveimage: '0', toolbarbg: theme.value === 'dark' ? '#111111' : '#ffffff',
   })
   return `https://s.tradingview.com/widgetembed/?${params.toString()}`
 }
 </script>
 
 <style scoped>
-.macro-content { padding: 6px; background: #080808; height: 100%; box-sizing: border-box; display: flex; flex-direction: column; }
+.macro-content { padding: 6px; background: var(--bg-main); height: 100%; box-sizing: border-box; display: flex; flex-direction: column; }
 .macro-toolbar { flex-shrink: 0; }
-.macro-toolbar { min-height: 34px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 12px; padding: 0 5px 5px; box-sizing: border-box; background: #080808; }
-.overview-title { color: #f3f4f6; font-size: 14px; font-weight: 600; line-height: 22px; }
+.macro-toolbar { min-height: 34px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 12px; padding: 0 5px 5px; box-sizing: border-box; background: var(--bg-main); }
+.overview-title { color: var(--text-primary); font-size: 14px; font-weight: 600; line-height: 22px; }
 .macro-toolbar-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; }
-.crosshair-unpin { border: 1px solid #2962ff; border-radius: 4px; padding: 3px 6px; background: #162440; color: #8bb8ff; font-size: 11px; cursor: pointer; }
+.crosshair-unpin { border: 1px solid var(--el-color-primary); border-radius: 4px; padding: 3px 6px; background: var(--el-color-primary-light-9); color: var(--el-color-primary); font-size: 11px; cursor: pointer; }
 .summary-description { display: grid; gap: 8px; margin-bottom: 14px; line-height: 1.5; color: var(--text-regular); }
 .summary-description small { color: var(--text-secondary); }
 .positive { color: #26a69a; }
 .negative { color: #ef5350; }
 .chart-grid { display: grid; flex: 1; min-height: 0; gap: 6px; }
-.chart-panel { min-width: 0; min-height: 0; box-sizing: border-box; border: 1px solid #343434; border-radius: 5px; overflow: hidden; background: #111; }
+.chart-panel { min-width: 0; min-height: 0; box-sizing: border-box; border: 1px solid var(--el-border-color); border-radius: 5px; overflow: hidden; background: var(--bg-card); }
 .add-market-selector { width: 135px; }
-.remove-market { flex-shrink: 0; border: 0; padding: 0 3px; background: transparent; color: #9299a5; font-size: 18px; line-height: 22px; cursor: pointer; }
+.remove-market { flex-shrink: 0; border: 0; padding: 0 3px; background: transparent; color: var(--text-secondary); font-size: 18px; line-height: 22px; cursor: pointer; }
 .remove-market:hover { color: #ef5350; }
 .remove-market:disabled { opacity: 0.3; cursor: not-allowed; }
-.panel-header { height: 32px; display: flex; align-items: center; justify-content: space-between; gap: 5px; padding: 0 8px; border-bottom: 1px solid #333; box-sizing: border-box; }
+.panel-header { height: 32px; display: flex; align-items: center; justify-content: space-between; gap: 5px; padding: 0 8px; border-bottom: 1px solid var(--el-border-color); box-sizing: border-box; }
 .panel-caption { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 12px; }
-.panel-caption strong { color: #fff; font-size: 13px; margin-right: 8px; }
-.panel-caption span { color: #a7a9ad; }
+.panel-caption strong { color: var(--text-primary); font-size: 13px; margin-right: 8px; }
+.panel-caption span { color: var(--text-secondary); }
 .panel-caption { display: flex; align-items: center; gap: 6px; }
 .market-selector { width: 150px; flex-shrink: 1; min-width: 85px; }
 .market-selector :deep(.el-select__wrapper) { min-height: 24px; background: transparent; box-shadow: none; padding: 0 4px; }
-.market-selector :deep(.el-select__selected-item) { color: #fff; font-size: 12px; font-weight: 600; }
+.market-selector :deep(.el-select__selected-item) { color: var(--text-primary); font-size: 12px; font-weight: 600; }
 .market-select-empty { display: block; padding: 10px; font-size: 12px; }
 .periods button:disabled { opacity: 0.35; cursor: not-allowed; }
-.periods { display: flex; align-items: center; flex: none; border: 1px solid #303038; border-radius: 5px; padding: 2px; }
-.periods button { appearance: none; border: 0; border-radius: 4px; background: transparent; color: #aeb5c3; height: 21px; min-width: 28px; padding: 0 5px; font-size: 11px; cursor: pointer; }
-.periods button:hover { color: #fff; }
-.periods button.active { background: #2962ff; color: #fff; }
+.periods { display: flex; align-items: center; flex: none; border: 1px solid var(--el-border-color); border-radius: 5px; padding: 2px; }
+.periods button { appearance: none; border: 0; border-radius: 4px; background: transparent; color: var(--text-regular); height: 21px; min-width: 28px; padding: 0 5px; font-size: 11px; cursor: pointer; }
+.periods button:hover { color: var(--el-color-primary); }
+.periods button.active { background: var(--el-color-primary); color: #fff; }
 /* TradingView 的跨域 iframe 不接受隐藏顶部导航的 URL 参数，从视口裁去该行。 */
 .chart-viewport { height: calc(100% - 32px); overflow: hidden; }
-.chart-frame { display: block; width: 100%; height: calc(100% + 40px); transform: translateY(-40px); border: 0; background: #111; }
-:global(.macro-drawer .el-drawer__header) { margin-bottom: 0; padding: 12px 16px; background: #111; color: #f3f4f6; }
-:global(.macro-drawer .el-drawer__title) { color: #f3f4f6; }
-:global(.macro-drawer .el-drawer__body) { padding: 6px; overflow: auto; background: #080808; display: flex; flex-direction: column; }
+.chart-frame { display: block; width: 100%; height: calc(100% + 40px); transform: translateY(-40px); border: 0; background: var(--bg-card); }
+:global(.macro-drawer .el-drawer__header) { margin-bottom: 0; padding: 12px 16px; background: var(--bg-card); color: var(--text-primary); }
+:global(.macro-drawer .el-drawer__title) { color: var(--text-primary); }
+:global(.macro-drawer .el-drawer__body) { padding: 6px; overflow: auto; background: var(--bg-main); display: flex; flex-direction: column; }
 /* 行列数由实际网格容器宽度决定，抽屉、页面和侧栏变化均可自动适配。 */
 @media (max-width: 680px) {
   /* 移动端增加单图可读高度，多图时通过页面滚动查看。 */

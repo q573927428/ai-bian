@@ -20,6 +20,23 @@ import { createChart, ColorType, CandlestickSeries, TickMarkType, type Time, typ
 import type { MacroMarket, MacroPeriod, MacroKlineResponse } from '../../../types/macro-market'
 import { macroCrosshairKey, crosshairTimeKey, type MacroCrosshairPosition, type MacroPinnedSummary } from './crosshair-sync'
 import { macroViewportKey, logicalToCalendar, calendarToLogical, type MacroViewport } from './viewport-sync'
+import { useTheme } from '../../composables/useTheme'
+
+const { theme } = useTheme()
+// Canvas 不会继承 CSS 主题变量，主题切换时仅更新配色，不重建图表或重置视区。
+const chartThemeOptions = computed(() => {
+  const dark = theme.value === 'dark'
+  const border = dark ? '#414243' : '#dcdfe6'
+  const grid = dark ? '#303030' : '#ebeef5'
+  return {
+    layout: { background: { type: ColorType.Solid, color: dark ? '#1d1e1f' : '#ffffff' }, textColor: dark ? '#cfd3dc' : '#606266', fontSize: 10 },
+    grid: { vertLines: { color: grid }, horzLines: { color: grid } },
+    rightPriceScale: { borderColor: border },
+    timeScale: { borderColor: border },
+    crosshair: { vertLine: { color: dark ? '#909399' : '#909399', labelBackgroundColor: dark ? '#414243' : '#606266' },
+      horzLine: { color: '#909399', labelBackgroundColor: dark ? '#414243' : '#606266' } },
+  }
+})
 
 const props = defineProps<{ market: MacroMarket; period: MacroPeriod }>()
 const emit = defineEmits<{ 'pinned-summary': [summary: MacroPinnedSummary] }>()
@@ -287,14 +304,13 @@ onMounted(() => {
   if (!container.value) return
   chart = createChart(container.value, {
     autoSize: true,
-    layout: { background: { type: ColorType.Solid, color: '#111111' }, textColor: '#aeb5c3', fontSize: 10 },
-    grid: { vertLines: { color: '#202024' }, horzLines: { color: '#202024' } },
+    ...chartThemeOptions.value,
     localization: { locale: 'zh-CN', timeFormatter: (time: Time) => `${beijingCrosshairTime.format(chartTimeDate(time))} 北京时间` },
     timeScale: {
+      ...chartThemeOptions.value.timeScale,
       timeVisible: true, secondsVisible: false, rightOffset: RIGHT_OFFSET_BARS,
       tickMarkFormatter: (time: Time, type: TickMarkType) => beijingTicks[type].format(chartTimeDate(time)),
     },
-    rightPriceScale: { borderColor: '#303038' },
   })
   series = chart.addSeries(CandlestickSeries, {
     upColor: '#26a69a', downColor: '#ef5350', borderVisible: false,
@@ -312,6 +328,8 @@ onMounted(() => {
   void load()
   timer = setInterval(() => { if (!document.hidden && !loading.value) void load() }, 30000)
 })
+
+watch(theme, () => { chart?.applyOptions(chartThemeOptions.value) })
 
 watch(() => props.period, () => {
   // 切换固定来源图的周期后解除，避免固定日期仍引用旧周期。
@@ -346,10 +364,10 @@ onBeforeUnmount(() => {
 <style scoped>
 .macro-local-chart { position: relative; height: 100%; }
 .canvas { position: absolute; inset: 0; }
-.crosshair-comparison { position: absolute; top: 6px; left: 8px; max-width: calc(100% - 16px); box-sizing: border-box; padding: 4px 6px; border-radius: 4px; background: rgba(17, 17, 17, 0.88); color: #d1d5db; font-size: 11px; line-height: 18px; pointer-events: none; z-index: 2; font-variant-numeric: tabular-nums; }
+.crosshair-comparison { position: absolute; top: 6px; left: 8px; max-width: calc(100% - 16px); box-sizing: border-box; padding: 4px 6px; border-radius: 4px; background: var(--bg-tooltip); color: var(--text-primary); box-shadow: var(--shadow-card); font-size: 11px; line-height: 18px; pointer-events: none; z-index: 2; font-variant-numeric: tabular-nums; }
 .positive { color: #26a69a; }
 .negative { color: #ef5350; }
-.empty-state { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; gap: 8px; color: #aeb5c3; font-size: 12px; background: #111; z-index: 1; }
-.empty-state button { background: #2962ff; color: white; border: none; border-radius: 3px; cursor: pointer; padding: 4px 8px; }
-.sync-warning { position: absolute; bottom: 28px; left: 8px; max-width: calc(100% - 16px); padding: 2px 5px; border-radius: 3px; background: #352713; color: #e6a23c; font-size: 10px; z-index: 2; }
+.empty-state { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; gap: 8px; color: var(--text-secondary); font-size: 12px; background: var(--bg-card); z-index: 1; }
+.empty-state button { background: var(--el-color-primary); color: white; border: none; border-radius: 3px; cursor: pointer; padding: 4px 8px; }
+.sync-warning { position: absolute; bottom: 28px; left: 8px; max-width: calc(100% - 16px); padding: 2px 5px; border-radius: 3px; background: var(--el-color-warning-light-9); color: var(--el-color-warning); font-size: 10px; z-index: 2; }
 </style>

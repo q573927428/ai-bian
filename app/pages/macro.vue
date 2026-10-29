@@ -19,6 +19,6 @@ definePageMeta({ name: 'macro' })
   height: calc(100dvh - var(--app-header-height, 60px) - var(--app-footer-height, 27px));
   min-height: 0;
   overflow: auto;
-  background: #080808;
+  background: var(--bg-main);
 }
 </style>
