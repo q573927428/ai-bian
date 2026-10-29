@@ -1,7 +1,7 @@
 <!-- ==================== 宏观本地轻量 K 线图 ==================== -->
 <template>
   <div class="macro-local-chart">
-    <div ref="container" class="canvas" @mouseenter="enterChart" @mouseleave="clearSyncedCrosshair" />
+    <div ref="container" class="canvas" title="单击固定联动光标，再次单击解除" @mouseenter="enterChart" @mouseleave="clearSyncedCrosshair" />
     <div v-if="comparison" class="crosshair-comparison">
       <div>光标收盘 {{ comparison.from }} → 最新 {{ comparison.to }}</div>
       <div>至最新涨跌 <span :class="comparison.changeClass">{{ comparison.percent }}</span> · 相隔 {{ comparison.duration }}</div>
@@ -22,10 +22,11 @@
 import { computed, ref, watch, onMounted, onBeforeUnmount, inject } from 'vue'
 import { createChart, ColorType, CandlestickSeries, TickMarkType, type Time, type IChartApi, type ISeriesApi, type UTCTimestamp, type MouseEventParams } from 'lightweight-charts'
 import type { MacroMarket, MacroPeriod, MacroKlineResponse } from '../../../types/macro-market'
-import { macroCrosshairKey, crosshairTimeKey, type MacroCrosshairPosition } from './crosshair-sync'
+import { macroCrosshairKey, crosshairTimeKey, type MacroCrosshairPosition, type MacroPinnedSummary } from './crosshair-sync'
 import { macroViewportKey, logicalToCalendar, calendarToLogical, type MacroViewport } from './viewport-sync'
 
 const props = defineProps<{ market: MacroMarket; period: MacroPeriod }>()
+const emit = defineEmits<{ 'pinned-summary': [summary: MacroPinnedSummary] }>()
 const DEFAULT_VISIBLE_BARS = 366
 const RIGHT_OFFSET_BARS = 22
 // 仅格式化显示，保留原始时间戳，避免影响跨市场光标匹配及交易日期归属。
@@ -88,6 +89,7 @@ function receiveViewport(viewport: MacroViewport) {
       from: calendarToLogical(calendarKeys, viewport.from, periodSeconds()),
       to: calendarToLogical(calendarKeys, viewport.to, periodSeconds()),
     })
+    if (crosshairChannel?.pinned.value) receiveCrosshair(crosshairChannel.pinned.value)
   } finally { applyingViewport = false }
 }
 
@@ -122,6 +124,28 @@ const comparison = computed(() => {
   }
 })
 
+/** 汇总直接匹配固定日期的缓存，滚出视区仍展示真实比较，不借用最近交易日。 */
+watch(() => {
+  const pinned = crosshairChannel?.pinned.value
+  if (!pinned) return null
+  const summary: MacroPinnedSummary = { marketId: props.market.id, key: pinned.key, period: props.period, status: '' }
+  if (pinned.period !== props.period) return { ...summary, status: '周期不同' }
+  const latest = latestBar.value
+  const selected = crosshairBars.get(pinned.key)
+  if (!selected || !latest) return { ...summary, status: loading.value ? '加载中' : '固定时间无数据 / 休市' }
+  const formatPrice = (price: number) => `${price.toLocaleString('zh-CN', {
+    minimumFractionDigits: props.market.yield ? 3 : props.market.id === 'btc' ? 1 : 2,
+    maximumFractionDigits: props.market.yield ? 3 : props.market.id === 'btc' ? 1 : 2,
+  })}${props.market.yield ? '%' : ''}`
+  const percent = selected.close === 0 ? null : (latest.close - selected.close) / selected.close * 100
+  const minutes = Math.floor(Math.abs(latest.time - selected.time) / 60)
+  return { ...summary, status: '可比较', from: formatPrice(selected.close), to: formatPrice(latest.close),
+    percent: percent === null ? '—' : `${percent > 0 ? '+' : ''}${percent.toFixed(2)}%`,
+    changeClass: percent === null || percent === 0 ? '' : percent > 0 ? 'positive' : 'negative',
+    duration: `${Math.floor(minutes / 1440)}天${Math.floor(minutes % 1440 / 60)}小时${minutes % 60}分钟`,
+    selectedTime: selected.time, latestTime: latest.time }
+}, summary => { if (summary) emit('pinned-summary', summary) }, { immediate: true })
+
 /** 使用独立处理函数标记当前鼠标所在的来源图。 */
 function enterChart() {
   pointerInside = true
@@ -129,7 +153,12 @@ function enterChart() {
 
 /** 只有用户实际指向的图表发送事件；程序设置产生的事件不能再广播。 */
 function onCrosshairMove(event: MouseEventParams) {
-  if (!pointerInside || applyingCrosshair) return
+  if (applyingCrosshair) return
+  if (crosshairChannel?.pinned.value) {
+    receiveCrosshair(crosshairChannel.pinned.value)
+    return
+  }
+  if (!pointerInside) return
   const point = event.point
   if (typeof event.time !== 'number' || !point || point.x < 0 || point.y < 0
     || point.x >= (chart?.timeScale().width() ?? 0) || point.y >= (chart?.paneSize().height ?? 0)) {
@@ -144,7 +173,7 @@ function onCrosshairMove(event: MouseEventParams) {
 
 /** 精确匹配本图交易时间；缺失、周期不同或超出视区时清除，不移动视区。 */
 function receiveCrosshair(position: MacroCrosshairPosition | null) {
-  if (!chart || !series || position?.source === props.market.id) return
+  if (!chart || !series || (position?.source === props.market.id && !crosshairChannel?.pinned.value)) return
   applyingCrosshair = true
   try {
     const bar = position?.period === props.period ? crosshairBars.get(position.key) : undefined
@@ -161,9 +190,31 @@ function receiveCrosshair(position: MacroCrosshairPosition | null) {
   }
 }
 
+/** 单击有效 K 线固定共享日期；固定期间任意图再次单击即可解除。 */
+function onChartClick(event: MouseEventParams) {
+  if (!crosshairChannel) return
+  if (crosshairChannel.pinned.value) {
+    crosshairChannel.pinned.value = null
+    crosshairChannel.publish(null)
+    return
+  }
+  const point = event.point
+  if (typeof event.time !== 'number' || !point || point.x < 0 || point.y < 0
+    || point.x >= (chart?.timeScale().width() ?? 0) || point.y >= (chart?.paneSize().height ?? 0)) return
+  const key = crosshairTimeKey(event.time, props.period, props.market.id)
+  if (!crosshairBars.has(key)) return
+  const position = { source: props.market.id, period: props.period, key }
+  crosshairChannel.pinned.value = position
+  crosshairChannel.publish(position)
+}
+
 /** 离开来源图后清理所有同步线，避免停留在过期日期。 */
 function clearSyncedCrosshair() {
   pointerInside = false
+  if (crosshairChannel?.pinned.value) {
+    receiveCrosshair(crosshairChannel.pinned.value)
+    return
+  }
   selectedBar.value = null
   crosshairChannel?.publish(null)
 }
@@ -220,6 +271,8 @@ async function load() {
         })
       } finally { applyingViewport = false }
     }
+    // 刷新或周期数据到达后重新匹配固定日期，不改变固定位置。
+    if (crosshairChannel?.pinned.value) receiveCrosshair(crosshairChannel.pinned.value)
   } catch (cause) {
     if (!disposed && !controller.signal.aborted) error.value = '读取失败，请稍后重试'
   } finally {
@@ -249,6 +302,7 @@ onMounted(() => {
       : { type: 'price', precision: props.market.id === 'btc' ? 1 : 2, minMove: props.market.id === 'btc' ? 0.1 : 0.01 },
   })
   chart.subscribeCrosshairMove(onCrosshairMove)
+  chart.subscribeClick(onChartClick)
   chart.timeScale().subscribeVisibleLogicalRangeChange(publishViewport)
   unsubscribeViewport = viewportChannel?.subscribe(receiveViewport)
   unsubscribeCrosshair = crosshairChannel?.subscribe(receiveCrosshair)
@@ -257,6 +311,8 @@ onMounted(() => {
 })
 
 watch(() => props.period, () => {
+  // 切换固定来源图的周期后解除，避免固定日期仍引用旧周期。
+  if (crosshairChannel?.pinned.value?.source === props.market.id) crosshairChannel.pinned.value = null
   crosshairChannel?.publish(null)
   crosshairBars.clear()
   calendarKeys = []
@@ -278,6 +334,7 @@ onBeforeUnmount(() => {
   if (viewportFrame !== undefined) cancelAnimationFrame(viewportFrame)
   chart?.timeScale().unsubscribeVisibleLogicalRangeChange(publishViewport)
   chart?.unsubscribeCrosshairMove(onCrosshairMove)
+  chart?.unsubscribeClick(onChartClick)
   if (timer) clearInterval(timer)
   chart?.remove()
 })

@@ -1,5 +1,5 @@
 // ==================== 宏观十字光标时间匹配 ====================
-import type { InjectionKey } from 'vue'
+import type { InjectionKey, Ref } from 'vue'
 import type { MacroPeriod } from '../../../types/macro-market'
 
 /** 光标广播按周期和交易日期匹配，source 用于防止回传至来源图。 */
@@ -9,8 +9,24 @@ export interface MacroCrosshairPosition {
   key: number
 }
 
+/** 固定日期下单市场的真实 K 线比较，不依赖光标是否在当前可视区域内。 */
+export interface MacroPinnedSummary {
+  marketId: string
+  key: number
+  period: MacroPeriod
+  status: string
+  from?: string
+  to?: string
+  percent?: string
+  changeClass?: string
+  duration?: string
+  selectedTime?: number
+  latestTime?: number
+}
+
 /** 每个抽屉独享同步通道，避免不同页面实例间互相影响。 */
 export interface MacroCrosshairChannel {
+  pinned: Ref<MacroCrosshairPosition | null>
   publish: (position: MacroCrosshairPosition | null) => void
   subscribe: (listener: (position: MacroCrosshairPosition | null) => void) => () => void
 }
