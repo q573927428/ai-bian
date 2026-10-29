@@ -4,6 +4,10 @@
     <div class="macro-toolbar">
       <span class="overview-title">全球流动性+市场风险偏好总览</span>
       <div class="macro-toolbar-actions">
+      <el-select v-model="marketToAdd" class="add-market-selector" size="small" filterable placeholder="添加图表" :disabled="markets.length >= 12" :loading="loadingMarkets" aria-label="添加图表" @visible-change="open => { if (open) loadLocalMarkets() }" @change="addMarket">
+        <el-option v-for="option in addableMarkets" :key="option.id" :value="option.id" :label="`${option.name} · ${option.symbol}`" />
+      </el-select>
+      <button type="button" class="crosshair-unpin" @click="restoreDefaultMarkets">恢复默认12格</button>
       <button v-if="pinnedCrosshair" type="button" class="crosshair-unpin" @click="clearPinnedCrosshair">光标已固定 · 解除</button>
       <button v-if="pinnedCrosshair" type="button" class="crosshair-unpin" @click="showPinnedSummary = true">查看汇总</button>
       <el-switch v-model="timeSyncEnabled" :disabled="dataSource !== 'local'" active-text="时间联动" size="small" :title="dataSource === 'local' ? '同步同周期图表的横向缩放和拖动，价格轴保持独立' : '时间联动仅支持本地图表'" />
@@ -20,8 +24,8 @@
       </div>
     </div>
 
-    <div class="chart-grid">
-      <section v-for="(item, index) in markets" :key="index" class="chart-panel">
+    <div ref="gridContainer" class="chart-grid" :style="gridStyle">
+      <section v-for="(item, index) in markets" :key="item.id" class="chart-panel">
         <header class="panel-header">
           <div class="panel-caption">
             <el-select :model-value="item.id" class="market-selector" size="small" filterable :loading="loadingMarkets" :aria-label="`第${index + 1}格交易对`" @visible-change="open => { if (open) loadLocalMarkets() }" @change="value => changeMarket(index, value)">
@@ -37,6 +41,7 @@
               :disabled="!supportsPeriod(item.id, period.value)"
               @click="selectedPeriods[item.symbol] = period.value">{{ period.label }}</button>
           </div>
+          <button type="button" class="remove-market" :disabled="markets.length <= 1" :aria-label="`移除${item.name}图表`" title="移除此图表" @click="removeMarket(index)">×</button>
         </header>
         <div class="chart-viewport">
           <MacroKLineChart v-if="visible && dataSource === 'local'" :key="item.id" :market="item" :period="selectedPeriods[item.symbol] || '1d'" @pinned-summary="updatePinnedSummary" />
@@ -66,13 +71,14 @@
 </template>
 
 <script setup lang="ts">
-import { computed, reactive, ref, onMounted, watch, provide } from 'vue'
+import { computed, reactive, ref, onMounted, onBeforeUnmount, watch, provide } from 'vue'
 import { ElDrawer } from 'element-plus'
 import { MACRO_MARKETS } from '../../types/macro-market'
 import MacroKLineChart from './macro-data/MacroKLineChart.vue'
 import { macroCrosshairKey, type MacroCrosshairPosition, type MacroPinnedSummary } from './macro-data/crosshair-sync'
 import { macroViewportKey, type MacroViewport } from './macro-data/viewport-sync'
 import type { MacroPeriod, LocalMacroMarket } from '../../types/macro-market'
+import { macroGridLayout } from '../utils/macro-grid'
 
 const timeSyncEnabled = ref(true)
 const viewportListeners = new Set<(viewport: MacroViewport) => void>()
@@ -154,13 +160,60 @@ const visible = computed({
   set: value => emit('update:modelValue', value),
 })
 
-// 固定十二个槽位，仅替换槽位里的标的，不改变网格数量或排列。
+// 首次使用默认十二格，用户可以保留一至十二个图表。
 const selectedMarketIds = ref(MACRO_MARKETS.map(market => market.id))
 const localMarkets = ref<LocalMacroMarket[]>([])
 const markets = computed(() => selectedMarketIds.value.map((id, index) =>
   localMarkets.value.find(market => market.id === id) ?? MACRO_MARKETS.find(market => market.id === id) ?? MACRO_MARKETS[index]!))
 const loadingMarkets = ref(false)
 const marketsError = ref('')
+const gridContainer = ref<HTMLElement>()
+const gridWidth = ref(1200)
+let gridObserver: ResizeObserver | undefined
+const gridStyle = computed(() => {
+  const layout = macroGridLayout(markets.value.length, gridWidth.value)
+  return { gridTemplateColumns: `repeat(${layout.columns}, minmax(0, 1fr))`, gridTemplateRows: `repeat(${layout.rows}, minmax(var(--macro-chart-min-height, 160px), 1fr))` }
+})
+const marketToAdd = ref('')
+const addableMarkets = computed(() => localMarkets.value.filter(market => !selectedMarketIds.value.includes(market.id)))
+/** 保存当前排列和数量，兼容原有十二格配置。 */
+function saveMarkets() {
+  try { localStorage.setItem('macro-market-slots', JSON.stringify(selectedMarketIds.value)) } catch { /* 存储不可用不影响操作。 */ }
+}
+/** 移除后其余图表自动均分容器，至少保留一个图表。 */
+function removeMarket(index: number) {
+  if (markets.value.length <= 1) return
+  clearPinnedCrosshair()
+  selectedMarketIds.value.splice(index, 1)
+  saveMarkets()
+}
+/** 只添加本地已有数据的未展示市场，默认采用当前全局周期。 */
+function addMarket(id: string) {
+  const market = addableMarkets.value.find(item => item.id === id)
+  if (!market || markets.value.length >= 12) return
+  clearPinnedCrosshair()
+  selectedPeriods[market.symbol] = market.periods.includes(globalPeriod.value) ? globalPeriod.value : market.periods[0]!
+  selectedMarketIds.value.push(id)
+  marketToAdd.value = ''
+  saveMarkets()
+}
+/** 一键恢复最初十二个宏观市场，沿用当前全局周期。 */
+function restoreDefaultMarkets() {
+  clearPinnedCrosshair()
+  selectedMarketIds.value = MACRO_MARKETS.map(market => market.id)
+  setGlobalPeriod(globalPeriod.value)
+  saveMarkets()
+}
+onMounted(() => {
+  if (!gridContainer.value) return
+  gridWidth.value = gridContainer.value.clientWidth
+  gridObserver = new ResizeObserver(entries => {
+    const entry = entries[0]
+    if (entry) gridWidth.value = entry.contentRect.width
+  })
+  gridObserver.observe(gridContainer.value)
+})
+onBeforeUnmount(() => { gridObserver?.disconnect() })
 /** 重新打开选择器时刷新本地目录，采集到的新交易对无需重启页面。 */
 async function loadLocalMarkets() {
   if (loadingMarkets.value) return
@@ -185,7 +238,7 @@ function changeMarket(index: number, id: string) {
   clearPinnedCrosshair()
   selectedPeriods[next.symbol] = next.periods.includes(period) ? period : next.periods[0]!
   selectedMarketIds.value[index] = id
-  try { localStorage.setItem('macro-market-slots', JSON.stringify(selectedMarketIds.value)) } catch { /* 存储不可用不影响切换。 */ }
+  saveMarkets()
 }
 const dataSource = ref<'local' | 'tradingview'>('local')
 onMounted(async () => {
@@ -193,12 +246,12 @@ onMounted(async () => {
   try {
     if (localStorage.getItem('macro-data-source') === 'tradingview') dataSource.value = 'tradingview'
     const saved: unknown = JSON.parse(localStorage.getItem('macro-market-slots') || 'null')
-    if (Array.isArray(saved) && saved.length === 12) {
+    if (Array.isArray(saved) && saved.length >= 1 && saved.length <= 12) {
       const used = new Set<string>()
       selectedMarketIds.value = saved.map((id, index) => {
         const fallback = MACRO_MARKETS[index]!.id
         const candidate = typeof id === 'string' && localMarkets.value.some(market => market.id === id) && !used.has(id) ? id : fallback
-        // 缓存被删除时退回未占用默认标的，保证十二格身份互不冲突。
+        // 缓存被删除时退回未占用默认标的，保持用户保存的数量并避免身份冲突。
         const resolved = !used.has(candidate) ? candidate : MACRO_MARKETS.find(market => !used.has(market.id))!.id
         used.add(resolved)
         const market = localMarkets.value.find(item => item.id === resolved)
@@ -247,7 +300,8 @@ function chartUrl(symbol: string, period: Period): string {
 </script>
 
 <style scoped>
-.macro-content { padding: 6px; background: #080808; }
+.macro-content { padding: 6px; background: #080808; height: 100%; box-sizing: border-box; display: flex; flex-direction: column; }
+.macro-toolbar { flex-shrink: 0; }
 .macro-toolbar { min-height: 34px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 12px; padding: 0 5px 5px; box-sizing: border-box; background: #080808; }
 .overview-title { color: #f3f4f6; font-size: 14px; font-weight: 600; line-height: 22px; }
 .macro-toolbar-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; }
@@ -256,8 +310,12 @@ function chartUrl(symbol: string, period: Period): string {
 .summary-description small { color: var(--text-secondary); }
 .positive { color: #26a69a; }
 .negative { color: #ef5350; }
-.chart-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
-.chart-panel { min-width: 0; height: calc((100vh - 118px) / 3); min-height: 235px; border: 1px solid #343434; border-radius: 5px; overflow: hidden; background: #111; }
+.chart-grid { display: grid; flex: 1; min-height: 0; gap: 6px; }
+.chart-panel { min-width: 0; min-height: 0; box-sizing: border-box; border: 1px solid #343434; border-radius: 5px; overflow: hidden; background: #111; }
+.add-market-selector { width: 135px; }
+.remove-market { flex-shrink: 0; border: 0; padding: 0 3px; background: transparent; color: #9299a5; font-size: 18px; line-height: 22px; cursor: pointer; }
+.remove-market:hover { color: #ef5350; }
+.remove-market:disabled { opacity: 0.3; cursor: not-allowed; }
 .panel-header { height: 32px; display: flex; align-items: center; justify-content: space-between; gap: 5px; padding: 0 8px; border-bottom: 1px solid #333; box-sizing: border-box; }
 .panel-caption { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 12px; }
 .panel-caption strong { color: #fff; font-size: 13px; margin-right: 8px; }
@@ -277,14 +335,11 @@ function chartUrl(symbol: string, period: Period): string {
 .chart-frame { display: block; width: 100%; height: calc(100% + 40px); transform: translateY(-40px); border: 0; background: #111; }
 :global(.macro-drawer .el-drawer__header) { margin-bottom: 0; padding: 12px 16px; background: #111; color: #f3f4f6; }
 :global(.macro-drawer .el-drawer__title) { color: #f3f4f6; }
-:global(.macro-drawer .el-drawer__body) { padding: 6px; overflow: auto; background: #080808; }
-/* 独立页面按实际可用高度分配三行，包含工具栏、间距和边框，避免轻微溢出。 */
-@media (min-width: 1101px) {
-  .macro-content { height: 100%; box-sizing: border-box; display: flex; flex-direction: column; }
-  .macro-content .macro-toolbar { flex-shrink: 0; }
-  .macro-content .chart-grid { flex: 1; min-height: 0; grid-template-rows: repeat(3, minmax(235px, 1fr)); }
-  .macro-content .chart-panel { height: auto; box-sizing: border-box; }
+:global(.macro-drawer .el-drawer__body) { padding: 6px; overflow: auto; background: #080808; display: flex; flex-direction: column; }
+/* 行列数由实际网格容器宽度决定，抽屉、页面和侧栏变化均可自动适配。 */
+@media (max-width: 680px) {
+  /* 移动端增加单图可读高度，多图时通过页面滚动查看。 */
+  .chart-grid { --macro-chart-min-height: 300px; }
+  .panel-caption span { display: none; }
 }
-@media (max-width: 1100px) { .chart-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .chart-panel { height: 300px; } }
-@media (max-width: 680px) { .chart-grid { grid-template-columns: minmax(0, 1fr); } .chart-panel { height: 300px; } .panel-caption span { display: none; } }
 </style>
