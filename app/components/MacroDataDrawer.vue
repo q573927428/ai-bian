@@ -21,21 +21,25 @@
     </div>
 
     <div class="chart-grid">
-      <section v-for="item in markets" :key="item.symbol" class="chart-panel">
+      <section v-for="(item, index) in markets" :key="index" class="chart-panel">
         <header class="panel-header">
           <div class="panel-caption">
-            <strong>{{ item.name }}</strong>
+            <el-select :model-value="item.id" class="market-selector" size="small" filterable :loading="loadingMarkets" :aria-label="`第${index + 1}格交易对`" @visible-change="open => { if (open) loadLocalMarkets() }" @change="value => changeMarket(index, value)">
+              <el-option v-for="option in localMarkets" :key="option.id" :value="option.id" :label="`${option.name} · ${option.symbol}`" :disabled="markets.some((market, slot) => slot !== index && market.id === option.id)" />
+              <template #empty><span class="market-select-empty">{{ marketsError || '暂无本地 K 线数据' }}</span></template>
+            </el-select>
             <span>{{ item.description }}</span>
           </div>
           <div class="periods panel-periods" :aria-label="`${item.name}周期`">
             <button v-for="period in periods" :key="period.value" type="button"
               :class="{ active: selectedPeriods[item.symbol] === period.value }"
               :aria-pressed="selectedPeriods[item.symbol] === period.value"
+              :disabled="!supportsPeriod(item.id, period.value)"
               @click="selectedPeriods[item.symbol] = period.value">{{ period.label }}</button>
           </div>
         </header>
         <div class="chart-viewport">
-          <MacroKLineChart v-if="visible && dataSource === 'local'" :market="item" :period="selectedPeriods[item.symbol] || '1d'" @pinned-summary="updatePinnedSummary" />
+          <MacroKLineChart v-if="visible && dataSource === 'local'" :key="item.id" :market="item" :period="selectedPeriods[item.symbol] || '1d'" @pinned-summary="updatePinnedSummary" />
           <iframe v-else-if="visible && dataSource === 'tradingview'" class="chart-frame" :title="`${item.name} K线图`" :src="chartUrl(item.tradingView, selectedPeriods[item.symbol] || '1d')"
             loading="lazy" referrerpolicy="origin" />
         </div>
@@ -68,7 +72,7 @@ import { MACRO_MARKETS } from '../../types/macro-market'
 import MacroKLineChart from './macro-data/MacroKLineChart.vue'
 import { macroCrosshairKey, type MacroCrosshairPosition, type MacroPinnedSummary } from './macro-data/crosshair-sync'
 import { macroViewportKey, type MacroViewport } from './macro-data/viewport-sync'
-import type { MacroPeriod } from '../../types/macro-market'
+import type { MacroPeriod, LocalMacroMarket } from '../../types/macro-market'
 
 const timeSyncEnabled = ref(true)
 const viewportListeners = new Set<(viewport: MacroViewport) => void>()
@@ -101,7 +105,7 @@ const pinnedTimeLabel = computed(() => {
   return pinned.period === '1d' || pinned.period === '1w'
     ? new Date(pinned.key * 1000).toISOString().slice(0, 10) : `${formatSummaryTime(pinned.key)}（北京时间）`
 })
-const pinnedSummaryRows = computed(() => MACRO_MARKETS.map(market => {
+const pinnedSummaryRows = computed(() => markets.value.map(market => {
   const pinned = pinnedCrosshair.value
   const summary = pinnedSummaries[market.id]
   return { name: market.name, ...(pinned && summary?.key === pinned.key && summary.period === pinned.period
@@ -150,11 +154,58 @@ const visible = computed({
   set: value => emit('update:modelValue', value),
 })
 
-const markets = MACRO_MARKETS
+// 固定十二个槽位，仅替换槽位里的标的，不改变网格数量或排列。
+const selectedMarketIds = ref(MACRO_MARKETS.map(market => market.id))
+const localMarkets = ref<LocalMacroMarket[]>([])
+const markets = computed(() => selectedMarketIds.value.map((id, index) =>
+  localMarkets.value.find(market => market.id === id) ?? MACRO_MARKETS.find(market => market.id === id) ?? MACRO_MARKETS[index]!))
+const loadingMarkets = ref(false)
+const marketsError = ref('')
+/** 重新打开选择器时刷新本地目录，采集到的新交易对无需重启页面。 */
+async function loadLocalMarkets() {
+  if (loadingMarkets.value) return
+  loadingMarkets.value = true
+  try {
+    localMarkets.value = await $fetch<LocalMacroMarket[]>('/api/macro/markets')
+    marketsError.value = ''
+  } catch { marketsError.value = '本地交易对读取失败，请重新打开重试' }
+  finally { loadingMarkets.value = false }
+}
+/** 已知目录中的缺失周期禁用；目录未加载时不影响默认看板。 */
+function supportsPeriod(id: string, period: MacroPeriod) {
+  const market = localMarkets.value.find(item => item.id === id)
+  return !market || market.periods.includes(period)
+}
+/** 保留槽位原周期；目标没有该周期时改用其已有周期，避免切换后出现空图。 */
+function changeMarket(index: number, id: string) {
+  const next = localMarkets.value.find(market => market.id === id)
+  if (!next || markets.value.some((market, slot) => slot !== index && market.id === id)) return
+  const previous = markets.value[index]!
+  const period = selectedPeriods[previous.symbol] ?? globalPeriod.value
+  clearPinnedCrosshair()
+  selectedPeriods[next.symbol] = next.periods.includes(period) ? period : next.periods[0]!
+  selectedMarketIds.value[index] = id
+  try { localStorage.setItem('macro-market-slots', JSON.stringify(selectedMarketIds.value)) } catch { /* 存储不可用不影响切换。 */ }
+}
 const dataSource = ref<'local' | 'tradingview'>('local')
-onMounted(() => {
+onMounted(async () => {
+  await loadLocalMarkets()
   try {
     if (localStorage.getItem('macro-data-source') === 'tradingview') dataSource.value = 'tradingview'
+    const saved: unknown = JSON.parse(localStorage.getItem('macro-market-slots') || 'null')
+    if (Array.isArray(saved) && saved.length === 12) {
+      const used = new Set<string>()
+      selectedMarketIds.value = saved.map((id, index) => {
+        const fallback = MACRO_MARKETS[index]!.id
+        const candidate = typeof id === 'string' && localMarkets.value.some(market => market.id === id) && !used.has(id) ? id : fallback
+        // 缓存被删除时退回未占用默认标的，保证十二格身份互不冲突。
+        const resolved = !used.has(candidate) ? candidate : MACRO_MARKETS.find(market => !used.has(market.id))!.id
+        used.add(resolved)
+        const market = localMarkets.value.find(item => item.id === resolved)
+        if (market) selectedPeriods[market.symbol] = market.periods.includes('1d') ? '1d' : market.periods[0]!
+        return resolved
+      })
+    }
   } catch { /* 浏览器禁用存储时使用本地默认值。 */ }
 })
 watch(dataSource, value => {
@@ -173,13 +224,15 @@ const periods = [
 type Period = typeof periods[number]['value']
 const globalPeriod = ref<Period>('1d')
 const selectedPeriods = reactive<Record<string, Period>>(
-  Object.fromEntries(markets.map(item => [item.symbol, '1d' as Period])),
+  Object.fromEntries(MACRO_MARKETS.map(item => [item.symbol, '1d' as Period])),
 )
 
 /** 顶部周期切换同步更新全部图表，单卡切换仍可独立覆盖。 */
 function setGlobalPeriod(period: Period) {
   globalPeriod.value = period
-  markets.forEach(item => { selectedPeriods[item.symbol] = period })
+  markets.value.forEach(item => {
+    if (supportsPeriod(item.id, period)) selectedPeriods[item.symbol] = period
+  })
 }
 
 /** 使用 TradingView 公开嵌入图表提供市场数据，周期变化时 iframe 会重新加载。 */
@@ -209,6 +262,12 @@ function chartUrl(symbol: string, period: Period): string {
 .panel-caption { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 12px; }
 .panel-caption strong { color: #fff; font-size: 13px; margin-right: 8px; }
 .panel-caption span { color: #a7a9ad; }
+.panel-caption { display: flex; align-items: center; gap: 6px; }
+.market-selector { width: 150px; flex-shrink: 1; min-width: 85px; }
+.market-selector :deep(.el-select__wrapper) { min-height: 24px; background: transparent; box-shadow: none; padding: 0 4px; }
+.market-selector :deep(.el-select__selected-item) { color: #fff; font-size: 12px; font-weight: 600; }
+.market-select-empty { display: block; padding: 10px; font-size: 12px; }
+.periods button:disabled { opacity: 0.35; cursor: not-allowed; }
 .periods { display: flex; align-items: center; flex: none; border: 1px solid #303038; border-radius: 5px; padding: 2px; }
 .periods button { appearance: none; border: 0; border-radius: 4px; background: transparent; color: #aeb5c3; height: 21px; min-width: 28px; padding: 0 5px; font-size: 11px; cursor: pointer; }
 .periods button:hover { color: #fff; }

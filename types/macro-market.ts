@@ -35,6 +35,19 @@ export function macroStorageSymbol(market: MacroMarket): string {
   return market.source === 'yahoo' ? `YAHOO:${market.symbol}` : market.symbol
 }
 
+/** 本地可选市场及实际存在 K 线的周期，不包含仅配置但尚无数据的标的。 */
+export interface LocalMacroMarket extends MacroMarket {
+  periods: MacroPeriod[]
+}
+
+/** 为本地缓存生成市场元数据；已有宏观标的继续使用原名称、单位和交易日历。 */
+export function localMacroMarket(symbol: string): MacroMarket | undefined {
+  const known = MACRO_MARKETS.find(market => macroStorageSymbol(market) === symbol)
+  if (known) return known
+  if (!/^[A-Z0-9]+USDT$/.test(symbol)) return undefined
+  return { id: `local:${symbol}`, name: symbol, description: '本地合约 K 线', source: 'binance', symbol, tradingView: `BINANCE:${symbol}.P` }
+}
+
 /** 本站宏观查询结果；同步错误与已有缓存可以同时返回。 */
 export interface MacroKlineResponse {
   data: SimpleKLineData[]
