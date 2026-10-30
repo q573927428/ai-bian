@@ -113,20 +113,29 @@
               </span>
               <span class="macd-result" :class="macdResultClass(row.macdHistogram, row.previousMacdHistogram)">{{ macdResult(row.macdHistogram, row.previousMacdHistogram) }}</span>
             </div>
+            <el-tooltip placement="top">
+              <template #content>
+                <div>当前 H：{{ formatSignedMacd(row.macdHistogram) }}</div>
+                <div>上组 H：{{ formatSignedMacd(row.previousMacdHistogram) }}</div>
+              </template>
+              <!-- 数值放在柱体相反的一侧，以零轴为边界，避免遮挡柱体。 -->
+              <div class="macd-bars" tabindex="0" :aria-label="`当前 H：${formatSignedMacd(row.macdHistogram)}，上组 H：${formatSignedMacd(row.previousMacdHistogram)}`">
             <div class="macd-values macd-data-row current-values">
               <span class="macd-row-label">当前</span>
-              <span :class="directionClass(row.macdHistogram)">{{ formatSignedMacd(row.macdHistogram) }}</span>
-              <span class="macd-row-chart" aria-hidden="true">
+              <span class="macd-row-chart">
                 <span class="macd-chart-bar" :class="directionClass(row.macdHistogram)" :style="histogramBarStyle(row.macdHistogram, row.previousMacdHistogram)"></span>
+                <span class="macd-h-value" :class="{ 'value-right': row.macdHistogram != null && row.macdHistogram < 0 }">{{ formatSignedMacd(row.macdHistogram) }}</span>
               </span>
             </div>
             <div class="macd-values macd-data-row previous-values">
               <span class="macd-row-label">上组</span>
-              <span>{{ formatSignedMacd(row.previousMacdHistogram) }}</span>
-              <span class="macd-row-chart" aria-hidden="true">
+              <span class="macd-row-chart">
                 <span class="macd-chart-bar" :class="directionClass(row.previousMacdHistogram)" :style="histogramBarStyle(row.previousMacdHistogram, row.macdHistogram)"></span>
+                <span class="macd-h-value" :class="{ 'value-right': row.previousMacdHistogram != null && row.previousMacdHistogram < 0 }">{{ formatSignedMacd(row.previousMacdHistogram) }}</span>
               </span>
             </div>
+              </div>
+            </el-tooltip>
           </div>
         </template>
       </el-table-column>
@@ -708,7 +717,8 @@ function histogramBarStyle(value?: number, other?: number) {
   if (value == null || !Number.isFinite(value)) return { width: '0%' }
   const maximum = Math.max(Math.abs(value), other != null && Number.isFinite(other) ? Math.abs(other) : 0)
   const width = maximum === 0 ? 0 : Math.abs(value) / maximum * 50
-  return { left: `${value < 0 ? 50 - width : 50}%`, width: `${width}%` }
+  // 正负柱都直接锚定中央零轴，避免分别计算起点和宽度产生边缘偏差。
+  return { left: value < 0 ? 'auto' : '50%', right: value < 0 ? '50%' : 'auto', width: `${width}%` }
 }
 
 function normalizeCrossover(value: unknown): IndicatorRow['macdCrossover'] {
@@ -808,7 +818,8 @@ onUnmounted(() => {
 .oi-cell { display: flex; flex-direction: column; gap: 3px; line-height: 1.35; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .macd-state-line, .macd-values { display: grid; align-items: center; column-gap: 4px; }
 .macd-state-line { grid-template-columns: 48px 42px minmax(0, 1fr); }
-/* 仅保留 H 数值，背景柱仍以零轴为中心，共用当前与上组的比例尺。 */
+/* 两组柱共用中央零轴，数值靠近零轴显示在无柱体的一侧。 */
+.macd-bars { display: flex; flex-direction: column; gap: 5px; }
 .macd-values { grid-template-columns: 28px minmax(0, 1fr); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .macd-values > span:not(:first-child) { text-align: right; }
 .macd-crossover { font-weight: 400; color: var(--el-text-color-secondary); }
@@ -819,10 +830,12 @@ onUnmounted(() => {
 .current-values { color: var(--text-primary); }
 .macd-data-row { position: relative; min-height: 20px; }
 .macd-data-row > span:not(.macd-row-chart) { position: relative; z-index: 1; }
-.macd-row-chart { position: absolute; left: 36px; right: 0; top: 1px; bottom: 1px; pointer-events: none; }
+.macd-row-chart { position: absolute; left: 36px; right: 0; top: 1px; bottom: 1px; padding: 0; border: 0; pointer-events: none; }
 .macd-row-chart::before { content: ''; position: absolute; left: 50%; top: 0; bottom: 0; width: 1px; background: var(--text-secondary); opacity: .45; }
-.macd-chart-bar { position: absolute; top: 0; height: 100%; background: currentColor; opacity: .18; }
-.previous-values .macd-chart-bar { opacity: .08; }
+.macd-h-value { position: absolute; right: 50%; top: 0; bottom: 0; display: flex; align-items: center; padding-right: 5px; color: var(--text-secondary); font-variant-numeric: tabular-nums; font-size: 11px; }
+.macd-h-value.value-right { left: 50%; right: auto; padding-right: 0; padding-left: 5px; }
+.macd-chart-bar { position: absolute; top: 0; height: 100%; margin: 0; padding: 0; border: 0; background: currentColor; opacity: .28; }
+.previous-values .macd-chart-bar { opacity: .12; }
 
 /* 分组留白优先于缩小文字，当前值与辅助说明保持清晰层级。 */
 .indicators-table :deep(.trend-column .cell),
