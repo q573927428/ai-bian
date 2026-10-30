@@ -411,8 +411,7 @@ async function fetchData() {
     ? '行情初始化中，稍后自动刷新' : '指标暂不可用，请确认指标中心已完成初始化'
   loading.value = false
 
-  // 首屏不再等待 OI 历史和币安广场分页请求；慢字段在表格显示后后台补齐。
-  if (rows.value.length > 0) void enrichSlowStats(version, requestedTimeframe)
+  // OI 与社区情绪只使用本次响应中的后端缓存；缺失时显示 --，避免打开看板触发外部采集。
 }
 
 // 直接索引后端结构结论，标签、颜色与筛选不再重复计算。
@@ -438,37 +437,6 @@ function resonanceTitle(symbol: string) {
 
 function signalClass(signal: SignalTone) {
   return signal === '多头' ? 'up' : signal === '空头' || signal === '反转' ? 'down' : 'muted'
-}
-
-/** 后台补齐 OI 与广场情绪，避免慢外部请求阻塞首屏表格。 */
-async function enrichSlowStats(version: number, requestedTimeframe: string) {
-  const pendingRows = [...rows.value]
-  await Promise.all(pendingRows.map(async (row) => {
-    try {
-      const response: any = await $fetch('/api/bot/indicators', {
-        query: { symbol: row.symbol, timeframe: requestedTimeframe, emaPeriods: emaPeriods.value.join(','), includeSlowStats: 'true' }
-      })
-      if (version !== fetchVersion) return
-      const next = toRow(response.data)
-      const index = rows.value.findIndex(item => item.symbol === row.symbol)
-      const current = index >= 0 ? rows.value[index] : undefined
-      if (current) {
-        rows.value[index] = {
-          ...current,
-          oiChangePercent: next.oiChangePercent,
-          oiChangeLabel: next.oiChangeLabel,
-          oiTooltip: next.oiTooltip,
-          sentiment: next.sentiment,
-          sentimentLabel: next.sentimentLabel,
-          bullishCount: next.bullishCount,
-          bearishCount: next.bearishCount,
-          sentimentTooltip: next.sentimentTooltip
-        }
-      }
-    } catch {
-      // 慢统计失败不影响技术指标首屏展示。
-    }
-  }))
 }
 
 /** 按表格当前排序条件排列指标；缺失值始终置底，避免 -- 干扰数值排序。 */
@@ -519,7 +487,7 @@ function toRow(data: any): IndicatorRow {
   const oi = values('oi')
   const oiMemory = data?.oiMemory
   const oiWindowMinutes = finiteNumber(data?.parameters?.oiLookbackMinutes)
-  // 首屏诊断已按同一回看窗口计算内存 OI 比例，无需等待含社区情绪的慢请求。
+  // 诊断响应已按同一回看窗口计算内存 OI 比例，直接复用后端快照。
   // 历史基准未就绪时继续保留缺失状态，不能把未知变化展示为零。
   const oiChangePercent = finiteNumber(oi.changePercent) ?? finiteNumber(oiMemory?.calculatedChangePercent)
   const oiValue = oiMemory?.current?.value ?? oi.value
