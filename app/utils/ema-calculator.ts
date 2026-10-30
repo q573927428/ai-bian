@@ -108,7 +108,7 @@ export function getEMAColor(period: number): string {
     30: '#F97316',  // 深橙色 - EMA30
     50: '#8B5CF6',  // 紫色 - EMA50
     60: '#FDE047',  // 亮黄色 - EMA60
-    120: '#EAB308', // 琥珀黄 - EMA120
+    120: '#E2E8F0', // 亮银白色 - EMA120，与 EMA60 的亮黄色区分
     200: '#64748B'  // 深灰色 - EMA200
   }
 
