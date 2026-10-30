@@ -118,8 +118,8 @@
                 </el-tag>
               </div>
             </details>
-            <div v-if="row.aiReasoning" class="detail-section">
-              <span class="detail-value reason-text">平仓原因：{{ row.reason }}； {{ row.aiReasoning }}</span>
+            <div v-if="row.aiReasoning || row.entryAnalysisId" class="detail-section">
+              <span class="detail-value reason-text"><a v-if="row.entryAnalysisId" :href="`${getDecisionUrl(row)}&format=text&role=user`" target="_blank" rel="noopener noreferrer">完整用户提示词</a> 平仓原因：{{ row.reason }}； {{ row.aiReasoning }}</span>
             </div>
           </div>
 </template>
@@ -135,6 +135,13 @@ interface Props {
   showStructure?: boolean
 }
 withDefaults(defineProps<Props>(), { compact: false, showStructure: true })
+
+/** 新记录按固化月份定位；旧记录不推算月份，继续读取旧根目录档案。 */
+function getDecisionUrl(row: TradeHistory): string {
+  const query = new URLSearchParams({ analysisId: row.entryAnalysisId ?? '' })
+  if (row.entryAnalysisMonth) query.set('month', row.entryAnalysisMonth)
+  return `/api/ai/trade-decision?${query}`
+}
 
 // 获取风险等级类型
 function getRiskLevelType(level?: string): 'success' | 'warning' | 'danger' | 'info' {

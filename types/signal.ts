@@ -11,6 +11,8 @@ import type { EntryCommunitySentiment, RiskLevel, ScoreBreakdown } from './index
 
 // AI 返回的标准交易信号
 export interface TradeSignal {
+  /** 原始请求随缓存信号保留，实际开仓前独立归档，不依赖短期调试缓存。 */
+  decisionSnapshot?: import('./trade-decision').TradeDecision;
   /** AI分析时实际采用的五周期结构和环境评分，便于日志复核。 */
   environmentContext?: EnvironmentContext;
   strategyId: StrategyId;              // 触发策略ID

@@ -131,6 +131,8 @@ export async function recordTrade(
 
   // 记录交易历史（注意：TradeHistory 的 pnl 现在存储的是净利）
   const trade: TradeHistory = {
+    entryAnalysisId: positionInfo?.entryAnalysisId,
+    entryAnalysisMonth: positionInfo?.entryAnalysisMonth,
     id: settlement?.exitOrderId
       ? `${settlement.exitOrderId}-${position.symbol}-${strategyId}`
       : `${closeTime}-${position.symbol}-${strategyId}`,

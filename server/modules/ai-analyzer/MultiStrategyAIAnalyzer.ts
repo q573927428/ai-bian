@@ -19,6 +19,8 @@ import { loadEnvironmentContext } from '../../utils/environment-context'
 import { createStrategySnapshot, createQuantitativeSnapshot } from '../../utils/ai-analysis-snapshot'
 import { aiPromptCache } from '../../utils/ai-prompt-cache'
 import { saveAIRules } from '../../utils/ai-rules-store'
+import { randomUUID } from 'node:crypto'
+import type { TradeDecision } from '../../../types/trade-decision'
 
 /** AI 只接收入场位置摘要；完整区域及时间信息仍由信号和交易记录保存。 */
 function formatSupportResistance(snapshot?: SupportResistanceSnapshot): string {
@@ -290,6 +292,7 @@ export class MultiStrategyAIAnalyzer {
           }
         : undefined
       const signal: TradeSignal = {
+        decisionSnapshot: aiResult.decisionSnapshot,
         environmentContext: aiResult.environmentContext,
         strategyId,
         symbol,
@@ -917,7 +920,7 @@ ${historySection}
     environmentContext?: EnvironmentContext,
     strategySnapshot?: AIAnalysis['strategySnapshot'],
     quantitativeSnapshot?: ReturnType<typeof createQuantitativeSnapshot>
-  ): Promise<AIAnalysis | null> {
+  ): Promise<(AIAnalysis & { decisionSnapshot?: TradeDecision }) | null> {
     // 使用并发池控制AI调用并发数
     return concurrencyPoolManager.getAIPool().submit(async () => {
       try {
@@ -955,7 +958,11 @@ ${historySection}
           logger.info('AI市场广度', `策略=${strategyId} 交易对=${symbol}\n${section}`)
         }
 
+        const analysisId = randomUUID()
+        const requestedAt = Date.now()
+        let effectiveParameters: Record<string, unknown> = {}
         const content = await callAIAPI(providerConfig, messages, {
+          onRequestParameters: parameters => { effectiveParameters = parameters },
           temperature: promptConfig?.temperature ?? 0.5,
           maxTokens: promptConfig?.maxTokens ?? 3000,
           thinkingEnabled: promptConfig?.thinkingEnabled,
@@ -1030,7 +1037,22 @@ ${historySection}
         // 异步保存到文件，不阻塞主流程
         this.saveAIAnalysisToFile(analysis, promptConfig?.userPrompt).catch(() => {})
 
-        return analysis
+        // 仅返回给内部信号；不把完整正文重复写入普通 AI 分析 JSONL。
+        const decisionSnapshot: TradeDecision = JSON.parse(JSON.stringify({
+          schemaVersion: 1,
+          analysisId,
+          requestedAt,
+          completedAt: analysis.timestamp,
+          strategyId,
+          symbol,
+          messages,
+          provider,
+          model: providerConfig.model,
+          parameters: effectiveParameters,
+          rawResponse: content,
+          analysis
+        }))
+        return { ...analysis, decisionSnapshot }
       } catch (error: any) {
         const runtimeConfig = useRuntimeConfig()
         const provider = promptConfig?.provider || (runtimeConfig.aiProvider as AIProvider) || 'deepseek'

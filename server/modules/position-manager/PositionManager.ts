@@ -17,6 +17,10 @@ const DEFAULT_ACCOUNT_ID = 'default'
  * 仓位信息
  */
 export interface PositionInfo {
+  /** 独立决策档案引用，持久化后重启及平仓继续沿用。 */
+  entryAnalysisId?: string;
+  /** 按 AI 请求时间固化的北京时间月份，跨月平仓继续沿用。 */
+  entryAnalysisMonth?: string;
   accountId?: string;                  // 账户ID，短期默认 default
   userId?: string;                     // 用户ID，预留多用户维度
   symbol: string;                      // 交易对

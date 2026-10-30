@@ -25,6 +25,8 @@ export interface AIChatMessage {
  * AI 调用选项
  */
 export interface AICallOptions {
+  /** 捕获厂商适配后的有效参数；只传白名单，不传密钥或连接地址。 */
+  onRequestParameters?: (parameters: Record<string, unknown>) => void
   temperature?: number
   maxTokens?: number
   thinkingEnabled?: boolean
@@ -144,6 +146,10 @@ export async function callAIAPI(
   if (responseFormat && responseFormat.type === 'json_object' && providerConfig.apiUrl.indexOf('volces.com') === -1) {
     requestBody.response_format = responseFormat
   }
+
+  // 在厂商参数适配之后冻结，避免档案记下实际未发送的 temperature 等参数。
+  const { messages: _messages, model: _model, ...effectiveParameters } = requestBody
+  options.onRequestParameters?.(JSON.parse(JSON.stringify(effectiveParameters)))
 
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), timeoutMs)

@@ -25,6 +25,7 @@ import { shortHash } from '../../utils/stable-hash'
 import { indicatorCombinationRegistry, type IndicatorCombinationRegistry } from '../indicators/IndicatorCombinationRegistry'
 import type { IndicatorPrecomputeService } from '../indicators/IndicatorPrecomputeService'
 import { DailyTradeLimiter } from '../risk-control/DailyTradeLimiter'
+import { getAnalysisMonth, saveTradeDecision } from '../../utils/trade-decision-store'
 
 /**
  * 计算首次策略扫描距离当前时间的等待毫秒数。
@@ -1303,6 +1304,8 @@ export class StrategyEngine {
     let openedQuantity = 0
     let dailyTradeReservationId: string | undefined
     let dailyTradeReservationCommitted = false
+    let entryAnalysisId: string | undefined
+    let entryAnalysisMonth: string | undefined
     try {
       const strategy = instance.strategy
 
@@ -1464,11 +1467,21 @@ export class StrategyEngine {
       })
 
       // 6. 市价开仓
+      // 先确保原始决策可恢复再下单；归档失败沿用现有异常释放逻辑，避免成交后没有复盘依据。
+      // 手动开仓不具有 AI 快照，不能伪造历史输入。
+      if (signal.decisionSnapshot) {
+        entryAnalysisId = await saveTradeDecision(signal.decisionSnapshot)
+        entryAnalysisMonth = getAnalysisMonth(signal.decisionSnapshot.requestedAt)
+        logger.info('交易决策归档', `${signal.symbol} [${strategy.id}] analysisId=${entryAnalysisId}`)
+      }
       const side = getOrderSide(signal.direction.toUpperCase() as 'LONG' | 'SHORT', true)
       const order = await this.binance.marketOrder(signal.symbol, side, quantity)
       openedOrder = order
       // 订单已被交易所接受，先记录下单数量；即使后续查询持仓超时，也要尝试保护性平仓。
       openedQuantity = quantity
+
+      // 在后续止损设置等步骤失败时，也能从日志将真实订单与已保存的决策对应起来。
+      if (entryAnalysisId) logger.info('交易决策关联', `${signal.symbol} analysisId=${entryAnalysisId}`, { entryOrderId: order.orderId })
 
       logger.success('开仓', `开仓订单已提交`, order)
 
@@ -1610,6 +1623,8 @@ export class StrategyEngine {
 
       // 10. 记录仓位到PositionManager
       const position = {
+        entryAnalysisId,
+        entryAnalysisMonth,
         accountId: 'default',
         symbol: signal.symbol,
         strategyId: strategy.id,

@@ -500,6 +500,10 @@ export interface StatusResponse {
 
 // 交易历史记录
 export interface TradeHistory {
+  /** 入场 AI 决策档案 ID；旧订单或手动开仓可能没有。 */
+  entryAnalysisId?: string
+  /** AI 请求时间对应的北京时间月份，用于直接定位独立档案。 */
+  entryAnalysisMonth?: string
   id: string
   /** 账户标识，用于多账户场景下隔离和汇总交易记录 */
   accountId?: string
