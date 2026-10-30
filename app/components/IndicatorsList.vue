@@ -159,7 +159,7 @@
                 <span :class="flowDirectionClass(row.netInflowPercent)">{{ signed(row.netInflowPercent) }}{{ row.netInflowPercent == null ? '' : '%' }}</span>
               </div>
               <div class="flow-row flow-secondary">
-                <span class="muted">5根</span>
+                <span class="muted">{{ row.moneyFlowWindowBars ?? '--' }}根</span>
                 <span>{{ formatFlowAmount(row.cumulativeNetInflow) }}</span>
                 <span :class="flowDirectionClass(row.cumulativeNetInflowPercent)">{{ signed(row.cumulativeNetInflowPercent) }}{{ row.cumulativeNetInflowPercent == null ? '' : '%' }}</span>
               </div>
@@ -221,6 +221,8 @@ interface IndicatorRow {
   /** 计价资产资金流，保留缺失状态，避免 Number(null) 变为零。 */
   netInflow?: number; netInflowPercent?: number; cumulativeNetInflow?: number; cumulativeNetInflowPercent?: number
   moneyFlowTooltip: string; cumulativeFlowTooltip: string
+  /** 使用服务端实际累计窗口，保证标签与资金流计算口径一致。 */
+  moneyFlowWindowBars?: number
   volumeRatio?: number; sentiment?: number; sentimentLabel: string; stale: boolean
   /** 情绪样本量与解释信息，随后台慢统计一并补齐。 */
   bullishCount?: number; bearishCount?: number; sentimentTooltip: string
@@ -580,8 +582,9 @@ function toRow(data: any): IndicatorRow {
     netInflowPercent: flow.netInflowPercent ?? undefined,
     cumulativeNetInflow: flow.cumulativeNetInflow ?? undefined,
     cumulativeNetInflowPercent: flow.cumulativeNetInflowPercent ?? undefined,
+    moneyFlowWindowBars: finiteNumber(flow.windowBars),
     moneyFlowTooltip: `本根成交：${formatFlowAmount(flow.quoteVolume)}\n主动买入：${formatFlowAmount(flow.takerBuyQuoteVolume)}`,
-    cumulativeFlowTooltip: `近5根：${flowWindow}\n${flow.complete ? '累计比例 = 净流入 / 成交额' : '数据不足，等待补齐'}`,
+    cumulativeFlowTooltip: `近${flow.windowBars ?? '--'}根：${flowWindow}\n${flow.complete ? '累计比例 = 净流入 / 成交额' : '数据不足，等待补齐'}`,
     volumeRatio: Number(values('volume').ratio), sentiment,
     sentimentLabel: sentiment == null ? '--' : sentiment > 0 ? '偏多' : sentiment < 0 ? '偏空' : '中性',
     bullishCount, bearishCount, sentimentTooltip,

@@ -1,6 +1,9 @@
 // ==================== K线主动资金流计算 ====================
 import type { OHLCV } from '../../types'
 
+/** 主动资金流累计窗口（含末根K线）；统一修改此处，指标页与AI提示词随计算结果同步。 */
+export const MONEY_FLOW_WINDOW_BARS = 6
+
 /** 将同一行情快照的主动资金流转为提示词，缺失值不能当作零流入。 */
 export function formatMoneyFlowPrompt(flow: ReturnType<typeof calculateMoneyFlow>, timeframe: string): string {
   const signed = (value: number, unit: string) => `${value > 0 ? '+' : ''}${value.toFixed(2)}${unit}`
@@ -16,7 +19,7 @@ export function formatMoneyFlowPrompt(flow: ReturnType<typeof calculateMoneyFlow
   const label = match ? `${match[1]}${units[match[2]!]}` : timeframe
   return `主动资金流（${label}，${flow.includesUnclosed ? '含未收盘K线' : '仅含已收盘K线'}）：
 本根净流入：${amount(flow.netInflow)}（${percent(flow.netInflowPercent)}）
-近5根累计净流入：${amount(flow.cumulativeNetInflow)}（${percent(flow.cumulativeNetInflowPercent)}）
+近${flow.windowBars}根累计净流入：${amount(flow.cumulativeNetInflow)}（${percent(flow.cumulativeNetInflowPercent)}）
 口径：主动买入额－主动卖出额；占比=净额/成交额。
 分析提示：正值表示主动买盘占优，负值表示主动卖盘占优；结合价格、成交量和OI判断趋势进一步分析`
 }
@@ -29,13 +32,13 @@ function validAmounts(bar: OHLCV): boolean {
     && typeof b === 'number' && Number.isFinite(b) && b >= 0 && b <= q
 }
 
-/** 使用末根实际成交数据及其前四根计算；窗口必须连续，禁止按进度放大净流入。 */
+/** 按统一窗口计算末根及累计实际成交数据；窗口必须连续，禁止按进度放大净流入。 */
 export function calculateMoneyFlow(klines: OHLCV[], intervalMs: number) {
   const latest = klines.at(-1)
   const currentValid = !!latest && validAmounts(latest)
   const netInflow = currentValid ? 2 * latest.takerBuyQuoteVolume! - latest.quoteVolume! : null
-  const window = klines.slice(-5)
-  const complete = window.length === 5 && window.every((bar, index) =>
+  const window = klines.slice(-MONEY_FLOW_WINDOW_BARS)
+  const complete = window.length === MONEY_FLOW_WINDOW_BARS && window.every((bar, index) =>
     validAmounts(bar) && (index === 0 || bar.timestamp - window[index - 1]!.timestamp === intervalMs))
   const totalQuoteVolume = complete ? window.reduce((sum, bar) => sum + bar.quoteVolume!, 0) : null
   const cumulativeNetInflow = complete
@@ -50,7 +53,7 @@ export function calculateMoneyFlow(klines: OHLCV[], intervalMs: number) {
       ? cumulativeNetInflow! / totalQuoteVolume * 100 : null,
     totalQuoteVolume,
     complete,
-    windowBars: 5,
+    windowBars: MONEY_FLOW_WINDOW_BARS,
     startTimestamp: window[0]?.timestamp ?? null,
     endTimestamp: latest?.timestamp ?? null,
     includesUnclosed: !!latest && latest.timestamp + intervalMs > Date.now()
