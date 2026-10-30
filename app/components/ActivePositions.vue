@@ -56,7 +56,7 @@
           <!-- AI 内容区域 -->
           <div v-show="expandedAISections.includes(position.symbol)" class="ai-content">
             <div class="reasoning-box">
-              <div class="reasoning-label">推理逻辑</div>
+              <div class="reasoning-label">推理逻辑 <a v-if="position.entryAnalysisId" :href="getPositionPromptUrl(position)" target="_blank" rel="noopener noreferrer">（提示词）</a></div>
               <div class="reasoning-text">{{ position.reasoning }}</div>
             </div>
             <div class="scores-section">
@@ -118,6 +118,14 @@ const emit = defineEmits<{
 
 const botStore = useBotStore()
 const positions = ref<any[]>([])
+
+/** 读取开仓时已归档的原文，跨月持仓沿用请求月份，旧根目录档案不附加月份。 */
+function getPositionPromptUrl(position: { entryAnalysisId?: string; entryAnalysisMonth?: string }): string {
+  const query = new URLSearchParams({ analysisId: position.entryAnalysisId ?? '', format: 'text', role: 'user' })
+  if (position.entryAnalysisMonth) query.set('month', position.entryAnalysisMonth)
+  return `/api/ai/trade-decision?${query}`
+}
+
 const selectedChartPosition = usePositionChart()
 const chartPositions = useChartPositions()
 const showFilter = ref(false)
