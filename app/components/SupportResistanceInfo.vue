@@ -7,11 +7,12 @@
   <div v-else-if="snapshot" class="structure-info" :class="{ 'structure-info-detailed': detailed }">
     <el-tooltip placement="top">
       <template #content>
-        <div>状态：{{ statusLabel }}</div>
         <template v-if="'algorithm' in snapshot">
           <div>{{ snapshot.timeframe }} · {{ snapshot.closedCandles }} 根已收盘K线</div>
         </template>
         <div>参考价 {{ price(snapshot.referencePrice) }}</div>
+        <div>阻力距离 {{ number(snapshot.resistanceDistancePercent) }}% / {{ number(snapshot.resistanceDistanceATR) }} ATR</div>
+        <div>支撑距离 {{ number(snapshot.supportDistancePercent) }}% / {{ number(snapshot.supportDistanceATR) }} ATR</div>
         <template v-if="'algorithm' in snapshot">
         <div>ATR {{ price(snapshot.atr) }}</div>
         <div>区域更新 {{ time(snapshot.calculatedAt) }}</div>
@@ -22,17 +23,15 @@
       </template>
       <div class="structure-levels">
         <div class="level-group">
-        <div class="resistance">阻力 {{ zone(snapshot.nearestResistance) }}{{ snapshot.nearestResistance ? `（${snapshot.nearestResistance.touches}）` : '' }}</div>
-        <div class="distance">距离 {{ number(snapshot.resistanceDistancePercent) }}% / {{ number(snapshot.resistanceDistanceATR) }} ATR</div>
+        <div><span class="resistance">阻力</span> {{ zone(snapshot.nearestResistance) }}{{ snapshot.nearestResistance ? `（${snapshot.nearestResistance.touches}）` : '' }}</div>
         </div>
         <div class="level-group">
-        <div class="support">支撑 {{ zone(snapshot.nearestSupport) }}{{ snapshot.nearestSupport ? `（${snapshot.nearestSupport.touches}）` : '' }}</div>
-        <div class="distance">距离 {{ number(snapshot.supportDistancePercent) }}% / {{ number(snapshot.supportDistanceATR) }} ATR</div>
+        <div><span class="support">支撑</span> {{ zone(snapshot.nearestSupport) }}{{ snapshot.nearestSupport ? `（${snapshot.nearestSupport.touches}）` : '' }}</div>
         </div>
-        <!-- 常态收进提示，重要状态仍直接展示，避免漏掉突破或跌破信号。 -->
-        <div v-if="detailed || snapshot.status !== 'between_levels'" class="structure-status">{{ statusLabel }}</div>
       </div>
     </el-tooltip>
+    <!-- 状态始终放在价位下方，区域之间等常态也能直接查看。 -->
+    <div class="structure-status">{{ statusLabel }}</div>
     <div v-if="detailed" class="distance">
       {{ snapshot.timeframe }} · 决策参考价 {{ price(snapshot.referencePrice) }}
     </div>

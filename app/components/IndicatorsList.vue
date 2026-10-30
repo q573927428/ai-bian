@@ -55,7 +55,6 @@
               :class="periodTrendClass(periodSignals[row.symbol]?.[period])"
               :title="`${period}：${periodSignals[row.symbol]?.[period] ?? '暂无数据'}`"
             ></span>
-            <span class="resonance-label">{{ resonanceInfo(row.symbol).label }}</span>
           </div>
           <div class="symbol-confidence" :title="row.environmentDescription || '暂无可用环境评分'">
             <span :class="[row.longConfidence == null ? 'muted' : 'up', { 'confidence-leading': row.longConfidence != null && row.shortConfidence != null && row.longConfidence > row.shortConfidence }]">多 {{ row.longConfidence ?? '--' }}</span>
@@ -71,7 +70,7 @@
           <span class="muted"> · {{ row.candleDirectionLabel }}</span>
         </template>
       </el-table-column>
-      <el-table-column label="趋势" min-width="110" class-name="trend-column">
+      <el-table-column label="趋势" min-width="125" class-name="trend-column">
         <template #default="{ row }">
           <div class="adx-line">
             <span><span class="muted">ADX</span> {{ format(row.adx) }}</span>
@@ -82,8 +81,10 @@
               <span :class="row.adxSlope == null || row.adxSlope === 0 ? 'muted' : directionClass(row.adxSlope)"> {{ formatAdxSlope(row.adxSlope) }}</span>
             </el-tooltip>
           </div>
-          <div class="up"><span class="muted">PDI</span> {{ format(row.pdi) }}</div>
-          <div class="down"><span class="muted">MDI</span> {{ format(row.mdi) }}</div>
+          <div class="di-line">
+            <span class="up"><span class="muted">PDI</span> {{ format(row.pdi) }}</span>
+            <span class="down"><span class="muted">MDI</span> {{ format(row.mdi) }}</span>
+          </div>
           <span :class="[row.diDirection.startsWith('多头') ? 'up' : row.diDirection.startsWith('空头') ? 'down' : 'muted', { 'macd-weakening': row.diDirection.endsWith('减弱') }]">{{ row.diDirection }}</span>
         </template>
       </el-table-column>
@@ -102,7 +103,7 @@
       <el-table-column label="RSI" align="center" header-align="center" min-width="65" sortable="custom" prop="rsi">
         <template #default="{ row }"><span :class="rsiClass(row.rsi)">{{ format(row.rsi) }}</span></template>
       </el-table-column>
-      <el-table-column label="MACD 实时 · H" min-width="190" sortable="custom" prop="macdHistogram">
+      <el-table-column label="MACD 实时 · H" min-width="170" sortable="custom" prop="macdHistogram">
         <template #default="{ row }">
           <div class="macd-cell" :title="`当前 M：${formatMacd(row.macd)} / S：${formatMacd(row.macdSignal)}\n上组 M：${formatMacd(row.previousMacd)} / S：${formatMacd(row.previousMacdSignal)}\nH 为柱值，背景柱仅用于同一交易对的当前与上组比较`">
             <div class="macd-state-line">
@@ -777,6 +778,7 @@ onUnmounted(() => {
 .confidence-leading { font-weight: 700; }
 .symbol-search { width: 170px; margin-left: auto; }
 .adx-line { display: flex; align-items: center; gap: 8px; white-space: nowrap; }
+.di-line { display: flex; align-items: center; gap: 8px; white-space: nowrap; }
 .up { color: var(--el-color-success); }.down { color: var(--el-color-danger); }.muted { color: var(--el-text-color-secondary); }
 .symbol-cell { display: flex; align-items: center; gap: 4px; white-space: nowrap; }
 .symbol-link { padding: 0; border: 0; background: transparent; color: inherit; font: inherit; cursor: pointer; text-align: left; }
@@ -793,7 +795,6 @@ onUnmounted(() => {
 .resonance { display: grid; grid-template-columns: repeat(5, 8px); align-items: center; gap: 3px; margin-top: 6px; padding-left: 25px; min-height: 12px; font-size: 11px; }
 .resonance-dot { width: 8px; height: 8px; flex: 0 0 8px; border-radius: 3px; background: currentColor; }
 .resonance-dot.trend-weakening { opacity: .4; }
-.resonance-label { grid-column: 1 / -1; white-space: nowrap; }
 .coin-icon, .coin-icon-placeholder { width: 18px; height: 18px; flex: 0 0 18px; border-radius: 50%; }
 .coin-icon { display: block; object-fit: cover; }
 .coin-icon-placeholder { display: inline-flex; align-items: center; justify-content: center; color: #fff; font-size: 10px; font-weight: 600; line-height: 1; }
