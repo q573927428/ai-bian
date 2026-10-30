@@ -122,13 +122,8 @@
               </span>
               <span class="macd-result" :class="macdResultClass(row.macdHistogram, row.previousMacdHistogram)">{{ macdResult(row.macdHistogram, row.previousMacdHistogram) }}</span>
             </div>
-            <el-tooltip placement="top">
-              <template #content>
-                <div>当前 H：{{ formatSignedMacd(row.macdHistogram) }}</div>
-                <div>上组 H：{{ formatSignedMacd(row.previousMacdHistogram) }}</div>
-              </template>
-              <!-- 数值放在柱体相反的一侧，以零轴为边界，避免遮挡柱体。 -->
-              <div class="macd-bars" tabindex="0" :aria-label="`当前 H：${formatSignedMacd(row.macdHistogram)}，上组 H：${formatSignedMacd(row.previousMacdHistogram)}`">
+            <!-- 数值放在柱体相反的一侧，以零轴为边界，避免遮挡柱体。 -->
+            <div class="macd-bars" :aria-label="`当前 H：${formatSignedMacd(row.macdHistogram)}，上组 H：${formatSignedMacd(row.previousMacdHistogram)}`">
             <div class="macd-values macd-data-row current-values">
               <span class="macd-row-label">当前</span>
               <span class="macd-row-chart">
@@ -143,8 +138,7 @@
                 <span class="macd-h-value" :class="{ 'value-right': row.previousMacdHistogram != null && row.previousMacdHistogram < 0 }">{{ formatSignedMacd(row.previousMacdHistogram) }}</span>
               </span>
             </div>
-              </div>
-            </el-tooltip>
+            </div>
           </div>
         </template>
       </el-table-column>
