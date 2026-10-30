@@ -102,12 +102,12 @@ export function calculateMultipleEMAs(
  */
 export function getEMAColor(period: number): string {
   const colorMap: Record<number, string> = {
-    7: '#FF4444',   // 鲜红色 - EMA7
+    7: '#E879F9',   // 亮紫粉色 - EMA7，避开 K 线涨跌的红绿色
     14: '#2563EB',  // 深蓝色 - EMA14
-    20: '#10B981',  // 翠绿色 - EMA20
+    20: '#06B6D4',  // 青色 - EMA20
     30: '#F97316',  // 深橙色 - EMA30
     50: '#8B5CF6',  // 紫色 - EMA50
-    60: '#06B6D4',  // 青色 - EMA60
+    60: '#FDE047',  // 亮黄色 - EMA60
     120: '#EAB308', // 琥珀黄 - EMA120
     200: '#64748B'  // 深灰色 - EMA200
   }

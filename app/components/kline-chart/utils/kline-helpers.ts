@@ -2,7 +2,7 @@
  * K线图表辅助函数
  */
 
-import { ColorType } from 'lightweight-charts'
+import { ColorType, CrosshairMode } from 'lightweight-charts'
 import type { SimpleKLineData } from '../../../../types/kline-simple'
 
 /**
@@ -128,6 +128,10 @@ export function prepareVolumeData(klineData: SimpleKLineData[]) {
  */
 export function getChartOptions(theme: 'light' | 'dark') {
   return {
+    crosshair: {
+      // 价格随鼠标纵向位置移动，避免默认磁吸模式吸附到 EMA 或 K 线收盘价。
+      mode: CrosshairMode.Normal
+    },
     layout: {
       background: { type: ColorType.Solid, color: theme === 'dark' ? '#131722' : '#FFFFFF' },
       textColor: theme === 'dark' ? '#D9D9D9' : '#191919'

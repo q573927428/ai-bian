@@ -255,6 +255,7 @@ interface Emits {
   (event: 'update:modelValue', value: boolean): void
   (event: 'select-symbol', symbol: string, timeframe: string): void
   (event: 'symbols-ready', symbols: string[]): void
+  (event: 'timeframe-change', timeframe: string): void
 }
 
 const props = defineProps<Props>()
@@ -267,6 +268,8 @@ const botStore = useBotStore()
 const { getCoinIconUrl } = useCoinIcon()
 const iconFailed = ref<Record<string, boolean>>({})
 const timeframe = ref('1h')
+// 周期切换立即通知独立指标页，不必再次点击交易对才刷新右侧图表。
+watch(timeframe, value => emit('timeframe-change', value))
 const progressNow = ref(Date.now())
 // Binance 周期按 UTC 对齐，时间进度属于整个周期，无需逐交易对重复展示。
 const currentCandleProgress = computed(() => {
