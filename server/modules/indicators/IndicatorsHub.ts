@@ -223,6 +223,10 @@ export class IndicatorsHub {
 
     const duration = Date.now() - startTime
     // logger.success('IndicatorsHub', `所有交易对数据初始化完成，耗时 ${duration}ms`)
+    // 看板只读缓存：启动后后台预热慢统计，不阻塞行情初始化及定时循环启动。
+    void this.refreshAllData().catch((error: any) => {
+      logger.error('IndicatorsHub', `看板统计预热失败: ${error.message}`)
+    })
   }
 
   /**
@@ -900,8 +904,20 @@ export class IndicatorsHub {
         this.getKlines(symbol, timeframe)
       }
 
-      // 2. 刷新持仓量（仅这个需要 API 请求）
+      // 2. 刷新当前持仓量，供策略及看板共用。
       await this.fetchAndCacheOI(symbol)
+
+      // 看板不再触发外部采集，因此后端需独立准备历史基准和默认 24 小时情绪缓存。
+      // 历史成功后不重复回填；情绪工具按 30 分钟 TTL 复用，单项失败不阻塞另一项。
+      const stats = await Promise.allSettled([
+        this.oiSnapshotService.bootstrapSymbol(symbol),
+        getSquareHeat(symbol, 1440)
+      ])
+      for (const result of stats) {
+        if (result.status === 'rejected') {
+          logger.warn('IndicatorsHub', `${symbol} 看板统计更新失败: ${result.reason?.message || result.reason}`)
+        }
+      }
 
       // 3. 清除指标缓存 - 注意：getKlines 已经在文件更新时调用了 invalidateIndicatorsCache
       // 这里不需要再清除所有指标缓存，避免不必要的重新计算

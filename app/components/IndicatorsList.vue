@@ -75,7 +75,6 @@
           <div>
           <div>{{ formatPrice(row.price) }}</div>
           <span :class="directionClass(row.closeChangePercent)">{{ signed(row.closeChangePercent) }}%</span>
-          <div class="muted">{{ row.candleDirectionLabel }}</div>
           </div>
           </div>
         </template>
@@ -220,7 +219,7 @@ import { TREND_PERIODS, type EnvironmentContext } from '../utils/environment-con
 /** 指标列表中的单个交易对展示数据。 */
 interface IndicatorRow {
   supportResistance?: SupportResistanceSnapshot
-  symbol: string; price?: number; closeChangePercent?: number; candleDirectionLabel: string
+  symbol: string; price?: number; closeChangePercent?: number
   candleProgressPercent?: number
   /** 当前未收盘 K 线的归一化图形，保留实体及上下影线比例。 */
   candle?: ReturnType<typeof buildCurrentCandle>
@@ -351,7 +350,6 @@ async function refreshStructure() {
             row.candle = buildCurrentCandle(latest)
             row.price = finiteNumber(latest?.close)
             row.closeChangePercent = finiteNumber(response.data?.kline?.closeChangePercent)
-            row.candleDirectionLabel = latest ? latest.close > latest.open ? '阳线' : latest.close < latest.open ? '阴线' : '平' : '--'
             row.supportResistance = response.data?.indicators?.supportResistance?.values
             row.environmentContext = response.data?.environmentContext
             row.environmentDescription = response.data?.environmentDescription
@@ -571,7 +569,6 @@ function toRow(data: any): IndicatorRow {
     shortConfidence: finiteNumber(data.environmentContext?.short?.confidence),
     environmentContext: data.environmentContext,
     environmentDescription: data.environmentDescription,
-    candleDirectionLabel: data.kline?.candleDirection === 'bullish' ? '阳线' : data.kline?.candleDirection === 'bearish' ? '阴线' : '平',
     adx: Number(adx.adx), rsi: Number(values('rsi').rsi),
     adxSlope: finiteNumber(adx.adxSlope), adxSlopePeriod: finiteNumber(adx.adxSlopePeriod),
     pdi, mdi, diDirection: diTrendSignal(adx.diSpread, adx.diGapChange),
