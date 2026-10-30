@@ -82,7 +82,7 @@
         <div class="stat-value text-danger">{{ stats.maxDrawdown.toFixed(2) }} U</div>
       </div>
       <div class="stat-item">
-        <div class="stat-label" title="当前筛选范围内已平仓交易的净盈亏合计 ÷ 交易次数，已包含结算费用">单笔均盈亏</div>
+        <div class="stat-label" title="当前筛选范围内已平仓交易的净盈亏合计 ÷ 交易次数，已包含结算费用">单均盈亏</div>
         <div :class="['stat-value', stats.averagePnl >= 0 ? 'text-success' : 'text-danger']">
           {{ stats.averagePnl >= 0 ? '+' : '' }}{{ stats.averagePnl.toFixed(2) }} U
         </div>
