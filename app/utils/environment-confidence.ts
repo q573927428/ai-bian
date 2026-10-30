@@ -31,13 +31,15 @@ export interface EnvironmentContext {
   short: EnvironmentAssessment
 }
 
-/** 将内部快照转为AI可直接引用的多空结果，不暴露JSON或要求AI重新计算。 */
+/** 将内部快照转为AI可直接引用的多空结果与分项，最终置信度仍由程序计算。 */
 export function formatEnvironmentConfidence(context?: EnvironmentContext): string {
   if (!context) return '置信度结果：LONG做多、SHORT做空均暂无可用分数。'
   const describe = (value: number) => value >= 80 ? '环境明显支持' : value >= 60 ? '环境偏支持' : value >= 40 ? '环境中性或分歧' : value >= 20 ? '环境偏不利' : '环境明显反向'
+  // 分项仅为展示保留两位小数，避免浮点噪声；缺失值不能伪装成零分。
+  const score = (value: number | null) => finite(value) ? `${Number(value.toFixed(2))}` : '暂无可用分数'
   const direction = (name: string, assessment: EnvironmentAssessment) => assessment.available
-    ? `${name}：置信度${assessment.confidence}分，${describe(assessment.confidence!)}。`
-    : `${name}：暂无可用分数，环境数据不足。`
+    ? `${name}：置信度${assessment.confidence}分，${describe(assessment.confidence!)}。\n\t\t（分项：市场支持${score(assessment.market)}×40% + 五周期支持${score(assessment.structure)}×30% + 相对强弱${score(assessment.relativeStrength)}×30%）`
+    : `${name}：暂无可用分数，环境数据不足。市场支持：${score(assessment.market)}；五周期方向支持：${score(assessment.structure)}；相对强弱：${score(assessment.relativeStrength)}。`
   return [
     `五周期结构：${context.structure.label}；${TREND_PERIODS.map(period => `${period} ${context.periods[period] ?? '暂无数据'}`).join('，')}。`,
     direction('LONG做多', context.long), direction('SHORT做空', context.short)
