@@ -63,11 +63,21 @@
           </div>
         </template>
       </el-table-column>
-      <el-table-column label="价格 / K线" min-width="90">
+      <el-table-column label="价格 / K线" min-width="105">
         <template #default="{ row }">
+          <div class="price-candle-cell">
+          <svg v-if="row.candle" class="current-candle" :class="row.candle.tone" viewBox="0 0 24 48" role="img" :aria-label="row.candle.description">
+            <title>{{ row.candle.description }}</title>
+            <line x1="12" :y1="row.candle.highY" x2="12" :y2="row.candle.lowY" stroke="currentColor" stroke-width="1.5" />
+            <rect x="6" :y="row.candle.bodyY" width="12" :height="row.candle.bodyHeight" fill="currentColor" />
+          </svg>
+          <span v-else class="candle-unavailable muted" title="当前 K 线数据不足">--</span>
+          <div>
           <div>{{ formatPrice(row.price) }}</div>
           <span :class="directionClass(row.closeChangePercent)">{{ signed(row.closeChangePercent) }}%</span>
-          <span class="muted"> · {{ row.candleDirectionLabel }}</span>
+          <div class="muted">{{ row.candleDirectionLabel }}</div>
+          </div>
+          </div>
         </template>
       </el-table-column>
       <el-table-column label="趋势" min-width="125" class-name="trend-column">
@@ -212,6 +222,8 @@ interface IndicatorRow {
   supportResistance?: SupportResistanceSnapshot
   symbol: string; price?: number; closeChangePercent?: number; candleDirectionLabel: string
   candleProgressPercent?: number
+  /** 当前未收盘 K 线的归一化图形，保留实体及上下影线比例。 */
+  candle?: ReturnType<typeof buildCurrentCandle>
   /** 服务端与策略共用的双方向环境评分；缺失时不补零或推算互补分。 */
   longConfidence?: number; shortConfidence?: number
   /** 文案、圆点与评分共用后端同一环境快照，不在浏览器重新判断。 */
@@ -234,7 +246,7 @@ interface IndicatorRow {
   /** 使用服务端实际累计窗口，保证标签与资金流计算口径一致。 */
   moneyFlowWindowBars?: number
   volumeRatio?: number; sentiment?: number; sentimentLabel: string; stale: boolean
-  /** 情绪样本量与解释信息，随后台慢统计一并补齐。 */
+  /** 后端缓存中的情绪样本量与解释信息。 */
   bullishCount?: number; bearishCount?: number; sentimentTooltip: string
 }
 
@@ -334,6 +346,12 @@ async function refreshStructure() {
           if (!visible.value || version !== fetchVersion) return
           const row = rows.value.find(item => item.symbol === symbol)
           if (row) {
+            // 价格和蜡烛图使用同一快照，随现有轮询更新未收盘 K 线。
+            const latest = response.data?.kline?.latest
+            row.candle = buildCurrentCandle(latest)
+            row.price = finiteNumber(latest?.close)
+            row.closeChangePercent = finiteNumber(response.data?.kline?.closeChangePercent)
+            row.candleDirectionLabel = latest ? latest.close > latest.open ? '阳线' : latest.close < latest.open ? '阴线' : '平' : '--'
             row.supportResistance = response.data?.indicators?.supportResistance?.values
             row.environmentContext = response.data?.environmentContext
             row.environmentDescription = response.data?.environmentDescription
@@ -463,6 +481,28 @@ function handleSortChange({ prop, order }: { prop?: string | null; order?: strin
   applySort()
 }
 
+/** 按单根高低价缩放当前 K 线；无波动时在中线展示十字，不伪造振幅。 */
+function buildCurrentCandle(kline: any) {
+  const open = finiteNumber(kline?.open)
+  const high = finiteNumber(kline?.high)
+  const low = finiteNumber(kline?.low)
+  const close = finiteNumber(kline?.close)
+  if (open == null || high == null || low == null || close == null
+    || low > Math.min(open, close) || high < Math.max(open, close)) return undefined
+  const range = high - low
+  const toY = (value: number) => range > 0 ? 4 + (high - value) / range * 40 : 24
+  const bodyTop = toY(Math.max(open, close))
+  const bodyBottom = toY(Math.min(open, close))
+  // 十字星及极小实体保留 1px 可见高度，影线始终使用真实高低价。
+  const bodyHeight = Math.max(1, bodyBottom - bodyTop)
+  return {
+    highY: toY(high), lowY: toY(low),
+    bodyY: (bodyTop + bodyBottom - bodyHeight) / 2, bodyHeight,
+    tone: close > open ? 'up' : close < open ? 'down' : 'muted',
+    description: `当前 ${timeframe.value} K线（未收盘）；开：${formatPrice(open)}；高：${formatPrice(high)}；低：${formatPrice(low)}；收：${formatPrice(close)}。单根独立缩放。`
+  }
+}
+
 /** 将完整诊断结果转换为适合横向比较的列表字段。 */
 function toRow(data: any): IndicatorRow {
   const values = (name: string) => data?.indicators?.[name]?.values || {}
@@ -524,6 +564,7 @@ function toRow(data: any): IndicatorRow {
   ].join('\n')
   return {
     symbol: data.symbol, price, closeChangePercent: Number(data.kline?.closeChangePercent),
+    candle: buildCurrentCandle(data.kline?.latest),
     supportResistance: data?.indicators?.supportResistance?.values,
     candleProgressPercent: Number(data.kline?.candleProgressPercent),
     longConfidence: finiteNumber(data.environmentContext?.long?.confidence),
@@ -750,6 +791,9 @@ onUnmounted(() => {
 <style scoped>
 .toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 16px; }
 .candle-progress { white-space: nowrap; font-size: 12px; font-variant-numeric: tabular-nums; }
+.price-candle-cell { display: flex; align-items: center; gap: 8px; }
+.current-candle { width: 24px; height: 48px; flex: 0 0 24px; }
+.candle-unavailable { width: 24px; flex: 0 0 24px; text-align: center; }
 /* 与趋势背景左边缘对齐，将综合评分收在交易对信息末行。 */
 .symbol-confidence { display: flex; align-items: center; gap: 5px; margin-top: 6px; padding-left: 25px; line-height: 1.5; white-space: nowrap; font-variant-numeric: tabular-nums; }
 /* 仅突出双向评分中更高的一侧；相等或数据缺失时不暗示方向优势。 */
