@@ -7,10 +7,10 @@
   <div v-else-if="snapshot" class="structure-info" :class="{ 'structure-info-detailed': detailed }">
     <el-tooltip placement="top">
       <template #content>
+        <div>状态：{{ statusLabel }}</div>
         <template v-if="'algorithm' in snapshot">
           <div>{{ snapshot.timeframe }} · {{ snapshot.closedCandles }} 根已收盘K线</div>
         </template>
-        <div>触碰：支撑 {{ snapshot.nearestSupport?.touches ?? '--' }} 次 / 阻力 {{ snapshot.nearestResistance?.touches ?? '--' }} 次</div>
         <div>参考价 {{ price(snapshot.referencePrice) }}</div>
         <template v-if="'algorithm' in snapshot">
         <div>ATR {{ price(snapshot.atr) }}</div>
@@ -19,18 +19,18 @@
         <div v-if="snapshot.brokenSupport">新近跌破 {{ zone(snapshot.brokenSupport) }}</div>
         <div v-if="snapshot.brokenResistance">新近突破 {{ zone(snapshot.brokenResistance) }}</div>
         </template>
-        <div>未识别不代表无支撑阻力。</div>
       </template>
       <div class="structure-levels">
-        <div class="level-group">
-        <div class="support">支撑 {{ zone(snapshot.nearestSupport) }}{{ snapshot.nearestSupport ? `（${snapshot.nearestSupport.touches}）` : '' }}</div>
-        <div class="distance">距离 {{ number(snapshot.supportDistancePercent) }}% / {{ number(snapshot.supportDistanceATR) }} ATR</div>
-        </div>
         <div class="level-group">
         <div class="resistance">阻力 {{ zone(snapshot.nearestResistance) }}{{ snapshot.nearestResistance ? `（${snapshot.nearestResistance.touches}）` : '' }}</div>
         <div class="distance">距离 {{ number(snapshot.resistanceDistancePercent) }}% / {{ number(snapshot.resistanceDistanceATR) }} ATR</div>
         </div>
-        <div class="structure-status">{{ statusLabel }}</div>
+        <div class="level-group">
+        <div class="support">支撑 {{ zone(snapshot.nearestSupport) }}{{ snapshot.nearestSupport ? `（${snapshot.nearestSupport.touches}）` : '' }}</div>
+        <div class="distance">距离 {{ number(snapshot.supportDistancePercent) }}% / {{ number(snapshot.supportDistanceATR) }} ATR</div>
+        </div>
+        <!-- 常态收进提示，重要状态仍直接展示，避免漏掉突破或跌破信号。 -->
+        <div v-if="detailed || snapshot.status !== 'between_levels'" class="structure-status">{{ statusLabel }}</div>
       </div>
     </el-tooltip>
     <div v-if="detailed" class="distance">

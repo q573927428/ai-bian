@@ -57,7 +57,7 @@
             ></span>
             <span class="resonance-label">{{ resonanceInfo(row.symbol).label }}</span>
           </div>
-          <div class="symbol-confidence" title="后端环境置信度（0–100分）：市场支持40% + 五周期支持30% + 相对强弱30%；多空分别评分">
+          <div class="symbol-confidence" :title="row.environmentDescription || '暂无可用环境评分'">
             <span :class="[row.longConfidence == null ? 'muted' : 'up', { 'confidence-leading': row.longConfidence != null && row.shortConfidence != null && row.longConfidence > row.shortConfidence }]">多 {{ row.longConfidence ?? '--' }}</span>
             <span class="muted" aria-hidden="true">·</span>
             <span :class="[row.shortConfidence == null ? 'muted' : 'down', { 'confidence-leading': row.longConfidence != null && row.shortConfidence != null && row.shortConfidence > row.longConfidence }]">空 {{ row.shortConfidence ?? '--' }}</span>
@@ -71,7 +71,7 @@
           <span class="muted"> · {{ row.candleDirectionLabel }}</span>
         </template>
       </el-table-column>
-      <el-table-column label="趋势" min-width="125" class-name="trend-column">
+      <el-table-column label="趋势" min-width="110" class-name="trend-column">
         <template #default="{ row }">
           <div class="adx-line">
             <span><span class="muted">ADX</span> {{ format(row.adx) }}</span>
@@ -102,9 +102,9 @@
       <el-table-column label="RSI" align="center" header-align="center" min-width="65" sortable="custom" prop="rsi">
         <template #default="{ row }"><span :class="rsiClass(row.rsi)">{{ format(row.rsi) }}</span></template>
       </el-table-column>
-      <el-table-column label="MACD 实时" min-width="210" sortable="custom" prop="macdHistogram">
+      <el-table-column label="MACD 实时 · H" min-width="190" sortable="custom" prop="macdHistogram">
         <template #default="{ row }">
-          <div class="macd-cell">
+          <div class="macd-cell" :title="`当前 M：${formatMacd(row.macd)} / S：${formatMacd(row.macdSignal)}\n上组 M：${formatMacd(row.previousMacd)} / S：${formatMacd(row.previousMacdSignal)}\nH 为柱值，背景柱仅用于同一交易对的当前与上组比较`">
             <div class="macd-state-line">
               <span class="macd-crossover" :class="crossoverClass(row.macdCrossover)">{{ crossoverLabel(row.macdCrossover) }}</span>
               <span class="macd-trend" :class="directionClass(row.macdHistogram)">
@@ -112,13 +112,8 @@
               </span>
               <span class="macd-result" :class="macdResultClass(row.macdHistogram, row.previousMacdHistogram)">{{ macdResult(row.macdHistogram, row.previousMacdHistogram) }}</span>
             </div>
-            <div class="macd-values macd-heading">
-              <span></span><span>M</span><span>S</span><span>H</span>
-            </div>
             <div class="macd-values macd-data-row current-values">
               <span class="macd-row-label">当前</span>
-              <span>{{ formatMacd(row.macd) }}</span>
-              <span>{{ formatMacd(row.macdSignal) }}</span>
               <span :class="directionClass(row.macdHistogram)">{{ formatSignedMacd(row.macdHistogram) }}</span>
               <span class="macd-row-chart" aria-hidden="true">
                 <span class="macd-chart-bar" :class="directionClass(row.macdHistogram)" :style="histogramBarStyle(row.macdHistogram, row.previousMacdHistogram)"></span>
@@ -126,8 +121,6 @@
             </div>
             <div class="macd-values macd-data-row previous-values">
               <span class="macd-row-label">上组</span>
-              <span>{{ formatMacd(row.previousMacd) }}</span>
-              <span>{{ formatMacd(row.previousMacdSignal) }}</span>
               <span>{{ formatSignedMacd(row.previousMacdHistogram) }}</span>
               <span class="macd-row-chart" aria-hidden="true">
                 <span class="macd-chart-bar" :class="directionClass(row.previousMacdHistogram)" :style="histogramBarStyle(row.previousMacdHistogram, row.macdHistogram)"></span>
@@ -176,7 +169,7 @@
       <el-table-column label="ATR%" align="center" header-align="center" min-width="78" prop="atrPercent" sortable="custom">
         <template #default="{ row }">{{ format(row.atrPercent) }}%</template>
       </el-table-column>
-      <el-table-column label="社区情绪" min-width="80">
+      <el-table-column label="社区情绪" min-width="90">
         <template #default="{ row }">
           <el-tooltip placement="top">
             <template #content>
@@ -202,7 +195,7 @@ import { useBotStore } from '../stores/bot'
 import { useCoinIcon } from '../composables/useCoinIcon'
 import type { SupportResistanceSnapshot } from '../../types/support-resistance'
 import SupportResistanceInfo from './SupportResistanceInfo.vue'
-import { TREND_PERIODS, combinePeriodTrend, classifyTrendStructure } from '../utils/environment-confidence'
+import { TREND_PERIODS, type EnvironmentContext } from '../utils/environment-confidence'
 
 /** 指标列表中的单个交易对展示数据。 */
 interface IndicatorRow {
@@ -211,6 +204,8 @@ interface IndicatorRow {
   candleProgressPercent?: number
   /** 服务端与策略共用的双方向环境评分；缺失时不补零或推算互补分。 */
   longConfidence?: number; shortConfidence?: number
+  /** 文案、圆点与评分共用后端同一环境快照，不在浏览器重新判断。 */
+  environmentContext?: EnvironmentContext; environmentDescription?: string
   adx?: number; rsi?: number; atrPercent?: number; oiChangePercent?: number
   /** 与 ADX 共用后端计算结果，回看窗口以该次计算实际使用的配置为准。 */
   adxSlope?: number; adxSlopePeriod?: number
@@ -297,7 +292,9 @@ const filteredRows = computed(() => {
   return rows.value.filter(row => row.symbol.toUpperCase().replace(/[\s/_-]/g, '').includes(keyword)
     && (signalFilter.value === '全部' || resonanceInfo(row.symbol).tone === signalFilter.value))
 })
-const periodSignals = ref<Record<string, Partial<Record<string, IndicatorRow['diDirection']>>>>({})
+const periodSignals = computed(() => Object.fromEntries(
+  rows.value.map(row => [row.symbol, row.environmentContext?.periods ?? {}])
+))
 let fetchVersion = 0
 let structureTimer: ReturnType<typeof setInterval> | undefined
 let refreshingStructure = false
@@ -328,6 +325,8 @@ async function refreshStructure() {
           const row = rows.value.find(item => item.symbol === symbol)
           if (row) {
             row.supportResistance = response.data?.indicators?.supportResistance?.values
+            row.environmentContext = response.data?.environmentContext
+            row.environmentDescription = response.data?.environmentDescription
             row.longConfidence = finiteNumber(response.data?.environmentContext?.long?.confidence)
             row.shortConfidence = finiteNumber(response.data?.environmentContext?.short?.confidence)
           }
@@ -337,6 +336,8 @@ async function refreshStructure() {
             const row = rows.value.find(item => item.symbol === symbol)
             if (row) {
               row.supportResistance = undefined
+              row.environmentContext = undefined
+              row.environmentDescription = undefined
               row.longConfidence = undefined
               row.shortConfidence = undefined
             }
@@ -377,23 +378,18 @@ async function fetchData() {
   const version = ++fetchVersion
   if (!botStore.botConfig) await botStore.fetchBotConfig()
   if (version !== fetchVersion) return
-  periodSignals.value = {}
   if (symbols.value.length === 0) { rows.value = []; loading.value = false; return }
   loading.value = true; errorMessage.value = ''
   const requestedTimeframe = timeframe.value
   const requestedEmaPeriods = [...emaPeriods.value]
   let initializing = false
-  // 首屏只请求当前周期，避免另外四个周期先占满浏览器连接和服务端计算资源。
+  // 五周期环境已由服务端统一返回，浏览器只请求当前主表指标。
   const results = await Promise.all(symbols.value.map(async (symbol: string) => {
     try {
       const response: any = await $fetch('/api/bot/indicators', { query: { symbol, timeframe: requestedTimeframe, emaPeriods: requestedEmaPeriods.join(','), includeSlowStats: 'false' } })
       if (response.initializing) { initializing = true; return null }
       if (!response.success || !response.data) return null
-      const row = toRow(response.data)
-      if (version === fetchVersion) {
-        periodSignals.value[row.symbol] = { ...periodSignals.value[row.symbol], [requestedTimeframe]: combinedPeriodTrend(row) }
-      }
-      return row
+      return toRow(response.data)
     } catch { return null }
   }))
   // 切换周期或连续刷新时，旧请求不得覆盖最新表格及共振状态。
@@ -406,55 +402,17 @@ async function fetchData() {
   loading.value = false
 
   // 首屏不再等待 OI 历史和币安广场分页请求；慢字段在表格显示后后台补齐。
-  if (rows.value.length > 0) void fetchBackgroundStats(version, requestedTimeframe, requestedEmaPeriods)
+  if (rows.value.length > 0) void enrichSlowStats(version, requestedTimeframe)
 }
 
-/** 按主表、五周期信号、慢统计的顺序加载，避免三类请求同时争抢资源。 */
-async function fetchBackgroundStats(version: number, selectedTimeframe: string, periods: number[]) {
-  await fetchResonance(version, selectedTimeframe, periods)
-  if (version !== fetchVersion) return
-  await enrichSlowStats(version, selectedTimeframe)
-}
-
-/** 后台补齐另外四个周期，复用当前周期数据，避免共振请求阻塞首屏。 */
-async function fetchResonance(version: number, selectedTimeframe: string, periods: number[]) {
-  const tasks = symbols.value.flatMap(symbol => timeframes.filter(period => period !== selectedTimeframe).map(period => ({ symbol, period })))
-  // 最多四个后台请求并行；刷新后不再继续发送旧批次中尚未开始的请求。
-  let nextTask = 0
-  await Promise.all(Array.from({ length: Math.min(4, tasks.length) }, async () => {
-    while (version === fetchVersion && nextTask < tasks.length) {
-      const { symbol, period } = tasks[nextTask++]!
-      try {
-        const response: any = await $fetch('/api/bot/indicators', {
-          query: { symbol, timeframe: period, emaPeriods: periods.join(','), includeSlowStats: 'false', signalOnly: 'true' }
-        })
-        if (version !== fetchVersion) return
-        periodSignals.value[symbol] = { ...periodSignals.value[symbol], [period]: combinedPeriodTrend(toRow(response.data)) }
-      } catch {
-        // 请求失败保留缺失状态，不能将不完整数据判为五周期共振。
-      }
-    }
-  }))
-}
-
-/** 趋势与 MACD 同向才保留方向；只有两者都增强才显示强色。 */
-function combinedPeriodTrend(row: IndicatorRow): IndicatorRow['diDirection'] {
-  return combinePeriodTrend(row.diDirection, row.macdHistogram, row.previousMacdHistogram)
-}
-
-// 仅在周期信号变化时重算，模板颜色、文字、悬停及筛选共享结果。
+// 直接索引后端结构结论，标签、颜色与筛选不再重复计算。
 const resonanceResults = computed(() => Object.fromEntries(
-  symbols.value.map(symbol => [symbol, calculateResonanceInfo(symbol)])
+  rows.value.map(row => [row.symbol, row.environmentContext?.structure])
 ))
 
-/** 读取缓存的组合结论，避免每次单元格渲染重复执行判定。 */
+/** 评分快照缺失时明确观望，不沿用旧的结构判断。 */
 function resonanceInfo(symbol: string): { label: string; tone: SignalTone } {
   return resonanceResults.value[symbol] ?? { label: '数据不足观望', tone: '观望' }
-}
-
-/** 将大周期背景、中间承接和短线触发拆开判断，避免五周期不完全一致就被压成观望。 */
-function calculateResonanceInfo(symbol: string): { label: string; tone: SignalTone } {
-  return classifyTrendStructure(periodSignals.value[symbol] || {})
 }
 
 /** 用颜色表达趋势与 MACD 共同确认的方向，非双增强状态使用淡色。 */
@@ -592,6 +550,8 @@ function toRow(data: any): IndicatorRow {
     candleProgressPercent: Number(data.kline?.candleProgressPercent),
     longConfidence: finiteNumber(data.environmentContext?.long?.confidence),
     shortConfidence: finiteNumber(data.environmentContext?.short?.confidence),
+    environmentContext: data.environmentContext,
+    environmentDescription: data.environmentDescription,
     candleDirectionLabel: data.kline?.candleDirection === 'bullish' ? '阳线' : data.kline?.candleDirection === 'bearish' ? '阴线' : '平',
     adx: Number(adx.adx), rsi: Number(values('rsi').rsi),
     adxSlope: finiteNumber(adx.adxSlope), adxSlopePeriod: finiteNumber(adx.adxSlopePeriod),
@@ -847,13 +807,14 @@ onUnmounted(() => {
 .oi-cell { display: flex; flex-direction: column; gap: 3px; line-height: 1.35; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .macd-state-line, .macd-values { display: grid; align-items: center; column-gap: 4px; }
 .macd-state-line { grid-template-columns: 48px 42px minmax(0, 1fr); }
-.macd-values { grid-template-columns: 28px repeat(3, minmax(0, 1fr)); font-variant-numeric: tabular-nums; white-space: nowrap; }
+/* 仅保留 H 数值，背景柱仍以零轴为中心，共用当前与上组的比例尺。 */
+.macd-values { grid-template-columns: 28px minmax(0, 1fr); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .macd-values > span:not(:first-child) { text-align: right; }
 .macd-crossover { font-weight: 400; color: var(--el-text-color-secondary); }
 .macd-trend { white-space: nowrap; }
 .macd-result { white-space: nowrap; font-weight: 600; }
 .macd-weakening { opacity: .6; }
-.macd-heading, .macd-row-label, .previous-values { color: var(--text-secondary); }
+.macd-row-label, .previous-values { color: var(--text-secondary); }
 .current-values { color: var(--text-primary); }
 .macd-data-row { position: relative; min-height: 20px; }
 .macd-data-row > span:not(.macd-row-chart) { position: relative; z-index: 1; }
