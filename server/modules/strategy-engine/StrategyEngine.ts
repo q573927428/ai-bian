@@ -7,6 +7,7 @@ import { StrategyStore } from '../strategy-store/StrategyStore'
 import { IndicatorsHub } from '../indicators/IndicatorsHub'
 import { summarizeEntrySupportResistance } from '../indicators/support-resistance-entry'
 import { getMarketBreadth } from '../../utils/market-breadth'
+import { calculateMoneyFlow, formatMoneyFlowPrompt } from '../../utils/money-flow'
 import { PositionManager } from '../position-manager/PositionManager'
 import { BinanceService } from '../../utils/binance'
 import { MultiStrategyAIAnalyzer } from '../ai-analyzer/MultiStrategyAIAnalyzer'
@@ -986,6 +987,8 @@ export class StrategyEngine {
       }
 
       const indicators: any = {
+        // 复用主周期快照与指标页计算口径，避免额外拉取导致行情时点不一致。
+        moneyFlowPrompt: formatMoneyFlowPrompt(calculateMoneyFlow(klines || [], this.timeframeToMs(mainTimeframe)), mainTimeframe),
         supportResistance,
         emaList: enabledEMAs && Array.isArray(emaData.emaList) ? emaData.emaList : [],
         emaMap: enabledEMAs ? (emaData.emaMap || {}) : {},

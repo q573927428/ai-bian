@@ -540,6 +540,7 @@ export class MultiStrategyAIAnalyzer {
     if (indicators.enabledIndicators?.atr) enabledIndicatorsList.push('ATR')
     if (indicators.enabledIndicators?.oi) enabledIndicatorsList.push('持仓量(OI)')
     if (indicators.enabledIndicators?.volume) enabledIndicatorsList.push('成交量')
+    if (indicators.moneyFlowPrompt) enabledIndicatorsList.push('主动资金流')
     if (indicators.enabledIndicators?.squareHeat) enabledIndicatorsList.push('币安广场热度')
 
     // K线数据
@@ -695,6 +696,7 @@ ${data.squareHeatLines.length > 0 ? data.squareHeatLines.join('\n') : ''}
 ${data.emaDeviationLines.length > 0 ? data.emaDeviationLines.join('\n') : ''}
 ${data.volumeCompareLines.length > 0 ? data.volumeCompareLines.join('\n') : ''}
 ${data.priceInRangeLines.length > 0 ? data.priceInRangeLines.join('\n') : ''}
+${indicators.moneyFlowPrompt ? `\n${indicators.moneyFlowPrompt}\n` : ''}
 ${data.enabledIndicatorsList.length > 0 ? `本次分析仅使用：${data.enabledIndicatorsList.join(', ')}
 未启用指标全部忽略` : ''}
 

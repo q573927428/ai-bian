@@ -5,7 +5,7 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
-import { calculateMoneyFlow } from '../server/utils/money-flow.ts'
+import { calculateMoneyFlow, formatMoneyFlowPrompt } from '../server/utils/money-flow.ts'
 import { initKLineDb, closeKLineDb, appendSimpleKLineData, updateLastKLine, getSimpleKLineAsOHLCV, hasMissingMoneyFlow, getKLineFileMTime, writeSimpleKLineFile, readSimpleKLineFile } from '../server/utils/kline-simple-storage.ts'
 
 /** 构造连续窗口，末根位于当前分钟，覆盖未收盘口径。 */
@@ -13,6 +13,18 @@ function bars() {
   const start = Math.floor(Date.now() / 60_000) * 60_000 - 4 * 60_000
   return Array.from({ length: 5 }, (_, i) => ({ timestamp: start + i * 60_000, open: 1, high: 1, low: 1, close: 1, volume: 1, quoteVolume: 100, takerBuyQuoteVolume: 65 }))
 }
+
+test('提示词保留周期、买卖方向、未收盘状态及缺失语义', () => {
+  const flow = calculateMoneyFlow(bars(), 60_000)
+  const text = formatMoneyFlowPrompt(flow, '1m')
+  assert.match(text, /主动资金流（1分钟，含未收盘K线）：\n本根净流入：\+30.00 USDT（\+30.00%）/)
+  assert.match(text, /近5根累计净流入：\+150.00 USDT（\+30.00%）/)
+  assert.match(text, /结合价格、成交量和OI判断趋势进一步分析/)
+  const missing = formatMoneyFlowPrompt(calculateMoneyFlow([], 60_000), '15m')
+  assert.match(missing, /本根净流入：暂无数据（暂无数据）/)
+  assert.match(missing, /近5根累计净流入：暂无数据（暂无数据）/)
+  assert.match(formatMoneyFlowPrompt({ ...flow, netInflow: -1200000, includesUnclosed: false }, '1h'), /1小时，仅含已收盘K线）：\n本根净流入：-120.00万 USDT/)
+})
 
 test('含当前未收盘，累计金额及加权比例正确，零额不产生比例', () => {
   const input = bars()

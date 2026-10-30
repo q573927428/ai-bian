@@ -1,6 +1,26 @@
 // ==================== K线主动资金流计算 ====================
 import type { OHLCV } from '../../types'
 
+/** 将同一行情快照的主动资金流转为提示词，缺失值不能当作零流入。 */
+export function formatMoneyFlowPrompt(flow: ReturnType<typeof calculateMoneyFlow>, timeframe: string): string {
+  const signed = (value: number, unit: string) => `${value > 0 ? '+' : ''}${value.toFixed(2)}${unit}`
+  const amount = (value: number | null) => {
+    if (value === null || !Number.isFinite(value)) return '暂无数据'
+    const absolute = Math.abs(value)
+    return absolute >= 1e8 ? signed(value / 1e8, '亿 USDT')
+      : absolute >= 1e4 ? signed(value / 1e4, '万 USDT') : signed(value, ' USDT')
+  }
+  const percent = (value: number | null) => value === null || !Number.isFinite(value) ? '暂无数据' : signed(value, '%')
+  const match = timeframe.match(/^(\d+)([mhdw])$/)
+  const units: Record<string, string> = { m: '分钟', h: '小时', d: '天', w: '周' }
+  const label = match ? `${match[1]}${units[match[2]!]}` : timeframe
+  return `主动资金流（${label}，${flow.includesUnclosed ? '含未收盘K线' : '仅含已收盘K线'}）：
+本根净流入：${amount(flow.netInflow)}（${percent(flow.netInflowPercent)}）
+近5根累计净流入：${amount(flow.cumulativeNetInflow)}（${percent(flow.cumulativeNetInflowPercent)}）
+口径：主动买入额－主动卖出额；占比=净额/成交额。
+分析提示：正值表示主动买盘占优，负值表示主动卖盘占优；结合价格、成交量和OI判断趋势进一步分析`
+}
+
 /** 校验上游成交额，缺失、非法数据不参与计算，避免伪造零流入。 */
 function validAmounts(bar: OHLCV): boolean {
   const q = bar.quoteVolume

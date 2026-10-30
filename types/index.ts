@@ -77,6 +77,8 @@ export interface OHLCV {
 
 // 技术指标
 export interface TechnicalIndicators {
+  /** 策略主周期的主动资金流文本，使用与K线形态相同的行情快照。 */
+  moneyFlowPrompt?: string
   /** 五分钟预计算区域与本次行情价格更新后的距离快照。 */
   supportResistance?: SupportResistanceSnapshot
   /** 本轮已选交易对市场广度，供 AI 作为整体方向背景参考。 */
