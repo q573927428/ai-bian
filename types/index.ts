@@ -120,6 +120,14 @@ export interface TechnicalIndicators {
   openInterest?: number
   openInterestChangePercent?: number
   openInterestTrend?: 'increasing' | 'decreasing' | 'flat'
+  /** 与OI变化率同一计算快照的回看窗口、基准及更新时间，禁止从其他时刻重新拼接。 */
+  openInterestContext?: {
+    lookbackMinutes: number
+    baselineValue: number
+    baselineTimestamp: number
+    updatedAt: number
+    trendThresholdPercent: number
+  }
   squareHeat?: number
   squareHeatPostCount?: number
   squareHeatTrend?: 'increasing' | 'normal' | 'decreasing'

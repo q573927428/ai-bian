@@ -1016,6 +1016,7 @@ export class StrategyEngine {
         openInterest: enabledOI ? indicatorsData.get(`${oiTimeframe}_OI`)?.values?.value : undefined,
         openInterestChangePercent: enabledOI ? indicatorsData.get(`${oiTimeframe}_OI`)?.values?.changePercent : undefined,
         openInterestTrend: enabledOI ? indicatorsData.get(`${oiTimeframe}_OI`)?.values?.trend : undefined,
+        openInterestContext: enabledOI ? indicatorsData.get(`${oiTimeframe}_OI`)?.values?.context : undefined,
         squareHeat: enabledSquareHeat ? indicatorsData.get(`SquareHeat_SquareHeat`)?.values?.heat : undefined,
         squareHeatPostCount: enabledSquareHeat ? indicatorsData.get(`SquareHeat_SquareHeat`)?.values?.postCount : undefined,
         squareHeatTrend: enabledSquareHeat ? indicatorsData.get(`SquareHeat_SquareHeat`)?.values?.trend : undefined,

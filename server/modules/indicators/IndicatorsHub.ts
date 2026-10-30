@@ -545,7 +545,15 @@ export class IndicatorsHub {
         values: {
           value: oi.current.value,
           trend: trend,
-          changePercent: changePercent
+          changePercent: changePercent,
+          // 基准与时间随变化率一起传递，避免AI端另取快照造成口径错位。
+          context: {
+            lookbackMinutes,
+            baselineValue: oi.baseline.openInterest,
+            baselineTimestamp: oi.baseline.timestamp,
+            updatedAt: oi.current.timestamp,
+            trendThresholdPercent
+          }
         }
       }
     }
