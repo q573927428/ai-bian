@@ -12,6 +12,7 @@
       <el-radio-group v-model="timeframe" size="small" @change="fetchData">
         <el-radio-button v-for="item in timeframes" :key="item" :value="item">{{ item }}</el-radio-button>
       </el-radio-group>
+      <span class="candle-progress muted" title="当前所选周期的 K 线时间进度">K线进度 {{ currentCandleProgress }}%</span>
       <el-radio-group v-model="signalFilter" size="small" aria-label="五周期方向筛选">
         <el-radio-button value="全部">全部</el-radio-button>
         <el-radio-button value="多头">多头背景</el-radio-button>
@@ -56,6 +57,11 @@
             ></span>
             <span class="resonance-label">{{ resonanceInfo(row.symbol).label }}</span>
           </div>
+          <div class="symbol-confidence" title="后端环境置信度（0–100分）：市场支持40% + 五周期支持30% + 相对强弱30%；多空分别评分">
+            <span :class="[row.longConfidence == null ? 'muted' : 'up', { 'confidence-leading': row.longConfidence != null && row.shortConfidence != null && row.longConfidence > row.shortConfidence }]">多 {{ row.longConfidence ?? '--' }}</span>
+            <span class="muted" aria-hidden="true">·</span>
+            <span :class="[row.shortConfidence == null ? 'muted' : 'down', { 'confidence-leading': row.longConfidence != null && row.shortConfidence != null && row.shortConfidence > row.longConfidence }]">空 {{ row.shortConfidence ?? '--' }}</span>
+          </div>
         </template>
       </el-table-column>
       <el-table-column label="价格 / K线" min-width="90">
@@ -65,10 +71,10 @@
           <span class="muted"> · {{ row.candleDirectionLabel }}</span>
         </template>
       </el-table-column>
-      <el-table-column label="趋势" min-width="115">
+      <el-table-column label="趋势" min-width="125" class-name="trend-column">
         <template #default="{ row }">
           <div class="adx-line">
-            <span>ADX {{ format(row.adx) }}</span>
+            <span><span class="muted">ADX</span> {{ format(row.adx) }}</span>
             <el-tooltip placement="top">
               <template #content>
                 <div v-for="(line, index) in adxSlopeTooltip(row.adxSlope, row.adxSlopePeriod).split('\n')" :key="index">{{ line }}</div>
@@ -76,8 +82,8 @@
               <span :class="row.adxSlope == null || row.adxSlope === 0 ? 'muted' : directionClass(row.adxSlope)"> {{ formatAdxSlope(row.adxSlope) }}</span>
             </el-tooltip>
           </div>
-          <div class="up">PDI {{ format(row.pdi) }}</div>
-          <div class="down">MDI {{ format(row.mdi) }}</div>
+          <div class="up"><span class="muted">PDI</span> {{ format(row.pdi) }}</div>
+          <div class="down"><span class="muted">MDI</span> {{ format(row.mdi) }}</div>
           <span :class="[row.diDirection.startsWith('多头') ? 'up' : row.diDirection.startsWith('空头') ? 'down' : 'muted', { 'macd-weakening': row.diDirection.endsWith('减弱') }]">{{ row.diDirection }}</span>
         </template>
       </el-table-column>
@@ -86,14 +92,14 @@
           <SupportResistanceInfo :snapshot="row.supportResistance" />
         </template>
       </el-table-column>
-      <el-table-column label="EMA" min-width="105">
+      <el-table-column label="EMA" min-width="115" class-name="ema-column">
         <template #default="{ row }">
-          <div>EMA{{ row.fastEmaPeriod }} {{ formatPrice(row.fastEma) }}</div>
-          <div>EMA{{ row.slowEmaPeriod }} {{ formatPrice(row.slowEma) }}</div>
+          <div><span class="muted">EMA{{ row.fastEmaPeriod }}</span> {{ formatPrice(row.fastEma) }}</div>
+          <div><span class="muted">EMA{{ row.slowEmaPeriod }}</span> {{ formatPrice(row.slowEma) }}</div>
           <span :class="row.emaBullish == null ? 'muted' : row.emaBullish ? 'up' : 'down'">{{ row.emaBullish == null ? '--' : row.emaBullish ? '多头' : '空头' }}</span>
         </template>
       </el-table-column>
-      <el-table-column label="RSI" align="center" header-align="center" min-width="55" sortable="custom" prop="rsi">
+      <el-table-column label="RSI" align="center" header-align="center" min-width="65" sortable="custom" prop="rsi">
         <template #default="{ row }"><span :class="rsiClass(row.rsi)">{{ format(row.rsi) }}</span></template>
       </el-table-column>
       <el-table-column label="MACD 实时" min-width="210" sortable="custom" prop="macdHistogram">
@@ -130,7 +136,7 @@
           </div>
         </template>
       </el-table-column>
-      <el-table-column label="OI变化" align="center" header-align="center" min-width="70" prop="oiChangePercent" sortable="custom">
+      <el-table-column label="OI变化" align="center" header-align="center" min-width="80" prop="oiChangePercent" sortable="custom">
         <template #default="{ row }">
           <el-tooltip placement="top">
             <template #content>
@@ -143,7 +149,7 @@
           </el-tooltip>
         </template>
       </el-table-column>
-      <el-table-column label="预量比" align="center" header-align="center" min-width="68" prop="volumeRatio" sortable="custom">
+      <el-table-column label="预量比" align="center" header-align="center" min-width="78" prop="volumeRatio" sortable="custom">
         <template #default="{ row }">{{ format(row.volumeRatio) }}x</template>
       </el-table-column>
       <el-table-column label="资金流" width="145" prop="netInflowPercent" sortable="custom">
@@ -167,7 +173,7 @@
           </el-tooltip>
         </template>
       </el-table-column>
-      <el-table-column label="ATR%" align="center" header-align="center" min-width="68" prop="atrPercent" sortable="custom">
+      <el-table-column label="ATR%" align="center" header-align="center" min-width="78" prop="atrPercent" sortable="custom">
         <template #default="{ row }">{{ format(row.atrPercent) }}%</template>
       </el-table-column>
       <el-table-column label="社区情绪" min-width="80">
@@ -182,9 +188,6 @@
             </div>
           </el-tooltip>
         </template>
-      </el-table-column>
-      <el-table-column label="进度" align="center" header-align="center" min-width="65" prop="candleProgressPercent" sortable="custom">
-        <template #default="{ row }">{{ format(row.candleProgressPercent) }}%</template>
       </el-table-column>
     </el-table>
     <el-empty v-if="!loading && rows.length === 0" description="暂无已配置交易对或指标数据" />
@@ -206,6 +209,8 @@ interface IndicatorRow {
   supportResistance?: SupportResistanceSnapshot
   symbol: string; price?: number; closeChangePercent?: number; candleDirectionLabel: string
   candleProgressPercent?: number
+  /** 服务端与策略共用的双方向环境评分；缺失时不补零或推算互补分。 */
+  longConfidence?: number; shortConfidence?: number
   adx?: number; rsi?: number; atrPercent?: number; oiChangePercent?: number
   /** 与 ADX 共用后端计算结果，回看窗口以该次计算实际使用的配置为准。 */
   adxSlope?: number; adxSlopePeriod?: number
@@ -252,6 +257,12 @@ const botStore = useBotStore()
 const { getCoinIconUrl } = useCoinIcon()
 const iconFailed = ref<Record<string, boolean>>({})
 const timeframe = ref('1h')
+const progressNow = ref(Date.now())
+// Binance 周期按 UTC 对齐，时间进度属于整个周期，无需逐交易对重复展示。
+const currentCandleProgress = computed(() => {
+  const duration = ({ '5m': 300000, '15m': 900000, '1h': 3600000, '4h': 14400000, '1d': 86400000 } as Record<string, number>)[timeframe.value]!
+  return (progressNow.value % duration / duration * 100).toFixed(1)
+})
 
 /** 将看板当前交易对和周期同步到首页，关闭抽屉以展示图表。 */
 function selectChart(symbol: string) {
@@ -294,6 +305,7 @@ let refreshingStructure = false
 /** 打开看板时定期补齐实时结构；限制并发，旧周期请求不可覆盖新周期。 */
 async function refreshStructure() {
   if (!visible.value || loading.value || refreshingStructure) return
+  progressNow.value = Date.now()
   // 启动期首屏为空时继续尝试加载，初始化完成后自动恢复看板。
   if (rows.value.length === 0) {
     await fetchData()
@@ -314,12 +326,20 @@ async function refreshStructure() {
           })
           if (!visible.value || version !== fetchVersion) return
           const row = rows.value.find(item => item.symbol === symbol)
-          if (row) row.supportResistance = response.data?.indicators?.supportResistance?.values
+          if (row) {
+            row.supportResistance = response.data?.indicators?.supportResistance?.values
+            row.longConfidence = finiteNumber(response.data?.environmentContext?.long?.confidence)
+            row.shortConfidence = finiteNumber(response.data?.environmentContext?.short?.confidence)
+          }
         } catch {
           // 刷新失败清除旧结构，避免将上轮价格对应的距离伪装成实时结果。
           if (version === fetchVersion) {
             const row = rows.value.find(item => item.symbol === symbol)
-            if (row) row.supportResistance = undefined
+            if (row) {
+              row.supportResistance = undefined
+              row.longConfidence = undefined
+              row.shortConfidence = undefined
+            }
           }
         }
       }
@@ -329,7 +349,7 @@ async function refreshStructure() {
   }
 }
 type SortOrder = 'ascending' | 'descending' | null
-type SortProp = 'candleProgressPercent' | 'rsi' | 'macdHistogram' | 'atrPercent' | 'oiChangePercent' | 'volumeRatio' | 'netInflowPercent' | 'cumulativeNetInflow' | null
+type SortProp = 'rsi' | 'macdHistogram' | 'atrPercent' | 'oiChangePercent' | 'volumeRatio' | 'netInflowPercent' | 'cumulativeNetInflow' | null
 const sortProp = ref<SortProp>(null)
 const sortOrder = ref<SortOrder>(null)
 const symbols = computed<string[]>(() => {
@@ -352,6 +372,8 @@ const emaPeriods = computed<[number, number]>(() => {
 
 /** 拉取配置交易对的诊断指标；单个交易对失败不会阻塞其余行。 */
 async function fetchData() {
+  // 进度随看板刷新更新，不单独启动高频计时器。
+  progressNow.value = Date.now()
   const version = ++fetchVersion
   if (!botStore.botConfig) await botStore.fetchBotConfig()
   if (version !== fetchVersion) return
@@ -498,7 +520,7 @@ function applySort() {
 
 /** 接收 Element Plus 的自定义排序事件，并在当前已加载数据上即时排序。 */
 function handleSortChange({ prop, order }: { prop?: string | null; order?: string | null }) {
-  sortProp.value = (['candleProgressPercent', 'rsi', 'macdHistogram', 'atrPercent', 'oiChangePercent', 'volumeRatio', 'netInflowPercent', 'cumulativeNetInflow'] as string[]).includes(prop || '')
+  sortProp.value = (['rsi', 'macdHistogram', 'atrPercent', 'oiChangePercent', 'volumeRatio', 'netInflowPercent', 'cumulativeNetInflow'] as string[]).includes(prop || '')
     ? prop as SortProp
     : null
   sortOrder.value = order === 'ascending' || order === 'descending' ? order : null
@@ -568,6 +590,8 @@ function toRow(data: any): IndicatorRow {
     symbol: data.symbol, price, closeChangePercent: Number(data.kline?.closeChangePercent),
     supportResistance: data?.indicators?.supportResistance?.values,
     candleProgressPercent: Number(data.kline?.candleProgressPercent),
+    longConfidence: finiteNumber(data.environmentContext?.long?.confidence),
+    shortConfidence: finiteNumber(data.environmentContext?.short?.confidence),
     candleDirectionLabel: data.kline?.candleDirection === 'bullish' ? '阳线' : data.kline?.candleDirection === 'bearish' ? '阴线' : '平',
     adx: Number(adx.adx), rsi: Number(values('rsi').rsi),
     adxSlope: finiteNumber(adx.adxSlope), adxSlopePeriod: finiteNumber(adx.adxSlopePeriod),
@@ -786,6 +810,11 @@ onUnmounted(() => {
 
 <style scoped>
 .toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 16px; }
+.candle-progress { white-space: nowrap; font-size: 12px; font-variant-numeric: tabular-nums; }
+/* 与趋势背景左边缘对齐，将综合评分收在交易对信息末行。 */
+.symbol-confidence { display: flex; align-items: center; gap: 5px; margin-top: 6px; padding-left: 25px; line-height: 1.5; white-space: nowrap; font-variant-numeric: tabular-nums; }
+/* 仅突出双向评分中更高的一侧；相等或数据缺失时不暗示方向优势。 */
+.confidence-leading { font-weight: 700; }
 .symbol-search { width: 170px; margin-left: auto; }
 .adx-line { display: flex; align-items: center; gap: 8px; white-space: nowrap; }
 .up { color: var(--el-color-success); }.down { color: var(--el-color-danger); }.muted { color: var(--el-text-color-secondary); }
@@ -808,7 +837,7 @@ onUnmounted(() => {
 .coin-icon, .coin-icon-placeholder { width: 18px; height: 18px; flex: 0 0 18px; border-radius: 50%; }
 .coin-icon { display: block; object-fit: cover; }
 .coin-icon-placeholder { display: inline-flex; align-items: center; justify-content: center; color: #fff; font-size: 10px; font-weight: 600; line-height: 1; }
-.macd-cell { display: flex; flex-direction: column; gap: 3px; min-width: 0; line-height: 1.35; }
+.macd-cell { display: flex; flex-direction: column; gap: 5px; min-width: 0; line-height: 1.5; }
 .flow-cell { display: grid; grid-template-columns: 24px max-content max-content; column-gap: 6px; row-gap: 3px; width: max-content; font-weight: 400; line-height: 1.35; }
 /* 两行共享内容宽度，不再让金额列拉伸填满整列，避免标签与金额之间出现大块留白。 */
 .flow-row { display: contents; white-space: nowrap; font-variant-numeric: tabular-nums; }
@@ -820,7 +849,7 @@ onUnmounted(() => {
 .macd-state-line { grid-template-columns: 48px 42px minmax(0, 1fr); }
 .macd-values { grid-template-columns: 28px repeat(3, minmax(0, 1fr)); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .macd-values > span:not(:first-child) { text-align: right; }
-.macd-crossover { font-weight: 600; }
+.macd-crossover { font-weight: 400; color: var(--el-text-color-secondary); }
 .macd-trend { white-space: nowrap; }
 .macd-result { white-space: nowrap; font-weight: 600; }
 .macd-weakening { opacity: .6; }
@@ -831,7 +860,16 @@ onUnmounted(() => {
 .macd-row-chart { position: absolute; left: 36px; right: 0; top: 1px; bottom: 1px; pointer-events: none; }
 .macd-row-chart::before { content: ''; position: absolute; left: 50%; top: 0; bottom: 0; width: 1px; background: var(--text-secondary); opacity: .45; }
 .macd-chart-bar { position: absolute; top: 0; height: 100%; background: currentColor; opacity: .18; }
-.previous-values .macd-chart-bar { opacity: .12; }
+.previous-values .macd-chart-bar { opacity: .08; }
+
+/* 分组留白优先于缩小文字，当前值与辅助说明保持清晰层级。 */
+.indicators-table :deep(.trend-column .cell),
+.indicators-table :deep(.ema-column .cell) { line-height: 1.8; }
+.indicators-table :deep(.structure-levels) { display: flex; flex-direction: column; gap: 6px; }
+.indicators-table :deep(.structure-status) { color: var(--el-text-color-secondary); }
+.indicators-table :deep(.structure-info .distance) { font-size: 11px; }
+.indicators-table :deep(td.el-table__cell) { padding-top: 12px; padding-bottom: 12px; }
+.indicators-table :deep(th.el-table__cell) { padding-top: 10px; padding-bottom: 10px; }
 
 /* 表格占用工具栏下方剩余高度，交给组件内部滚动，保持表头与横向滚动同步。 */
 :global(.indicators-drawer .el-drawer__body) {
@@ -861,15 +899,15 @@ onUnmounted(() => {
   color: var(--text-secondary);
 }
 
-/* 统一收紧单元格留白，保留排序箭头与数字间距，不通过缩小字号挤压内容。 */
+/* 为相邻列留出阅读间距，数字保留原有字号。 */
 :global(.indicators-drawer .indicators-table .cell) {
-  padding-left: 4px;
-  padding-right: 4px;
+  padding-left: 8px;
+  padding-right: 8px;
 }
 
 /* 使用淡竖线明确列边界，保留现有横线和斑马纹，避免完整网格过于抢眼。 */
 :global(.indicators-drawer .indicators-table .el-table__cell:not(:last-child)) {
-  border-right: 1px solid color-mix(in srgb, var(--border-color) 60%, transparent);
+  border-right: 1px solid color-mix(in srgb, var(--border-color) 30%, transparent);
 }
 
 :global(.indicators-drawer .el-drawer__body) {

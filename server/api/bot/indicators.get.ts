@@ -5,6 +5,9 @@ import { getStrategyManagerIfAvailable } from '../../modules/strategy-manager'
 import { getMaxOIChangePeriod } from '../../utils/strategy-indicators-normalizer'
 import { getSimpleKLineLastUpdatedAt } from '../../utils/kline-simple-storage'
 import { getCachedSquareHeat } from '../../utils/square-heat'
+import { loadEnvironmentContext } from '../../utils/environment-context'
+import { getMarketBreadth } from '../../utils/market-breadth'
+import { getBotConfig } from '../../utils/storage'
 
 const VALID_TIMEFRAMES: Timeframe[] = ['5m', '15m', '1h', '4h', '1d']
 const TIMEFRAME_MINUTES: Record<Timeframe, number> = {
@@ -100,6 +103,13 @@ export default defineEventHandler(async (event) => {
 
   const indicators: Record<string, IndicatorDiagnosticResult> = {}
   const errors: Record<string, string> = {}
+  // 复用策略分析的服务端评分口径；方向标记请求无需重复计算五周期环境。
+  // 环境计算失败仅清空评分，不影响其他指标展示。
+  const environmentContext = !signalOnly
+    ? await Promise.resolve().then(async () => getMarketBreadth(await getBotConfig()))
+      .then(breadth => loadEnvironmentContext(indicatorsHub, indicatorSymbol, breadth))
+      .catch(() => undefined)
+    : undefined
 
   /**
    * 单项失败只记录错误，确保仍能看到其余已正常计算的指标。
@@ -177,6 +187,7 @@ export default defineEventHandler(async (event) => {
       symbol,
       timeframe,
       requestedAt,
+      environmentContext,
       completedAt,
       durationMs: completedAt - requestedAt,
       status: {
