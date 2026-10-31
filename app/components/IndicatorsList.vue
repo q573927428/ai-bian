@@ -33,19 +33,6 @@
         <el-radio-button value="反转" title="反转观察">反转</el-radio-button>
         <el-radio-button value="观望" title="分歧观望">观望</el-radio-button>
       </el-radio-group>
-      <div class="proximity-filter">
-        <el-select v-model="proximityFilter" class="proximity-select" size="small" aria-label="支撑阻力位置筛选">
-          <el-option label="不限位置" value="all" />
-          <el-option label="近支撑" value="long" title="做多：最近支撑距离不超过所填 ATR 上限" />
-          <el-option label="近阻力" value="short" title="做空：最近阻力距离不超过所填 ATR 上限" />
-        </el-select>
-        <template v-if="proximityFilter !== 'all'">
-          <span class="muted">≤</span>
-          <el-input-number v-model="proximityThreshold" class="proximity-threshold" size="small" :min="0" :step="0.1" :value-on-clear="null" placeholder="上限" aria-label="支撑阻力距离 ATR 上限" />
-          <span class="muted">ATR</span>
-          <span v-if="proximityThreshold != null && !loading" class="muted" title="筛选结果 / 已加载交易对" aria-live="polite">{{ filteredRows.length }}/{{ rows.length }}</span>
-        </template>
-      </div>
       <el-input v-model="symbolSearch" class="symbol-search" size="small" placeholder="搜索交易对" aria-label="搜索交易对" clearable>
         <template #prefix><el-icon><ElIconSearch /></el-icon></template>
       </el-input>
@@ -54,13 +41,49 @@
         <el-option label="多头评分 ↓" value="longConfidence" />
         <el-option label="空头评分 ↓" value="shortConfidence" />
       </el-select>
+      <el-button size="small" :type="activeNumericFilters ? 'primary' : 'default'" :plain="!!activeNumericFilters" :aria-expanded="showNumericFilters" @click="showNumericFilters = !showNumericFilters">
+        筛选{{ activeNumericFilters ? ` (${activeNumericFilters})` : '' }} {{ showNumericFilters ? '▴' : '▾' }}
+      </el-button>
       <el-button class="refresh-button" size="small" :loading="loading" @click="fetchData">
         <el-icon><ElIconRefresh /></el-icon>刷新
       </el-button>
     </div>
 
+    <div v-show="showNumericFilters" class="numeric-filters" role="region" aria-label="指标数值筛选">
+      <div class="numeric-filter-header">
+        <span class="muted">区间筛选 · 留空不限 · 多项同时满足</span>
+        <span class="numeric-filter-actions">
+          <span class="muted" aria-live="polite">{{ filteredRows.length }} / {{ rows.length }} 个交易对</span>
+          <el-button size="small" text :disabled="!activeNumericFilters" @click="resetNumericFilters">重置</el-button>
+        </span>
+      </div>
+      <div class="numeric-filter-grid">
+        <div v-for="field in numericFilterFields" :key="field.key" class="numeric-filter-item">
+          <span class="numeric-filter-label">{{ field.label }}<span v-if="field.unit" class="muted"> ({{ field.unit }})</span></span>
+          <div class="numeric-filter-range">
+            <el-input-number v-model="numericFilters[field.key].min" size="small" :controls="false" :step="field.step" :value-on-clear="null" placeholder="最小值" :aria-label="`${field.label}最小值${field.unit ? `（${field.unit}）` : ''}`" />
+            <span class="muted">—</span>
+            <el-input-number v-model="numericFilters[field.key].max" size="small" :controls="false" :step="field.step" :value-on-clear="null" placeholder="最大值" :aria-label="`${field.label}最大值${field.unit ? `（${field.unit}）` : ''}`" />
+          </div>
+          <span v-if="isReversedRange(numericFilters[field.key])" class="numeric-filter-error" role="alert">最小值不能大于最大值</span>
+        </div>
+        <div class="numeric-filter-item">
+          <span class="numeric-filter-label">趋势状态</span>
+          <el-select v-model="trendStateFilter" size="small" clearable placeholder="不限" aria-label="趋势状态筛选">
+            <el-option v-for="item in stateOptions" :key="item" :label="item" :value="item" />
+          </el-select>
+        </div>
+        <div class="numeric-filter-item">
+          <span class="numeric-filter-label">MACD状态</span>
+          <el-select v-model="macdStateFilter" size="small" clearable placeholder="不限" aria-label="MACD状态筛选">
+            <el-option v-for="item in stateOptions" :key="item" :label="item" :value="item" />
+          </el-select>
+        </div>
+      </div>
+    </div>
+
     <el-alert v-if="errorMessage" type="warning" :closable="false" show-icon>{{ errorMessage }}</el-alert>
-    <el-table ref="tableRef" v-loading="loading" class="indicators-table" height="100%" :data="filteredRows" row-key="symbol" :current-row-key="selectedSymbol" :row-class-name="selectedRowClass" :highlight-current-row="embedded" :empty-text="proximityFilter !== 'all' && proximityThreshold == null ? '请填写 ATR 距离上限' : rows.length ? '当前筛选下暂无交易对' : '暂无已配置交易对或指标数据'" stripe size="small" style="width: 100%" @sort-change="handleSortChange" @row-click="handleRowClick">
+    <el-table ref="tableRef" v-loading="loading" class="indicators-table" height="100%" :data="filteredRows" row-key="symbol" :current-row-key="selectedSymbol" :row-class-name="selectedRowClass" :highlight-current-row="embedded" :empty-text="rows.length ? '当前筛选下暂无交易对' : '暂无已配置交易对或指标数据'" stripe size="small" style="width: 100%" @sort-change="handleSortChange" @row-click="handleRowClick">
       <el-table-column label="" type="index" align="center" header-align="center" width="35" fixed="left" />
       <el-table-column prop="symbol" label="交易对" fixed min-width="110">
         <template #default="{ row }">
@@ -151,6 +174,7 @@
           <div><span class="muted">{{ row.fastEmaPeriod }}</span> {{ formatPrice(row.fastEma) }}</div>
           <div><span class="muted">{{ row.slowEmaPeriod }}</span> {{ formatPrice(row.slowEma) }}</div>
           <span :class="row.emaBullish == null ? 'muted' : row.emaBullish ? 'up' : 'down'">{{ row.emaBullish == null ? '--' : row.emaBullish ? '多头' : '空头' }}</span>
+          <span class="ema-slope" :class="directionClass(row.emaSlope)" :title="`EMA${row.fastEmaPeriod}斜率（回看周期使用机器人配置）`">{{ signed(row.emaSlope) }}{{ row.emaSlope == null ? '' : '%' }}</span>
         </template>
       </el-table-column>
       <el-table-column label="RSI" align="center" header-align="center" min-width="65" sortable="custom" prop="rsi">
@@ -255,7 +279,6 @@ import { useCoinIcon } from '../composables/useCoinIcon'
 import type { SupportResistanceSnapshot } from '../../types/support-resistance'
 import SupportResistanceInfo from './SupportResistanceInfo.vue'
 import { TREND_PERIODS, type EnvironmentContext } from '../utils/environment-confidence'
-import { matchesEntryProximity, type EntryProximityFilter } from '../utils/support-resistance-space'
 
 /** 指标列表中的单个交易对展示数据。 */
 interface IndicatorRow {
@@ -272,7 +295,7 @@ interface IndicatorRow {
   /** 只展示已收盘的 ER；方向颜色取同窗口净涨跌，不取 ER 高低。 */
   er?: number; erNetChangePercent?: number; erTooltip: string
   /** 与 ADX 共用后端计算结果，回看窗口以该次计算实际使用的配置为准。 */
-  adxSlope?: number; adxSlopePeriod?: number
+  adxSlope?: number; adxSlopePeriod?: number; emaSlope?: number
   /** OI 增减仓折算额及含实际回看窗口的快照悬停数据。 */
   oiChangeLabel: string; oiTooltip: string
   /** ADX 方向指标及基于后端 DI 差距变化得出的趋势信号。 */
@@ -352,20 +375,75 @@ const errorMessage = ref('')
 type SignalTone = '多头' | '空头' | '反转' | '观望'
 const signalFilter = ref<SignalTone | '全部'>('全部')
 const symbolSearch = ref('')
-const proximityFilter = ref<EntryProximityFilter>('all')
-// 各周期独立保留用户调整值，切换周期时自动显示该周期的上限。
-const proximityThresholds = ref<Record<typeof TREND_PERIODS[number], number | null>>({ '5m': null, '15m': null, '1h': null, '4h': null, '1d': null })
-const proximityThreshold = computed({
-  get: () => proximityThresholds.value[timeframe.value as typeof TREND_PERIODS[number]],
-  set: (value: number | null | undefined) => { proximityThresholds.value[timeframe.value as typeof TREND_PERIODS[number]] = value ?? null }
-})
+type NumericFilterKey = 'supportDistanceATR' | 'resistanceDistanceATR' | 'adx' | 'adxSlope' | 'emaSlope' | 'rsi' | 'oiChangePercent' | 'volumeRatio' | 'atrPercent' | 'er'
+/** 空边界表示不限；区间包含端点，反向区间不匹配任何交易对。 */
+interface NumericFilterRange {
+  min: number | null
+  max: number | null
+}
+const numericFilterFields = [
+  { key: 'supportDistanceATR', label: '支撑距离', unit: 'ATR', step: 0.1 },
+  { key: 'resistanceDistanceATR', label: '阻力距离', unit: 'ATR', step: 0.1 },
+  { key: 'adx', label: 'ADX', unit: '', step: 1 },
+  { key: 'adxSlope', label: 'ADX斜率', unit: '', step: 0.01 },
+  { key: 'emaSlope', label: 'EMA斜率', unit: '%', step: 0.01 },
+  { key: 'rsi', label: 'RSI', unit: '', step: 1 },
+  { key: 'oiChangePercent', label: 'OI变化率', unit: '%', step: 0.1 },
+  { key: 'volumeRatio', label: '预量比', unit: 'x', step: 0.1 },
+  { key: 'atrPercent', label: 'ATR', unit: '%', step: 0.1 },
+  { key: 'er', label: 'ER', unit: '', step: 0.01 }
+] as const
+const showNumericFilters = ref(false)
+const stateOptions = ['多头增强', '空头增强', '多头减弱', '空头减弱'] as const
+const trendStateFilter = ref<typeof stateOptions[number] | ''>('')
+const macdStateFilter = ref<typeof stateOptions[number] | ''>('')
+const numericFilters = ref(Object.fromEntries(numericFilterFields.map(field => [field.key, { min: null, max: null }])) as Record<NumericFilterKey, NumericFilterRange>)
+const activeNumericFilters = computed(() => numericFilterFields.filter(({ key }) => {
+  const range = numericFilters.value[key]
+  return range.min != null || range.max != null
+}).length + Number(!!trendStateFilter.value) + Number(!!macdStateFilter.value))
+
+/** 重置数值条件，保留用户已有的方向和交易对搜索。 */
+function resetNumericFilters() {
+  for (const { key } of numericFilterFields) numericFilters.value[key] = { min: null, max: null }
+  trendStateFilter.value = ''
+  macdStateFilter.value = ''
+}
+
+/** 明确提示填反的区间，避免静默交换上下限导致筛选含义改变。 */
+function isReversedRange(range: NumericFilterRange) {
+  return range.min != null && range.max != null && range.min > range.max
+}
+
+/** 按表格原始数值筛选；启用条件后，缺失或无效指标不能当作零命中。 */
+function matchesNumericFilters(row: IndicatorRow) {
+  return numericFilterFields.every(({ key }) => {
+    const range = numericFilters.value[key]
+    if (range.min == null && range.max == null) return true
+    if (isReversedRange(range)) return false
+    let value: number | null | undefined
+    if (key === 'supportDistanceATR' || key === 'resistanceDistanceATR') {
+      const snapshot = row.supportResistance
+      // 切换周期及后台刷新时，只允许当前周期且存在有效区域的实时距离参与筛选。
+      const zone = key === 'supportDistanceATR' ? snapshot?.nearestSupport : snapshot?.nearestResistance
+      value = snapshot?.timeframe === timeframe.value && snapshot.status !== 'insufficient_data' && zone ? snapshot[key] : undefined
+    } else {
+      value = row[key]
+    }
+    return typeof value === 'number' && Number.isFinite(value)
+      && (range.min == null || value >= range.min)
+      && (range.max == null || value <= range.max)
+  })
+}
 // 筛选与交易对下方的一致性文字使用同一规则，随后台五周期数据更新。
 const filteredRows = computed(() => {
   // 搜索仅过滤已加载数据，与方向筛选叠加，不触发额外指标请求或改变当前排序。
   const keyword = symbolSearch.value.toUpperCase().replace(/[\s/_-]/g, '')
   return sortedRows.value.filter(row => row.symbol.toUpperCase().replace(/[\s/_-]/g, '').includes(keyword)
     && (signalFilter.value === '全部' || resonanceInfo(row.symbol).tone === signalFilter.value)
-    && matchesEntryProximity(row.supportResistance, timeframe.value, proximityFilter.value, proximityThreshold.value))
+    && matchesNumericFilters(row)
+    && (!trendStateFilter.value || row.diDirection === trendStateFilter.value)
+    && (!macdStateFilter.value || macdResult(row.macdHistogram, row.previousMacdHistogram) === macdStateFilter.value))
 })
 const periodSignals = computed(() => Object.fromEntries(
   rows.value.map(row => [row.symbol, row.environmentContext?.periods ?? {}])
@@ -576,6 +654,7 @@ function toRow(data: any): IndicatorRow {
   const atr = Number(values('atr').atr)
   const adx = values('adx')
   const er = values('er')
+  const emaList = values('ema').emaList || []
   const erReady = er.status === 'ready'
   const erTooltip = [
     `ER(${er.period ?? 20}, ${data.timeframe})，仅使用已收盘K线`,
@@ -646,6 +725,10 @@ function toRow(data: any): IndicatorRow {
     erNetChangePercent: erReady ? finiteNumber(er.netChangePercent) : undefined,
     erTooltip,
     adxSlope: finiteNumber(adx.adxSlope), adxSlopePeriod: finiteNumber(adx.adxSlopePeriod),
+    // 使用当前快速 EMA 的后端斜率，和看板 EMA 第一行保持一致。
+    // 后端返回小数变化率，统一转为百分数用于显示和区间筛选。
+    emaSlope: finiteNumber(emaList.find((item: { period: number }) => item.period === fastPeriod)?.slope) == null
+      ? undefined : Number(emaList.find((item: { period: number }) => item.period === fastPeriod).slope) * 100,
     pdi, mdi, diDirection: diTrendSignal(adx.diSpread, adx.diGapChange),
     fastEmaPeriod: fastPeriod, slowEmaPeriod: slowPeriod, fastEma, slowEma,
     macd: Number(macd.macd), macdSignal: Number(macd.signal), macdHistogram: Number(macd.histogram),
@@ -873,6 +956,15 @@ onUnmounted(() => {
 
 <style scoped>
 .toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 16px; }
+.numeric-filters { flex-shrink: 0; margin: -4px 0 12px; padding: 10px 12px; border: 1px solid var(--el-border-color); border-radius: 4px; background: var(--el-fill-color-light); font-size: 12px; max-height: 40vh; overflow-y: auto; }
+.numeric-filter-header, .numeric-filter-actions { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.numeric-filter-header { margin-bottom: 8px; flex-wrap: wrap; }
+.numeric-filter-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 10px 16px; }
+.numeric-filter-label { display: block; margin-bottom: 5px; }
+.numeric-filter-range { display: flex; align-items: center; gap: 6px; }
+.numeric-filter-range :deep(.el-input-number) { width: 0; min-width: 0; flex: 1; }
+.numeric-filter-error { display: block; margin-top: 4px; color: var(--el-color-danger); }
+.ema-slope { margin-left: 8px; white-space: nowrap; }
 /* 与 small 尺寸筛选控件齐高，细进度条用主题主色表达时间进展。 */
 .candle-progress { display: inline-flex; align-items: center; gap: 7px; height: 24px; padding: 0 8px; box-sizing: border-box; border: 1px solid var(--el-border-color); border-radius: 4px; background: var(--el-fill-color-light); white-space: nowrap; font-size: 12px; font-variant-numeric: tabular-nums; }
 .candle-progress-label { color: var(--el-text-color-secondary); }
@@ -881,9 +973,6 @@ onUnmounted(() => {
 .candle-progress-track > span { display: block; height: 100%; border-radius: inherit; background: var(--el-color-primary); transition: width .3s ease; }
 .candle-progress-value { min-width: 43px; text-align: right; color: var(--el-color-primary); font-weight: 600; }
 @media (prefers-reduced-motion: reduce) { .candle-progress-track > span { transition: none; } }
-.proximity-filter { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 12px; }
-.proximity-select { width: 100px; }
-.proximity-threshold { width: 100px; }
 .price-candle-cell { display: flex; align-items: center; gap: 8px; }
 .current-candle { width: 24px; height: 48px; flex: 0 0 24px; }
 .candle-unavailable { width: 24px; flex: 0 0 24px; text-align: center; }
