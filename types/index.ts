@@ -2,6 +2,7 @@
 import type { MarketBreadthSnapshot } from './market-breadth'
 import type { EntrySupportResistance, SupportResistanceSnapshot } from './support-resistance'
 import type { EnvironmentContext } from '../app/utils/environment-confidence'
+import type { EfficiencyRatioSnapshot } from './efficiency-ratio'
 
 // 交易方向
 export type Direction = 'LONG' | 'SHORT' | 'IDLE'
@@ -75,6 +76,8 @@ export interface TechnicalIndicators {
   supportResistance?: SupportResistanceSnapshot
   /** 本轮已选交易对市场广度，供 AI 作为整体方向背景参考。 */
   marketBreadth?: MarketBreadthSnapshot
+  /** 按策略勾选的 K 线周期计算的已收盘趋势效率及净方向。 */
+  er?: EfficiencyRatioSnapshot[]
   emaMap: Record<string, number>
   emaList: Array<{ period: number; name: string; value: number; slope?: number }>
   adxPeriodLabel: string
@@ -139,6 +142,7 @@ export interface TechnicalIndicators {
     macd: boolean
     adx: boolean
     atr: boolean
+    er?: boolean
     oi: boolean
     volume: boolean
     squareHeat: boolean
@@ -220,6 +224,8 @@ export interface AIAnalysis {
     diSpread?: number | null
     diGapChange?: number | null
     atr?: number | null
+    /** AI 实际看到的各周期 ER，包括数据不足或过期状态。 */
+    er?: EfficiencyRatioSnapshot[]
     enabledIndicators?: TechnicalIndicators['enabledIndicators']
     candleTimestamp?: number | null
     /** K 线进度使用 0～1 比例，与提示词预估口径一致。 */
@@ -561,6 +567,8 @@ export interface TradeHistory {
   
   // 入场技术指标（动态）
   entryIndicators?: Record<string, number>
+  /** 固化 AI 入场时使用的 ER 窗口，供平仓后复盘。 */
+  entryER?: EfficiencyRatioSnapshot[]
   /** AI 决策时的完整结构快照，开仓后冻结，供历史复盘。 */
   entrySupportResistance?: EntrySupportResistance
 

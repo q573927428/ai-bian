@@ -6,6 +6,7 @@ import test from 'node:test'
 import vm from 'node:vm'
 import ts from 'typescript'
 import * as technicalIndicators from 'technicalindicators'
+import * as efficiencyRatio from '../shared/utils/efficiency-ratio.ts'
 
 const require = createRequire(import.meta.url)
 const logger = { info() {}, warn() {}, error() {}, success() {} }
@@ -62,6 +63,7 @@ function createFixture() {
   ])
   const versions = new Map([['15m', 'main-1'], ['1h', 'volume-1']])
   const { IndicatorsHub } = loadModule('../server/modules/indicators/IndicatorsHub.ts', {
+    '../../../shared/utils/efficiency-ratio': efficiencyRatio,
     technicalindicators: technicalIndicators,
     '../../utils/stable-hash': hashes,
     '../../utils/logger': { logger },
@@ -96,6 +98,7 @@ function createFixture() {
   }, globals)
   const precompute = new IndicatorPrecomputeService(registry, hub, config)
   const { SymbolBasedScheduler } = loadModule('../server/modules/scheduler/SymbolBasedScheduler.ts', {
+    '../../../shared/utils/efficiency-ratio': efficiencyRatio,
     '../../utils/logger': { logger }
   }, globals)
   const scheduler = new SymbolBasedScheduler(hub, { fetchPrice: async () => 250 })
@@ -103,6 +106,7 @@ function createFixture() {
   const screener = new AIPreScreener()
   const calls = []
   const { StrategyEngine } = loadModule('../server/modules/strategy-engine/StrategyEngine.ts', {
+    '../../../shared/utils/efficiency-ratio': efficiencyRatio,
     '../../utils/logger': { logger },
     '../../utils/stable-hash': hashes,
     '../../utils/ai-pre-screen': { aiPreScreener: screener },
@@ -351,4 +355,154 @@ test('排队超过TTL的快照及未来K线不能用于新的AI请求', async ()
   snapshot.klinesByTimeframe.get('15m').at(-1).timestamp = snapshot.timestamp + 1
   assert.equal(await f.engine.callAI(f.instance, f.strategy.id, 'BTCUSDT', f.strategy.aiPrompt, data, snapshot), null)
   assert.equal(f.calls.length, 0)
+})
+
+/** ER 跟随策略选择的 5m、15m、1h，故意保留过时的独立周期配置检验兼容。 */
+function createERFixture() {
+  const f = createFixture()
+  f.source.set('5m', makeKlines(f.clock.now, 300000, 100))
+  f.versions.set('5m', 'entry-1')
+  f.source.set('1h', f.source.get('1h').map((c, i) => ({ ...c, close: 1000 - i })))
+  f.strategy.marketData.timeframes = ['5m', '15m', '1h']
+  f.strategy.indicators.push({ type: 'ER', enabled: true, params: { period: 20 }, timeframes: ['4h', '1d'] })
+  f.registry.rebuildFromStrategies([f.strategy])
+  f.scheduler.updateStrategySubscription(f.strategy)
+  return f
+}
+
+test('ER 只计算策略勾选周期，忽略旧独立配置，将全部周期及相反方向送入 AI', async () => {
+  const f = createERFixture()
+  const calculated = []
+  const getIndicators = f.hub.getIndicators.bind(f.hub)
+  f.hub.getIndicators = async (...args) => {
+    if (args[2] === 'ER') calculated.push(args[1])
+    return getIndicators(...args)
+  }
+  const snapshot = await f.scheduler.buildMarketSnapshot('BTCUSDT')
+  assert.deepEqual(Array.from(snapshot.klinesByTimeframe.keys()), ['5m', '15m', '1h'])
+  await f.engine.analyzeSymbol(f.instance, 'BTCUSDT', snapshot)
+  assert.deepEqual(calculated, ['5m', '15m', '1h'])
+  const indicators = f.calls[0][3]
+  assert.equal(indicators.enabledIndicators.er, true)
+  assert.deepEqual(Array.from(indicators.er, e => e.timeframe), ['5m', '15m', '1h'])
+  assert.deepEqual(Array.from(indicators.er, e => e.er), [1, 1, 1])
+  assert.deepEqual(Array.from(indicators.er, e => e.direction), ['up', 'up', 'down'])
+  for (const er of indicators.er) {
+    assert.equal(er.period, 20)
+    assert.equal(er.calculatedAt, snapshot.timestamp)
+    assert.ok(er.closedAt <= snapshot.timestamp)
+  }
+})
+
+test('ER 跟随策略切换为 4h/1d，其他统计所需周期不会混入 ER 输入', async () => {
+  const f = createERFixture()
+  f.source.set('4h', makeKlines(f.clock.now, 14400000, 100))
+  f.source.set('1d', makeKlines(f.clock.now, 86400000, 100))
+  f.versions.set('4h', '4h-1')
+  f.versions.set('1d', '1d-1')
+  await f.engine.analyzeSymbol(f.instance, 'BTCUSDT', await f.scheduler.buildMarketSnapshot('BTCUSDT'))
+  const calculated = []
+  const getIndicators = f.hub.getIndicators.bind(f.hub)
+  f.hub.getIndicators = async (...args) => {
+    if (args[2] === 'ER') calculated.push(args[1])
+    return getIndicators(...args)
+  }
+  f.strategy.marketData.timeframes = ['4h', '1d']
+  f.registry.rebuildFromStrategies([f.strategy])
+  f.scheduler.updateStrategySubscription(f.strategy)
+  const snapshot = await f.scheduler.buildMarketSnapshot('BTCUSDT')
+  // 1h 仍供成交量统计使用，但不应作为 ER 的观察周期。
+  assert.ok(snapshot.klinesByTimeframe.has('1h'))
+  await f.engine.analyzeSymbol(f.instance, 'BTCUSDT', snapshot)
+  assert.deepEqual(calculated, ['4h', '1d'])
+  assert.deepEqual(Array.from(f.calls.at(-1)[3].er, e => e.timeframe), ['4h', '1d'])
+})
+
+test('ER 以扫描快照判定已收盘，跨收盘时刻立即更新且不被旧缓存覆盖', async () => {
+  const f = createERFixture()
+  f.clock.now = Date.UTC(2026, 9, 30, 10, 14, 59)
+  const bars = f.source.get('15m')
+  bars.at(-1).close = 1
+  const snapshot = await f.scheduler.buildMarketSnapshot('BTCUSDT')
+  const expected = efficiencyRatio.calculateEfficiencyRatio(snapshot.klinesByTimeframe.get('15m'), '15m', { now: snapshot.timestamp })
+  // 排队跨过 10:15，不能把扫描时仍在盘中的 K 线当成已收盘数据。
+  f.clock.now += 2000
+  bars.at(-1).close = 5000
+  const data = new Map([['15m_ER', { values: { er: 0.1234 } }]])
+  await f.engine.hydrateIndicatorsForStrategy(f.strategy, 'BTCUSDT', '5m', data, snapshot)
+  assert.deepEqual(data.get('15m_ER').values, expected)
+  assert.equal(data.get('15m_ER').values.er, 1)
+  f.versions.set('15m', 'main-2')
+  const newSnapshot = await f.scheduler.buildMarketSnapshot('BTCUSDT')
+  await f.engine.hydrateIndicatorsForStrategy(f.strategy, 'BTCUSDT', '5m', data, newSnapshot)
+  const next = data.get('15m_ER').values
+  assert.equal(next.lastCandleTimestamp - expected.lastCandleTimestamp, 900000)
+  assert.equal(next.endClose, 5000)
+  assert.equal(next.calculatedAt, newSnapshot.timestamp)
+})
+
+test('ER 提示词、信号和分析快照保留相同窗口，缺数据不显示成零', async () => {
+  const f = createERFixture()
+  const snapshot = await f.scheduler.buildMarketSnapshot('BTCUSDT')
+  // 有效行情保留不足 N+1 根的历史，AI 应看到明确的不可用状态。
+  snapshot.klinesByTimeframe.set('1h', snapshot.klinesByTimeframe.get('1h').slice(-21))
+  await f.engine.analyzeSymbol(f.instance, 'BTCUSDT', snapshot)
+  const [, , promptConfig, indicators, price, volume, progress] = f.calls[0]
+  const { MultiStrategyAIAnalyzer } = loadModule('../server/modules/ai-analyzer/MultiStrategyAIAnalyzer.ts', {
+    '../../utils/logger': { logger }, '../../utils/stable-hash': hashes,
+    '../../utils/candle-volume': candleVolume,
+    '../../utils/ai-analysis-snapshot': { ...snapshots, createStrategySnapshot: () => ({}) },
+    '../../utils/environment-context': { loadEnvironmentContext: async () => undefined },
+    '../../utils/market-breadth': { formatMarketBreadth: () => '' },
+    '../../../app/utils/environment-confidence': { formatEnvironmentConfidence: () => '' },
+    '../strategy-store/StrategyStore': { strategyStore: { getStrategy: async () => f.strategy } }
+  }, f.globals)
+  const analyzer = new MultiStrategyAIAnalyzer({}, f.config)
+  const prompt = analyzer.buildFullPrompt(promptConfig, 'BTCUSDT', price, indicators, volume, progress)
+  assert.match(prompt, /趋势效率 ER（已收盘）/)
+  assert.match(prompt, /趋势效率 ER\(20, 5m\)=1\.00；净涨跌\+8\.73%/)
+  assert.match(prompt, /趋势效率 ER\(20, 15m\)=1\.00；净涨跌\+8\.73%/)
+  assert.match(prompt, /ER\(20, 1h\)：不可用（需要21个已收盘价，当前仅20个）/)
+  assert.match(prompt, /方向看净涨跌/)
+  assert.match(prompt, /未来胜率/)
+  assert.match(prompt, /收盘2026-10-30T10:00:00Z/)
+  const requests = []
+  analyzer.callAI = async (...args) => {
+    requests.push(args)
+    return { direction: 'IDLE', confidence: 80, reasoning: 'ER输入回归', technicalData: {}, riskLevel: 'LOW' }
+  }
+  const signal = await analyzer.analyze(f.strategy.id, 'BTCUSDT', promptConfig, indicators, price, volume, progress)
+  const recorded = requests[0].at(-1)
+  // 分析器在独立 VM 中执行，先转为当前环境对象再比较冻结快照内容。
+  assert.deepEqual(structuredClone(signal.indicators.er), structuredClone(indicators.er))
+  assert.deepEqual(structuredClone(recorded.er), structuredClone(indicators.er))
+  assert.notEqual(signal.indicators.er[0], indicators.er[0])
+  assert.equal(recorded.er[2].status, 'insufficient_data')
+  assert.equal(recorded.er[2].er, null)
+  const disabled = { ...indicators, enabledIndicators: { ...indicators.enabledIndicators, er: false } }
+  assert.doesNotMatch(analyzer.buildFullPrompt(promptConfig, 'BTCUSDT', price, disabled, volume, progress), /趋势效率|ER\(/)
+  assert.equal(snapshots.createQuantitativeSnapshot(disabled, volume, progress).er, undefined)
+  analyzer.clearCache()
+})
+
+test('ER 窗口互不串用，旧独立配置为空仍计算全部策略周期，关闭后不传给 AI', async () => {
+  const f = createERFixture()
+  const config = f.strategy.indicators.find(i => i.type === 'ER')
+  const snapshot = await f.scheduler.buildMarketSnapshot('BTCUSDT')
+  const data = new Map()
+  config.params.period = 7
+  config.timeframes = []
+  await f.engine.hydrateIndicatorsForStrategy(f.strategy, 'BTCUSDT', '5m', data, snapshot)
+  assert.equal(data.get('5m_ER').values.period, 7)
+  assert.equal(data.get('15m_ER').values.period, 7)
+  assert.equal(data.get('1h_ER').values.period, 7)
+  config.params.period = 30
+  await f.engine.hydrateIndicatorsForStrategy(f.strategy, 'BTCUSDT', '5m', data, snapshot)
+  assert.equal(data.get('5m_ER').values.period, 30)
+  assert.equal(data.get('15m_ER').values.period, 30)
+  assert.equal(data.get('1h_ER').values.period, 30)
+  config.enabled = false
+  await f.engine.callAI(f.instance, f.strategy.id, 'BTCUSDT', f.strategy.aiPrompt, data, snapshot)
+  assert.equal(f.calls[0][3].enabledIndicators.er, false)
+  assert.equal(f.calls[0][3].er, undefined)
 })

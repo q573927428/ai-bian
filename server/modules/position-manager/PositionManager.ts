@@ -3,6 +3,7 @@
 import type { StrategyId, TradeDirection } from '../../../types/strategy'
 import type { EntryCommunitySentiment, Position, ScoreBreakdown } from '../../../types'
 import type { EntrySupportResistance } from '../../../types/support-resistance'
+import type { EfficiencyRatioSnapshot } from '../../../types/efficiency-ratio'
 import { logger } from '../../utils/logger'
 import { 
   saveActivePositions,
@@ -52,6 +53,8 @@ export interface PositionInfo {
   
   // 入场指标（新增）
   entryIndicators?: Record<string, number>;  // 入场时的技术指标
+  /** AI 入场时的 ER 快照，包含策略所选周期与实际收盘窗口。 */
+  entryER?: EfficiencyRatioSnapshot[];
   /** 冻结 AI 决策时的支撑阻力，持仓监控不得覆盖该快照。 */
   entrySupportResistance?: EntrySupportResistance;
   /** AI 决定入场时的 K 线完成进度，以百分比表示，平仓后原样写入历史订单 */

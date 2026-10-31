@@ -35,6 +35,8 @@ export function createQuantitativeSnapshot(indicators: TechnicalIndicators, volu
     previousPdi: finite(indicators.previousPdi), previousMdi: finite(indicators.previousMdi),
     diSpread: finite(indicators.diSpread), diGapChange: finite(indicators.diGapChange),
     atr: finite(indicators.atr),
+    // 保留实际传入 AI 的 ER 数值、缺失状态及来源时间，不能在复盘时重算覆盖。
+    er: indicators.enabledIndicators?.er ? indicators.er?.map(snapshot => ({ ...snapshot })) : undefined,
     candleTimestamp: finite(indicators.lastCandle?.timestamp),
     candleProgress: finite(candleProgress),
     snapshotTimestamp: finite(indicators.snapshotTimestamp),

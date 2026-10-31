@@ -75,6 +75,7 @@
                 <el-checkbox value="ADX" label="ADX (14)" disabled />
                 <el-checkbox value="MACD" label="MACD (12,26,9)" />
                 <el-checkbox value="ATR" label="ATR (14)" />
+                <el-checkbox value="ER" label="ER 趋势效率" />
               </el-checkbox-group>
             </el-form-item>
 
@@ -90,6 +91,13 @@
                 <el-checkbox :value="200" label="200" />
               </el-checkbox-group>
             </el-form-item>
+            <div v-if="selectedIndicators.includes('ER')" class="params-section">
+              <el-divider content-position="left">ER 参数配置</el-divider>
+              <el-form-item label="ER 窗口">
+                <el-input-number v-model="erPeriod" :min="MIN_ER_PERIOD" :max="MAX_ER_PERIOD" :step="1" :precision="0" />
+              </el-form-item>
+              <p class="muted">ER 自动计算策略勾选的 K 线周期：{{ erTimeframeLabel }}。使用已收盘数据，{{ erPeriod }} 段变化需要 {{ erPeriod + 1 }} 个收盘价；数值越高，过去路径越单向，方向看同窗口净涨跌。</p>
+            </div>
           </el-card>
 
           <!-- 统计数据配置 -->
@@ -521,6 +529,7 @@
 <script setup lang="ts">
 import { ref, reactive, watch, computed } from 'vue'
 import type { Strategy, CreateStrategyInput } from '../../types/strategy'
+import { DEFAULT_ER_PERIOD, MIN_ER_PERIOD, MAX_ER_PERIOD, normalizeERPeriod, normalizeERTimeframes } from '../../shared/utils/efficiency-ratio'
 import { useBotStore } from '../stores/bot'
 
 const props = defineProps<{
@@ -642,8 +651,9 @@ const botStore = useBotStore()
 const symbolOptions = computed(() => botStore.botConfig?.symbols || [])
 
 // 多选变量
-const selectedIndicators = ref<string[]>(['EMA', 'RSI', 'ADX', 'ATR'])
+const selectedIndicators = ref<string[]>(['EMA', 'RSI', 'ADX', 'ATR', 'ER'])
 const emaPeriods = ref<number[]>([14, 60, 120])
+const erPeriod = ref(DEFAULT_ER_PERIOD)
 const selectedStatistics = ref<string[]>(['OI', 'Volume'])
 
 // OI参数
@@ -717,6 +727,9 @@ const form = ref<CreateStrategyInput>({
   maxRiskLevel: 'MEDIUM'
 })
 
+// 周期配置只有一个入口，ER 的说明和保存参数始终跟随策略所选周期。
+const erTimeframeLabel = computed(() => normalizeERTimeframes(form.value.marketData.timeframes, '1h').join('、'))
+
 /**
  * 根据策略最小周期计算 OI 最大回看周期数，确保总窗口不超过 24 小时。
  */
@@ -753,8 +766,8 @@ watch(selectedIndicators, (indicators) => {
   }
 })
 
-// 同步 indicators 数据 - 使用市场数据配置的最小周期
-watch([selectedIndicators, emaPeriods, () => form.value.marketData.timeframes], () => {
+// ER 使用策略所选全部周期，其他技术指标沿用最小周期。
+watch([selectedIndicators, emaPeriods, erPeriod, () => form.value.marketData.timeframes], () => {
   const newIndicators: any[] = []
   let id = 1
 
@@ -806,6 +819,15 @@ watch([selectedIndicators, emaPeriods, () => form.value.marketData.timeframes], 
       type: 'ATR',
       params: { period: 14 },
       timeframes: smallestTimeframe,
+      enabled: true
+    })
+  }
+
+  if (selectedIndicators.value.includes('ER')) {
+    newIndicators.push({
+      id: String(id++), type: 'ER',
+      params: { period: normalizeERPeriod(erPeriod.value) },
+      timeframes: normalizeERTimeframes(form.value.marketData.timeframes, sortedTimeframes[0] || '1h'),
       enabled: true
     })
   }
@@ -907,6 +929,10 @@ watch(() => props.strategy, (newVal) => {
 
     // 同步选中的指标
     selectedIndicators.value = newVal.indicators.filter(i => i.enabled).map(i => i.type)
+
+    // 保留已有 ER 窗口，旧版独立周期配置自动跟随策略当前勾选的周期。
+    const erIndicator = newVal.indicators.find(i => i.type === 'ER')
+    erPeriod.value = normalizeERPeriod(erIndicator?.params?.period)
 
     // 同步 EMA 周期
     const emaIndicator = newVal.indicators.find(i => i.type === 'EMA')

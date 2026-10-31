@@ -102,6 +102,19 @@
           <SupportResistanceInfo :snapshot="row.supportResistance" />
         </template>
       </el-table-column>
+      <el-table-column label="ER(20)" min-width="100" prop="er" sortable="custom">
+        <template #default="{ row }">
+          <el-tooltip placement="top">
+            <template #content>
+              <div v-for="(line, index) in row.erTooltip.split('\n')" :key="index">{{ line }}</div>
+            </template>
+            <div>
+              <div>{{ format(row.er) }}</div>
+              <span :class="sentimentClass(row.erNetChangePercent)">{{ signed(row.erNetChangePercent) }}{{ row.erNetChangePercent == null ? '' : '%' }}</span>
+            </div>
+          </el-tooltip>
+        </template>
+      </el-table-column>
       <el-table-column label="EMA" min-width="115" class-name="ema-column">
         <template #default="{ row }">
           <div><span class="muted">EMA{{ row.fastEmaPeriod }}</span> {{ formatPrice(row.fastEma) }}</div>
@@ -222,6 +235,8 @@ interface IndicatorRow {
   /** 文案、圆点与评分共用后端同一环境快照，不在浏览器重新判断。 */
   environmentContext?: EnvironmentContext; environmentDescription?: string
   adx?: number; rsi?: number; atrPercent?: number; oiChangePercent?: number
+  /** 只展示已收盘的 ER；方向颜色取同窗口净涨跌，不取 ER 高低。 */
+  er?: number; erNetChangePercent?: number; erTooltip: string
   /** 与 ADX 共用后端计算结果，回看窗口以该次计算实际使用的配置为准。 */
   adxSlope?: number; adxSlopePeriod?: number
   /** OI 增减仓折算额及含实际回看窗口的快照悬停数据。 */
@@ -373,7 +388,7 @@ async function refreshStructure() {
   }
 }
 type SortOrder = 'ascending' | 'descending' | null
-type SortProp = 'rsi' | 'macdHistogram' | 'atrPercent' | 'oiChangePercent' | 'volumeRatio' | 'netInflowPercent' | 'cumulativeNetInflow' | null
+type SortProp = 'rsi' | 'er' | 'macdHistogram' | 'atrPercent' | 'oiChangePercent' | 'volumeRatio' | 'netInflowPercent' | 'cumulativeNetInflow' | null
 const sortProp = ref<SortProp>(null)
 const sortOrder = ref<SortOrder>(null)
 const symbols = computed<string[]>(() => {
@@ -469,7 +484,7 @@ function applySort() {
 
 /** 接收 Element Plus 的自定义排序事件，并在当前已加载数据上即时排序。 */
 function handleSortChange({ prop, order }: { prop?: string | null; order?: string | null }) {
-  sortProp.value = (['rsi', 'macdHistogram', 'atrPercent', 'oiChangePercent', 'volumeRatio', 'netInflowPercent', 'cumulativeNetInflow'] as string[]).includes(prop || '')
+  sortProp.value = (['rsi', 'er', 'macdHistogram', 'atrPercent', 'oiChangePercent', 'volumeRatio', 'netInflowPercent', 'cumulativeNetInflow'] as string[]).includes(prop || '')
     ? prop as SortProp
     : null
   sortOrder.value = order === 'ascending' || order === 'descending' ? order : null
@@ -508,6 +523,14 @@ function toRow(data: any): IndicatorRow {
   const price = Number(data?.kline?.latest?.close)
   const atr = Number(values('atr').atr)
   const adx = values('adx')
+  const er = values('er')
+  const erReady = er.status === 'ready'
+  const erTooltip = [
+    `ER(${er.period ?? 20}, ${data.timeframe})，仅使用已收盘K线`,
+    '净位移绝对值 / 累计绝对变化，范围 0～1；越高表示过去路径越单向',
+    '下方百分数为同窗口净涨跌；ER不表示未来胜率',
+    erReady ? `末根收盘：${formatOITime(er.closedAt)}` : `不可用：${er.reason ?? '数据缺失'}`
+  ].join('\n')
   const pdi = adx.pdi == null ? undefined : Number(adx.pdi)
   const mdi = adx.mdi == null ? undefined : Number(adx.mdi)
   const macd = values('macd')
@@ -567,6 +590,9 @@ function toRow(data: any): IndicatorRow {
     environmentContext: data.environmentContext,
     environmentDescription: data.environmentDescription,
     adx: Number(adx.adx), rsi: Number(values('rsi').rsi),
+    er: erReady ? finiteNumber(er.er) : undefined,
+    erNetChangePercent: erReady ? finiteNumber(er.netChangePercent) : undefined,
+    erTooltip,
     adxSlope: finiteNumber(adx.adxSlope), adxSlopePeriod: finiteNumber(adx.adxSlopePeriod),
     pdi, mdi, diDirection: diTrendSignal(adx.diSpread, adx.diGapChange),
     fastEmaPeriod: fastPeriod, slowEmaPeriod: slowPeriod, fastEma, slowEma,

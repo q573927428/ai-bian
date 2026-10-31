@@ -182,6 +182,7 @@ export async function recordTrade(
     takeProfit2Price: position.takeProfit2,
     // 入场指标
     entryIndicators: positionInfo?.entryIndicators,
+    entryER: positionInfo?.entryER,
     entrySupportResistance: positionInfo?.entrySupportResistance,
     // 保存 AI 决策时固化的 K 线进度，而不是平仓时的实时进度。
     candleProgressPercent: positionInfo?.candleProgressPercent,

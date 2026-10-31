@@ -5,6 +5,7 @@ import type { OHLCV } from '../../../types'
 import { IndicatorsHub } from '../indicators/IndicatorsHub'
 import { BinanceService } from '../../utils/binance'
 import { logger } from '../../utils/logger'
+import { normalizeERTimeframes } from '../../../shared/utils/efficiency-ratio'
 
 /**
  * 市场快照：单个交易对的完整市场数据快照
@@ -109,6 +110,11 @@ export class SymbolBasedScheduler {
   private buildStrategySubscription(strategy: Strategy): StrategySubscription {
     const mainTimeframe = strategy.marketData.timeframes[0] || '15m'
     const requiredTimeframes = new Set<Timeframe>([mainTimeframe])
+
+    // ER 仅观察策略勾选的周期，不再按旧版 ER 独立周期额外取数。
+    if (strategy.indicators.some(i => i.enabled && i.type === 'ER')) {
+      normalizeERTimeframes(strategy.marketData.timeframes, mainTimeframe).forEach(tf => requiredTimeframes.add(tf))
+    }
 
     // 添加统计数据配置的时间周期
     strategy.statistics

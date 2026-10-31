@@ -4,6 +4,7 @@ import type { StrategyId, TradeDirection, TradeAction } from './strategy';
 import type { Timeframe } from './strategy';
 import type { SupportResistanceSnapshot } from './support-resistance';
 import type { EnvironmentContext } from '../app/utils/environment-confidence';
+import type { EfficiencyRatioSnapshot } from './efficiency-ratio';
 
 // ==================== 标准交易信号 ====================
 
@@ -39,6 +40,8 @@ export interface TradeSignal {
 export interface IndicatorValues {
   /** AI 实际使用的实时支撑阻力，必须随开仓信号保留。 */
   supportResistance?: SupportResistanceSnapshot;
+  /** AI 输入时的 ER 多周期快照，开仓时直接固化。 */
+  er?: EfficiencyRatioSnapshot[];
   ema?: EMAValues;
   rsi?: number;
   macd?: MACDValues;

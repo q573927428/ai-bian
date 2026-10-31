@@ -1,6 +1,7 @@
 // ==================== 指标统一获取与缓存中心 ====================
 
 import { calculateMoneyFlow } from '../../utils/money-flow'
+import { calculateEfficiencyRatio } from '../../../shared/utils/efficiency-ratio'
 import { EMA, RSI, ADX, ATR, MACD } from 'technicalindicators'
 import { calculateSupportResistance, type SupportResistanceOptions } from './SupportResistanceCalculator'
 import { SupportResistanceCache } from './SupportResistanceCache'
@@ -61,7 +62,7 @@ export class IndicatorsHub {
   private readonly ALL_TIMEFRAMES: Timeframe[] = ['5m', '15m', '1h', '4h', '1d']
 
   // 常用指标类型
-  private readonly ALL_INDICATORS: IndicatorType[] = ['EMA', 'RSI', 'MACD', 'ATR', 'ADX']
+  private readonly ALL_INDICATORS: IndicatorType[] = ['EMA', 'RSI', 'MACD', 'ATR', 'ADX', 'ER']
   private readonly ALL_STATISTICS: StatisticsType[] = ['OI', 'Volume', 'SquareHeat']
 
   // K线数据TTL（毫秒）
@@ -521,6 +522,8 @@ export class IndicatorsHub {
       adxPeriod?: number // ADX计算周期，默认14
       rsiPeriod?: number // RSI计算周期，默认14
       atrPeriod?: number // ATR计算周期，默认14
+      erPeriod?: number // ER收盘价变化段数，默认20
+      snapshotTimestamp?: number // ER按行情快照判定已收盘，避免排队期间口径变化
       macdFastPeriod?: number // MACD快线周期，默认12
       macdSlowPeriod?: number // MACD慢线周期，默认26
       macdSignalPeriod?: number // MACD信号线周期，默认9
@@ -528,6 +531,16 @@ export class IndicatorsHub {
     snapshotKlines?: OHLCV[]
   ): Promise<IndicatorData> {
     const symbolData = this.getOrCreateSymbolData(symbol)
+
+    if (type === 'ER') {
+      const now = options?.snapshotTimestamp ?? Date.now()
+      const klines = snapshotKlines ?? this.getKlines(symbol, timeframe) ?? []
+      // ER 计算开销小，按扫描快照即时计算；跨收盘边界不能复用数分钟前的预计算结果。
+      return {
+        symbol, timeframe, timestamp: now,
+        values: calculateEfficiencyRatio(klines, timeframe, { period: options?.erPeriod, now })
+      }
+    }
 
     if (type === 'SupportResistance') {
       // 区域由统一预计算刷新；读取只更新价格距离，冷启动/过期仅兜底构建一次。

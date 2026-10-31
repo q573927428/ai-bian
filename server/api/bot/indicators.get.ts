@@ -9,6 +9,7 @@ import { loadEnvironmentContext } from '../../utils/environment-context'
 import { getMarketBreadth } from '../../utils/market-breadth'
 import { getBotConfig } from '../../utils/storage'
 import { formatEnvironmentConfidence } from '../../../app/utils/environment-confidence'
+import { normalizeERPeriod } from '../../../shared/utils/efficiency-ratio'
 
 const VALID_TIMEFRAMES: Timeframe[] = ['5m', '15m', '1h', '4h', '1d']
 const TIMEFRAME_MINUTES: Record<Timeframe, number> = {
@@ -101,6 +102,7 @@ export default defineEventHandler(async (event) => {
     .filter((value, index, values) => values.indexOf(value) === index)
     .slice(0, 5)
   const effectiveEmaPeriods = emaPeriods.length > 0 ? emaPeriods : [14, 50]
+  const erPeriod = normalizeERPeriod(query.erPeriod)
 
   const indicators: Record<string, IndicatorDiagnosticResult> = {}
   const errors: Record<string, string> = {}
@@ -130,6 +132,7 @@ export default defineEventHandler(async (event) => {
     collect('rsi', () => indicatorsHub.getIndicators(indicatorSymbol, timeframe, 'RSI', { rsiPeriod: 14 })),
     collect('adx', () => indicatorsHub.getIndicators(indicatorSymbol, timeframe, 'ADX', { adxPeriod: 14 })),
     collect('atr', () => indicatorsHub.getIndicators(indicatorSymbol, timeframe, 'ATR', { atrPeriod: 14 })),
+    collect('er', () => indicatorsHub.getIndicators(indicatorSymbol, timeframe, 'ER', { erPeriod, snapshotTimestamp: requestedAt })),
     collect('macd', () => indicatorsHub.getIndicators(indicatorSymbol, timeframe, 'MACD', {
       macdFastPeriod: 12,
       macdSlowPeriod: 26,
@@ -199,6 +202,7 @@ export default defineEventHandler(async (event) => {
       },
       parameters: {
         emaPeriods: effectiveEmaPeriods,
+        erPeriod,
         changePeriod,
         maxChangePeriod,
         oiLookbackMinutes: lookbackMinutes,

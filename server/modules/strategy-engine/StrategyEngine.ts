@@ -28,6 +28,7 @@ import { DailyTradeLimiter } from '../risk-control/DailyTradeLimiter'
 import { checkStrategyDailyLoss, getStrategyDailyLossLimit, resetDailyRiskState } from '../risk-control/DailyRiskState'
 import { saveBotState } from '../../utils/storage'
 import { getAnalysisMonth, saveTradeDecision } from '../../utils/trade-decision-store'
+import { normalizeERPeriod, normalizeERTimeframes } from '../../../shared/utils/efficiency-ratio'
 
 /**
  * 计算首次策略扫描距离当前时间的等待毫秒数。
@@ -785,7 +786,16 @@ export class StrategyEngine {
       }
     }
 
-    for (const indicator of strategy.indicators.filter((i: any) => i.enabled && i.type !== 'EMA' && i.type !== 'SupportResistance')) {
+    // ER 只计算策略勾选的周期；旧独立配置不参与取数，缺失仍明确标记而不伪造 ER=0。
+    for (const indicator of strategy.indicators.filter(i => i.enabled && i.type === 'ER')) {
+      for (const timeframe of normalizeERTimeframes(strategy.marketData.timeframes, mainTimeframe)) {
+        indicatorsData.set(`${timeframe}_ER`, await this.indicatorsHub.getIndicators(symbol, timeframe, 'ER', {
+          erPeriod: normalizeERPeriod(indicator.params?.period), snapshotTimestamp: snapshot.timestamp
+        }, snapshot.klinesByTimeframe.get(timeframe) ?? []))
+      }
+    }
+
+    for (const indicator of strategy.indicators.filter((i: any) => i.enabled && i.type !== 'EMA' && i.type !== 'SupportResistance' && i.type !== 'ER')) {
       const klines = requireKlines(mainTimeframe)
       const dataKey = `${mainTimeframe}_${indicator.type}`
       const bindingKey = indicator.type === 'RSI' ? bindKeys.rsi
@@ -975,6 +985,11 @@ export class StrategyEngine {
       const enabledMACD = instance.strategy.indicators.some((i: any) => i.type === 'MACD' && i.enabled)
       const enabledADX = instance.strategy.indicators.some((i: any) => i.type === 'ADX' && i.enabled)
       const enabledATR = instance.strategy.indicators.some((i: any) => i.type === 'ATR' && i.enabled)
+      const erConfig = instance.strategy.indicators.find(i => i.type === 'ER' && i.enabled)
+      const enabledER = !!erConfig
+      const erData = erConfig
+        ? normalizeERTimeframes(instance.strategy.marketData.timeframes, mainTimeframe).map(tf => indicatorsData.get(`${tf}_ER`)?.values)
+        : undefined
       const enabledOI = instance.strategy.statistics.some((s: any) => s.type === 'OI' && s.enabled)
       const enabledVolume = instance.strategy.statistics.some((s: any) => s.type === 'Volume' && s.enabled)
       const enabledSquareHeat = instance.strategy.statistics.some((s: any) => s.type === 'SquareHeat' && s.enabled)
@@ -1083,6 +1098,7 @@ export class StrategyEngine {
         moneyFlowPrompt: formatMoneyFlowPrompt(calculateMoneyFlow(klines || [], this.timeframeToMs(mainTimeframe)), mainTimeframe),
         supportResistance,
         emaList: enabledEMAs && Array.isArray(emaData.emaList) ? emaData.emaList : [],
+        er: erData,
         emaMap: enabledEMAs ? (emaData.emaMap || {}) : {},
         rsi: enabledRSI ? rsiData.rsi : undefined,
         macd: enabledMACD && macdData.macd !== undefined ? {
@@ -1132,6 +1148,7 @@ export class StrategyEngine {
           macd: enabledMACD,
           adx: enabledADX,
           atr: enabledATR,
+          er: enabledER,
           oi: enabledOI,
           volume: enabledVolume,
           squareHeat: enabledSquareHeat
@@ -1757,6 +1774,8 @@ export class StrategyEngine {
         scoreBreakdown: signal.scoreBreakdown,
         riskLevel: signal.riskLevel,
         entryIndicators,
+        // ER 与 AI 请求的来源周期、收盘时刻一起冻结，不能在实际成交后重新取数。
+        entryER: signal.indicators.er?.map(snapshot => ({ ...snapshot })),
         // 固化 AI 决策时的 K 线进度，不能在平仓时用另一根 K 线重新计算。
         candleProgressPercent: signal.indicators.candleProgressPercent,
         entryCommunitySentiment,

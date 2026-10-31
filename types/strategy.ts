@@ -55,7 +55,7 @@ export interface AIInput {
 }
 
 // 技术指标类型
-export type IndicatorType = 'EMA' | 'RSI' | 'MACD' | 'ATR' | 'ADX' | 'SupportResistance';
+export type IndicatorType = 'EMA' | 'RSI' | 'MACD' | 'ATR' | 'ADX' | 'ER' | 'SupportResistance';
 
 // 统计数据类型
 export type StatisticsType = 'OI' | 'Volume' | 'SquareHeat' | 'MoneyFlow';

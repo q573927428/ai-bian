@@ -67,6 +67,8 @@ export class IndicatorCombinationRegistry {
         }
 
         for (const indicator of strategy.indicators.filter(indicator => indicator.enabled)) {
+          // ER 按扫描时刻即时判断已收盘窗口，不进入五分钟预计算缓存。
+          if (indicator.type === 'ER') continue
           // 支撑阻力在下方按主周期及看板默认周期统一注册。
           if (indicator.type === 'SupportResistance') continue
           const timeframe = indicator.timeframes?.[0] || mainTimeframe

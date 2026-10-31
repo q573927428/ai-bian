@@ -1,4 +1,5 @@
 import type { IndicatorConfig, StatisticsConfig, Strategy, Timeframe } from '../../types/strategy'
+import { normalizeERPeriod, normalizeERTimeframes } from '../../shared/utils/efficiency-ratio'
 
 const ALLOWED_EMA_PERIODS = [7, 14, 20, 30, 50, 60, 120, 200]
 const DEFAULT_EMA_PERIODS = [14, 50]
@@ -48,6 +49,9 @@ export function normalizeIndicatorConfig(indicators: IndicatorConfig[] = []): In
     if (indicator.type === 'RSI') return { ...indicator, params: { ...indicator.params, period: 14 } }
     if (indicator.type === 'ADX') return { ...indicator, params: { ...indicator.params, period: 14 } }
     if (indicator.type === 'ATR') return { ...indicator, params: { ...indicator.params, period: 14 } }
+    if (indicator.type === 'ER') {
+      return { ...indicator, params: { ...indicator.params, period: normalizeERPeriod(indicator.params?.period) } }
+    }
     if (indicator.type === 'MACD') {
       return {
         ...indicator,
@@ -98,6 +102,11 @@ export function normalizeStatisticsConfig(statistics: StatisticsConfig[] = []): 
 export function normalizeStrategyIndicatorConfig<T extends Partial<Strategy>>(strategy: T): T {
   if (strategy.indicators) {
     strategy.indicators = normalizeIndicatorConfig(strategy.indicators)
+    // ER 只以策略勾选周期为准；覆盖旧版独立配置，避免保存或回滚后恢复额外周期。
+    const mainTimeframe = strategy.marketData?.timeframes?.[0] || '15m'
+    strategy.indicators = strategy.indicators.map(indicator => indicator.type === 'ER'
+      ? { ...indicator, timeframes: normalizeERTimeframes(strategy.marketData?.timeframes, mainTimeframe) }
+      : indicator)
   }
   if (strategy.statistics) {
     strategy.statistics = normalizeStatisticsConfig(strategy.statistics)

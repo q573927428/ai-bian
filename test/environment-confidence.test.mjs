@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import fs from 'node:fs'
 import vm from 'node:vm'
+import { randomUUID } from 'node:crypto'
 import ts from 'typescript'
 import { TREND_PERIODS, combinePeriodTrend, periodTrend, classifyTrendStructure, buildEnvironmentContext, formatEnvironmentConfidence } from '../app/utils/environment-confidence.ts'
 
@@ -152,6 +153,9 @@ function analyzerFixture() {
   const context = {
     exports: {}, process: { env: {} }, useRuntimeConfig: () => ({}),
     require(id) {
+      // 分析器已记录决策ID和提示词缓存，补齐隔离依赖，避免测试误走 API 降级分支。
+      if (id === 'node:crypto') return { randomUUID }
+      if (id.includes('ai-prompt-cache')) return { aiPromptCache: { put() {} } }
       if (id.includes('ai-service')) return {
         getProviderConfig: () => ({}), callAIAPI: async () => JSON.stringify(response), extractJSONContent: value => value
       }

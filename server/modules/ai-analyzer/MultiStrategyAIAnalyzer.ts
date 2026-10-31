@@ -22,6 +22,7 @@ import { aiPromptCache } from '../../utils/ai-prompt-cache'
 import { saveAIRules } from '../../utils/ai-rules-store'
 import { randomUUID } from 'node:crypto'
 import type { TradeDecision } from '../../../types/trade-decision'
+import type { EfficiencyRatioSnapshot } from '../../../types/efficiency-ratio'
 
 /** AI 只接收入场位置摘要；完整区域及时间信息仍由信号和交易记录保存。 */
 function formatSupportResistance(snapshot?: SupportResistanceSnapshot): string {
@@ -298,6 +299,7 @@ export class MultiStrategyAIAnalyzer {
         reasoning: aiResult.reasoning,
         indicators: {
           supportResistance: indicators.supportResistance,
+          er: indicators.enabledIndicators?.er ? indicators.er?.map((snapshot: EfficiencyRatioSnapshot) => ({ ...snapshot })) : undefined,
           ema: {
             fast: indicators.emaList[0]?.value ?? 0,
             slow: indicators.emaList[indicators.emaList.length - 1]?.value ?? 0
@@ -488,6 +490,28 @@ export class MultiStrategyAIAnalyzer {
       }
     }
 
+    // 口径只说明一次，各周期仅保留判断所需的效率、净涨跌和收盘时刻。
+    const erLines: string[] = []
+    if (indicators.enabledIndicators?.er) {
+      erLines.push('ER范围0～1，越高越单向；方向看净涨跌，非振幅或未来胜率；仅用已收盘数据，缺失不作0。')
+      if (!indicators.er?.length) erLines.push('- ER：数据缺失。')
+      for (const snapshot of indicators.er ?? []) {
+        if (!snapshot) {
+          erLines.push('- ER：数据缺失。')
+          continue
+        }
+        const label = `趋势效率 ER(${snapshot.period}, ${snapshot.timeframe})`
+        if (snapshot.status !== 'ready' || snapshot.er === null || !Number.isFinite(snapshot.er)) {
+          erLines.push(`- ${label}：不可用（${snapshot.reason ?? snapshot.status}）。`)
+          continue
+        }
+        // 净涨跌保留正负号，避免精简方向文字后将上涨和下跌混淆；Z 表示 UTC。
+        const change = `${snapshot.netChangePercent! > 0 ? '+' : ''}${snapshot.netChangePercent!.toFixed(2)}%`
+        const closedAt = new Date(snapshot.closedAt!).toISOString().replace('.000Z', 'Z')
+        erLines.push(`- ${label}=${snapshot.er.toFixed(2)}；净涨跌${change}；收盘${closedAt}。`)
+      }
+    }
+
     // OI行
     const oiLines: string[] = []
     if (indicators.enabledIndicators?.oi) {
@@ -570,6 +594,7 @@ export class MultiStrategyAIAnalyzer {
     if (indicators.enabledIndicators?.macd) enabledIndicatorsList.push('MACD')
     if (indicators.enabledIndicators?.adx) enabledIndicatorsList.push('ADX')
     if (indicators.enabledIndicators?.atr) enabledIndicatorsList.push('ATR')
+    if (indicators.enabledIndicators?.er) enabledIndicatorsList.push('ER')
     if (indicators.enabledIndicators?.oi) enabledIndicatorsList.push('持仓量(OI)')
     if (indicators.enabledIndicators?.volume) enabledIndicatorsList.push('成交量')
     if (indicators.moneyFlowPrompt) enabledIndicatorsList.push('主动资金流')
@@ -662,6 +687,7 @@ export class MultiStrategyAIAnalyzer {
       section('EMA趋势与价格位置', [...emaLines, ...emaDeviationLines, ...priceInRangeLines]),
       section('动能', momentumLines),
       section('趋势强度与方向', adxLines),
+      section('趋势效率 ER（已收盘）', erLines),
       section('波动', volatilityLines),
       section('持仓量', oiLines),
       formatSupportResistance(indicators.supportResistance).trim(),
