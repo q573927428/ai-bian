@@ -102,7 +102,7 @@
           <SupportResistanceInfo :snapshot="row.supportResistance" />
         </template>
       </el-table-column>
-      <el-table-column label="ER(20)" min-width="100" prop="er" sortable="custom">
+      <el-table-column label="ER(20)" min-width="78" prop="er" sortable="custom">
         <template #default="{ row }">
           <el-tooltip placement="top">
             <template #content>
@@ -115,10 +115,10 @@
           </el-tooltip>
         </template>
       </el-table-column>
-      <el-table-column label="EMA" min-width="115" class-name="ema-column">
+      <el-table-column label="EMA" min-width="90" class-name="ema-column">
         <template #default="{ row }">
-          <div><span class="muted">EMA{{ row.fastEmaPeriod }}</span> {{ formatPrice(row.fastEma) }}</div>
-          <div><span class="muted">EMA{{ row.slowEmaPeriod }}</span> {{ formatPrice(row.slowEma) }}</div>
+          <div><span class="muted">{{ row.fastEmaPeriod }}</span> {{ formatPrice(row.fastEma) }}</div>
+          <div><span class="muted">{{ row.slowEmaPeriod }}</span> {{ formatPrice(row.slowEma) }}</div>
           <span :class="row.emaBullish == null ? 'muted' : row.emaBullish ? 'up' : 'down'">{{ row.emaBullish == null ? '--' : row.emaBullish ? '多头' : '空头' }}</span>
         </template>
       </el-table-column>
@@ -171,22 +171,24 @@
       <el-table-column label="预量比" align="center" header-align="center" min-width="78" prop="volumeRatio" sortable="custom">
         <template #default="{ row }">{{ format(row.volumeRatio) }}x</template>
       </el-table-column>
-      <el-table-column label="资金流" width="145" prop="netInflowPercent" sortable="custom">
+      <el-table-column label="资金流" width="130" prop="netInflowPercent" sortable="custom">
         <template #default="{ row }">
           <el-tooltip placement="top">
             <template #content>
+              <div>本根：{{ formatFlowAmount(row.netInflow) }} / {{ signed(row.netInflowPercent) }}{{ row.netInflowPercent == null ? '' : '%' }}</div>
+              <div>近 {{ row.moneyFlowWindowBars ?? '--' }} 根：{{ formatFlowAmount(row.cumulativeNetInflow) }} / {{ signed(row.cumulativeNetInflowPercent) }}{{ row.cumulativeNetInflowPercent == null ? '' : '%' }}</div>
               <div v-for="(line, index) in [row.moneyFlowTooltip, row.cumulativeFlowTooltip].join('\n').split('\n')" :key="index">{{ line }}</div>
             </template>
             <div class="flow-cell">
               <div class="flow-row">
                 <span class="muted">本根</span>
-                <span>{{ formatFlowAmount(row.netInflow) }}</span>
-                <span :class="flowDirectionClass(row.netInflowPercent)">{{ signed(row.netInflowPercent) }}{{ row.netInflowPercent == null ? '' : '%' }}</span>
+                <span>{{ formatFlowAmount(row.netInflow, 1) }}</span>
+                <span :class="flowDirectionClass(row.netInflowPercent)">{{ formatFlowPercent(row.netInflowPercent) }}</span>
               </div>
               <div class="flow-row flow-secondary">
                 <span class="muted">{{ row.moneyFlowWindowBars ?? '--' }}根</span>
-                <span>{{ formatFlowAmount(row.cumulativeNetInflow) }}</span>
-                <span :class="flowDirectionClass(row.cumulativeNetInflowPercent)">{{ signed(row.cumulativeNetInflowPercent) }}{{ row.cumulativeNetInflowPercent == null ? '' : '%' }}</span>
+                <span>{{ formatFlowAmount(row.cumulativeNetInflow, 1) }}</span>
+                <span :class="flowDirectionClass(row.cumulativeNetInflowPercent)">{{ formatFlowPercent(row.cumulativeNetInflowPercent) }}</span>
               </div>
             </div>
           </el-tooltip>
@@ -202,7 +204,7 @@
               <div v-for="(line, index) in row.sentimentTooltip.split('\n')" :key="index">{{ line }}</div>
             </template>
             <div class="sentiment-cell">
-              <div :class="sentimentClass(row.sentiment)">{{ row.sentimentLabel }}<span v-if="row.sentiment != null"> {{ signed(row.sentiment) }}%</span></div>
+              <div :class="sentimentClass(row.sentiment)">{{ row.sentimentLabel }}<span v-if="row.sentiment != null"> {{ signed(row.sentiment, 1) }}%</span></div>
               <div class="muted">多 {{ formatOICompact(row.bullishCount) }} / 空 {{ formatOICompact(row.bearishCount) }}</div>
             </div>
           </el-tooltip>
@@ -527,7 +529,7 @@ function toRow(data: any): IndicatorRow {
   const erReady = er.status === 'ready'
   const erTooltip = [
     `ER(${er.period ?? 20}, ${data.timeframe})，仅使用已收盘K线`,
-    '净位移绝对值 / 累计绝对变化，范围 0～1；越高表示过去路径越单向',
+    '净位移绝对值 / 累计绝对变化，范围 0～1',
     '下方百分数为同窗口净涨跌；ER不表示未来胜率',
     erReady ? `末根收盘：${formatOITime(er.closedAt)}` : `不可用：${er.reason ?? '数据缺失'}`
   ].join('\n')
@@ -666,9 +668,19 @@ function diTrendSignal(spread: unknown, gapChange: unknown): IndicatorRow['diDir
 }
 
 /** 资金金额使用统一缩写并保留正负号；缺失显示 --。 */
-function formatFlowAmount(value?: number | null): string {
+function formatFlowAmount(value?: number | null, maximumFractionDigits = 2): string {
   if (value == null || !Number.isFinite(value)) return '--'
-  return `${value > 0 ? '+' : ''}${formatCompactNumber(value)}`
+  // 按显示精度选择单位，避免一位小数舍入后出现 1000K 或 1000M。
+  const units = ['', 'K', 'M', 'B']
+  let unitIndex = 0
+  while (unitIndex < units.length - 1 && Math.abs(Number((value / 1000 ** unitIndex).toFixed(maximumFractionDigits))) >= 1000) unitIndex++
+  return `${value > 0 ? '+' : ''}${(value / 1000 ** unitIndex).toLocaleString('en-US', { maximumFractionDigits })}${units[unitIndex]}`
+}
+
+/** 资金流比例最多显示一位小数，悬停提示保留原来的两位精度。 */
+function formatFlowPercent(value?: number | null): string {
+  if (value == null || !Number.isFinite(value)) return '--'
+  return `${value >= 0 ? '+' : ''}${value.toLocaleString('en-US', { maximumFractionDigits: 1 })}%`
 }
 
 /** 保留零值，避免空值被转换成有效的零样本或零情绪。 */
@@ -677,7 +689,8 @@ function finiteNumber(value: unknown): number | undefined {
 }
 
 function format(value?: number) { return value == null || !Number.isFinite(value) ? '--' : Math.abs(value) >= 1e3 ? formatCompactNumber(value) : value.toFixed(2) }
-function signed(value?: number) { return value == null || !Number.isFinite(value) ? '--' : `${value >= 0 ? '+' : ''}${format(value)}` }
+/** 带符号数值可指定小数位，未指定时沿用原有格式。 */
+function signed(value?: number, decimalPlaces?: number) { return value == null || !Number.isFinite(value) ? '--' : `${value >= 0 ? '+' : ''}${decimalPlaces == null ? format(value) : value.toFixed(decimalPlaces)}` }
 /** 看板斜率统一保留两位小数，仅调整显示精度。 */
 function formatAdxSlope(value?: number) {
   return value == null || !Number.isFinite(value) ? '--' : `${value > 0 ? '+' : ''}${value.toFixed(2)}`
@@ -841,10 +854,10 @@ onUnmounted(() => {
 .coin-icon { display: block; object-fit: cover; }
 .coin-icon-placeholder { display: inline-flex; align-items: center; justify-content: center; color: #fff; font-size: 10px; font-weight: 600; line-height: 1; }
 .macd-cell { display: flex; flex-direction: column; gap: 5px; min-width: 0; line-height: 1.5; }
-.flow-cell { display: grid; grid-template-columns: 24px max-content max-content; column-gap: 6px; row-gap: 3px; width: max-content; font-weight: 400; line-height: 1.35; }
-/* 两行共享内容宽度，不再让金额列拉伸填满整列，避免标签与金额之间出现大块留白。 */
+.flow-cell { display: grid; grid-template-columns: max-content max-content max-content; column-gap: 3px; row-gap: 3px; width: max-content; font-weight: 400; line-height: 1.35; }
+/* 金额与比例减少小数位，保留窗口标签及两行布局，避免撑高整行。 */
 .flow-row { display: contents; white-space: nowrap; font-variant-numeric: tabular-nums; }
-.flow-row > span:not(:first-child) { text-align: right; }
+.flow-row > span { text-align: right; }
 .flow-secondary > span { opacity: .7; }
 .sentiment-cell { display: flex; flex-direction: column; gap: 3px; line-height: 1.35; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .oi-cell { display: flex; flex-direction: column; gap: 3px; line-height: 1.35; white-space: nowrap; font-variant-numeric: tabular-nums; }
@@ -871,10 +884,10 @@ onUnmounted(() => {
 
 /* 分组留白优先于缩小文字，当前值与辅助说明保持清晰层级。 */
 .indicators-table :deep(.trend-column .cell),
-.indicators-table :deep(.ema-column .cell) { line-height: 1.8; }
 .indicators-table :deep(.structure-levels) { display: flex; flex-direction: column; gap: 6px; }
 .indicators-table :deep(.structure-status) { color: var(--el-text-color-secondary); }
 .indicators-table :deep(.structure-info .distance) { font-size: 11px; }
+.indicators-table :deep(.ema-column .cell) { line-height: 1.8; }
 .indicators-table :deep(td.el-table__cell) { padding-top: 12px; padding-bottom: 12px; }
 .indicators-table :deep(th.el-table__cell) { padding-top: 10px; padding-bottom: 10px; }
 

@@ -333,7 +333,7 @@ function draw() {
           formatter: (value: number, index: number) => index <= 2 ? compact(value) : '' },
         axisPointer: { show: false }, axisLine: { show: false }, axisTick: { show: false }, splitLine: { show: false } },
       { id: 'adx-axis', type: 'value', gridIndex: 2, ...visibleAdxRange(adxValues), scale: true, splitNumber: 3, position: 'right', axisLabel: { color, fontSize: 9, hideOverlap: true }, splitLine: { lineStyle: { color, opacity: .12 } } },
-      { id: 'rsi-axis', type: 'value', gridIndex: 3, min: 0, max: 100, interval: 50, position: 'right', axisLabel: { color, fontSize: 9, hideOverlap: true }, splitLine: { show: false } },
+      { id: 'rsi-axis', type: 'value', gridIndex: 3, min: 0, max: 100, interval: 50, position: 'right', axisLabel: { color, fontSize: 9, hideOverlap: true, formatter: (value: number) => value === 50 ? '' : String(value) }, axisPointer: { label: { show: false } }, splitLine: { show: false } },
       { id: 'macd-axis', type: 'value', gridIndex: 4, ...visibleMacdRange(macdValues), position: 'right', splitNumber: 2, axisLabel: { color, fontSize: 9, hideOverlap: true, formatter: (value: number) => Number(value.toPrecision(3)).toString() }, splitLine: { lineStyle: { color, opacity: .12 } } }
     ],
     // RSI 系列前有动态 EMA 和背离系列，按实际数量定位，避免把阈值配色应用到其他曲线。
@@ -356,6 +356,7 @@ function draw() {
       { name: 'RSI(14)', type: 'line', xAxisIndex: 3, yAxisIndex: 5, data: rsiValues,
         showSymbol: false, connectNulls: false, lineStyle: { width: 1.5 },
         // 超买超卖和中线仅供观察动能，不等同于反转或开仓信号。
+        // 保留 RSI 参考线标签；纵轴仅隐藏重复的50，仍展示0和100。
         markLine: { silent: true, symbol: 'none', label: { show: true, position: 'end', fontSize: 9, color, formatter: '{b}' },
           lineStyle: { color, opacity: .45, type: 'dashed' }, data: [{ name: 'RSI 30', yAxis: 30 }, { name: 'RSI 50', yAxis: 50 }, { name: 'RSI 70', yAxis: 70 }] } },
       { name: '趋势效率 ER20×100', type: 'line', xAxisIndex: 3, yAxisIndex: 5, data: erDisplayValues, showSymbol: false, connectNulls: false, lineStyle: { width: 1.5, type: 'dashed', color: '#36cfc9' } },
