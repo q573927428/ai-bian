@@ -244,7 +244,7 @@ function draw() {
       { id: 'pdi-title', text: `+DI ${adx?.pdi.toFixed(1) ?? '--'}` },
       { id: 'mdi-title', text: `−DI ${adx?.mdi.toFixed(1) ?? '--'}` },
       { id: 'rsi-title', text: `RSI(14) ${rsiValues[index]?.toFixed(1) ?? '--'}` },
-      { id: 'er-title', text: `趋势效率 ER20×100（已收盘） ${erDisplayValues[index]?.toFixed(2) ?? '--'}` },
+      { id: 'er-title', text: `ER20×100 ${erDisplayValues[index]?.toFixed(2) ?? '--'}` },
       { id: 'macd-title', text: `MACD(12,26,9) DIF ${macdNumber(macd?.dif)}  DEA ${macdNumber(macd?.dea)}  柱 ${macdNumber(macd?.histogram)}` }
     ] })
   }
@@ -253,8 +253,7 @@ function draw() {
     updateTitles(bars.length - 1)
     // 默认显示最近已收盘值；悬停盘中 K 线时显示 --，不把上一根冒充当前根。
     const latest = erValues.findLastIndex(value => value !== null)
-    const time = latest >= 0 ? ` ${dateLabel(bars[latest]!.t)} K线` : ''
-    chart?.setOption({ title: [{ id: 'er-title', text: `趋势效率 ER20×100（已收盘） ${erDisplayValues[latest]?.toFixed(2) ?? '--'}${time}` }] })
+    chart?.setOption({ title: [{ id: 'er-title', text: `ER20×100 ${erDisplayValues[latest]?.toFixed(2) ?? '--'}` }] })
     inspectedIndex = -1
   }
   inspectAt = (x, y) => {
