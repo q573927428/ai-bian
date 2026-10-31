@@ -26,7 +26,7 @@
       </nav>
       <div class="header-right">
         <!-- 运行状态 -->
-        <button type="button" class="header-status" aria-label="查看系统运行状态与性能" @click="emit('performance')">
+        <button type="button" class="header-status" :aria-label="`${isRunning ? '运行中' : '已停止'}，查看系统运行状态与性能`" :title="isRunning ? '运行中，点击查看详情' : '已停止，点击查看详情'" @click="emit('performance')">
           <div :class="['status-dot-sm', isRunning ? 'status-running' : 'status-stopped']" />
           <span class="header-status-text">{{ isRunning ? '运行中' : '已停止' }}</span>
         </button>
@@ -412,13 +412,25 @@ function handleNavigate(target: HomeNavigationTarget) {
 
 @media (max-width: 480px) {
   .header h1 { font-size: 14px; }
-  .header-status { display: none; }
+  /* 手机保留状态入口，用圆点节省空间，点击后仍可查看完整运行信息。 */
+  .header-status {
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    flex-shrink: 0;
+  }
   .auth-button { padding: 0 8px; }
   .header-right { flex-wrap: wrap; }
 }
 @media (max-width: 374px) {
   .header-status-text { display: none; }
-  .header-status { padding: 10px; }
+  /* 窄屏压缩按钮间距，避免新增状态入口将右侧操作挤到下一行。 */
+  .header-status { width: 28px; height: 32px; }
+  .header-right { gap: 2px; }
+  .theme-toggle-btn { width: 28px; }
+  .mobile-nav-toggle { width: 32px; }
+  .auth-button { padding: 0 6px; }
   .header-content { column-gap: 4px; }
 }
 

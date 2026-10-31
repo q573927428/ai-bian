@@ -1,6 +1,6 @@
 <template>
   <div class="chart-wrapper">
-    <div ref="chartContainer" class="kline-chart"></div>
+    <div ref="chartContainer" class="kline-chart" :title="pinnedCrosshair ? '光标已锁定，再次点击图表解除锁定' : '点击图表锁定光标，再次点击解除锁定'"></div>
     <SupportResistanceOverlay :symbol="symbol" :timeframe="timeframe" :klines="klineData" :loading="loading || !!error" :historical-order="historicalOrder" :get-chart="() => chart" :get-series="() => candlestickSeries" />
     <PositionRiskOverlay :symbol="symbol" :historical-order="historicalOrder" :klines="klineData" :loading="loading || !!error" :get-chart="() => chart" :get-series="() => candlestickSeries" />
 
@@ -264,6 +264,8 @@ let volumeSeries: any = null
 let emaSeries: any[] = []
 let resizeObserver: ResizeObserver | null = null
 let markersApi: any = null
+// 保存时间和价格，使锁定位置不随鼠标移动或离开图表而改变。
+const pinnedCrosshair = ref<{ time: number; price: number } | null>(null)
 // 标记图表是否已经完成过首次数据渲染，后续任何数据校正都不能重新套用默认视图。
 let hasRenderedKlineData = false
 // 记录图表当前最后一根K线时间，区分“追加新柱”和“校正同一根柱”。
@@ -648,8 +650,50 @@ const cachedErSeries = computed(() => calculateErChartMetricsSeries(
 ))
 
 // 初始化图表
+/** 恢复锁定的十字光标，使用价格坐标保持缩放后的业务位置不变。 */
+const restorePinnedCrosshair = () => {
+  if (!chart || !candlestickSeries || !pinnedCrosshair.value) return
+  const { time, price } = pinnedCrosshair.value
+  chart.setCrosshairPosition(price, time, candlestickSeries)
+}
+
+/** 锁定期间只恢复光标，避免鼠标悬停覆盖所选 K 线的数据提示。 */
+const handleCrosshairMove = (param: any) => {
+  if (pinnedCrosshair.value) {
+    restorePinnedCrosshair()
+    return
+  }
+  if (typeof param.time !== 'number') return
+  const kline = findKlineByTime(props.klineData, param.time)
+  if (kline) emitTooltipUpdate(kline)
+}
+
+/** 再次点击优先解除锁定，即使点击位置没有 K 线也能退出。 */
+const toggleCrosshairLock = (param: any) => {
+  if (!param.point) return
+  if (pinnedCrosshair.value) {
+    pinnedCrosshair.value = null
+    chart.clearCrosshairPosition()
+    // 有效 K 线处解锁后，立即恢复当前位置及其数据提示。
+    const price = candlestickSeries.coordinateToPrice(param.point.y)
+    if (typeof param.time === 'number' && price !== null) {
+      chart.setCrosshairPosition(price, param.time, candlestickSeries)
+      handleCrosshairMove(param)
+    }
+    return
+  }
+  if (typeof param.time !== 'number') return
+  const kline = findKlineByTime(props.klineData, param.time)
+  const price = candlestickSeries.coordinateToPrice(param.point.y)
+  if (!kline || price === null || !Number.isFinite(price)) return
+  pinnedCrosshair.value = { time: param.time, price }
+  restorePinnedCrosshair()
+  emitTooltipUpdate(kline)
+}
+
 const initChart = () => {
   if (!chartContainer.value) return
+  pinnedCrosshair.value = null
   
   console.log(`📈 初始化图表 (symbol: ${props.symbol}, timeframe: ${computedTimeframe.value})`)
   
@@ -734,25 +778,18 @@ const initChart = () => {
         width: chartContainer.value.clientWidth,
         height: chartHeight.value
       })
+      restorePinnedCrosshair()
     }
   })
   
   resizeObserver.observe(chartContainer.value)
   
   // 监听鼠标移动事件
-  chart.subscribeCrosshairMove((param: any) => {
-    if (param.time) {
-      // 找到对应的K线数据
-      const kline = findKlineByTime(props.klineData, param.time)
-      if (kline) {
-        // 触发tooltip更新事件
-        emitTooltipUpdate(kline)
-      }
-    }
-  })
+  chart.subscribeCrosshairMove(handleCrosshairMove)
   
   // 监听点击事件 —— 点击K线时处理订单详情
   chart.subscribeClick((param: any) => {
+    toggleCrosshairLock(param)
     if (!param.point || !param.time) return
     
     const currentTimeframe = props.timeframe || computedTimeframe.value
@@ -814,6 +851,8 @@ const findKlineByTime = (klineData: SimpleKLineData[], time: number): SimpleKLin
 
 // 触发tooltip更新事件
 const emitTooltipUpdate = (kline: SimpleKLineData) => {
+  // 实时行情仅允许刷新锁定 K 线，防止其他柱的数据覆盖当前选择。
+  if (pinnedCrosshair.value && pinnedCrosshair.value.time !== kline.t) return
   const changePercent = ((kline.c - kline.o) / kline.o) * 100
   const timeStr = new Date(kline.t * 1000).toLocaleString('zh-CN', {
     year: 'numeric',
@@ -936,6 +975,10 @@ const updateLastKline = (updatedKline: SimpleKLineData) => {
       }
     }
     
+    // 实时数据可能触发图表重新定位，刷新后恢复锁定坐标。
+    restorePinnedCrosshair()
+    if (pinnedCrosshair.value?.time === updatedKline.t) emitTooltipUpdate(updatedKline)
+
     // 如果tooltip正在显示，更新tooltip
     if (chart && typeof chart.getCrosshairPosition === 'function') {
       const crosshairPosition = chart.getCrosshairPosition()
@@ -1013,6 +1056,7 @@ const appendNewKline = (newKline: SimpleKLineData) => {
       }
     }
     
+    restorePinnedCrosshair()
     console.log(`✅ 已追加新K线: ${new Date(newKline.t * 1000).toLocaleString()}`)
   } catch (error) {
     console.error('追加新K线失败:', error)
@@ -1132,6 +1176,7 @@ const updateChart = (preserveViewport = false) => {
   
   // 更新订单标记
   updateMarkers()
+  restorePinnedCrosshair()
 }
 
 /**
@@ -1269,12 +1314,13 @@ onMounted(() => {
 
 // 清理图表资源
 const cleanupChart = () => {
+  pinnedCrosshair.value = null
   
   // 停止所有可能的动画或更新
   if (chart) {
     try {
       // 取消订阅所有事件监听
-      chart.unsubscribeCrosshairMove()
+      chart.unsubscribeCrosshairMove(handleCrosshairMove)
       
       // 移除所有系列
       if (candlestickSeries) {
@@ -1394,6 +1440,19 @@ defineExpose({
   width: 100%;
   height: 100%;
   min-height: 250px;
+}
+
+.crosshair-lock-hint {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 3;
+  padding: 4px 8px;
+  border-radius: 4px;
+  background: var(--bg-card);
+  color: var(--el-color-primary);
+  font-size: 12px;
+  pointer-events: none;
 }
 
 /* 加载状态 */
