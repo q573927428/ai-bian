@@ -129,6 +129,8 @@ import { formatTime } from './utils/kline-formatters'
 import { calculateEMASeries, calculateATRSeries, calculateATRPercent } from '../../utils/ema-calculator'
 import { calculateRSISeries } from '../../utils/rsi-calculator'
 import { calculateADXSeries } from '../../utils/adx-calculator'
+import { calculateErChartMetricsSeries } from '../../utils/er-chart-series'
+import { DEFAULT_ER_PERIOD } from '../../../shared/utils/efficiency-ratio'
 
 // 初始化bot store
 const botStore = useBotStore()
@@ -330,7 +332,9 @@ const tooltipData = ref({
   rsi: 0,
   adx: 0,
   pdi: 0,
-  mdi: 0
+  mdi: 0,
+  er: null as number | null,
+  erChangePercent: null as number | null
 })
 const tooltipTime = ref('')
 const tooltipPosition = ref({
@@ -712,6 +716,7 @@ const handleTooltipUpdate = (data: any, time: string) => {
 // 获取时间段的秒数（新K线检测需要）
 const getTimeframeSeconds = (timeframe: string): number => {
   switch (timeframe) {
+    case '1m': return 60
     case '5m': return 5 * 60
     case '15m': return 15 * 60
     case '1h': return 60 * 60
@@ -721,6 +726,16 @@ const getTimeframeSeconds = (timeframe: string): number => {
     default: return 60 * 60
   }
 }
+
+// 默认行情和实时刷新也会重建 tooltipData，必须显式带上 ER，避免覆盖悬停计算结果。
+const latestEr = computed(() => calculateErChartMetricsSeries(
+  klineData.value.slice(-(DEFAULT_ER_PERIOD + 1)),
+  selectedTimeframe.value as Parameters<typeof calculateErChartMetricsSeries>[1],
+  getTimeframeSeconds(selectedTimeframe.value),
+  Date.now(),
+  DEFAULT_ER_PERIOD,
+  { includeOpen: true }
+).at(-1) ?? null)
 
 // 使用 botStore 共享价格更新最后一根K线
 const updateLastKlineWithPrice = (price: number) => {
@@ -762,7 +777,9 @@ const updateLastKlineWithPrice = (price: number) => {
       emaDiffPercent,
       atrPercent,
       rsi,
-      ...directionIndicators
+      ...directionIndicators,
+      er: latestEr.value?.er ?? null,
+      erChangePercent: latestEr.value?.netChangePercent ?? null
     }
     tooltipTime.value = formatTime(updatedKline.t)
   }
@@ -841,7 +858,9 @@ const showLatestKline = () => {
         emaDiffPercent,
         atrPercent,
         rsi,
-        ...directionIndicators
+        ...directionIndicators,
+        er: latestEr.value?.er ?? null,
+        erChangePercent: latestEr.value?.netChangePercent ?? null
       }
       tooltipTime.value = formatTime(latestKline.t)
       tooltipVisible.value = true

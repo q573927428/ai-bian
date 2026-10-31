@@ -1,9 +1,12 @@
 // ==================== 趋势效率 ER 快照类型 ====================
 import type { Timeframe } from './strategy'
 
+/** ER 计算支持的周期，包含首页图表额外提供的分钟线和周线。 */
+export type ERTimeframe = Timeframe | '1m' | '1w'
+
 /** 单个周期的已收盘 ER；缺失用 null 表示，不能与有效的 ER=0 混淆。 */
-export interface EfficiencyRatioSnapshot {
-  timeframe: Timeframe
+export interface EfficiencyRatioSnapshot<T extends ERTimeframe = Timeframe> {
+  timeframe: T
   /** N 段收盘价变化，需要 N+1 个连续收盘价。 */
   period: number
   status: 'ready' | 'insufficient_data' | 'invalid_data' | 'stale_data'

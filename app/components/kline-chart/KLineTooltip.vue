@@ -82,6 +82,13 @@
         <span class="label">MDI:</span>
         <span class="value price-down">{{ (data.mdi ?? 0).toFixed(1) }}</span>
       </span>
+      <span class="data-item">
+        <span class="label">ER:</span>
+        <span class="value">{{ data.er == null ? '--' : data.er.toFixed(3) }}</span>
+        <span class="value" :class="{ 'price-up': (data.erChangePercent ?? 0) > 0, 'price-down': (data.erChangePercent ?? 0) < 0 }">
+          ({{ data.erChangePercent == null ? '--' : `${data.erChangePercent > 0 ? '+' : ''}${data.erChangePercent.toFixed(2)}%` }})
+        </span>
+      </span>
     </div>
 
     <!-- 图表统计固定在行情数据下方，并与行情数据共用画布内的悬浮定位。 -->
@@ -204,7 +211,7 @@ const getOrderDirClass = (order: TradeHistory): string => {
   return 'dir-long'
 }
 
-// 定义props
+// 行情与订单面板的展示参数，ER 为 0～1 的趋势效率，erChangePercent 为同窗口净涨跌幅。
 interface Props {
   mode?: 'kline' | 'order'
   visible?: boolean
@@ -224,6 +231,8 @@ interface Props {
     adx?: number | null
     pdi?: number | null
     mdi?: number | null
+    er?: number | null
+    erChangePercent?: number | null
   }
   klineTime?: number
   orders?: TradeHistory[]

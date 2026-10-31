@@ -23,7 +23,7 @@ import { calculateEMA } from '../utils/ema-calculator'
 import { calculateAdxChartSeries } from '../utils/adx-chart-series'
 import { calculateRsiChartSeries } from '../utils/rsi-chart-series'
 import { calculateMacdChartSeries } from '../utils/macd-chart-series'
-import { calculateErChartSeries } from '../utils/er-chart-series'
+import { calculateErChartMetricsSeries } from '../utils/er-chart-series'
 import type { Timeframe } from '../../types/strategy'
 import { calculateContractFlow } from '../utils/contract-order-flow'
 import { detectCvdDivergences } from '../utils/cvd-divergence'
@@ -206,9 +206,17 @@ function draw() {
   const rsiValues = calculateRsiChartSeries(bars, interval())
   const latestRsi = rsiValues[bars.length - 1]
   const macdValues = calculateMacdChartSeries(bars, interval())
-  const erValues = calculateErChartSeries(bars, selectedTimeframe.value as Timeframe, interval())
+  // 右侧图表包含最新未收盘柱的 ER 预览，曲线与标题共用该序列。
+  const erMetrics = calculateErChartMetricsSeries(bars, selectedTimeframe.value as Timeframe, interval(), Date.now(), undefined, { includeOpen: true })
+  const erValues = erMetrics.map(value => value?.er ?? null)
   // 仅图表显示乘100，与 RSI 共用刻度；计算结果及 AI 输入保持 0～1 原始口径。
   const erDisplayValues = erValues.map(value => value === null ? null : value * 100)
+  // 括号内展示同一 ER 窗口的实际涨跌幅，默认展示与历史悬停统一格式。
+  const erTitle = (index: number) => {
+    const change = erMetrics[index]?.netChangePercent
+    const percent = change == null ? '--' : `${change > 0 ? '+' : ''}${change.toFixed(2)}%`
+    return `ER20×100 ${erDisplayValues[index]?.toFixed(2) ?? '--'} (${percent})`
+  }
   // 基准只取前12根连续有效成交量，当前根不参与自身均量，避免放量时抬高基准。
   const validVolume = (value: number) => Number.isFinite(value) && value >= 0
   const volumeAverages = bars.map((bar, index) => {
@@ -244,16 +252,16 @@ function draw() {
       { id: 'pdi-title', text: `+DI ${adx?.pdi.toFixed(1) ?? '--'}` },
       { id: 'mdi-title', text: `−DI ${adx?.mdi.toFixed(1) ?? '--'}` },
       { id: 'rsi-title', text: `RSI(14) ${rsiValues[index]?.toFixed(1) ?? '--'}` },
-      { id: 'er-title', text: `ER20×100 ${erDisplayValues[index]?.toFixed(2) ?? '--'}` },
+      { id: 'er-title', text: erTitle(index) },
       { id: 'macd-title', text: `MACD(12,26,9) DIF ${macdNumber(macd?.dif)}  DEA ${macdNumber(macd?.dea)}  柱 ${macdNumber(macd?.histogram)}` }
     ] })
   }
   let inspectedIndex = -1
   resetInspect = () => {
     updateTitles(bars.length - 1)
-    // 默认显示最近已收盘值；悬停盘中 K 线时显示 --，不把上一根冒充当前根。
+    // 默认显示最新有效值，包含未收盘柱的 ER 与同窗口涨跌幅。
     const latest = erValues.findLastIndex(value => value !== null)
-    chart?.setOption({ title: [{ id: 'er-title', text: `ER20×100 ${erDisplayValues[latest]?.toFixed(2) ?? '--'}` }] })
+    chart?.setOption({ title: [{ id: 'er-title', text: erTitle(latest) }] })
     inspectedIndex = -1
   }
   inspectAt = (x, y) => {

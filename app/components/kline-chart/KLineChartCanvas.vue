@@ -50,6 +50,7 @@ import {
 } from '../../utils/ema-calculator'
 import { calculateRSISeries } from '../../utils/rsi-calculator'
 import { calculateADXSeries } from '../../utils/adx-calculator'
+import { calculateErChartMetricsSeries } from '../../utils/er-chart-series'
 import { prepareCandlestickData, prepareVolumeData, getChartOptions, getPricePrecision } from './utils/kline-helpers'
 import { useBotStore } from '../../stores/bot'
 
@@ -247,6 +248,8 @@ const emit = defineEmits<{
     adx?: number | null
     pdi?: number | null
     mdi?: number | null
+    er?: number | null
+    erChangePercent?: number | null
   }, time: string]
   'order-click': [orders: TradeHistory[], klineTime: number]
   'scan-click': [results: StrategyScanResult[], klineTime: number]
@@ -623,6 +626,7 @@ const findScansByKlineTime = (clickedKlineTime: number): StrategyScanResult[] =>
 // 获取时间段的秒数
 const getTimeframeSeconds = (timeframe: string): number => {
   switch (timeframe) {
+    case '1m': return 60
     case '5m': return 5 * 60
     case '15m': return 15 * 60
     case '1h': return 60 * 60
@@ -632,6 +636,16 @@ const getTimeframeSeconds = (timeframe: string): number => {
     default: return 60 * 60
   }
 }
+
+// 首页启用盘中 ER 预览；按 K 线索引读取，避免悬停历史时显示最新指标。
+const cachedErSeries = computed(() => calculateErChartMetricsSeries(
+  props.klineData,
+  computedTimeframe.value as Parameters<typeof calculateErChartMetricsSeries>[1],
+  getTimeframeSeconds(computedTimeframe.value),
+  Date.now(),
+  undefined,
+  { includeOpen: true }
+))
 
 // 初始化图表
 const initChart = () => {
@@ -852,7 +866,9 @@ const emitTooltipUpdate = (kline: SimpleKLineData) => {
     rsi,
     adx,
     pdi,
-    mdi
+    mdi,
+    er: cachedErSeries.value[klineIndex]?.er ?? null,
+    erChangePercent: cachedErSeries.value[klineIndex]?.netChangePercent ?? null
   }, timeStr)
 }
 

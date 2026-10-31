@@ -1,12 +1,13 @@
 // ==================== 趋势效率 ER 计算及配置归一化 ====================
 import type { OHLCV } from '../../types'
 import type { Timeframe } from '../../types/strategy'
-import type { EfficiencyRatioSnapshot } from '../../types/efficiency-ratio'
+import type { EfficiencyRatioSnapshot, ERTimeframe } from '../../types/efficiency-ratio'
 
 export const DEFAULT_ER_PERIOD = 20
 export const MIN_ER_PERIOD = 2
 // 限制观察窗口，避免不合理参数超出常规行情缓存的覆盖范围。
 export const MAX_ER_PERIOD = 100
+// 图表另有 1m、1w 周期，计算时支持它们，策略配置仍沿用原有周期范围。
 const TIMEFRAME_MS: Record<Timeframe, number> = {
   '5m': 300_000, '15m': 900_000, '1h': 3_600_000, '4h': 14_400_000, '1d': 86_400_000
 }
@@ -33,14 +34,15 @@ export function normalizeERTimeframes(strategyTimeframes: unknown, fallback: Tim
  * 计算 ER = |末收盘价 - 首收盘价| / Σ|相邻收盘价之差|。
  * now 必须使用本轮行情快照时刻；只使用该时刻已收盘且连续的 N+1 根 K 线。
  */
-export function calculateEfficiencyRatio(
-  klines: readonly OHLCV[], timeframe: Timeframe,
+export function calculateEfficiencyRatio<T extends ERTimeframe>(
+  klines: readonly OHLCV[], timeframe: T,
   options: { period?: number; now?: number } = {}
-): EfficiencyRatioSnapshot {
+): EfficiencyRatioSnapshot<T> {
   const period = normalizeERPeriod(options.period)
   const now = options.now ?? Date.now()
-  const timeframeMs = TIMEFRAME_MS[timeframe]
-  const result: EfficiencyRatioSnapshot = {
+  const timeframeMs = timeframe === '1m' ? 60_000
+    : timeframe === '1w' ? 604_800_000 : TIMEFRAME_MS[timeframe]
+  const result: EfficiencyRatioSnapshot<T> = {
     timeframe, period, status: 'insufficient_data', er: null, direction: null,
     netChange: null, netChangePercent: null, pathLength: null, startClose: null, endClose: null,
     firstCandleTimestamp: null, lastCandleTimestamp: null, closedAt: null,
