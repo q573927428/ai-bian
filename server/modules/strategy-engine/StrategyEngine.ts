@@ -123,6 +123,13 @@ export class StrategyEngine {
   private isGlobalLoopRunning = false
   private skippedLoopCount = 0
   private initialScanNotBefore = 0
+  // 回退是可恢复的缓存未命中；按轮聚合，避免每个交易对、策略分别刷屏。
+  private indicatorFallbackStats = {
+    analyses: 0,
+    indicators: 0,
+    symbols: new Set<string>(),
+    samples: new Set<string>()
+  }
   private loopStats = {
     isRunning: false,
     // 实际开始执行的扫描轮次；并发触发但被跳过的调用不计入此值。
@@ -547,6 +554,7 @@ export class StrategyEngine {
     }
 
     this.isGlobalLoopRunning = true
+    this.indicatorFallbackStats = { analyses: 0, indicators: 0, symbols: new Set(), samples: new Set() }
     const loopStartTime = Date.now()
     // 只有通过并发保护并真正进入扫描的调用才计为一轮。
     this.loopStats.scanCount++
@@ -670,6 +678,7 @@ export class StrategyEngine {
     } catch (error: any) {
       logger.error('StrategyEngine', `全局策略循环异常: ${error.message}`)
     } finally {
+      this.logIndicatorFallbackSummary()
       const finishedAt = Date.now()
       const duration = finishedAt - loopStartTime
       this.isGlobalLoopRunning = false
@@ -687,6 +696,15 @@ export class StrategyEngine {
   }
 
   // ==================== 市场分析 ====================
+
+  /** 每轮最多输出一条回退摘要；失败日志仍由计算分支即时输出，不受聚合影响。 */
+  private logIndicatorFallbackSummary(): void {
+    const stats = this.indicatorFallbackStats
+    if (stats.analyses === 0) return
+
+    logger.warn('StrategyEngine',
+      `本轮预计算指标未命中，已触发实时计算：${stats.symbols.size} 个交易对，${stats.analyses} 次策略分析，${stats.indicators} 项指标；样例：${Array.from(stats.samples).join('；')}。实时计算失败会单独告警`)
+  }
 
   /**
    * 从策略配置中提取EMA周期
@@ -869,7 +887,14 @@ export class StrategyEngine {
     }
 
     if (missing.length > 0) {
-      logger.warn('StrategyEngine', `预计算指标缺失，已回退实时计算: ${missing.join(', ')}`)
+      const stats = this.indicatorFallbackStats
+      stats.analyses++
+      stats.indicators += missing.length
+      stats.symbols.add(symbol)
+      // 仅保留三个简短样例，不输出缓存哈希，也不随交易对数量扩张日志长度。
+      if (stats.samples.size < 3) {
+        stats.samples.add(`${symbol}:${mainTimeframe}`)
+      }
     }
   }
 

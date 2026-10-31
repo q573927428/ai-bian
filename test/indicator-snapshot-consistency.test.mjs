@@ -116,6 +116,8 @@ function createFixture() {
   const engine = Object.assign(Object.create(StrategyEngine.prototype), {
     config, indicatorsHub: hub, indicatorRegistry: registry, indicatorPrecompute: precompute,
     aiCache: new Map(), currentLoopAIRequests: 0,
+    // 此夹具跳过构造函数，需要显式初始化每轮回退统计。
+    indicatorFallbackStats: { analyses: 0, indicators: 0, symbols: new Set(), samples: new Set() },
     getOpeningBlockReason: () => null,
     positionManager: { hasConflict: async () => false },
     aiAnalyzer: { async analyze(...args) { calls.push(args); return null } }
