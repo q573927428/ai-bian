@@ -1104,7 +1104,7 @@ const updateChart = (preserveViewport = false) => {
           setTimeout(() => {
             if (chart) {
               chart.timeScale().applyOptions({
-                rightOffset: 30
+                rightOffset: getChartOptions(props.theme).timeScale.rightOffset
               })
             }
           }, 0)

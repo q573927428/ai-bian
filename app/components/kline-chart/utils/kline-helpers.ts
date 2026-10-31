@@ -143,7 +143,8 @@ export function getChartOptions(theme: 'light' | 'dark') {
     timeScale: {
       timeVisible: true,
       secondsVisible: false,
-      rightOffset: 30,
+      // 为右侧支撑阻力标签预留空间，避免文字覆盖最新 K 线。
+      rightOffset: 50,
       borderColor: '#CCCCCC',
       tickMarkFormatter: (time: number) => {
         const date = new Date(time * 1000)
