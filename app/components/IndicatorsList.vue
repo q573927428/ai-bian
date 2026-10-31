@@ -23,13 +23,18 @@
       <el-input v-model="symbolSearch" class="symbol-search" size="small" placeholder="搜索交易对" aria-label="搜索交易对" clearable>
         <template #prefix><el-icon><ElIconSearch /></el-icon></template>
       </el-input>
+      <el-select :model-value="confidenceSort" class="confidence-sort" size="small" placeholder="当前按列排序" aria-label="交易对评分排序" @change="handleConfidenceSortChange">
+        <el-option label="默认排序" value="default" />
+        <el-option label="多头评分 ↓" value="longConfidence" />
+        <el-option label="空头评分 ↓" value="shortConfidence" />
+      </el-select>
       <el-button class="refresh-button" size="small" :loading="loading" @click="fetchData">
         <el-icon><ElIconRefresh /></el-icon>刷新
       </el-button>
     </div>
 
     <el-alert v-if="errorMessage" type="warning" :closable="false" show-icon>{{ errorMessage }}</el-alert>
-    <el-table v-loading="loading" class="indicators-table" height="100%" :data="filteredRows" row-key="symbol" :current-row-key="selectedSymbol" :row-class-name="selectedRowClass" :highlight-current-row="embedded" :empty-text="rows.length ? '当前筛选下暂无交易对' : '暂无已配置交易对或指标数据'" stripe size="small" style="width: 100%" @sort-change="handleSortChange" @row-click="handleRowClick">
+    <el-table ref="tableRef" v-loading="loading" class="indicators-table" height="100%" :data="filteredRows" row-key="symbol" :current-row-key="selectedSymbol" :row-class-name="selectedRowClass" :highlight-current-row="embedded" :empty-text="rows.length ? '当前筛选下暂无交易对' : '暂无已配置交易对或指标数据'" stripe size="small" style="width: 100%" @sort-change="handleSortChange" @row-click="handleRowClick">
       <el-table-column label="" type="index" align="center" header-align="center" width="35" fixed="left" />
       <el-table-column prop="symbol" label="交易对" fixed min-width="110">
         <template #default="{ row }">
@@ -218,7 +223,7 @@
 <script setup lang="ts">
 // ==================== 指标看板 ====================
 import { computed, ref, watch, onUnmounted } from 'vue'
-import { ElDrawer } from 'element-plus'
+import { ElDrawer, type TableInstance } from 'element-plus'
 import { useBotStore } from '../stores/bot'
 import { useCoinIcon } from '../composables/useCoinIcon'
 import type { SupportResistanceSnapshot } from '../../types/support-resistance'
@@ -324,7 +329,7 @@ const symbolSearch = ref('')
 const filteredRows = computed(() => {
   // 搜索仅过滤已加载数据，与方向筛选叠加，不触发额外指标请求或改变当前排序。
   const keyword = symbolSearch.value.toUpperCase().replace(/[\s/_-]/g, '')
-  return rows.value.filter(row => row.symbol.toUpperCase().replace(/[\s/_-]/g, '').includes(keyword)
+  return sortedRows.value.filter(row => row.symbol.toUpperCase().replace(/[\s/_-]/g, '').includes(keyword)
     && (signalFilter.value === '全部' || resonanceInfo(row.symbol).tone === signalFilter.value))
 })
 const periodSignals = computed(() => Object.fromEntries(
@@ -390,9 +395,29 @@ async function refreshStructure() {
   }
 }
 type SortOrder = 'ascending' | 'descending' | null
-type SortProp = 'rsi' | 'er' | 'macdHistogram' | 'atrPercent' | 'oiChangePercent' | 'volumeRatio' | 'netInflowPercent' | 'cumulativeNetInflow' | null
+type ConfidenceSort = 'default' | 'longConfidence' | 'shortConfidence'
+type SortProp = 'rsi' | 'er' | 'macdHistogram' | 'atrPercent' | 'oiChangePercent' | 'volumeRatio' | 'netInflowPercent' | 'cumulativeNetInflow' | 'longConfidence' | 'shortConfidence' | null
+const tableRef = ref<TableInstance>()
 const sortProp = ref<SortProp>(null)
 const sortOrder = ref<SortOrder>(null)
+// 共用一份排序状态；列排序生效时显示占位提示，避免误示为默认顺序。
+const confidenceSort = computed(() => sortProp.value === 'longConfidence' || sortProp.value === 'shortConfidence'
+  ? sortProp.value : sortProp.value && sortOrder.value ? '' : 'default')
+const sortedRows = computed(() => {
+  const prop = sortProp.value
+  if (!prop || !sortOrder.value) return rows.value
+  const direction = sortOrder.value === 'ascending' ? 1 : -1
+  // 保留接口返回的配置顺序，取消排序可直接恢复；同分按原顺序稳定展示。
+  // 评分轮询更新时自动重算排序，缺失值始终置底。
+  return [...rows.value].sort((left, right) => {
+    const leftValue = left[prop]
+    const rightValue = right[prop]
+    const leftValid = typeof leftValue === 'number' && Number.isFinite(leftValue)
+    const rightValid = typeof rightValue === 'number' && Number.isFinite(rightValue)
+    if (!leftValid || !rightValid) return leftValid === rightValid ? 0 : leftValid ? -1 : 1
+    return (leftValue - rightValue) * direction
+  })
+})
 const symbols = computed<string[]>(() => {
   const configuredSymbols = botStore.config?.symbols
   if (!Array.isArray(configuredSymbols)) return []
@@ -435,8 +460,7 @@ async function fetchData() {
   // 切换周期或连续刷新时，旧请求不得覆盖最新表格及共振状态。
   if (version !== fetchVersion) return
   rows.value = results.filter(Boolean) as IndicatorRow[]
-  applySort()
-  emit('symbols-ready', rows.value.map(row => row.symbol))
+  emit('symbols-ready', sortedRows.value.map(row => row.symbol))
   if (rows.value.length === 0) errorMessage.value = initializing
     ? '行情初始化中，稍后自动刷新' : '指标暂不可用，请确认指标中心已完成初始化'
   loading.value = false
@@ -469,19 +493,11 @@ function signalClass(signal: SignalTone) {
   return signal === '多头' ? 'up' : signal === '空头' || signal === '反转' ? 'down' : 'muted'
 }
 
-/** 按表格当前排序条件排列指标；缺失值始终置底，避免 -- 干扰数值排序。 */
-function applySort() {
-  if (!sortProp.value || !sortOrder.value) return
-  const direction = sortOrder.value === 'ascending' ? 1 : -1
-  const prop = sortProp.value
-  rows.value.sort((left, right) => {
-    const leftValue = left[prop]
-    const rightValue = right[prop]
-    const leftValid = typeof leftValue === 'number' && Number.isFinite(leftValue)
-    const rightValid = typeof rightValue === 'number' && Number.isFinite(rightValue)
-    if (!leftValid || !rightValid) return leftValid === rightValid ? 0 : leftValid ? -1 : 1
-    return (leftValue - rightValue) * direction
-  })
+/** 选择评分排序时清除列头箭头，默认选项恢复接口返回的交易对顺序。 */
+function handleConfidenceSortChange(value: ConfidenceSort) {
+  tableRef.value?.clearSort()
+  sortProp.value = value === 'default' ? null : value
+  sortOrder.value = value === 'default' ? null : 'descending'
 }
 
 /** 接收 Element Plus 的自定义排序事件，并在当前已加载数据上即时排序。 */
@@ -490,7 +506,6 @@ function handleSortChange({ prop, order }: { prop?: string | null; order?: strin
     ? prop as SortProp
     : null
   sortOrder.value = order === 'ascending' || order === 'descending' ? order : null
-  applySort()
 }
 
 /** 按单根高低价缩放当前 K 线；无波动时在中线展示十字，不伪造振幅。 */
@@ -832,6 +847,7 @@ onUnmounted(() => {
 /* 仅突出双向评分中更高的一侧；相等或数据缺失时不暗示方向优势。 */
 .confidence-leading { font-weight: 700; }
 .symbol-search { width: 170px; margin-left: auto; }
+.confidence-sort { width: 140px; }
 .adx-line { display: flex; align-items: center; gap: 8px; white-space: nowrap; }
 .di-line { display: flex; align-items: center; gap: 8px; white-space: nowrap; }
 .up { color: var(--el-color-success); }.down { color: var(--el-color-danger); }.muted { color: var(--el-text-color-secondary); }

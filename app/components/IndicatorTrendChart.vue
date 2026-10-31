@@ -273,9 +273,13 @@ function draw() {
     if (index !== inspectedIndex) { updateTitles(index); inspectedIndex = index }
   }
   const levels = [
-    { title: '支撑', zone: snapshot?.nearestSupport, color: '#67c23a', edge: 'upper' as const },
-    { title: '阻力', zone: snapshot?.nearestResistance, color: '#f56c6c', edge: 'lower' as const }
-  ].flatMap(({ title, zone, color, edge }) => zone ? [{ name: `${title} ${zone.lower === zone.upper ? price(zone.lower) : `${price(zone.lower)}～${price(zone.upper)}`}`, yAxis: zone[edge], lineStyle: { color }, label: { color } }] : [])
+    // 支撑与阻力采用相同格式，距离缺失时保留 --，不伪造零距离。
+    { title: '支撑', zone: snapshot?.nearestSupport, color: '#67c23a', edge: 'upper' as const,
+      detail: `（${snapshot?.nearestSupport?.touches ?? '--'}） ${snapshot?.supportDistanceATR != null && Number.isFinite(snapshot.supportDistanceATR) ? snapshot.supportDistanceATR.toFixed(2) : '--'} ATR` },
+    // 触碰次数和 ATR 距离均取同一结构快照，缺失距离显示 --，避免被误读为零距离。
+    { title: '阻力', zone: snapshot?.nearestResistance, color: '#f56c6c', edge: 'lower' as const,
+      detail: `（${snapshot?.nearestResistance?.touches ?? '--'}） ${snapshot?.resistanceDistanceATR != null && Number.isFinite(snapshot.resistanceDistanceATR) ? snapshot.resistanceDistanceATR.toFixed(2) : '--'} ATR` }
+  ].flatMap(({ title, zone, color, edge, detail }) => zone ? [{ name: `${title} ${zone.lower === zone.upper ? price(zone.lower) : `${price(zone.lower)}～${price(zone.upper)}`}${detail}`, yAxis: zone[edge], lineStyle: { color }, label: { color, position: edge === 'upper' ? 'insideEndBottom' : 'insideEndTop' } }] : [])
   // 每个连续区间单独建线，时间断档后也不会误画跨区连接线。
   const starts = [...new Set(flow.segmentStarts.filter(start => start >= 0))]
   const cvdSeries = starts.map(start => ({
@@ -357,7 +361,8 @@ function draw() {
     },
     series: [
       // 关键位标签移至右端，与左侧成交量刻度错开，仅显示文字。
-      { name: 'K线', type: 'candlestick', data: bars.map(bar => [bar.o, bar.c, bar.l, bar.h]), itemStyle: { color: '#67c23a', color0: '#f56c6c', borderColor: '#67c23a', borderColor0: '#f56c6c' }, markLine: { symbol: 'none', label: { formatter: '{b}', position: 'insideEndTop', fontSize: 10 }, data: levels } },
+      // 禁用 markLine 默认的两位小数坐标舍入，避免低价币的支撑、阻力被画到同一价位。
+      { name: 'K线', type: 'candlestick', data: bars.map(bar => [bar.o, bar.c, bar.l, bar.h]), itemStyle: { color: '#67c23a', color0: '#f56c6c', borderColor: '#67c23a', borderColor0: '#f56c6c' }, markLine: { precision: -1, symbol: 'none', label: { formatter: '{b}', position: 'insideEndTop', fontSize: 10 }, data: levels } },
       ...periods.map((period, i) => ({ name: `EMA${period}`, type: 'line', data: calculateEMA(bars.map(bar => bar.c), period).map((value, index) => index < period - 1 ? null : value), showSymbol: false, lineStyle: { width: 1, color: i ? '#9b8afb' : '#e6a23c' } })),
       ...cvdSeries,
       ...divergenceSeries,
