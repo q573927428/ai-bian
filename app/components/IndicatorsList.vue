@@ -255,7 +255,7 @@ import { useCoinIcon } from '../composables/useCoinIcon'
 import type { SupportResistanceSnapshot } from '../../types/support-resistance'
 import SupportResistanceInfo from './SupportResistanceInfo.vue'
 import { TREND_PERIODS, type EnvironmentContext } from '../utils/environment-confidence'
-import { matchesEntryProximity, type EntryProximityFilter } from '../../shared/utils/support-resistance-space'
+import { matchesEntryProximity, type EntryProximityFilter } from '../utils/support-resistance-space'
 
 /** 指标列表中的单个交易对展示数据。 */
 interface IndicatorRow {

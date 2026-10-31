@@ -529,7 +529,7 @@
 <script setup lang="ts">
 import { ref, reactive, watch, computed } from 'vue'
 import type { Strategy, CreateStrategyInput } from '../../types/strategy'
-import { DEFAULT_ER_PERIOD, MIN_ER_PERIOD, MAX_ER_PERIOD, normalizeERPeriod, normalizeERTimeframes } from '../../shared/utils/efficiency-ratio'
+import { DEFAULT_ER_PERIOD, MIN_ER_PERIOD, MAX_ER_PERIOD, normalizeERPeriod, normalizeERTimeframes } from '../utils/efficiency-ratio'
 import { useBotStore } from '../stores/bot'
 
 const props = defineProps<{

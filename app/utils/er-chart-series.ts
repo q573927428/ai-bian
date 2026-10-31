@@ -1,7 +1,7 @@
 // ==================== 趋势效率 ER 图表序列 ====================
 import type { SimpleKLineData } from '../../types/kline-simple'
 import type { ERTimeframe } from '../../types/efficiency-ratio'
-import { calculateEfficiencyRatio, normalizeERPeriod } from '../../shared/utils/efficiency-ratio.ts'
+import { calculateEfficiencyRatio, normalizeERPeriod } from './efficiency-ratio.ts'
 
 /** 同一 ER 窗口的趋势效率和有方向的区间涨跌幅。 */
 export interface ErChartMetrics {

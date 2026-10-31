@@ -9,7 +9,7 @@ import { loadEnvironmentContext } from '../../utils/environment-context'
 import { getMarketBreadth } from '../../utils/market-breadth'
 import { getBotConfig } from '../../utils/storage'
 import { formatEnvironmentConfidence } from '../../../app/utils/environment-confidence'
-import { normalizeERPeriod } from '../../../shared/utils/efficiency-ratio'
+import { normalizeERPeriod } from '../../../app/utils/efficiency-ratio'
 
 const VALID_TIMEFRAMES: Timeframe[] = ['5m', '15m', '1h', '4h', '1d']
 const TIMEFRAME_MINUTES: Record<Timeframe, number> = {

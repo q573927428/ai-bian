@@ -1,7 +1,7 @@
 // ==================== 指标统一获取与缓存中心 ====================
 
 import { calculateMoneyFlow } from '../../utils/money-flow'
-import { calculateEfficiencyRatio } from '../../../shared/utils/efficiency-ratio'
+import { calculateEfficiencyRatio } from '../../../app/utils/efficiency-ratio'
 import { EMA, RSI, ADX, ATR, MACD } from 'technicalindicators'
 import { calculateSupportResistance, type SupportResistanceOptions } from './SupportResistanceCalculator'
 import { SupportResistanceCache } from './SupportResistanceCache'

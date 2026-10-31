@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { calculateErChartSeries } from '../app/utils/er-chart-series.ts'
-import { calculateEfficiencyRatio } from '../shared/utils/efficiency-ratio.ts'
+import { calculateEfficiencyRatio } from '../app/utils/efficiency-ratio.ts'
 
 const start = Date.UTC(2026, 9, 30) / 1000
 const step = 900

@@ -6,7 +6,7 @@ import vm from 'node:vm'
 import ts from 'typescript'
 import * as vue from 'vue'
 import { parse, compileScript } from 'vue/compiler-sfc'
-import * as er from '../shared/utils/efficiency-ratio.ts'
+import * as er from '../app/utils/efficiency-ratio.ts'
 
 /** 执行真实配置源码，隔离网络和页面挂载；Vue 的响应式和 watcher 保持真实行为。 */
 function loadSource(source, dependencies = {}, globals = {}) {
@@ -31,7 +31,7 @@ async function createEditor(strategy) {
   } })
   const component = loadSource(script.content, {
     vue,
-    '../../shared/utils/efficiency-ratio': er,
+    '../utils/efficiency-ratio': er,
     '../stores/bot': { useBotStore: () => ({ botConfig: { symbols: ['BTCUSDT'] } }) }
   }, { $fetch: async () => ({ success: true, data: [] }) }).default
   const events = []
@@ -105,7 +105,7 @@ test('加载未配置 ER 的旧策略不隐式启用，主动勾选后才加入�
 
 test('服务端按策略周期覆盖旧 ER 独立配置，保持窗口边界及启用开关', () => {
   const source = readFileSync(new URL('../server/utils/strategy-indicators-normalizer.ts', import.meta.url), 'utf8')
-  const { normalizeStrategyIndicatorConfig } = loadSource(source, { '../../shared/utils/efficiency-ratio': er })
+  const { normalizeStrategyIndicatorConfig } = loadSource(source, { '../../app/utils/efficiency-ratio': er })
   const strategy = normalizeStrategyIndicatorConfig({
     marketData: { timeframes: ['15m', '5m', '15m'] },
     indicators: [{ type: 'ER', enabled: true, params: { period: 999 }, timeframes: ['1h', '15m', '1h'] }]

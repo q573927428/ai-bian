@@ -12,6 +12,11 @@ const TIMEFRAME_MS: Record<Timeframe, number> = {
   '5m': 300_000, '15m': 900_000, '1h': 3_600_000, '4h': 14_400_000, '1d': 86_400_000
 }
 
+// 计算表覆盖图表的全部周期；策略配置仍使用上表校验，避免放宽可选周期。
+const ER_TIMEFRAME_MS: Record<ERTimeframe, number> = {
+  ...TIMEFRAME_MS, '1m': 60_000, '1w': 604_800_000
+}
+
 /** 前后端使用相同边界，拒绝无效周期并保留可用的整数窗口。 */
 export function normalizeERPeriod(value: unknown): number {
   const period = Number(value ?? DEFAULT_ER_PERIOD)
@@ -40,8 +45,7 @@ export function calculateEfficiencyRatio<T extends ERTimeframe>(
 ): EfficiencyRatioSnapshot<T> {
   const period = normalizeERPeriod(options.period)
   const now = options.now ?? Date.now()
-  const timeframeMs = timeframe === '1m' ? 60_000
-    : timeframe === '1w' ? 604_800_000 : TIMEFRAME_MS[timeframe]
+  const timeframeMs = ER_TIMEFRAME_MS[timeframe]
   const result: EfficiencyRatioSnapshot<T> = {
     timeframe, period, status: 'insufficient_data', er: null, direction: null,
     netChange: null, netChangePercent: null, pathLength: null, startClose: null, endClose: null,

@@ -1,7 +1,7 @@
 // ==================== ER 数学、已收盘窗口及数据质量回归 ====================
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { calculateEfficiencyRatio, normalizeERPeriod, normalizeERTimeframes } from '../shared/utils/efficiency-ratio.ts'
+import { calculateEfficiencyRatio, normalizeERPeriod, normalizeERTimeframes } from '../app/utils/efficiency-ratio.ts'
 
 const duration = 900_000
 const start = Date.UTC(2026, 9, 30)

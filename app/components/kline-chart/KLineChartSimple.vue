@@ -130,7 +130,7 @@ import { calculateEMASeries, calculateATRSeries, calculateATRPercent } from '../
 import { calculateRSISeries } from '../../utils/rsi-calculator'
 import { calculateADXSeries } from '../../utils/adx-calculator'
 import { calculateErChartMetricsSeries } from '../../utils/er-chart-series'
-import { DEFAULT_ER_PERIOD } from '../../../shared/utils/efficiency-ratio'
+import { DEFAULT_ER_PERIOD } from '../../utils/efficiency-ratio'
 
 // 初始化bot store
 const botStore = useBotStore()

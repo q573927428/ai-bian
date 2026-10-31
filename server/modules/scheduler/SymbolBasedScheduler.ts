@@ -5,7 +5,7 @@ import type { OHLCV } from '../../../types'
 import { IndicatorsHub } from '../indicators/IndicatorsHub'
 import { BinanceService } from '../../utils/binance'
 import { logger } from '../../utils/logger'
-import { normalizeERTimeframes } from '../../../shared/utils/efficiency-ratio'
+import { normalizeERTimeframes } from '../../../app/utils/efficiency-ratio'
 
 /**
  * 市场快照：单个交易对的完整市场数据快照

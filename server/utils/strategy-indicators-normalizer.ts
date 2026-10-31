@@ -1,5 +1,5 @@
 import type { IndicatorConfig, StatisticsConfig, Strategy, Timeframe } from '../../types/strategy'
-import { normalizeERPeriod, normalizeERTimeframes } from '../../shared/utils/efficiency-ratio'
+import { normalizeERPeriod, normalizeERTimeframes } from '../../app/utils/efficiency-ratio'
 
 const ALLOWED_EMA_PERIODS = [7, 14, 20, 30, 50, 60, 120, 200]
 const DEFAULT_EMA_PERIODS = [14, 50]

@@ -6,7 +6,7 @@ import test from 'node:test'
 import vm from 'node:vm'
 import ts from 'typescript'
 import * as technicalIndicators from 'technicalindicators'
-import * as efficiencyRatio from '../shared/utils/efficiency-ratio.ts'
+import * as efficiencyRatio from '../app/utils/efficiency-ratio.ts'
 
 const require = createRequire(import.meta.url)
 const logger = { info() {}, warn() {}, error() {}, success() {} }
@@ -63,7 +63,7 @@ function createFixture() {
   ])
   const versions = new Map([['15m', 'main-1'], ['1h', 'volume-1']])
   const { IndicatorsHub } = loadModule('../server/modules/indicators/IndicatorsHub.ts', {
-    '../../../shared/utils/efficiency-ratio': efficiencyRatio,
+    '../../../app/utils/efficiency-ratio': efficiencyRatio,
     technicalindicators: technicalIndicators,
     '../../utils/stable-hash': hashes,
     '../../utils/logger': { logger },
@@ -98,7 +98,7 @@ function createFixture() {
   }, globals)
   const precompute = new IndicatorPrecomputeService(registry, hub, config)
   const { SymbolBasedScheduler } = loadModule('../server/modules/scheduler/SymbolBasedScheduler.ts', {
-    '../../../shared/utils/efficiency-ratio': efficiencyRatio,
+    '../../../app/utils/efficiency-ratio': efficiencyRatio,
     '../../utils/logger': { logger }
   }, globals)
   const scheduler = new SymbolBasedScheduler(hub, { fetchPrice: async () => 250 })
@@ -106,7 +106,7 @@ function createFixture() {
   const screener = new AIPreScreener()
   const calls = []
   const { StrategyEngine } = loadModule('../server/modules/strategy-engine/StrategyEngine.ts', {
-    '../../../shared/utils/efficiency-ratio': efficiencyRatio,
+    '../../../app/utils/efficiency-ratio': efficiencyRatio,
     '../../utils/logger': { logger },
     '../../utils/stable-hash': hashes,
     '../../utils/ai-pre-screen': { aiPreScreener: screener },

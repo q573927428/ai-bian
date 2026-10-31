@@ -28,7 +28,7 @@ import { DailyTradeLimiter } from '../risk-control/DailyTradeLimiter'
 import { checkStrategyDailyLoss, getStrategyDailyLossLimit, resetDailyRiskState } from '../risk-control/DailyRiskState'
 import { saveBotState } from '../../utils/storage'
 import { getAnalysisMonth, saveTradeDecision } from '../../utils/trade-decision-store'
-import { normalizeERPeriod, normalizeERTimeframes } from '../../../shared/utils/efficiency-ratio'
+import { normalizeERPeriod, normalizeERTimeframes } from '../../../app/utils/efficiency-ratio'
 
 /**
  * 计算首次策略扫描距离当前时间的等待毫秒数。
