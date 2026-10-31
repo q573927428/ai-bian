@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import test from 'node:test'
 import vm from 'node:vm'
+import { performance } from 'node:perf_hooks'
 import ts from 'typescript'
 import * as technicalIndicators from 'technicalindicators'
 import * as efficiencyRatio from '../app/utils/efficiency-ratio.ts'
@@ -41,12 +42,12 @@ const { IndicatorCombinationRegistry } = loadModule('../server/modules/indicator
 const volumeOnly = { enableAdx: false, enableAdxSlope: false, enableAtr: false, enableOi: false, enableVolume: true }
 
 /** 构造含盘中K线的固定窗口，主周期和成交量周期具有明显不同的累计量。 */
-function makeKlines(now, timeframeMs, currentVolume) {
+function makeKlines(now, timeframeMs, currentVolume, count = 150) {
   const currentTimestamp = Math.floor(now / timeframeMs) * timeframeMs
-  return Array.from({ length: 150 }, (_, i) => ({
-    timestamp: currentTimestamp - (149 - i) * timeframeMs,
+  return Array.from({ length: count }, (_, i) => ({
+    timestamp: currentTimestamp - (count - 1 - i) * timeframeMs,
     open: 100 + i, high: 102 + i, low: 99 + i, close: 101 + i,
-    volume: i === 149 ? currentVolume : 100
+    volume: i === count - 1 ? currentVolume : 100
   }))
 }
 
@@ -170,6 +171,80 @@ test('AI 通信失败明确记录分析不可用，不生成观望信号或缓�
   }
 })
 
+test('同一快照任务并发去重，参数和新快照隔离，失败可重试且不阻塞当前执行栈', async () => {
+  const calculator = new SnapshotIndicatorCalculator()
+  const snapshot = {}
+  let executions = 0
+  const loader = async () => { executions++; return { values: { rsi: executions } } }
+  const first = calculator.get(snapshot, '5m', 'RSI', { period: 14 }, loader)
+  const repeated = calculator.get(snapshot, '5m', 'RSI', { period: 14 }, loader)
+  assert.equal(first, repeated)
+  assert.equal(executions, 0)
+  assert.equal(await first, await repeated)
+  await calculator.get(snapshot, '5m', 'RSI', { period: 7 }, loader)
+  await calculator.get({}, '5m', 'RSI', { period: 14 }, loader)
+  assert.equal(executions, 3)
+  await assert.rejects(calculator.get(snapshot, '5m', 'ATR', {}, async () => { throw new Error('失败') }), /失败/)
+  await calculator.get(snapshot, '5m', 'ATR', {}, loader)
+  assert.equal(executions, 4)
+  assert.equal(calculator.getStats().failed, 1)
+  assert.equal(calculator.getStats().reused, 1)
+})
+
+test('策略共享快照结果，即使后台覆盖指标中心缓存也不重复获取；参数变化仍重新计算', async () => {
+  const f = createFixture()
+  const snapshot = await f.scheduler.buildMarketSnapshot('BTCUSDT')
+  f.precompute.getMany = () => { assert.fail('策略不应依赖跨轮预计算') }
+  const first = new Map()
+  await f.engine.hydrateIndicatorsForStrategy(f.strategy, 'BTCUSDT', '15m', first, snapshot)
+  // 模拟看板或后台刷新覆盖指标中心，不应让同轮第二个策略再访问该中心。
+  const getIndicators = f.hub.getIndicators.bind(f.hub)
+  const getEMA = f.hub.getEMAByPeriods.bind(f.hub)
+  f.hub.getIndicators = async () => { assert.fail('相同快照应复用已完成任务') }
+  f.hub.getEMAByPeriods = f.hub.getIndicators
+  const second = new Map()
+  await f.engine.hydrateIndicatorsForStrategy(f.strategy, 'BTCUSDT', '15m', second, snapshot)
+  for (const [key, value] of first) assert.equal(second.get(key), value)
+  assert.equal(f.engine.snapshotIndicatorCalculator.getStats().reused, 4)
+  f.hub.getIndicators = getIndicators
+  f.hub.getEMAByPeriods = getEMA
+  const changed = structuredClone(f.strategy)
+  changed.indicators.find(i => i.type === 'ADX').params.period = 7
+  const third = new Map()
+  await f.engine.hydrateIndicatorsForStrategy(changed, 'BTCUSDT', '15m', third, snapshot)
+  assert.notEqual(third.get('15m_ADX'), first.get('15m_ADX'))
+  assert.equal(third.get('15m_EMA'), first.get('15m_EMA'))
+})
+
+test('700项本地指标任务在300根K线上计算并复用的离线耗时', async t => {
+  const f = createFixture()
+  const calculator = new SnapshotIndicatorCalculator()
+  const started = performance.now()
+  for (let i = 0; i < 100; i++) {
+    // 每组提供不同盘中价格，避免把指标中心已有命中计为全量重算性能。
+    const klines = makeKlines(f.clock.now, 900000, 100 + i, 300)
+    klines.at(-1).close += i / 100
+    const snapshot = { symbol: 'BTCUSDT', timestamp: f.clock.now, klinesByTimeframe: new Map([['15m', klines]]) }
+    const tasks = [
+      ['EMA', { periods: [20, 60] }, () => f.hub.getEMAByPeriods('BTCUSDT', '15m', [20, 60], klines)],
+      ...[
+        ['RSI', { rsiPeriod: 14 }], ['ADX', { adxPeriod: 14 }],
+        ['ATR', { atrPeriod: 14 }], ['MACD', { macdFastPeriod: 12, macdSlowPeriod: 26, macdSignalPeriod: 9 }],
+        ['Volume', {}], ['ER', { erPeriod: 20, snapshotTimestamp: f.clock.now }]
+      ].map(([type, params]) => [type, params, () => f.hub.getIndicators('BTCUSDT', '15m', type, params, klines)])
+    ]
+    for (const [type, params, loader] of tasks) {
+      await Promise.all([calculator.get(snapshot, '15m', type, params, loader), calculator.get(snapshot, '15m', type, params, loader)])
+    }
+  }
+  const elapsedMs = performance.now() - started
+  const stats = calculator.getStats()
+  assert.equal(stats.calculated, 700)
+  assert.equal(stats.reused, 700)
+  assert.equal(stats.failed, 0)
+  t.diagnostic(`离线样本：700项独立任务、300根K线；同步执行累计 ${stats.synchronousMs}ms，含让出调度的总耗时 ${elapsedMs.toFixed(2)}ms；不含AI/网络/慢统计，不能视为生产耗时保证`)
+})
+
 test('缓存摘要覆盖完整行情与参数，字段顺序保持稳定', () => {
   const common = { indicators: { longCommonPrefix: 'x'.repeat(200), volumeEmaAverage: 100 }, candleProgress: 0.5 }
   assert.notEqual(hashes.shortHash(common), hashes.shortHash({ ...common, candleProgress: 0.6 }))
@@ -288,7 +363,7 @@ test('配置更新期间未完成的旧预计算不能回填缓存', async () =>
   assert.equal(f.precompute.getStatus().cacheSize, 0)
 })
 
-test('快照固定后拒用其他窗口的预计算指标，回退计算和跨周期量能进度均保持原时点', async () => {
+test('快照固定后不读取其他窗口的预计算指标，计算和跨周期量能进度均保持原时点', async () => {
   const f = createFixture()
   const snapshot = await f.scheduler.buildMarketSnapshot('BTCUSDT')
   const originalVolumeCandle = snapshot.klinesByTimeframe.get('1h').at(-1)

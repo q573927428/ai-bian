@@ -2,11 +2,13 @@
 
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
+import { createRequire } from 'node:module'
 import test from 'node:test'
 import vm from 'node:vm'
 import ts from 'typescript'
 
 const logger = { info() {}, warn() {}, error() {}, success() {} }
+const require = createRequire(import.meta.url)
 
 /** 执行真实源码，仅隔离交易所、日志和持久化依赖，避免连接实盘或改写交易数据。 */
 function loadModule(path, dependencies = {}, globals = {}) {
@@ -19,7 +21,7 @@ function loadModule(path, dependencies = {}, globals = {}) {
   assert.deepEqual(compiled.diagnostics, [])
   const context = {
     exports: {}, setTimeout, clearTimeout, clearInterval,
-    require: id => dependencies[id] ?? {},
+    require: id => dependencies[id] ?? (id.startsWith('node:') ? require(id) : {}),
     ...globals
   }
   vm.runInNewContext(compiled.outputText, context, { filename: path })
@@ -27,6 +29,10 @@ function loadModule(path, dependencies = {}, globals = {}) {
 }
 
 const tradeHelpers = loadModule('../server/utils/trade-helpers.ts')
+const hashes = loadModule('../server/utils/stable-hash.ts')
+const { SnapshotIndicatorCalculator } = loadModule('../server/modules/strategy-engine/SnapshotIndicatorCalculator.ts', {
+  '../../utils/stable-hash': hashes
+})
 const riskCalculations = loadModule('../server/utils/indicators-risk.ts')
 const riskDependencies = { '../../utils/logger': { logger } }
 const dailyRisk = loadModule('../server/modules/risk-control/DailyRiskState.ts', riskDependencies)
@@ -89,6 +95,7 @@ function createFixture(now = Date.now()) {
     clearPosition(symbol) { positions.delete(symbol) }
   }
   const { StrategyEngine } = loadModule('../server/modules/strategy-engine/StrategyEngine.ts', {
+    './SnapshotIndicatorCalculator': { SnapshotIndicatorCalculator },
     '../../utils/logger': { logger },
     '../../utils/storage': storage,
     '../risk-control/DailyRiskState': dailyRiskState,
