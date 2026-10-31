@@ -699,7 +699,7 @@ export class StrategyEngine {
     const stats = this.snapshotIndicatorCalculator.getStats()
     if (stats.requests === 0) return
     logger.info('StrategyEngine',
-      `本轮快照指标：请求 ${stats.requests} 项，独立任务 ${stats.calculated} 项，同快照复用 ${stats.reused} 项，失败 ${stats.failed} 项；耗时 ${stats.synchronousMs}ms`, stats)
+      `本轮快照指标：请求 ${stats.requests} 项，独立任务 ${stats.calculated} 项，同快照复用 ${stats.reused} 项，失败 ${stats.failed} 项；本地同步执行累计 ${stats.synchronousMs}ms`, stats)
   }
 
   /**
