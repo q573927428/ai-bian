@@ -12,14 +12,40 @@
       <el-radio-group v-model="timeframe" size="small" @change="fetchData">
         <el-radio-button v-for="item in timeframes" :key="item" :value="item">{{ item }}</el-radio-button>
       </el-radio-group>
-      <span class="candle-progress muted" title="当前所选周期的 K 线时间进度">K线进度 {{ currentCandleProgress }}%</span>
+      <div
+        class="candle-progress"
+        role="progressbar"
+        aria-label="当前 K 线时间进度"
+        :aria-valuenow="Number(currentCandleProgress)"
+        :aria-valuemin="0"
+        :aria-valuemax="100"
+        :aria-valuetext="`${timeframe} K线进度 ${currentCandleProgress}%`"
+        :title="`当前 ${timeframe} K 线时间进度：${currentCandleProgress}%`"
+      >
+        <span class="candle-progress-label">K线进度</span>
+        <span class="candle-progress-track" aria-hidden="true"><span :style="{ width: `${currentCandleProgress}%` }"></span></span>
+        <span class="candle-progress-value">{{ currentCandleProgress }}%</span>
+      </div>
       <el-radio-group v-model="signalFilter" size="small" aria-label="五周期方向筛选">
         <el-radio-button value="全部">全部</el-radio-button>
-        <el-radio-button value="多头">多头背景</el-radio-button>
-        <el-radio-button value="空头">空头背景</el-radio-button>
-        <el-radio-button value="反转">反转观察</el-radio-button>
-        <el-radio-button value="观望">分歧观望</el-radio-button>
+        <el-radio-button value="多头" title="多头背景">多头</el-radio-button>
+        <el-radio-button value="空头" title="空头背景">空头</el-radio-button>
+        <el-radio-button value="反转" title="反转观察">反转</el-radio-button>
+        <el-radio-button value="观望" title="分歧观望">观望</el-radio-button>
       </el-radio-group>
+      <div class="proximity-filter">
+        <el-select v-model="proximityFilter" class="proximity-select" size="small" aria-label="支撑阻力位置筛选">
+          <el-option label="不限位置" value="all" />
+          <el-option label="近支撑" value="long" title="做多：最近支撑距离不超过所填 ATR 上限" />
+          <el-option label="近阻力" value="short" title="做空：最近阻力距离不超过所填 ATR 上限" />
+        </el-select>
+        <template v-if="proximityFilter !== 'all'">
+          <span class="muted">≤</span>
+          <el-input-number v-model="proximityThreshold" class="proximity-threshold" size="small" :min="0" :step="0.1" :value-on-clear="null" placeholder="上限" aria-label="支撑阻力距离 ATR 上限" />
+          <span class="muted">ATR</span>
+          <span v-if="proximityThreshold != null && !loading" class="muted" title="筛选结果 / 已加载交易对" aria-live="polite">{{ filteredRows.length }}/{{ rows.length }}</span>
+        </template>
+      </div>
       <el-input v-model="symbolSearch" class="symbol-search" size="small" placeholder="搜索交易对" aria-label="搜索交易对" clearable>
         <template #prefix><el-icon><ElIconSearch /></el-icon></template>
       </el-input>
@@ -34,7 +60,7 @@
     </div>
 
     <el-alert v-if="errorMessage" type="warning" :closable="false" show-icon>{{ errorMessage }}</el-alert>
-    <el-table ref="tableRef" v-loading="loading" class="indicators-table" height="100%" :data="filteredRows" row-key="symbol" :current-row-key="selectedSymbol" :row-class-name="selectedRowClass" :highlight-current-row="embedded" :empty-text="rows.length ? '当前筛选下暂无交易对' : '暂无已配置交易对或指标数据'" stripe size="small" style="width: 100%" @sort-change="handleSortChange" @row-click="handleRowClick">
+    <el-table ref="tableRef" v-loading="loading" class="indicators-table" height="100%" :data="filteredRows" row-key="symbol" :current-row-key="selectedSymbol" :row-class-name="selectedRowClass" :highlight-current-row="embedded" :empty-text="proximityFilter !== 'all' && proximityThreshold == null ? '请填写 ATR 距离上限' : rows.length ? '当前筛选下暂无交易对' : '暂无已配置交易对或指标数据'" stripe size="small" style="width: 100%" @sort-change="handleSortChange" @row-click="handleRowClick">
       <el-table-column label="" type="index" align="center" header-align="center" width="35" fixed="left" />
       <el-table-column prop="symbol" label="交易对" fixed min-width="110">
         <template #default="{ row }">
@@ -229,6 +255,7 @@ import { useCoinIcon } from '../composables/useCoinIcon'
 import type { SupportResistanceSnapshot } from '../../types/support-resistance'
 import SupportResistanceInfo from './SupportResistanceInfo.vue'
 import { TREND_PERIODS, type EnvironmentContext } from '../utils/environment-confidence'
+import { matchesEntryProximity, type EntryProximityFilter } from '../../shared/utils/support-resistance-space'
 
 /** 指标列表中的单个交易对展示数据。 */
 interface IndicatorRow {
@@ -325,12 +352,20 @@ const errorMessage = ref('')
 type SignalTone = '多头' | '空头' | '反转' | '观望'
 const signalFilter = ref<SignalTone | '全部'>('全部')
 const symbolSearch = ref('')
+const proximityFilter = ref<EntryProximityFilter>('all')
+// 各周期独立保留用户调整值，切换周期时自动显示该周期的上限。
+const proximityThresholds = ref<Record<typeof TREND_PERIODS[number], number | null>>({ '5m': null, '15m': null, '1h': null, '4h': null, '1d': null })
+const proximityThreshold = computed({
+  get: () => proximityThresholds.value[timeframe.value as typeof TREND_PERIODS[number]],
+  set: (value: number | null | undefined) => { proximityThresholds.value[timeframe.value as typeof TREND_PERIODS[number]] = value ?? null }
+})
 // 筛选与交易对下方的一致性文字使用同一规则，随后台五周期数据更新。
 const filteredRows = computed(() => {
   // 搜索仅过滤已加载数据，与方向筛选叠加，不触发额外指标请求或改变当前排序。
   const keyword = symbolSearch.value.toUpperCase().replace(/[\s/_-]/g, '')
   return sortedRows.value.filter(row => row.symbol.toUpperCase().replace(/[\s/_-]/g, '').includes(keyword)
-    && (signalFilter.value === '全部' || resonanceInfo(row.symbol).tone === signalFilter.value))
+    && (signalFilter.value === '全部' || resonanceInfo(row.symbol).tone === signalFilter.value)
+    && matchesEntryProximity(row.supportResistance, timeframe.value, proximityFilter.value, proximityThreshold.value))
 })
 const periodSignals = computed(() => Object.fromEntries(
   rows.value.map(row => [row.symbol, row.environmentContext?.periods ?? {}])
@@ -838,7 +873,17 @@ onUnmounted(() => {
 
 <style scoped>
 .toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 16px; }
-.candle-progress { white-space: nowrap; font-size: 12px; font-variant-numeric: tabular-nums; }
+/* 与 small 尺寸筛选控件齐高，细进度条用主题主色表达时间进展。 */
+.candle-progress { display: inline-flex; align-items: center; gap: 7px; height: 24px; padding: 0 8px; box-sizing: border-box; border: 1px solid var(--el-border-color); border-radius: 4px; background: var(--el-fill-color-light); white-space: nowrap; font-size: 12px; font-variant-numeric: tabular-nums; }
+.candle-progress-label { color: var(--el-text-color-secondary); }
+/* 用次级文字灰作为未完成轨道，避免深色主题下与标签底色混在一起。 */
+.candle-progress-track { display: block; width: 32px; height: 4px; overflow: hidden; border-radius: 2px; background: var(--el-text-color-secondary); }
+.candle-progress-track > span { display: block; height: 100%; border-radius: inherit; background: var(--el-color-primary); transition: width .3s ease; }
+.candle-progress-value { min-width: 43px; text-align: right; color: var(--el-color-primary); font-weight: 600; }
+@media (prefers-reduced-motion: reduce) { .candle-progress-track > span { transition: none; } }
+.proximity-filter { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 12px; }
+.proximity-select { width: 100px; }
+.proximity-threshold { width: 100px; }
 .price-candle-cell { display: flex; align-items: center; gap: 8px; }
 .current-candle { width: 24px; height: 48px; flex: 0 0 24px; }
 .candle-unavailable { width: 24px; flex: 0 0 24px; text-align: center; }
