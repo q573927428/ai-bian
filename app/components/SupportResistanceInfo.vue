@@ -23,10 +23,10 @@
       </template>
       <div class="structure-levels">
         <div class="level-group">
-        <div><span class="resistance">阻力</span> {{ zone(snapshot.nearestResistance) }}{{ snapshot.nearestResistance ? `（${snapshot.nearestResistance.touches}）` : '' }}</div>
+        <div><span class="resistance">阻力</span> {{ nearestOnly ? nearestPrice(snapshot.nearestResistance) : zone(snapshot.nearestResistance) }}{{ snapshot.nearestResistance ? `（${snapshot.nearestResistance.touches}）` : '' }}<span v-if="nearestOnly && snapshot.nearestResistance" class="distance"> · {{ number(snapshot.resistanceDistanceATR) }}</span></div>
         </div>
         <div class="level-group">
-        <div><span class="support">支撑</span> {{ zone(snapshot.nearestSupport) }}{{ snapshot.nearestSupport ? `（${snapshot.nearestSupport.touches}）` : '' }}</div>
+        <div><span class="support">支撑</span> {{ nearestOnly ? nearestPrice(snapshot.nearestSupport) : zone(snapshot.nearestSupport) }}{{ snapshot.nearestSupport ? `（${snapshot.nearestSupport.touches}）` : '' }}<span v-if="nearestOnly && snapshot.nearestSupport" class="distance"> · {{ number(snapshot.supportDistanceATR) }}</span></div>
         </div>
       </div>
     </el-tooltip>
@@ -47,6 +47,8 @@ import type { EntrySupportResistance, PriceZone, SupportResistanceSnapshot } fro
 interface Props {
   snapshot?: SupportResistanceSnapshot | EntrySupportResistance | null
   detailed?: boolean
+  /** 指标看板仅显示距参考价最近的区域边界及 ATR 距离。 */
+  nearestOnly?: boolean
   /** 图表内紧凑显示价位、百分比距离及 ATR 距离倍数。 */
   compact?: boolean
   historical?: boolean
@@ -63,6 +65,13 @@ const number = (value: number | null) => value == null ? '--' : value.toFixed(2)
 // 小币价保留有效数字，避免固定小数位将区域两端都显示为0。
 const price = (value: number | null) => value == null ? '--' : Number(value.toPrecision(7)).toString()
 const zone = (value: Pick<PriceZone, 'lower' | 'upper'> | null) => value ? `${price(value.lower)}～${price(value.upper)}` : '未识别'
+/** 取离当前参考价格最近的边界，区域内价格也使用同一比较规则。 */
+function nearestPrice(value: Pick<PriceZone, 'lower' | 'upper'> | null) {
+  if (!value) return '未识别'
+  const reference = props.snapshot?.referencePrice
+  if (reference == null) return '--'
+  return price(Math.abs(reference - value.lower) <= Math.abs(reference - value.upper) ? value.lower : value.upper)
+}
 const time = (value: number | null) => value == null ? '--' : new Date(value).toLocaleString('zh-CN', { hour12: false })
 </script>
 

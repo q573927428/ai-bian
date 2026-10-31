@@ -151,9 +151,9 @@
           <span :class="[row.diDirection.startsWith('多头') ? 'up' : row.diDirection.startsWith('空头') ? 'down' : 'muted', { 'macd-weakening': row.diDirection.endsWith('减弱') }]">{{ row.diDirection }}</span>
         </template>
       </el-table-column>
-      <el-table-column label="实时支撑 / 阻力" min-width="175">
+      <el-table-column label="实时支撑 / 阻力" min-width="150">
         <template #default="{ row }">
-          <SupportResistanceInfo :snapshot="row.supportResistance" />
+          <SupportResistanceInfo :snapshot="row.supportResistance" nearest-only />
         </template>
       </el-table-column>
       <el-table-column label="ER(20)" min-width="78" prop="er" sortable="custom">
