@@ -5,8 +5,8 @@ import { mkdtemp, readdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { randomUUID } from 'node:crypto'
-import { getAnalysisMonth, readTradeDecision, saveTradeDecision } from './trade-decision-store.ts'
-import type { TradeDecision } from '../../types/trade-decision'
+import { getAnalysisMonth, readTradeDecision, saveTradeDecision } from '../server/utils/trade-decision-store.ts'
+import type { TradeDecision } from '../types/trade-decision'
 
 test('完整中文提示词原样持久化，同一分析复用文件，读取不依赖进程缓存', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'trade-decision-'))
