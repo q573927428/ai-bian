@@ -21,9 +21,9 @@ export interface PreScreenConfig {
   minOiChangePercent?: number // 默认 0.2%
   maxOiChangePercent?: number // 默认 50%
 
-  // 成交量预估模式：基于K线完成进度预估整根K线成交量后与历史均值比较
+  // 成交量预估模式：使用成交量对应周期的K线进度，与AI相同快照的EMA比较
   // 解决未收盘K线成交量偏低的问题
-  minEstimatedVolumeRatio?: number // 默认 0.3 (预估成交量至少是历史均值的30%)
+  minEstimatedVolumeRatio?: number // 默认 0.3 (预估成交量至少是成交量EMA的30%)
 
   // K线完成进度阈值：低于此进度时跳过成交量检查（数据太少不可靠）
   minCandleProgressForVolume?: number // 默认 0.1 (10%)
@@ -58,9 +58,8 @@ export interface PreScreenInput {
 
   // 成交量相关
   currentVolume?: number
-  prevVolume?: number
-  volumeAverage?: number // 过去N根K线的平均成交量（用于预估模式）
-  candleProgress?: number // 当前K线完成进度 0-1（由 StrategyEngine 实时计算，拿不到时用 BotConfig.defaultCandleProgress 兜底）
+  volumeEmaAverage?: number // 与AI共用同一成交量周期和快照的EMA，包含当前K线快照值
+  candleProgress?: number // 成交量对应K线在市场快照时刻的完成进度 0-1
 }
 
 /**
@@ -197,12 +196,11 @@ export class AIPreScreener {
     }
 
     // 成交量检查（支持预估模式，解决未收盘K线成交量偏低的问题）
-    if (passed && cfg.enableVolume && input.currentVolume !== undefined && input.prevVolume !== undefined) {
+    if (passed && cfg.enableVolume && input.currentVolume !== undefined) {
       const volumeCheck = this.checkVolume(
         input.currentVolume,
-        input.prevVolume,
         cfg,
-        input.volumeAverage,
+        input.volumeEmaAverage,
         input.candleProgress
       )
       checks.volume = volumeCheck
@@ -296,35 +294,36 @@ export class AIPreScreener {
   /**
    * 成交量检查（预估模式）
    *
-   * 基于K线完成进度预估整根K线成交量，与历史均值比较。
+   * 基于成交量对应周期的进度预估整根K线成交量，与AI使用的成交量EMA比较。
    * 解决未收盘K线成交量偏低的问题。
    *
    * 逻辑：
-   * 1. 必须有 candleProgress 和 volumeAverage 才能检查
+   * 1. 进度和EMA必须有效，数据缺失时拒绝，避免静默绕过量能门槛
    * 2. 若 candleProgress < minCandleProgressForVolume，跳过（数据太少不可靠）
-   * 3. 否则：estimatedVolume = currentVolume / candleProgress，与 volumeAverage 比较
+   * 3. 否则：estimatedVolume = currentVolume / candleProgress，与 volumeEmaAverage 比较
    */
   private checkVolume(
     currentVolume: number,
-    _prevVolume: number,
     cfg: Required<PreScreenConfig>,
-    volumeAverage?: number,
+    volumeEmaAverage?: number,
     candleProgress?: number
   ): { passed: boolean; value: number; threshold: string; reason?: string } {
-    // 缺少必要数据时跳过检查
-    if (candleProgress === undefined || candleProgress <= 0 || volumeAverage === undefined || volumeAverage <= 0) {
+    // 不以零值或缺失数据放行；周期刚开始的有效零进度仍由下方进度门槛处理。
+    if (!Number.isFinite(currentVolume) || currentVolume < 0
+      || candleProgress === undefined || !Number.isFinite(candleProgress) || candleProgress < 0 || candleProgress > 1
+      || volumeEmaAverage === undefined || !Number.isFinite(volumeEmaAverage) || volumeEmaAverage <= 0) {
       return {
-        passed: true,
+        passed: false,
         value: 0,
-        threshold: '跳过(缺少进度或历史均值数据)',
-        reason: undefined
+        threshold: '需要有效的K线进度和成交量EMA',
+        reason: '成交量数据不足: 缺少有效的K线进度或成交量EMA'
       }
     }
 
     const minProgress = cfg.minCandleProgressForVolume!
 
     // 进度太低，跳过检查（数据太少，预估不可靠）
-    if (candleProgress < minProgress) {
+    if (candleProgress === 0 || candleProgress < minProgress) {
       return {
         passed: true,
         value: 0,
@@ -335,17 +334,17 @@ export class AIPreScreener {
 
     // 预估整根K线成交量
     const estimatedVolume = currentVolume / candleProgress
-    const estimatedRatio = estimatedVolume / volumeAverage
+    const estimatedRatio = estimatedVolume / volumeEmaAverage
     const minEstimatedRatio = cfg.minEstimatedVolumeRatio!
 
     const passed = estimatedRatio >= minEstimatedRatio
     return {
       passed,
       value: estimatedRatio,
-      threshold: `预估成交量/历史均值 >= ${(minEstimatedRatio * 100).toFixed(0)}%`,
+      threshold: `预估成交量/成交量EMA >= ${(minEstimatedRatio * 100).toFixed(0)}%`,
       reason: passed
         ? undefined
-        : `成交量预估不足: 当前${currentVolume.toFixed(2)} 进度${(candleProgress * 100).toFixed(1)}% 预估${estimatedVolume.toFixed(2)} / 历史均值${volumeAverage.toFixed(2)} = ${(estimatedRatio * 100).toFixed(1)}% < ${(minEstimatedRatio * 100).toFixed(0)}%`
+        : `成交量预估不足: 当前${currentVolume.toFixed(2)} 进度${(candleProgress * 100).toFixed(1)}% 预估${estimatedVolume.toFixed(2)} / 成交量EMA${volumeEmaAverage.toFixed(2)} = ${(estimatedRatio * 100).toFixed(1)}% < ${(minEstimatedRatio * 100).toFixed(0)}%`
     }
   }
 

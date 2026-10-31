@@ -8,34 +8,36 @@ import { DatabaseSync } from 'node:sqlite'
 import { calculateMoneyFlow, formatMoneyFlowPrompt, MONEY_FLOW_WINDOW_BARS } from '../server/utils/money-flow.ts'
 import { initKLineDb, closeKLineDb, appendSimpleKLineData, updateLastKLine, getSimpleKLineAsOHLCV, hasMissingMoneyFlow, getKLineFileMTime, writeSimpleKLineFile, readSimpleKLineFile } from '../server/utils/kline-simple-storage.ts'
 
-/** 构造连续窗口，末根位于当前分钟，覆盖未收盘口径。 */
+/** 构造当前约定的6根连续窗口，末根位于当前分钟，覆盖未收盘口径。 */
 function bars() {
-  const start = Math.floor(Date.now() / 60_000) * 60_000 - 4 * 60_000
-  return Array.from({ length: 5 }, (_, i) => ({ timestamp: start + i * 60_000, open: 1, high: 1, low: 1, close: 1, volume: 1, quoteVolume: 100, takerBuyQuoteVolume: 65 }))
+  const start = Math.floor(Date.now() / 60_000) * 60_000 - 5 * 60_000
+  return Array.from({ length: 6 }, (_, i) => ({ timestamp: start + i * 60_000, open: 1, high: 1, low: 1, close: 1, volume: 1, quoteVolume: 100, takerBuyQuoteVolume: 65 }))
 }
 
 test('提示词保留周期、买卖方向、未收盘状态及缺失语义', () => {
   const flow = calculateMoneyFlow(bars(), 60_000)
+  assert.equal(MONEY_FLOW_WINDOW_BARS, 6)
   assert.equal(flow.windowBars, MONEY_FLOW_WINDOW_BARS)
   assert.match(formatMoneyFlowPrompt({ ...flow, windowBars: 10 }, '1m'), /近10根累计净流入/)
   const text = formatMoneyFlowPrompt(flow, '1m')
   assert.match(text, /主动资金流（1分钟，含未收盘K线）：\n本根净流入：\+30.00 USDT（\+30.00%）/)
-  assert.match(text, /近5根累计净流入：\+150.00 USDT（\+30.00%）/)
+  assert.match(text, /近6根累计净流入：\+180.00 USDT（\+30.00%）/)
   assert.match(text, /结合价格、成交量和OI判断趋势进一步分析/)
   const missing = formatMoneyFlowPrompt(calculateMoneyFlow([], 60_000), '15m')
   assert.match(missing, /本根净流入：暂无数据（暂无数据）/)
-  assert.match(missing, /近5根累计净流入：暂无数据（暂无数据）/)
+  assert.match(missing, /近6根累计净流入：暂无数据（暂无数据）/)
   assert.match(formatMoneyFlowPrompt({ ...flow, netInflow: -1200000, includesUnclosed: false }, '1h'), /1小时，仅含已收盘K线）：\n本根净流入：-120.00万 USDT/)
 })
 
 test('含当前未收盘，累计金额及加权比例正确，零额不产生比例', () => {
   const input = bars()
-  input[4].quoteVolume = 1000
-  input[4].takerBuyQuoteVolume = 400
+  input.at(-1).quoteVolume = 1000
+  input.at(-1).takerBuyQuoteVolume = 400
   const result = calculateMoneyFlow(input, 60_000)
   assert.equal(result.netInflowPercent, -20)
-  assert.equal(result.cumulativeNetInflow, -80)
-  assert.equal(result.cumulativeNetInflowPercent, -80 / 1400 * 100)
+  // 前5根各净流入30，末根净流出200；累计净额为-50，总成交额为1500。
+  assert.equal(result.cumulativeNetInflow, -50)
+  assert.equal(result.cumulativeNetInflowPercent, -50 / 1500 * 100)
   assert.equal(result.includesUnclosed, true)
   const zero = bars().map(bar => ({ ...bar, quoteVolume: 0, takerBuyQuoteVolume: 0 }))
   assert.equal(calculateMoneyFlow(zero, 60_000).cumulativeNetInflow, 0)

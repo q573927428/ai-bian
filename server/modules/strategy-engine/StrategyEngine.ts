@@ -2,7 +2,7 @@
 
 import type { Strategy, StrategyId, Timeframe, AIPromptConfig, StrategyDailyLossStatus } from '../../../types/strategy'
 import type { TradeSignal } from '../../../types/signal'
-import type { BotConfig, OrderExecutionSummary } from '../../../types'
+import type { BotConfig, OrderExecutionSummary, OHLCV } from '../../../types'
 import { StrategyStore } from '../strategy-store/StrategyStore'
 import { IndicatorsHub } from '../indicators/IndicatorsHub'
 import { summarizeEntrySupportResistance } from '../indicators/support-resistance-entry'
@@ -340,10 +340,9 @@ export class StrategyEngine {
   /**
    * 计算当前K线已走的时间比例 (0-1)
    */
-  private calculateCandleProgress(candleTimestamp: number, timeframe: string): number {
+  private calculateCandleProgress(candleTimestamp: number, timeframe: string, asOf: number): number {
     const timeframeMs = this.timeframeToMs(timeframe)
-    const now = Date.now()
-    const elapsed = now - candleTimestamp
+    const elapsed = asOf - candleTimestamp
     const progress = Math.min(Math.max(elapsed / timeframeMs, 0), 1)
     return progress
   }
@@ -727,24 +726,30 @@ export class StrategyEngine {
     return indicatorsData
   }
 
+  /** 只有来源周期及K线窗口都与本轮快照相同时，才允许装配预计算结果。 */
   private setPrecomputedIndicator(
     indicatorsData: Map<string, any>,
     precomputed: Map<string, any>,
     key: string | undefined,
-    dataKey: string
+    dataKey: string,
+    timeframe?: Timeframe,
+    klines?: OHLCV[]
   ): boolean {
     if (!key) return false
     const data = precomputed.get(key)
     if (!data) return false
+    if (timeframe && (data.timeframe !== timeframe || !klines?.length || data.sourceKlineHash !== shortHash(klines))) return false
     indicatorsData.set(dataKey, data)
     return true
   }
 
+  /** 按策略参数补齐指标，回退计算也必须使用固定快照，必要数据缺失则停止本轮分析。 */
   private async hydrateIndicatorsForStrategy(
     strategy: Strategy,
     symbol: string,
     mainTimeframe: Timeframe,
-    indicatorsData: Map<string, any>
+    indicatorsData: Map<string, any>,
+    snapshot: MarketSnapshot
   ): Promise<void> {
     const binding = this.indicatorRegistry.getBinding(strategy.id, symbol)
     const precomputed = binding && this.indicatorPrecompute
@@ -759,45 +764,55 @@ export class StrategyEngine {
 
     const missing: string[] = []
     const bindKeys = binding?.keys || {}
+    /** 不允许以最新内存K线替代已经选定的市场快照。 */
+    const requireKlines = (timeframe: Timeframe): OHLCV[] => {
+      const klines = snapshot.klinesByTimeframe.get(timeframe)
+      if (!klines?.length) throw new Error(`${symbol} ${timeframe} 市场快照缺少K线，跳过本轮分析`)
+      return klines
+    }
 
     if (strategy.indicators.some((i: any) => i.type === 'EMA' && i.enabled)) {
-      if (!this.setPrecomputedIndicator(indicatorsData, precomputed, bindKeys.ema, `${mainTimeframe}_EMA`)) {
+      const klines = requireKlines(mainTimeframe)
+      if (!this.setPrecomputedIndicator(indicatorsData, precomputed, bindKeys.ema, `${mainTimeframe}_EMA`, mainTimeframe, klines)) {
         missing.push(bindKeys.ema || `${symbol}:${mainTimeframe}:EMA`)
         try {
-          const emaData = await this.indicatorsHub.getEMAByPeriods(symbol, mainTimeframe, this.getEMAPeriodsFromStrategy(strategy))
+          const emaData = await this.indicatorsHub.getEMAByPeriods(symbol, mainTimeframe, this.getEMAPeriodsFromStrategy(strategy), klines)
           indicatorsData.set(`${mainTimeframe}_EMA`, emaData)
         } catch (error: any) {
           logger.warn('StrategyEngine', `获取动态EMA失败 ${symbol} ${mainTimeframe}: ${error.message}`)
+          throw error
         }
       }
     }
 
     for (const indicator of strategy.indicators.filter((i: any) => i.enabled && i.type !== 'EMA' && i.type !== 'SupportResistance')) {
+      const klines = requireKlines(mainTimeframe)
       const dataKey = `${mainTimeframe}_${indicator.type}`
       const bindingKey = indicator.type === 'RSI' ? bindKeys.rsi
         : indicator.type === 'ADX' ? bindKeys.adx
           : indicator.type === 'MACD' ? bindKeys.macd
             : indicator.type === 'ATR' ? bindKeys.atr
               : undefined
-      if (this.setPrecomputedIndicator(indicatorsData, precomputed, bindingKey, dataKey)) continue
+      if (this.setPrecomputedIndicator(indicatorsData, precomputed, bindingKey, dataKey, mainTimeframe, klines)) continue
 
       missing.push(bindingKey || `${symbol}:${mainTimeframe}:${indicator.type}`)
       try {
         if (indicator.type === 'RSI') {
-          indicatorsData.set(dataKey, await this.indicatorsHub.getIndicators(symbol, mainTimeframe, 'RSI', { rsiPeriod: Number(indicator.params?.period ?? 14) }))
+          indicatorsData.set(dataKey, await this.indicatorsHub.getIndicators(symbol, mainTimeframe, 'RSI', { rsiPeriod: Number(indicator.params?.period ?? 14) }, klines))
         } else if (indicator.type === 'ADX') {
-          indicatorsData.set(dataKey, await this.indicatorsHub.getIndicators(symbol, mainTimeframe, 'ADX', { adxPeriod: Number(indicator.params?.period ?? 14) }))
+          indicatorsData.set(dataKey, await this.indicatorsHub.getIndicators(symbol, mainTimeframe, 'ADX', { adxPeriod: Number(indicator.params?.period ?? 14) }, klines))
         } else if (indicator.type === 'MACD') {
           indicatorsData.set(dataKey, await this.indicatorsHub.getIndicators(symbol, mainTimeframe, 'MACD', {
             macdFastPeriod: Number(indicator.params?.fastPeriod ?? 12),
             macdSlowPeriod: Number(indicator.params?.slowPeriod ?? 26),
             macdSignalPeriod: Number(indicator.params?.signalPeriod ?? 9)
-          }))
+          }, klines))
         } else if (indicator.type === 'ATR') {
-          indicatorsData.set(dataKey, await this.indicatorsHub.getIndicators(symbol, mainTimeframe, 'ATR', { atrPeriod: Number(indicator.params?.period ?? 14) }))
+          indicatorsData.set(dataKey, await this.indicatorsHub.getIndicators(symbol, mainTimeframe, 'ATR', { atrPeriod: Number(indicator.params?.period ?? 14) }, klines))
         }
       } catch (error: any) {
         logger.warn('StrategyEngine', `预计算指标缺失且实时计算失败 ${dataKey}: ${error.message}`)
+        throw error
       }
     }
 
@@ -817,12 +832,16 @@ export class StrategyEngine {
       }
     }
 
-    if (volumeStatConfig && !this.setPrecomputedIndicator(indicatorsData, precomputed, bindKeys.volume, `${volumeTimeframe}_Volume`)) {
-      missing.push(bindKeys.volume || `${symbol}:${volumeTimeframe}:Volume`)
-      try {
-        indicatorsData.set(`${volumeTimeframe}_Volume`, await this.indicatorsHub.getIndicators(symbol, volumeTimeframe, 'Volume'))
-      } catch (error: any) {
-        logger.warn('StrategyEngine', `获取Volume失败 ${symbol} ${volumeTimeframe}: ${error.message}`)
+    if (volumeStatConfig) {
+      const klines = requireKlines(volumeTimeframe)
+      if (!this.setPrecomputedIndicator(indicatorsData, precomputed, bindKeys.volume, `${volumeTimeframe}_Volume`, volumeTimeframe, klines)) {
+        missing.push(bindKeys.volume || `${symbol}:${volumeTimeframe}:Volume`)
+        try {
+          indicatorsData.set(`${volumeTimeframe}_Volume`, await this.indicatorsHub.getIndicators(symbol, volumeTimeframe, 'Volume', undefined, klines))
+        } catch (error: any) {
+          logger.warn('StrategyEngine', `获取Volume失败 ${symbol} ${volumeTimeframe}: ${error.message}`)
+          throw error
+        }
       }
     }
 
@@ -870,7 +889,7 @@ export class StrategyEngine {
     const indicatorsData = this.extractIndicatorsFromSnapshot(snapshot, mainTimeframe)
 
     // 4. 优先读取预计算指标，缺失时回退实时计算
-    await this.hydrateIndicatorsForStrategy(strategy, symbol, mainTimeframe, indicatorsData)
+    await this.hydrateIndicatorsForStrategy(strategy, symbol, mainTimeframe, indicatorsData, snapshot)
 
     // 补齐指标的等待期间可能熔断，此时不再启动新的 AI 分析。
     if (this.getOpeningBlockReason(instance.strategy.id)) return
@@ -919,6 +938,14 @@ export class StrategyEngine {
     snapshot: MarketSnapshot
   ): Promise<TradeSignal | null> {
     try {
+      const configuredTtl = Number(this.config.indicatorPrecompute?.staleTtlMs ?? 900000)
+      const snapshotTtl = Number.isFinite(configuredTtl) ? Math.max(60000, configuredTtl) : 900000
+      const snapshotAge = Date.now() - snapshot.timestamp
+      // 排队超过时效的快照不能通过重新计算指标被包装为新数据。
+      if (!Number.isFinite(snapshotAge) || snapshotAge < 0 || snapshotAge >= snapshotTtl) {
+        logger.warn('StrategyEngine', `${symbol} 市场快照已过期或时间无效，跳过本轮分析`)
+        return null
+      }
       // 主时间框架取配置的第一个周期（最小的周期）
       const mainTimeframe = instance.strategy.marketData.timeframes[0] || '15m'
 
@@ -931,8 +958,8 @@ export class StrategyEngine {
       const volumeStatConfig = instance.strategy.statistics.find((s: any) => s.type === 'Volume' && s.enabled)
       const oiStatConfig = instance.strategy.statistics.find((s: any) => s.type === 'OI' && s.enabled)
 
-      const volumeTimeframe = volumeStatConfig?.timeframes?.[0] || '1h'
-      const oiTimeframe = oiStatConfig?.timeframes?.[0] || '1h'
+      const volumeTimeframe = volumeStatConfig?.timeframes?.[0] || mainTimeframe
+      const oiTimeframe = oiStatConfig?.timeframes?.[0] || mainTimeframe
 
       const volumeData = indicatorsData.get(`${volumeTimeframe}_Volume`)?.values || {}
 
@@ -954,14 +981,28 @@ export class StrategyEngine {
 
       // 获取K线数据用于价格行为分析
       let lastCandle, prevCandle
-      let candleProgress = this.config.defaultCandleProgress ?? 0.1
+      let candleProgress = 0
       const klines = snapshot.klinesByTimeframe.get(mainTimeframe)
       if (klines && klines.length >= 2) {
         lastCandle = klines[klines.length - 1]
         prevCandle = klines[klines.length - 2]
         if (lastCandle && lastCandle.timestamp) {
-          candleProgress = this.calculateCandleProgress(lastCandle.timestamp, mainTimeframe)
+          candleProgress = this.calculateCandleProgress(lastCandle.timestamp, mainTimeframe, snapshot.timestamp)
         }
+      }
+
+      // 成交量可独立于主周期；累计量、EMA和进度必须来自同一个周期和同一取数时点。
+      const volumeCandle = snapshot.klinesByTimeframe.get(volumeTimeframe)?.at(-1)
+      const volumeCandleProgress = volumeCandle
+        ? this.calculateCandleProgress(volumeCandle.timestamp, volumeTimeframe, snapshot.timestamp)
+        : undefined
+      if (!lastCandle || !prevCandle || !Number.isFinite(lastCandle.timestamp) || lastCandle.timestamp > snapshot.timestamp
+        || !Number.isFinite(candleProgress)
+        || (enabledVolume && (!volumeCandle || !Number.isFinite(volumeCandleProgress)
+          || volumeCandle.timestamp > snapshot.timestamp || !Number.isFinite(volumeData.current) || volumeData.current < 0
+          || !Number.isFinite(volumeData.emaAverage) || volumeData.emaAverage <= 0))) {
+        logger.warn('StrategyEngine', `${symbol} 市场快照的K线或成交量EMA无效，跳过本轮分析`)
+        return null
       }
 
       // 使用快照中的价格
@@ -971,7 +1012,7 @@ export class StrategyEngine {
       const supportResistance = structureConfig?.enabled === false ? undefined
         : (await this.indicatorsHub.getIndicators(symbol, mainTimeframe, 'SupportResistance', {
             ...structureConfig?.params, currentPrice: price
-          })).values
+          }, klines)).values
       // 所有交易对复用本轮缓存，同时把快照加入 AI 缓存键，防止复用旧市场背景的结论。
       const marketBreadth = await getMarketBreadth(this.config)
 
@@ -986,19 +1027,11 @@ export class StrategyEngine {
           marketBreadth,
           lastCandle,
           prevCandle,
+          volumeTimeframe,
+          volumeCandleProgress,
           candleProgress: Number(candleProgress.toFixed(4))
         }
       )
-
-      const cached = this.aiCache.get(cacheKey)
-      if (cached && (Date.now() - cached.timestamp < this.getAiCacheTtl())) {
-        logger.info('StrategyEngine', `使用 AI 缓存结果: ${symbol} [策略 ${strategyId}]`)
-        return { ...cached.signal, strategyId }
-      }
-      if (cached) {
-        // 命中已过期条目时立即释放，不能只把它当作缓存未命中继续保留。
-        this.aiCache.delete(cacheKey)
-      }
 
       // 从策略配置中读取各指标参数
       const adxConfig = instance.strategy.indicators.find((i: any) => i.type === 'ADX' && i.enabled)
@@ -1027,17 +1060,25 @@ export class StrategyEngine {
         atr: enabledATR ? indicatorsData.get(`${mainTimeframe}_ATR`)?.values?.atr : undefined,
         currentPrice: price,
         oiChangePercent: enabledOI ? indicatorsData.get(`${oiTimeframe}_OI`)?.values?.changePercent : undefined,
-        currentVolume: volumeData.current,
-        prevVolume: volumeData.prev,
-        volumeAverage: volumeData.average,
-        candleProgress
+        currentVolume: enabledVolume ? volumeData.current : undefined,
+        volumeEmaAverage: enabledVolume ? volumeData.emaAverage : undefined,
+        candleProgress: volumeCandleProgress
       }, strategyPreScreenConfig)
 
       if (!preScreenResult.passed) {
         return null
       }
 
+      // 即使命中AI缓存，也必须重新执行当前策略的预筛阈值。
+      const cached = this.aiCache.get(cacheKey)
+      if (cached && (Date.now() - cached.timestamp < this.getAiCacheTtl())) {
+        logger.info('StrategyEngine', `使用 AI 缓存结果: ${symbol} [策略 ${strategyId}]`)
+        return { ...cached.signal, strategyId }
+      }
+      if (cached) this.aiCache.delete(cacheKey)
+
       const indicators: any = {
+        snapshotTimestamp: snapshot.timestamp,
         // 复用主周期快照与指标页计算口径，避免额外拉取导致行情时点不一致。
         moneyFlowPrompt: formatMoneyFlowPrompt(calculateMoneyFlow(klines || [], this.timeframeToMs(mainTimeframe)), mainTimeframe),
         supportResistance,
@@ -1100,6 +1141,9 @@ export class StrategyEngine {
         volumeAverage: enabledVolume ? volumeData.average : undefined,
         volumeEmaAverage: enabledVolume ? volumeData.emaAverage : undefined,
         volumeEmaPeriod: enabledVolume ? volumeData.emaPeriod : undefined,
+        volumeTimeframe: enabledVolume ? volumeTimeframe : undefined,
+        volumeCandleTimestamp: enabledVolume ? volumeCandle?.timestamp : undefined,
+        volumeCandleProgress: enabledVolume ? volumeCandleProgress : undefined,
         lastCandle,
         prevCandle
       }

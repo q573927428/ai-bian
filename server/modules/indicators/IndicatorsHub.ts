@@ -32,7 +32,7 @@ import { OISnapshotService } from './OISnapshotService'
 interface SymbolData {
   symbol: string
   klineData: Map<Timeframe, OHLCV[]>
-  volumeData?: Map<Timeframe, { current: number; prev: number; average: number; emaAverage: number; emaPeriod: number; ratio: number; timestamp: number }>
+  volumeData?: Map<Timeframe, IndicatorData>
   indicators: Map<string, IndicatorData>
 }
 
@@ -105,12 +105,14 @@ export class IndicatorsHub {
     '1d': '1d'
   }
 
+  /** 成交量EMA沿用全局周期，预筛和AI均读取同一个计算结果。 */
   private getVolumeEmaPeriod(): number {
     const configured = Number(this.config.volumeEmaPeriod ?? 12)
     if (!Number.isFinite(configured)) return 12
     return Math.max(2, Math.floor(configured))
   }
 
+  /** EMA包含当前未收盘K线的快照值，与现有AI量能口径一致。 */
   private calculateVolumeEma(volumes: number[], period: number): number {
     if (volumes.length === 0) return 0
     const safePeriod = Math.max(2, Math.floor(period))
@@ -119,6 +121,34 @@ export class IndicatorsHub {
       return emaSeries[emaSeries.length - 1] ?? volumes[volumes.length - 1] ?? 0
     }
     return volumes[volumes.length - 1] ?? 0
+  }
+
+  /** 缓存既要未超时，也要与调用者固定的整段K线窗口一致。 */
+  private isKlineCacheValid(data: IndicatorData | undefined, sourceKlineHash: string, ttlMs?: number): data is IndicatorData {
+    const configuredTtl = Number(this.config.indicatorPrecompute?.staleTtlMs ?? 900000)
+    const maxAge = ttlMs ?? (Number.isFinite(configuredTtl) ? Math.max(60000, configuredTtl) : 900000)
+    const age = data ? Date.now() - data.timestamp : NaN
+    return !!data && data.sourceKlineHash === sourceKlineHash && Number.isFinite(age) && age >= 0 && age < maxAge
+  }
+
+  /** 事件刷新与按需读取共用成交量算法，防止两条路径产生不同EMA或时间标记。 */
+  private calculateVolumeData(symbol: string, timeframe: Timeframe, klines: OHLCV[]): IndicatorData {
+    const emaPeriod = this.getVolumeEmaPeriod()
+    if (klines.length < Math.max(20, emaPeriod) || klines.some(c => !Number.isFinite(c.volume) || c.volume < 0)) {
+      throw new Error(`${symbol} ${timeframe} K线数据不足或成交量无效，无法计算成交量EMA`)
+    }
+    const current = klines.at(-1)!.volume
+    const average = klines.slice(-20).reduce((sum, c) => sum + c.volume, 0) / 20
+    const emaAverage = this.calculateVolumeEma(klines.map(c => c.volume), emaPeriod)
+    return {
+      symbol, timeframe, timestamp: Date.now(), sourceKlineHash: shortHash(klines),
+      values: {
+        current, prev: klines.at(-2)!.volume,
+        // 保留简单均值供旧展示读取；交易筛选与AI的量比只使用emaAverage。
+        average, emaAverage, emaPeriod,
+        ratio: emaAverage > 0 ? current / emaAverage : 0
+      }
+    }
   }
 
   /**
@@ -173,6 +203,11 @@ export class IndicatorsHub {
    */
   updateConfig(config: BotConfig): void {
     this.config = config
+    // EMA周期和斜率等配置不在所有缓存键中，配置更新后必须整体失效。
+    for (const data of this.symbolDataCache.values()) {
+      data.indicators.clear()
+      data.volumeData?.clear()
+    }
   }
 
   /**
@@ -399,17 +434,19 @@ export class IndicatorsHub {
   private calculateAndCacheEMAByPeriods(
     symbol: string,
     timeframe: Timeframe,
-    closes: number[],
+    klines: OHLCV[],
     periods: number[]
   ): IndicatorData {
     const symbolData = this.getOrCreateSymbolData(symbol)
     const emaPeriods = this.normalizeEMAPeriods(periods)
 
     const cacheKey = `${symbol}_${timeframe}_EMA_${emaPeriods.join('_')}`
+    const sourceKlineHash = shortHash(klines)
     const cached = symbolData.indicators.get(cacheKey)
-    if (cached) {
+    if (this.isKlineCacheValid(cached, sourceKlineHash)) {
       return cached
     }
+    const closes = klines.map(c => c.close)
 
     // EMA斜率计算周期，默认3
     const emaSlopePeriod = this.config.indicatorsConfig?.emaSlopePeriod ?? 3
@@ -442,6 +479,7 @@ export class IndicatorsHub {
       symbol,
       timeframe,
       timestamp: Date.now(),
+      sourceKlineHash,
       values: {
         emaMap,
         emaList
@@ -456,14 +494,13 @@ export class IndicatorsHub {
   /**
    * 对外：按指定周期获取 EMA（带缓存）
    */
-  async getEMAByPeriods(symbol: string, timeframe: Timeframe, periods: number[]): Promise<IndicatorData> {
-    const klines = this.getKlines(symbol, timeframe)
+  async getEMAByPeriods(symbol: string, timeframe: Timeframe, periods: number[], snapshotKlines?: OHLCV[]): Promise<IndicatorData> {
+    const klines = snapshotKlines ?? this.getKlines(symbol, timeframe)
     if (!klines || klines.length === 0) {
       throw new Error(`${symbol} ${timeframe} K线数据不足，无法计算EMA`)
     }
 
-    const closes = klines.map(c => c.close)
-    return this.calculateAndCacheEMAByPeriods(symbol, timeframe, closes, periods)
+    return this.calculateAndCacheEMAByPeriods(symbol, timeframe, klines, periods)
   }
 
   // 预计算指标方法已删除 - 现在按需计算
@@ -487,7 +524,8 @@ export class IndicatorsHub {
       macdFastPeriod?: number // MACD快线周期，默认12
       macdSlowPeriod?: number // MACD慢线周期，默认26
       macdSignalPeriod?: number // MACD信号线周期，默认9
-    }
+    },
+    snapshotKlines?: OHLCV[]
   ): Promise<IndicatorData> {
     const symbolData = this.getOrCreateSymbolData(symbol)
 
@@ -499,7 +537,7 @@ export class IndicatorsHub {
         pivotRight: options?.pivotRight ?? 3, mergeDistanceATR: options?.mergeDistanceATR ?? 0.5,
         minTouches: options?.minTouches ?? 1, breakoutBufferATR: options?.breakoutBufferATR ?? 0.1
       }
-      const klines = this.getKlines(symbol, timeframe) || []
+      const klines = snapshotKlines ?? this.getKlines(symbol, timeframe) ?? []
       const price = options?.currentPrice ?? klines.at(-1)?.close ?? null
       return {
         symbol, timeframe, timestamp: now,
@@ -513,7 +551,7 @@ export class IndicatorsHub {
       // 从已加载 K 线计算，沿用 K 线事件驱动更新，避免另建易失效缓存。
       return {
         symbol, timeframe, timestamp: Date.now(),
-        values: calculateMoneyFlow(this.getKlines(symbol, timeframe) || [], this.timeframeToMinutes(timeframe) * 60_000)
+        values: calculateMoneyFlow(snapshotKlines ?? this.getKlines(symbol, timeframe) ?? [], this.timeframeToMinutes(timeframe) * 60_000)
       }
     }
 
@@ -602,64 +640,31 @@ export class IndicatorsHub {
     }
 
     if (type === 'Volume') {
-      const cacheKey = `${symbol}_${timeframe}_Volume`
+      // 先读取K线以感知存储更新，再判断缓存，避免TTL内忽略盘中量能变化。
+      const klines = snapshotKlines ?? this.getKlines(symbol, timeframe)
+      if (!klines) throw new Error(`${symbol} ${timeframe} K线数据不足，无法计算成交量`)
       let volumeData = symbolData.volumeData?.get(timeframe)
-
-      const now = Date.now()
-      if (!volumeData || (now - volumeData.timestamp > this.VOLUME_CACHE_TTL)) {
-        // 按需计算成交量
-        const klines = this.getKlines(symbol, timeframe)
-        if (!klines || klines.length < 20) {
-          throw new Error(`${symbol} ${timeframe} K线数据不足，无法计算成交量`)
-        }
-
-        const currentVolume = klines[klines.length - 1]?.volume || 0
-        const prevVolume = klines[klines.length - 2]?.volume || 0
-        const averageVolume = klines.slice(-20).reduce((sum, c) => sum + c.volume, 0) / 20
-        const volumeEmaPeriod = this.getVolumeEmaPeriod()
-        const volumeSeries = klines.map(c => c.volume)
-        const emaAverage = this.calculateVolumeEma(volumeSeries, volumeEmaPeriod)
-        volumeData = {
-          current: currentVolume,
-          prev: prevVolume,
-          average: averageVolume,
-          emaAverage,
-          emaPeriod: volumeEmaPeriod,
-          ratio: averageVolume > 0 ? currentVolume / averageVolume : 0,
-          timestamp: now
-        }
-
+      if (!this.isKlineCacheValid(volumeData, shortHash(klines), this.VOLUME_CACHE_TTL)
+        || volumeData.values.emaPeriod !== this.getVolumeEmaPeriod()) {
+        volumeData = this.calculateVolumeData(symbol, timeframe, klines)
         if (!symbolData.volumeData) {
           symbolData.volumeData = new Map()
         }
         symbolData.volumeData.set(timeframe, volumeData)
       }
-
-      return {
-        symbol,
-        timeframe,
-        timestamp: volumeData.timestamp,
-        values: {
-          current: volumeData.current,
-          prev: volumeData.prev,
-          average: volumeData.average,
-          emaAverage: volumeData.emaAverage,
-          emaPeriod: volumeData.emaPeriod,
-          ratio: volumeData.ratio
-        }
-      }
+      return volumeData
     }
 
     // 技术指标：按参数组合计算并缓存，避免不同策略参数互相覆盖
+    const klines = snapshotKlines ?? this.getKlines(symbol, timeframe)
+    if (!klines || klines.length < 100) {
+      throw new Error(`${symbol} ${timeframe} K线数据不足，无法计算${type}`)
+    }
+    const sourceKlineHash = shortHash(klines)
     const cacheKey = `${symbol}_${timeframe}_${type}_${shortHash(options || {}, 16)}`
     let indicatorData = symbolData.indicators.get(cacheKey)
 
-    if (!indicatorData) {
-      const klines = this.getKlines(symbol, timeframe)
-      if (!klines || klines.length < 100) {
-        throw new Error(`${symbol} ${timeframe} K线数据不足，无法计算${type}`)
-      }
-
+    if (!this.isKlineCacheValid(indicatorData, sourceKlineHash)) {
       const closes = klines.map(c => c.close)
       const highs = klines.map(c => c.high)
       const lows = klines.map(c => c.low)
@@ -668,6 +673,7 @@ export class IndicatorsHub {
         symbol,
         timeframe,
         timestamp: Date.now(),
+        sourceKlineHash,
         values: {}
       }
 
@@ -1127,22 +1133,7 @@ export class IndicatorsHub {
       // 3. 重新计算该周期的成交量指标
       const klines = symbolData.klineData.get(timeframe)
       if (klines && klines.length > 0) {
-        const currentVolume = klines[klines.length - 1]?.volume || 0
-        const prevVolume = klines[klines.length - 2]?.volume || 0
-        const averageVolume = klines.slice(-20).reduce((sum, c) => sum + c.volume, 0) / 20
-        const volumeEmaPeriod = this.getVolumeEmaPeriod()
-        const volumeSeries = klines.map(c => c.volume)
-        const emaAverage = this.calculateVolumeEma(volumeSeries, volumeEmaPeriod)
-        const now = Date.now()
-        const volumeData = {
-          current: currentVolume,
-          prev: prevVolume,
-          average: averageVolume,
-          emaAverage,
-          emaPeriod: volumeEmaPeriod,
-          ratio: averageVolume > 0 ? currentVolume / averageVolume : 0,
-          timestamp: now
-        }
+        const volumeData = this.calculateVolumeData(symbol, timeframe, klines)
         
         if (!symbolData.volumeData) {
           symbolData.volumeData = new Map()

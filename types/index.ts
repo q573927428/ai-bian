@@ -67,6 +67,8 @@ export interface OHLCV {
 
 // 技术指标
 export interface TechnicalIndicators {
+  /** 本次市场快照取数时点，价格行为和量能进度均以此固定计算。 */
+  snapshotTimestamp?: number
   /** 策略主周期的主动资金流文本，使用与K线形态相同的行情快照。 */
   moneyFlowPrompt?: string
   /** 五分钟预计算区域与本次行情价格更新后的距离快照。 */
@@ -148,6 +150,10 @@ export interface TechnicalIndicators {
   volumeAverage?: number
   volumeEmaAverage?: number
   volumeEmaPeriod?: number
+  /** 成交量可使用独立周期，进度必须与 volumeCurrent、EMA 的来源 K 线一致。 */
+  volumeTimeframe?: string
+  volumeCandleTimestamp?: number
+  volumeCandleProgress?: number
 }
 
 // ==================== AI分析结果 ====================
@@ -218,6 +224,10 @@ export interface AIAnalysis {
     candleTimestamp?: number | null
     /** K 线进度使用 0～1 比例，与提示词预估口径一致。 */
     candleProgress?: number | null
+    snapshotTimestamp?: number | null
+    volumeTimeframe?: string
+    volumeCandleTimestamp?: number | null
+    volumeCandleProgress?: number | null
     currentCandleVolume?: number | null
     estimatedVolume?: number | null
     volumeEmaAverage?: number | null
@@ -250,9 +260,9 @@ export interface PreScreenConfig {
   minOiChangePercent?: number // 默认 0.2%
   maxOiChangePercent?: number // 默认 10%
 
-  // 成交量预估模式：基于K线完成进度预估整根K线成交量后与历史均值比较
+  // 成交量预估模式：基于对应周期的K线进度预估整根成交量，与同一快照的成交量EMA比较
   // 解决未收盘K线成交量偏低的问题
-  minEstimatedVolumeRatio?: number // 默认 0.3 (预估成交量至少是历史均值的30%)
+  minEstimatedVolumeRatio?: number // 默认 0.3 (预估成交量至少是成交量EMA的30%)
 
   // K线完成进度阈值：低于此进度时跳过成交量检查（数据太少不可靠）
   minCandleProgressForVolume?: number // 默认 0.1 (10%)

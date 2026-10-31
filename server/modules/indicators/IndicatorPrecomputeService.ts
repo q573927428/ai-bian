@@ -1,3 +1,4 @@
+// ==================== 指标预计算与新鲜度校验 ====================
 import type { BotConfig } from '../../../types'
 import { getMarketBreadth } from '../../utils/market-breadth'
 import type { IndicatorData, Timeframe } from '../../../types/strategy'
@@ -16,11 +17,13 @@ interface CachedIndicator {
   stale: boolean
 }
 
+/** 后台预计算共用指标；读取时严格拒绝超时或已失效的结果。 */
 export class IndicatorPrecomputeService {
   private cache = new Map<string, CachedIndicator>()
   private dirtyKeys = new Set<string>()
   private timer: NodeJS.Timeout | null = null
   private isRunning = false
+  private cacheGeneration = 0
   private stats = {
     lastStartedAt: 0,
     lastFinishedAt: 0,
@@ -40,6 +43,10 @@ export class IndicatorPrecomputeService {
 
   updateConfig(config: BotConfig): void {
     this.config = config
+    // 配置变化会改变EMA周期及斜率等计算口径，旧结果不能继续用于新配置。
+    this.cacheGeneration++
+    this.cache.clear()
+    this.dirtyKeys.clear()
     if (this.timer) {
       this.start()
     }
@@ -84,6 +91,7 @@ export class IndicatorPrecomputeService {
     }
 
     this.isRunning = true
+    const generation = this.cacheGeneration
     const startedAt = Date.now()
     // OI 依赖每分钟更新的当前值，扫描时直接从内存 5m 序列计算，避免复用最长 5 分钟前的预计算结果。
     const combinations = this.registry.getCombinations().filter(combo => combo.type !== 'OI')
@@ -122,8 +130,11 @@ export class IndicatorPrecomputeService {
               ...(combo.type === 'SupportResistance' ? { refreshSupportResistance: true } : {})
             })
           })
-          this.cache.set(combo.key, { data, computedAt: Date.now(), stale: false })
-          this.dirtyKeys.delete(combo.key)
+          // 更新配置期间尚未完成的计算不能重新填入已清空的缓存。
+          if (generation === this.cacheGeneration) {
+            this.cache.set(combo.key, { data, computedAt: Date.now(), stale: false })
+            this.dirtyKeys.delete(combo.key)
+          }
           succeeded++
         } catch (error: any) {
           failed++
@@ -149,12 +160,19 @@ export class IndicatorPrecomputeService {
     }
   }
 
+  /** TTL同时约束预计算写入和底层指标时间，禁止重复写入延长旧数据寿命。 */
   get(key: string): IndicatorData | undefined {
+    if (this.config.indicatorPrecompute?.enabled === false || this.dirtyKeys.has(key)) return undefined
     const cached = this.cache.get(key)
     if (!cached) return undefined
 
-    const staleTtlMs = Math.max(60000, Number(this.config.indicatorPrecompute?.staleTtlMs ?? 900000))
-    if (Date.now() - cached.computedAt > staleTtlMs && cached.stale) {
+    const configuredTtl = Number(this.config.indicatorPrecompute?.staleTtlMs ?? 900000)
+    const staleTtlMs = Number.isFinite(configuredTtl) ? Math.max(60000, configuredTtl) : 900000
+    const now = Date.now()
+    const ages = [now - cached.computedAt, now - cached.data.timestamp]
+    // 无论刷新是否失败，达到TTL就拒用；未来时间和无效时间同样不能证明数据新鲜。
+    if (ages.some(age => !Number.isFinite(age) || age < 0 || age >= staleTtlMs)) {
+      this.cache.delete(key)
       return undefined
     }
     return cached.data

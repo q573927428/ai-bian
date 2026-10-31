@@ -17,6 +17,7 @@ import type { IndicatorsHub } from '../indicators/IndicatorsHub'
 import { formatEnvironmentConfidence, type EnvironmentContext } from '../../../app/utils/environment-confidence'
 import { loadEnvironmentContext } from '../../utils/environment-context'
 import { createStrategySnapshot, createQuantitativeSnapshot } from '../../utils/ai-analysis-snapshot'
+import { getCandleVolume } from '../../utils/candle-volume'
 import { aiPromptCache } from '../../utils/ai-prompt-cache'
 import { saveAIRules } from '../../utils/ai-rules-store'
 import { randomUUID } from 'node:crypto'
@@ -68,13 +69,6 @@ function getMacdTrendResult(macd: NonNullable<TechnicalIndicators['macd']>): str
 }
 
 const aiCache = new Map<string, MultiStrategyAICache>()
-
-/** 使用原始K线进度，统一提示词与信号记录的预计成交量口径。 */
-function getCandleVolume(indicators: TechnicalIndicators, volume: number, candleProgress: number) {
-  const currentCandleVolume = indicators.lastCandle?.volume ?? volume
-  const estimatedVolume = candleProgress > 0 ? currentCandleVolume / candleProgress : currentCandleVolume
-  return { currentCandleVolume, estimatedVolume }
-}
 
 /**
  * 多策略 AI 分析器
@@ -263,7 +257,7 @@ export class MultiStrategyAIAnalyzer {
 
       // 4. 转换为标准交易信号（支持 IDLE 状态）
       // 将 prompt 中使用的成交量派生值随信号传递，保证最终落盘值与 AI 实际分析值一致。
-      const { currentCandleVolume, estimatedVolume } = getCandleVolume(indicators, volume, candleProgress)
+      const { currentCandleVolume, estimatedVolume, progress: volumeProgress } = getCandleVolume(indicators, volume, candleProgress)
       // 与 Prompt 展示精度保持一致，历史订单记录 AI 决策时实际看到的 K 线进度。
       const candleProgressPercent = Number((candleProgress * 100).toFixed(1))
       const volumeEmaAverage = Number(indicators.volumeEmaAverage ?? 0)
@@ -330,6 +324,10 @@ export class MultiStrategyAIAnalyzer {
                   : undefined,
                 estimatedVolume,
                 emaAverage: volumeEmaAverage,
+                emaPeriod: indicators.volumeEmaPeriod,
+                timeframe: indicators.volumeTimeframe,
+                candleTimestamp: indicators.volumeCandleTimestamp,
+                candleProgress: volumeProgress,
                 estimatedEmaRatioPercent
               }
             : undefined,
@@ -588,8 +586,8 @@ export class MultiStrategyAIAnalyzer {
     阴阳：${candle.close > candle.open ? '阳线' : candle.close < candle.open ? '阴线' : '平盘'}`
     }
 
-    // 使用 lastCandle.volume 来计算预计成交量，确保和 candleProgress 来自同一根K线
-    const { currentCandleVolume, estimatedVolume } = getCandleVolume(indicators, volume, candleProgress)
+    // 量能使用自身周期的快照进度，不借用价格行为K线的进度。
+    const { currentCandleVolume, estimatedVolume, progress: volumeProgress } = getCandleVolume(indicators, volume, candleProgress)
 
     // ========== 通用预计算数据（按策略启用指标条件输出） ==========
 
@@ -652,10 +650,12 @@ export class MultiStrategyAIAnalyzer {
       priceInRangeLines.push('区间口径：较低EMA为0%，较高EMA为100%；负值表示低于区间，超过100%表示高于区间。')
     }
     const volumeLines = indicators.enabledIndicators?.volume ? [
+      `- 成交量周期：${indicators.volumeTimeframe ?? indicators.adxPeriodLabel}；该周期K线进度：${(volumeProgress * 100).toFixed(1)}%`,
       `- 当前累计成交量：${currentCandleVolume.toFixed(2)}`,
       `- 预计K线结束成交量：${estimatedVolume.toFixed(2)}`,
-      ...(indicators.prevCandle ? [`- 前一根成交量：${indicators.prevCandle.volume.toFixed(2)}`] : []),
+      ...(indicators.volumePrev !== undefined ? [`- 前一根成交量：${indicators.volumePrev.toFixed(2)}`] : []),
       ...volumeCompareLines,
+      '成交量EMA包含该周期当前K线的快照值，与预筛使用同一份数据。',
       '量能条件使用预计K线结束成交量；该值为估算值，非已完成成交量。'
     ] : []
     const technicalSections = [
@@ -672,7 +672,7 @@ export class MultiStrategyAIAnalyzer {
     return {
       symbol,
       price: (price ?? 0).toFixed(5),
-      currentTime: new Date().toISOString(),
+      currentTime: new Date(indicators.snapshotTimestamp ?? Date.now()).toISOString(),
       candleProgressPercent: (candleProgress * 100).toFixed(1),
       currentVolume: indicators.enabledIndicators?.volume ? (currentCandleVolume ?? 0).toFixed(2) : '',
       estimatedVolume: estimatedVolume.toFixed(2),

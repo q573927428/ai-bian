@@ -1,6 +1,7 @@
 // ==================== 基于交易对聚合的调度器 ====================
 
 import type { Strategy, StrategyId, Timeframe, IndicatorType, StatisticsType } from '../../../types/strategy'
+import type { OHLCV } from '../../../types'
 import { IndicatorsHub } from '../indicators/IndicatorsHub'
 import { BinanceService } from '../../utils/binance'
 import { logger } from '../../utils/logger'
@@ -15,7 +16,7 @@ export interface MarketSnapshot {
   // 按时间周期分组的指标数据
   indicatorsByTimeframe: Map<Timeframe, Map<string, any>>
   // K线数据
-  klinesByTimeframe: Map<Timeframe, any[]>
+  klinesByTimeframe: Map<Timeframe, OHLCV[]>
 }
 
 /**
@@ -154,8 +155,9 @@ export class SymbolBasedScheduler {
    * 为单个交易对构建市场快照
    */
   async buildMarketSnapshot(symbol: string): Promise<MarketSnapshot> {
-    const timestamp = Date.now()
     const price = await this.getPrice(symbol)
+    // 在价格请求完成后固定取数时点，后续K线进度不随排队和AI等待继续增长。
+    const timestamp = Date.now()
 
     // 获取所有订阅该交易对的策略，合并需要的时间周期。
     // 指标由 StrategyEngine 按策略参数从预计算缓存精确装配，避免在这里执行
@@ -170,13 +172,14 @@ export class SymbolBasedScheduler {
     }
 
     const indicatorsByTimeframe = new Map<Timeframe, Map<string, any>>()
-    const klinesByTimeframe = new Map<Timeframe, any[]>()
+    const klinesByTimeframe = new Map<Timeframe, OHLCV[]>()
 
     // 获取K线数据
     for (const timeframe of allTimeframes) {
       const klines = this.indicatorsHub.getKlines(symbol, timeframe)
       if (klines) {
-        klinesByTimeframe.set(timeframe, klines)
+        // 固定本轮数据，避免后台更新引用后将新指标拼到旧K线中。
+        klinesByTimeframe.set(timeframe, klines.map(candle => ({ ...candle })))
       }
     }
 

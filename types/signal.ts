@@ -91,6 +91,11 @@ export interface VolumeValues {
   estimatedVolume?: number;
   /** AI 分析使用的成交量 EMA 均值 */
   emaAverage?: number;
+  /** 量能所用EMA周期及来源K线信息，独立于价格行为主周期。 */
+  emaPeriod?: number;
+  timeframe?: string;
+  candleTimestamp?: number;
+  candleProgress?: number;
   /** 预计成交量 / EMA均值，以百分比表示 */
   estimatedEmaRatioPercent?: number;
 }

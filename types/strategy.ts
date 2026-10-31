@@ -313,6 +313,8 @@ export interface IndicatorData {
   symbol: string;
   timeframe: Timeframe;
   timestamp: number;
+  /** 计算时使用的完整 K 线窗口摘要，用于拒绝与本轮市场快照不一致的缓存。 */
+  sourceKlineHash?: string;
   values: Record<string, any>;         // 指标值，如 { ema: [...], rsi: 45.2 }
 }
 

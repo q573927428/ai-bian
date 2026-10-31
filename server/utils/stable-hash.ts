@@ -1,3 +1,6 @@
+// ==================== 稳定序列化与缓存摘要 ====================
+import { createHash } from 'node:crypto'
+
 function normalizeValue(value: unknown): unknown {
   if (value instanceof Map) {
     return Array.from(value.entries())
@@ -9,11 +12,7 @@ function normalizeValue(value: unknown): unknown {
     return value.map(item => normalizeValue(item))
   }
 
-  if (typeof value === 'number') {
-    if (!Number.isFinite(value)) return value
-    return Number(value.toFixed(8))
-  }
-
+  // 保留原始数值精度，小价格交易对的盘中更新可能小于1e-8，不能被舍入吞掉。
   if (value && typeof value === 'object') {
     const record = value as Record<string, unknown>
     return Object.keys(record)
@@ -32,5 +31,6 @@ export function stableStringify(value: unknown): string {
 }
 
 export function shortHash(value: unknown, length = 32): string {
-  return Buffer.from(stableStringify(value)).toString('base64url').substring(0, length)
+  // 必须对完整内容求摘要；截取 Base64 前缀会忽略后部的行情、周期参数和提示词变化。
+  return createHash('sha256').update(stableStringify(value)).digest('hex').substring(0, length)
 }
