@@ -79,6 +79,18 @@
             <span v-else>—</span>
           </template>
         </el-table-column>
+        <el-table-column label="今日亏损" width="100">
+          <template #default="{ row }">
+            <el-tag
+              v-if="dailyLossStatuses[row.id]"
+              :type="dailyLossStatuses[row.id]?.dailyLossLimitReached ? 'warning' : 'info'"
+              size="small"
+            >
+              {{ dailyLossStatuses[row.id]?.todayLossAmount.toFixed(2) }}/{{ dailyLossStatuses[row.id]?.limit.toFixed(2) }}
+            </el-tag>
+            <span v-else>—</span>
+          </template>
+        </el-table-column>
         <el-table-column label="时间" width="160">
           <template #default="{ row }">
             {{ formatDate(row.createdAt) }}
@@ -337,7 +349,7 @@
 
 <script setup lang="ts">
 import { ref, watch, computed } from 'vue'
-import type { Strategy } from '../../types/strategy'
+import type { Strategy, StrategyDailyLossStatus } from '../../types/strategy'
 import StrategyEditor from '../components/StrategyEditor.vue'
 import StrategyVersionHistory from '../components/StrategyVersionHistory.vue'
 import PasswordDialog from '../components/PasswordDialog.vue'
@@ -365,6 +377,7 @@ const visible = computed({
 const strategies = ref<Strategy[]>([])
 // 接口运行状态独立保存，避免编辑或复制策略时把计数写入配置。
 const dailyTradeStatuses = ref<Record<string, { todayOpenedCount: number; dailyTradeLimitReached: boolean }>>({})
+const dailyLossStatuses = ref<Record<string, StrategyDailyLossStatus>>({})
 const loading = ref(false)
 const showCreateDialog = ref(false)
 const showVersionHistoryDialog = ref(false)
@@ -445,6 +458,7 @@ const loadStrategies = async () => {
     const res = await $fetch<any>('/api/strategies')
     strategies.value = res.data || []
     dailyTradeStatuses.value = res.dailyTradeStatuses || {}
+    dailyLossStatuses.value = res.dailyLossStatuses || {}
   } catch (error: any) {
     ElMessage.error(`加载策略失败: ${error.message}`)
   } finally {

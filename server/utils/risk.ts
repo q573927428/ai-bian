@@ -3,14 +3,6 @@ import type { RiskConfig as StrategyRiskConfig } from '../../types/strategy'
 import dayjs from 'dayjs'
 
 /**
- * 熔断配置（独立于策略风险配置）
- */
-export interface CircuitBreakerConfig {
-  dailyLossThreshold: number
-  consecutiveLossesThreshold: number
-}
-
-/**
  * 止盈配置（独立于策略风险配置）
  */
 export interface TakeProfitConfig {
@@ -18,16 +10,6 @@ export interface TakeProfitConfig {
   tp2RiskRewardRatio: number
   rsiExtreme: { long: number; short: number }
 }
-
-/**
- * 兼容的风险配置类型（用于现有代码过渡）
- */
-export interface CompatibleRiskConfig {
-  circuitBreaker?: CircuitBreakerConfig
-  takeProfit?: TakeProfitConfig
-  dailyTradeLimit?: number
-}
-
 
 /**
  * 检查持仓超时
@@ -221,17 +203,11 @@ export function checkDailyTradeLimit(
  * 用于现有代码的平滑过渡
  */
 export function convertStrategyRiskConfig(strategyRiskConfig: StrategyRiskConfig): {
-  circuitBreaker: CircuitBreakerConfig
   takeProfit: TakeProfitConfig
   dailyTradeLimit: number
 } {
-  // 从策略配置中提取熔断和止盈信息
-  // 注意：策略配置中可能没有完整的熔断和止盈配置，需要提供默认值
+  // 每日亏损由 DailyRiskState 按 USDT 金额控制，不能再把金额转换为旧百分比熔断配置。
   return {
-    circuitBreaker: {
-      dailyLossThreshold: strategyRiskConfig.maxDailyLoss || 10,
-      consecutiveLossesThreshold: 3
-    },
     takeProfit: {
       tp1RiskRewardRatio: strategyRiskConfig.takeProfitRatios?.[0] || 2,
       tp2RiskRewardRatio: strategyRiskConfig.takeProfitRatios?.[1] || 3,

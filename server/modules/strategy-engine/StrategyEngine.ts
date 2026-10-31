@@ -1,6 +1,6 @@
 // ==================== 策略执行引擎 ====================
 
-import type { Strategy, StrategyId, Timeframe, AIPromptConfig } from '../../../types/strategy'
+import type { Strategy, StrategyId, Timeframe, AIPromptConfig, StrategyDailyLossStatus } from '../../../types/strategy'
 import type { TradeSignal } from '../../../types/signal'
 import type { BotConfig, OrderExecutionSummary } from '../../../types'
 import { StrategyStore } from '../strategy-store/StrategyStore'
@@ -25,6 +25,8 @@ import { shortHash } from '../../utils/stable-hash'
 import { indicatorCombinationRegistry, type IndicatorCombinationRegistry } from '../indicators/IndicatorCombinationRegistry'
 import type { IndicatorPrecomputeService } from '../indicators/IndicatorPrecomputeService'
 import { DailyTradeLimiter } from '../risk-control/DailyTradeLimiter'
+import { checkStrategyDailyLoss, getStrategyDailyLossLimit, resetDailyRiskState } from '../risk-control/DailyRiskState'
+import { saveBotState } from '../../utils/storage'
 import { getAnalysisMonth, saveTradeDecision } from '../../utils/trade-decision-store'
 
 /**
@@ -165,7 +167,7 @@ export class StrategyEngine {
     this.aiAnalyzer = new MultiStrategyAIAnalyzer(binance, config, indicatorsHub)
 
     // 初始化持仓相关模块
-    this.positionCloser = new StrategyPositionCloser(binance, positionManager, config, state)
+    this.positionCloser = new StrategyPositionCloser(binance, positionManager, config, state, store)
     this.positionMonitor = new StrategyPositionMonitor(binance, positionManager, this.positionCloser, config, store)
 
     // 初始化新调度架构
@@ -178,6 +180,45 @@ export class StrategyEngine {
   /** 为策略列表提供真实开仓计数，复用执行开仓检查的限制器实例。 */
   async getDailyTradeStatus(strategyId: StrategyId, maxDailyTrades: number, now = Date.now()) {
     return this.dailyTradeLimiter.getStatus(strategyId, maxDailyTrades, now)
+  }
+
+  /** 只检查指定策略的每日亏损门禁，运行状态仍由各策略实例管理。 */
+  private getOpeningBlockReason(strategyId: StrategyId, now = Date.now()): string | null {
+    // 定时扫描始终保留，零点后的首次扫描或手动开仓检查会自动进入新一天的风控窗口。
+    if (resetDailyRiskState(this.state, now)) {
+      void saveBotState(this.state).catch((error: any) => {
+        logger.error('每日风控重置', `保存重置状态失败: ${error.message}`)
+      })
+    }
+    const strategyBreaker = this.state.strategyDailyRisk?.[strategyId]?.circuitBreaker
+    return strategyBreaker?.isTriggered
+      ? `策略熔断，禁止开仓：${strategyBreaker.reason}`
+      : null
+  }
+
+  /** 为策略列表和开仓门禁提供同一份每日净亏损金额与限额，缺失配置默认 10 USDT。 */
+  getDailyLossStatus(strategyId: StrategyId, maxDailyLoss: unknown, now = Date.now()): StrategyDailyLossStatus {
+    this.getOpeningBlockReason(strategyId, now)
+    const wasTriggered = this.state.strategyDailyRisk?.[strategyId]?.circuitBreaker.isTriggered
+    // 每次检查使用最新配置，调低固定金额上限后无需等待下一笔平仓才生效。
+    const breaker = checkStrategyDailyLoss(this.state, strategyId, maxDailyLoss, now)
+    if (breaker.isTriggered && !wasTriggered) {
+      void saveBotState(this.state).catch((error: any) => {
+        logger.error('策略每日亏损限制', `保存熔断状态失败: ${error.message}`)
+      })
+    }
+    return {
+      todayLossAmount: breaker.dailyLoss,
+      limit: getStrategyDailyLossLimit(maxDailyLoss),
+      dailyLossLimitReached: breaker.isTriggered,
+      reason: breaker.reason
+    }
+  }
+
+  /** 开仓入口与实际提交订单前均须检查，防止异步等待期间触及每日亏损上限后继续开仓。 */
+  private assertOpeningAllowed(strategyId: StrategyId, maxDailyLoss: unknown): void {
+    const status = this.getDailyLossStatus(strategyId, maxDailyLoss)
+    if (status.dailyLossLimitReached) throw new Error(`策略熔断，禁止开仓：${status.reason}`)
   }
 
   setIndicatorPrecomputeService(service: IndicatorPrecomputeService | null): void {
@@ -530,6 +571,8 @@ export class StrategyEngine {
 
       for (const instance of instances) {
         if (!instance.isRunning) continue
+        // 单个策略达到每日亏损上限时，只跳过该策略的扫描。
+        if (this.getOpeningBlockReason(instance.strategy.id)) continue
         
         // 检查是否到了该策略的扫描时间
         if (instance.nextScanTime && loopStartTime < instance.nextScanTime) {
@@ -573,9 +616,10 @@ export class StrategyEngine {
 
       const processSymbolEntry = async (symbol: string, dueInstances: StrategyInstance[]): Promise<void> => {
         try {
-          // 过滤掉已有仓位的策略
+          // 同批次其他交易对处理期间也可能触及亏损上限，按策略再次检查并过滤已有仓位。
           const activeInstances: StrategyInstance[] = []
           for (const instance of dueInstances) {
+            if (this.getOpeningBlockReason(instance.strategy.id)) continue
             if (!(await this.positionManager.hasConflict(symbol, instance.strategy.id))) {
               activeInstances.push(instance)
             }
@@ -808,6 +852,9 @@ export class StrategyEngine {
     symbol: string,
     snapshot: MarketSnapshot
   ): Promise<void> {
+    // 快照任务可能已在队列中等待；执行时重新读取熔断状态。
+    if (this.getOpeningBlockReason(instance.strategy.id)) return
+
     const strategy = instance.strategy
 
     // 1. 检查是否已有仓位（同交易对互斥）
@@ -824,6 +871,9 @@ export class StrategyEngine {
 
     // 4. 优先读取预计算指标，缺失时回退实时计算
     await this.hydrateIndicatorsForStrategy(strategy, symbol, mainTimeframe, indicatorsData)
+
+    // 补齐指标的等待期间可能熔断，此时不再启动新的 AI 分析。
+    if (this.getOpeningBlockReason(instance.strategy.id)) return
 
     // 5. 构建 AI 提示词并调用 AI 分析
     const signal = await this.callAI(
@@ -1309,6 +1359,9 @@ export class StrategyEngine {
     try {
       const strategy = instance.strategy
 
+      // 自动信号和手动强制开仓共用门禁，熔断时不预占每日次数或锁定交易对。
+      this.assertOpeningAllowed(strategy.id, strategy.riskManagement.maxDailyLoss)
+
       logger.info('开仓信号', `执行信号: ${signal.symbol} ${signal.direction} (${signal.reasoning})`)
 
       // 必须在任何下单操作前原子预占名额，防止同一轮并发信号突破每日上限。
@@ -1329,6 +1382,7 @@ export class StrategyEngine {
 
       // 1. 获取账户余额
       const account = await this.binance.fetchBalance()
+      this.assertOpeningAllowed(strategy.id, strategy.riskManagement.maxDailyLoss)
       logger.info('账户', `余额: ${account.availableBalance} USDT`)
 
       // 余额检查
@@ -1475,7 +1529,14 @@ export class StrategyEngine {
         logger.info('交易决策归档', `${signal.symbol} [${strategy.id}] analysisId=${entryAnalysisId}`)
       }
       const side = getOrderSide(signal.direction.toUpperCase() as 'LONG' | 'SHORT', true)
-      const order = await this.binance.marketOrder(signal.symbol, side, quantity)
+      this.assertOpeningAllowed(strategy.id, strategy.riskManagement.maxDailyLoss)
+      const order = await this.binance.marketOrder(
+        signal.symbol,
+        side,
+        quantity,
+        // 交易所限流队列可能继续等待，真正发送前必须再次通过门禁。
+        () => this.assertOpeningAllowed(strategy.id, strategy.riskManagement.maxDailyLoss)
+      )
       openedOrder = order
       // 订单已被交易所接受，先记录下单数量；即使后续查询持仓超时，也要尝试保护性平仓。
       openedQuantity = quantity
@@ -1774,6 +1835,8 @@ export class StrategyEngine {
       throw new Error(`策略未运行: ${strategyId}`)
     }
 
+    this.assertOpeningAllowed(strategyId, instance.strategy.riskManagement.maxDailyLoss)
+
     logger.info('手动开仓', `手动触发分析: ${symbol}`)
 
     // 构建市场快照
@@ -1791,13 +1854,15 @@ export class StrategyEngine {
 
   /**
    * 强制开仓 - 构造 TradeSignal 并直接执行
-   * 将置信度和 finalScore 设为 100 以绕过所有风控阈值
+   * 将置信度和 finalScore 设为 100 以绕过评分阈值；仍须通过熔断与每日次数门禁。
    */
   async forceOpenPosition(strategyId: StrategyId, symbol: string, direction: 'long' | 'short'): Promise<any> {
     const instance = this.runningStrategies.get(strategyId)
     if (!instance) {
       throw new Error(`策略未运行: ${strategyId}`)
     }
+
+    this.assertOpeningAllowed(strategyId, instance.strategy.riskManagement.maxDailyLoss)
 
     logger.info('强制开仓', `手动开仓: ${symbol} ${direction} [策略: ${strategyId}]`)
 

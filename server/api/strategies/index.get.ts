@@ -39,12 +39,18 @@ export default defineEventHandler(async (event) => {
       strategy.id,
       await engine.getDailyTradeStatus(strategy.id, strategy.riskManagement.maxDailyTrades, now)
     ] as const)))
+    // 亏损金额与开仓门禁共用引擎状态，避免列表展示账户比例或其他策略的盈亏。
+    const dailyLossStatuses = Object.fromEntries(strategies.map(strategy => [
+      strategy.id,
+      engine.getDailyLossStatus(strategy.id, strategy.riskManagement.maxDailyLoss, now)
+    ] as const))
 
     return {
       success: true,
       data: strategies.map(s => maskStrategyData(s)),
       statuses,
-      dailyTradeStatuses
+      dailyTradeStatuses,
+      dailyLossStatuses
     }
   } catch (error: any) {
     throw createError({

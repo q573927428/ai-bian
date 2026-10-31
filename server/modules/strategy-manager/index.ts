@@ -9,7 +9,6 @@ import { BinanceService } from '../../utils/binance'
 import { loadBotConfig } from '../../utils/storage'
 import { logger } from '../../utils/logger'
 import type { BotState } from '../../../types'
-import { PositionStatus } from '../../../types'
 import { getSyncService, waitForSyncReady, startKLineAutoSync } from '../../utils/kline-sync-service'
 import { initKLineDb } from '../../utils/kline-simple-storage'
 import { concurrencyPoolManager } from '../../utils/concurrency-pool'
@@ -73,19 +72,9 @@ export async function initStrategyManager(): Promise<StrategyManager> {
     // 加载本地持久化状态
     await positionMgr.init()
 
-    // 初始化 BotState (默认值)
-    const dateParts = new Date().toISOString().split('T')
+    // 只维护各策略每日风控窗口，运行状态由策略实例管理。
     const defaultState: BotState = {
-      status: PositionStatus.IDLE,
-      circuitBreaker: {
-        isTriggered: false,
-        reason: '',
-        timestamp: 0,
-        dailyLoss: 0,
-        consecutiveLosses: 0
-      },
-      dailyPnL: 0,
-      isRunning: false
+      strategyDailyRisk: {}
     }
 
     // 初始化策略执行引擎

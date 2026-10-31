@@ -50,16 +50,6 @@ export interface EntryCommunitySentiment {
   netDirectionalSentimentPercent: number
 }
 
-// 仓位状态
-export enum PositionStatus {
-  IDLE = 'IDLE',
-  MONITORING = 'MONITORING',
-  OPENING = 'OPENING',
-  POSITION = 'POSITION',
-  CLOSING = 'CLOSING',
-  HALTED = 'HALTED'
-}
-
 // ==================== K线与技术指标 ====================
 
 // K线数据
@@ -588,20 +578,24 @@ export interface TradeHistory {
 
 // ==================== 机器人状态 ====================
 
-// 熔断状态
-export interface CircuitBreaker {
+/** 单个策略的每日亏损门禁；dailyLoss 为当日净亏损的 USDT 金额。 */
+export interface StrategyDailyLossBreaker {
   isTriggered: boolean
   reason: string
   timestamp: number
   dailyLoss: number
-  consecutiveLosses: number
 }
 
-// 机器人状态
-export interface BotState {
-  status: PositionStatus
-  circuitBreaker: CircuitBreaker
+/** 单个策略在当前北京时间自然日的净盈亏和每日亏损门禁，dailyLoss 以 USDT 金额计，互不影响其他策略。 */
+export interface StrategyDailyRiskState {
   dailyPnL: number
-  isRunning: boolean
-  lastTradeTime?: number
+  circuitBreaker: StrategyDailyLossBreaker
+}
+
+/** 按策略隔离的每日风控状态，不承载全局运行开关或全局熔断。 */
+export interface BotState {
+  /** 每日风控统计所属的北京时间日期（YYYY-MM-DD），旧状态首次检查时自动补齐。 */
+  riskDayKey?: string
+  /** 按策略 ID 分别累计每日净盈亏与熔断，跨日时统一清空。 */
+  strategyDailyRisk?: Record<string, StrategyDailyRiskState>
 }

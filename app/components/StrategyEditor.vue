@@ -417,6 +417,15 @@
               </el-col>
             </el-row>
 
+            <el-row :gutter="12">
+              <el-col :xs="24" :span="12">
+                <el-form-item label="每日亏损">
+                  <el-input-number v-model="form.riskManagement.maxDailyLoss" :min="0.01" :step="1" :precision="2" />
+                  <small class="unitf">USDT</small>
+                </el-form-item>
+              </el-col>
+            </el-row>
+
             <el-form-item label="移动止损">
               <div class="trailing-stop-row">
                 <span class="trailing-stop-group">
@@ -569,14 +578,14 @@ const availableProviderOptions = computed(() => {
 
 // 当前可用模型
 const availableModels = computed(() => {
-  return providerModels[form.aiPrompt.provider] || []
+  return providerModels[form.value.aiPrompt.provider] || []
 })
 
 // 处理提供商变更
 const handleProviderChange = (provider: string) => {
   const models = providerModels[provider]
   if (models && models.length > 0 && models[0]) {
-    form.aiPrompt.model = models[0].value
+    form.value.aiPrompt.model = models[0].value
   }
 }
 
@@ -592,12 +601,12 @@ const fetchConfiguredProviders = async () => {
       configuredProviders.value = response.data
 
       // 确保当前选择的提供商是已配置的
-      const currentProvider = configuredProviders.value.find(p => p.id === form.aiPrompt.provider)
+      const currentProvider = configuredProviders.value.find(p => p.id === form.value.aiPrompt.provider)
       if (!currentProvider || !currentProvider.configured) {
         // 当前提供商未配置，选择第一个已配置的
         const firstConfigured = configuredProviders.value.find(p => p.configured)
         if (firstConfigured) {
-          form.aiPrompt.provider = firstConfigured.id as any
+          form.value.aiPrompt.provider = firstConfigured.id as any
           handleProviderChange(firstConfigured.id)
         }
       }
@@ -643,8 +652,8 @@ const oiParams = reactive({
   trendThresholdPercent: 0.4
 })
 
-// 初始化表单
-const form = reactive<CreateStrategyInput>({
+// 使用 ref 统一模板与脚本的表单类型解析，兼容 Vue 扩展对 v-model 的 .value 生成逻辑。
+const form = ref<CreateStrategyInput>({
   name: '',
   marketData: {
     symbols: [],
@@ -712,7 +721,7 @@ const form = reactive<CreateStrategyInput>({
  * 根据策略最小周期计算 OI 最大回看周期数，确保总窗口不超过 24 小时。
  */
 const oiMaxChangePeriod = computed(() => {
-  const sortedTimeframes = [...form.marketData.timeframes].sort((a, b) =>
+  const sortedTimeframes = [...form.value.marketData.timeframes].sort((a, b) =>
     (timeframePriority[a] || 99) - (timeframePriority[b] || 99)
   )
   const timeframe = sortedTimeframes[0] || '1h'
@@ -728,13 +737,13 @@ watch(oiMaxChangePeriod, (maxPeriod) => {
 // 预筛启用标记
 const preScreenEnabledFlags = ref<string[]>(['enableAdx', 'enableAdxSlope', 'enableAtr', 'enableOi', 'enableVolume'])
 
-// 同步 preScreenEnabledFlags 到 form.preScreenConfig
+// 脚本显式访问 ref.value；模板仍由 Vue 自动解包为表单对象。
 watch(preScreenEnabledFlags, (flags) => {
-  form.preScreenConfig.enableAdx = flags.includes('enableAdx')
-  form.preScreenConfig.enableAdxSlope = flags.includes('enableAdxSlope')
-  form.preScreenConfig.enableAtr = flags.includes('enableAtr')
-  form.preScreenConfig.enableOi = flags.includes('enableOi')
-  form.preScreenConfig.enableVolume = flags.includes('enableVolume')
+  form.value.preScreenConfig.enableAdx = flags.includes('enableAdx')
+  form.value.preScreenConfig.enableAdxSlope = flags.includes('enableAdxSlope')
+  form.value.preScreenConfig.enableAtr = flags.includes('enableAtr')
+  form.value.preScreenConfig.enableOi = flags.includes('enableOi')
+  form.value.preScreenConfig.enableVolume = flags.includes('enableVolume')
 }, { immediate: true })
 
 // 未选择 ATR 指标时，自动关闭 enableAtr
@@ -745,12 +754,12 @@ watch(selectedIndicators, (indicators) => {
 })
 
 // 同步 indicators 数据 - 使用市场数据配置的最小周期
-watch([selectedIndicators, emaPeriods, () => form.marketData.timeframes], () => {
+watch([selectedIndicators, emaPeriods, () => form.value.marketData.timeframes], () => {
   const newIndicators: any[] = []
   let id = 1
 
   // 获取最小周期
-  const sortedTimeframes = [...form.marketData.timeframes].sort((a, b) =>
+  const sortedTimeframes = [...form.value.marketData.timeframes].sort((a, b) =>
     (timeframePriority[a] || 99) - (timeframePriority[b] || 99)
   )
   const smallestTimeframe = sortedTimeframes[0] ? [sortedTimeframes[0]] : []
@@ -801,16 +810,16 @@ watch([selectedIndicators, emaPeriods, () => form.marketData.timeframes], () => 
     })
   }
 
-  form.indicators = newIndicators
+  form.value.indicators = newIndicators
 }, { immediate: true, deep: true })
 
 // 同步 statistics 数据 - 使用市场数据配置的最小周期
-watch([selectedStatistics, () => form.marketData.timeframes, () => oiParams.changePeriod, () => oiParams.trendThresholdPercent], () => {
+watch([selectedStatistics, () => form.value.marketData.timeframes, () => oiParams.changePeriod, () => oiParams.trendThresholdPercent], () => {
   const newStatistics: any[] = []
   let id = 5
 
   // 获取最小周期
-  const sortedTimeframes = [...form.marketData.timeframes].sort((a, b) =>
+  const sortedTimeframes = [...form.value.marketData.timeframes].sort((a, b) =>
     (timeframePriority[a] || 99) - (timeframePriority[b] || 99)
   )
   const smallestTimeframe = sortedTimeframes[0] ? [sortedTimeframes[0]] : ['1h']
@@ -846,17 +855,18 @@ watch([selectedStatistics, () => form.marketData.timeframes, () => oiParams.chan
     })
   }
 
-  form.statistics = newStatistics
+  form.value.statistics = newStatistics
 }, { immediate: true, deep: true })
 
 // 如果有编辑的策略，加载数据
 watch(() => props.strategy, (newVal) => {
   if (newVal) {
-    Object.assign(form, {
+    Object.assign(form.value, {
       name: newVal.name,
       marketData: newVal.marketData,
       aiPrompt: newVal.aiPrompt,
-      riskManagement: newVal.riskManagement,
+      // maxDailyLoss 统一按固定 USDT 金额解释，缺失时与服务端统一使用 10 USDT。
+      riskManagement: { ...newVal.riskManagement, maxDailyLoss: newVal.riskManagement.maxDailyLoss ?? 10 },
       executionConfig: newVal.executionConfig,
       indicators: newVal.indicators,
       statistics: newVal.statistics,
@@ -922,7 +932,7 @@ watch(() => props.strategy, (newVal) => {
     const sr = (newVal as any).structuredRules
     structuredRulesDsl.value = (sr && typeof sr.dsl === 'string') ? sr.dsl : ''
     if (sr) {
-      ;(form as any).structuredRules = sr
+      form.value.structuredRules = sr
     }
   } else {
     structuredRulesDsl.value = ''
@@ -936,17 +946,17 @@ const handleSave = async () => {
     structuredRulesDslError.value = ''
     const raw = structuredRulesDsl.value.trim()
     if (raw) {
-      ;(form as any).structuredRules = { dsl: raw }
+      form.value.structuredRules = { dsl: raw }
     } else {
-      delete (form as any).structuredRules
+      delete form.value.structuredRules
     }
 
     // 简单排序：保存时按从短到长排序周期
-    form.marketData.timeframes.sort((a, b) =>
+    form.value.marketData.timeframes.sort((a, b) =>
       (timeframePriority[a] || 99) - (timeframePriority[b] || 99)
     )
 
-    const payload = { ...form }
+    const payload = { ...form.value }
 
     // // 若 structuredRules 为空，则走后端 AI 自动生成并弹窗确认
     // const hasStructuredRules = !!structuredRulesDsl.value.trim()

@@ -163,7 +163,7 @@ export interface SignalGenerationContext {
     maxRiskPercentage: number;
     stopLossATRMultiplier: number;
     maxDailyTrades: number;
-    maxDailyLoss: number;
+    maxDailyLoss: number;              // 每日净亏损上限，固定 USDT 金额
   };
   currentPosition?: {                  // 当前持仓（如果有）
     direction: TradeDirection;

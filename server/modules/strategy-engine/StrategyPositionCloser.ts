@@ -4,9 +4,10 @@ import { PositionManager } from '../position-manager/PositionManager'
 import { BinanceService } from '../../utils/binance'
 import { logger } from '../../utils/logger'
 import { saveBotState } from '../../utils/storage'
-import { calculatePnL, checkCircuitBreaker } from '../../utils/trade-helpers'
+import { calculatePnL } from '../../utils/trade-helpers'
+import { checkStrategyDailyLoss, getRiskDayKey, getStrategyDailyRiskState, resetDailyRiskState } from '../risk-control/DailyRiskState'
+import type { StrategyStore } from '../strategy-store/StrategyStore'
 import { recordTrade, type TradeSettlement } from './helpers/trade-recorder'
-import { PositionStatus } from '../../../types'
 import type { BotConfig, BotState, OrderExecutionSummary, Position } from '../../../types'
 
 /**
@@ -18,17 +19,20 @@ export class StrategyPositionCloser {
   private positionManager: PositionManager
   private config: BotConfig
   private state: BotState
+  private strategyStore: Pick<StrategyStore, 'getStrategy'>
 
   constructor(
     binance: BinanceService,
     positionManager: PositionManager,
     config: BotConfig,
-    state: BotState
+    state: BotState,
+    strategyStore: Pick<StrategyStore, 'getStrategy'>
   ) {
     this.binance = binance
     this.positionManager = positionManager
     this.config = config
     this.state = state
+    this.strategyStore = strategyStore
   }
 
   /**
@@ -140,49 +144,21 @@ export class StrategyPositionCloser {
   }
 
   /**
-   * 安全初始化 state，确保必要属性存在
+   * 按实际成交日期更新策略每日净盈亏，普通、手动与补偿平仓使用同一上限。
+   * 已确认的盈亏先计入内存，配置查询后再次切日，防止跨日或并发结算写回旧计数。
    */
-  private ensureStateInitialized(): void {
-    if (!this.state) {
-      this.state = {} as BotState
-    }
-    
-    // 初始化 dailyPnL
-    if (this.state.dailyPnL === undefined) {
-      this.state.dailyPnL = 0
-    }
-    
-    // 初始化 circuitBreaker
-    if (!this.state.circuitBreaker) {
-      this.state.circuitBreaker = {
-        isTriggered: false,
-        reason: '',
-        timestamp: Date.now(),
-        dailyLoss: 0,
-        consecutiveLosses: 0
-      }
-    }
-    
-    // 初始化 status
-    if (!this.state.status) {
-      this.state.status = PositionStatus.MONITORING
-    }
-    
-    // 初始化 isRunning
-    if (this.state.isRunning === undefined) {
-      this.state.isRunning = true
-    }
-  }
+  private async updateRiskStateAfterClose(strategyId: string, netPnl: number, closeTime: number): Promise<void> {
+    resetDailyRiskState(this.state)
 
-  /**
-   * 获取熔断配置（使用默认值，兼容多策略架构）
-   * 注意：熔断配置现在应从策略级别获取，这里仅保留默认值用于向后兼容
-   */
-  private getCircuitBreakerConfig(): { dailyLossThreshold: number; consecutiveLossesThreshold: number } {
-    return {
-      dailyLossThreshold: 10,
-      consecutiveLossesThreshold: 5
+    // 昨天成交、今天才补记的平仓仍保留历史记录，但不占用今天的风险额度。
+    if (getRiskDayKey(closeTime) === this.state.riskDayKey) {
+      getStrategyDailyRiskState(this.state, strategyId).dailyPnL += netPnl
     }
+
+    // 查询失败也保留已确认的盈亏；查询跨日时只评估新窗口，不能恢复旧的局部计数。
+    // 平仓可能来自已停用的策略，直接读取持久化配置，避免依赖运行中的策略实例。
+    const strategy = await this.strategyStore.getStrategy(strategyId)
+    checkStrategyDailyLoss(this.state, strategyId, strategy?.riskManagement?.maxDailyLoss)
   }
 
   /**
@@ -256,34 +232,8 @@ export class StrategyPositionCloser {
         settlement
       )
 
-      // 7. 安全初始化 state
-      this.ensureStateInitialized()
-
-      // 8. 更新全局状态（临时兼容老架构）
-      this.state.dailyPnL += netPnl
-      if (netPnl < 0) {
-        this.state.circuitBreaker.consecutiveLosses += 1
-      } else {
-        this.state.circuitBreaker.consecutiveLosses = 0
-      }
-
-      // 9. 检查熔断
-      const account = await this.binance.fetchBalance()
-      const circuitBreakerConfig = this.getCircuitBreakerConfig()
-      const breaker = checkCircuitBreaker(
-        this.state.dailyPnL,
-        this.state.circuitBreaker.consecutiveLosses,
-        account.balance,
-        circuitBreakerConfig
-      )
-
-      this.state.circuitBreaker = breaker
-      this.state.lastTradeTime = Date.now()
-
-      if (breaker.isTriggered) {
-        this.state.isRunning = false
-        logger.error('熔断', breaker.reason)
-      }
+      // 7~9. 更新当天盈亏和熔断；成交日期优先使用币安结算时间。
+      await this.updateRiskStateAfterClose(position.strategyId, netPnl, settlement.closeTime ?? order.timestamp)
 
       await saveBotState(this.state)
 
@@ -492,34 +442,8 @@ export class StrategyPositionCloser {
         settlement
       )
 
-      // 安全初始化 state
-      this.ensureStateInitialized()
-
-      // 更新每日盈亏（手动平仓影响每日盈亏，使用净利）
-      this.state.dailyPnL += netPnl
-
-      // 手动平仓不计入连续止损次数，不影响熔断机制
-      // 只有当实际亏损且是系统止损时才计入连续止损
-
-      // 检查熔断条件（只检查每日亏损，不计入连续止损）
-      const account = await this.binance.fetchBalance()
-      const circuitBreakerConfig = this.getCircuitBreakerConfig()
-      const breaker = checkCircuitBreaker(
-        this.state.dailyPnL, 
-        this.state.circuitBreaker.consecutiveLosses, // 保持原有连续止损次数
-        account.balance, 
-        circuitBreakerConfig
-      )
-
-      this.state.circuitBreaker = breaker
-      this.state.status = breaker.isTriggered ? PositionStatus.HALTED : PositionStatus.MONITORING
-      this.state.lastTradeTime = closeTime
-      
-      // 如果触发熔断，停止运行
-      if (breaker.isTriggered) {
-        this.state.isRunning = false
-        logger.error('熔断', breaker.reason)
-      }
+      // 手动平仓也消耗所属策略当日的亏损额度，不能绕过每日开仓门禁。
+      await this.updateRiskStateAfterClose(position.strategyId, netPnl, settlement.closeTime ?? closeTime)
 
       // 清除仓位记录
       this.positionManager.clearPosition(position.symbol)
@@ -621,10 +545,6 @@ export class StrategyPositionCloser {
         logger.error('持仓一致性检查', '处理平仓流程失败', error.message)
         // 即使处理失败，也要清空本地状态
         this.positionManager.clearPosition(symbol)
-        // 安全初始化 state
-        this.ensureStateInitialized()
-        this.state.status = PositionStatus.MONITORING
-        await saveBotState(this.state)
       }
   
       return false 
@@ -741,34 +661,8 @@ export class StrategyPositionCloser {
         settlement
       )
 
-      // 安全初始化 state
-      this.ensureStateInitialized()
-
-      // 更新每日盈亏（使用净利）
-      this.state.dailyPnL += netPnl
-
-      // 更新连续亏损次数（基于净利）
-      let consecutiveLosses = this.state.circuitBreaker.consecutiveLosses
-      if (netPnl < 0) {
-        consecutiveLosses += 1
-      } else {
-        consecutiveLosses = 0
-      }
-
-      // 检查熔断条件
-      const account = await this.binance.fetchBalance()
-      const circuitBreakerConfig = this.getCircuitBreakerConfig()
-      const breaker = checkCircuitBreaker(this.state.dailyPnL, consecutiveLosses, account.balance, circuitBreakerConfig)
-
-      this.state.circuitBreaker = breaker
-      this.state.status = breaker.isTriggered ? PositionStatus.HALTED : PositionStatus.MONITORING
-      this.state.lastTradeTime = Date.now() // 更新上次交易时间（补偿平仓时间）
-      
-      // 如果触发熔断，停止运行
-      if (breaker.isTriggered) {
-        this.state.isRunning = false
-        logger.error('熔断', breaker.reason)
-      }
+      // 补记旧日成交时不能让昨天的亏损在今天再次触发熔断。
+      await this.updateRiskStateAfterClose(position.strategyId, netPnl, settlement.closeTime ?? closeTime)
 
       // 清除仓位记录
       this.positionManager.clearPosition(position.symbol)

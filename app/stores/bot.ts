@@ -1,7 +1,6 @@
 import { defineStore } from 'pinia'
 import { markRaw } from 'vue'
 import type { 
-  BotState,
   BotConfig, 
   LogEntry,
   CryptoBalance,
@@ -57,9 +56,6 @@ export const useBotStore = defineStore('bot', {
     },
     hasPosition: (state) => {
       return (state.state?.currentPositions || 0) > 0
-    },
-    isHalted: () => {
-      return false
     },
     // 兼容旧代码，返回 botConfig 如果可用，否则返回 statusConfig
     config: (state) => {

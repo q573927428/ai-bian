@@ -180,7 +180,7 @@ export interface RiskConfig {
   stopLossATRMultiplier: number;       // 止损ATR倍数
   takeProfitRatios: number[];          // 止盈盈亏比 [2.5, 3.5]
   maxDailyTrades: number;              // 每日最大交易次数
-  maxDailyLoss: number;                // 每日最大亏损 (%)
+  maxDailyLoss: number;                // 该策略当日平仓净亏损上限（固定 USDT 金额），默认 10，达到后暂停该策略开仓
   maxHoldTimeMinutes?: number;         // 最大持仓时间 (分钟)
   trailingStop: TrailingStopConfig;
   rsiExtreme?: { long: number; short: number };
@@ -261,6 +261,14 @@ export interface UpdateStrategyInput {
 }
 
 // ==================== 策略状态 ====================
+
+/** 策略列表使用的每日亏损门禁状态，金额单位均为 USDT，不写入策略配置。 */
+export interface StrategyDailyLossStatus {
+  todayLossAmount: number;             // 当日已平仓净亏损，盈利时为 0
+  limit: number;                       // maxDailyLoss 生效金额，缺失或非法时默认 10
+  dailyLossLimitReached: boolean;      // 当日触发后保持，直到北京时间次日解除
+  reason: string;                      // 禁止开仓的原因，未触发时为空
+}
 
 // 策略运行状态
 export interface StrategyStatus {

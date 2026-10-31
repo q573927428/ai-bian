@@ -275,23 +275,26 @@ export class BinanceService {
   }
 
   /**
-   * 市价开仓（使用私有实例）
+   * 市价下单（使用私有实例）；开仓可传入提交前门禁，平仓无需受开仓门禁限制。
    */
   async marketOrder(
     symbol: string,
     side: 'buy' | 'sell',
     amount: number,
+    beforeSubmit?: () => void,
   ): Promise<Order> {
     try {
-      const order = await binanceApiGateway.trade(`marketOrder:${symbol}:${side}`, () =>
-        this.privateExchange.createOrder(
+      const order = await binanceApiGateway.trade(`marketOrder:${symbol}:${side}`, () => {
+        // 排队等待期间可能触发熔断，必须在实际请求前检查最新状态。
+        beforeSubmit?.()
+        return this.privateExchange.createOrder(
           symbol, 
           'market', 
           side, 
           amount,
           undefined, // price
         )
-      )
+      })
       
       return {
         orderId: order.id,
