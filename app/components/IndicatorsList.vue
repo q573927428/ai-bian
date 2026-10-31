@@ -51,7 +51,7 @@
 
     <div v-show="showNumericFilters" class="numeric-filters" role="region" aria-label="指标数值筛选">
       <div class="numeric-filter-header">
-        <span class="muted">区间筛选 · 留空不限 · 多项同时满足</span>
+        <span class="muted">区间筛选</span>
         <span class="numeric-filter-actions">
           <span class="muted" aria-live="polite">{{ filteredRows.length }} / {{ rows.length }} 个交易对</span>
           <el-button size="small" text :disabled="!activeNumericFilters" @click="resetNumericFilters">重置</el-button>
