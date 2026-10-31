@@ -11,7 +11,7 @@
       <button type="button" :aria-pressed="expanded" @click="expanded = !expanded">{{ expanded ? '收起' : '放大' }}</button>
     </header>
     <div v-if="error" class="error" role="status">{{ error }}</div>
-    <div ref="canvas" class="chart" :aria-label="`${symbol} ${selectedTimeframe} K线、成交量、合约CVD与单根Delta联动图`" />
+    <div ref="canvas" class="chart" :aria-label="`${symbol} ${selectedTimeframe} K线、成交量、合约CVD、Delta及趋势效率ER联动图`" />
     <div class="flow-note">{{ flowNote }}</div>
   </section>
 </template>
@@ -23,6 +23,8 @@ import { calculateEMA } from '../utils/ema-calculator'
 import { calculateAdxChartSeries } from '../utils/adx-chart-series'
 import { calculateRsiChartSeries } from '../utils/rsi-chart-series'
 import { calculateMacdChartSeries } from '../utils/macd-chart-series'
+import { calculateErChartSeries } from '../utils/er-chart-series'
+import type { Timeframe } from '../../types/strategy'
 import { calculateContractFlow } from '../utils/contract-order-flow'
 import { detectCvdDivergences } from '../utils/cvd-divergence'
 import { useBotStore } from '../stores/bot'
@@ -204,6 +206,9 @@ function draw() {
   const rsiValues = calculateRsiChartSeries(bars, interval())
   const latestRsi = rsiValues[bars.length - 1]
   const macdValues = calculateMacdChartSeries(bars, interval())
+  const erValues = calculateErChartSeries(bars, selectedTimeframe.value as Timeframe, interval())
+  // 仅图表显示乘100，与 RSI 共用刻度；计算结果及 AI 输入保持 0～1 原始口径。
+  const erDisplayValues = erValues.map(value => value === null ? null : value * 100)
   // 基准只取前12根连续有效成交量，当前根不参与自身均量，避免放量时抬高基准。
   const validVolume = (value: number) => Number.isFinite(value) && value >= 0
   const volumeAverages = bars.map((bar, index) => {
@@ -239,11 +244,19 @@ function draw() {
       { id: 'pdi-title', text: `+DI ${adx?.pdi.toFixed(1) ?? '--'}` },
       { id: 'mdi-title', text: `−DI ${adx?.mdi.toFixed(1) ?? '--'}` },
       { id: 'rsi-title', text: `RSI(14) ${rsiValues[index]?.toFixed(1) ?? '--'}` },
+      { id: 'er-title', text: `趋势效率 ER20×100（已收盘） ${erDisplayValues[index]?.toFixed(2) ?? '--'}` },
       { id: 'macd-title', text: `MACD(12,26,9) DIF ${macdNumber(macd?.dif)}  DEA ${macdNumber(macd?.dea)}  柱 ${macdNumber(macd?.histogram)}` }
     ] })
   }
   let inspectedIndex = -1
-  resetInspect = () => { if (inspectedIndex !== bars.length - 1) { updateTitles(bars.length - 1); inspectedIndex = bars.length - 1 } }
+  resetInspect = () => {
+    updateTitles(bars.length - 1)
+    // 默认显示最近已收盘值；悬停盘中 K 线时显示 --，不把上一根冒充当前根。
+    const latest = erValues.findLastIndex(value => value !== null)
+    const time = latest >= 0 ? ` ${dateLabel(bars[latest]!.t)} K线` : ''
+    chart?.setOption({ title: [{ id: 'er-title', text: `趋势效率 ER20×100（已收盘） ${erDisplayValues[latest]?.toFixed(2) ?? '--'}${time}` }] })
+    inspectedIndex = -1
+  }
   inspectAt = (x, y) => {
     if (!chart) return
     const gridIndex = [0, 1, 2, 3, 4].find(index => chart!.containPixel({ gridIndex: index }, [x, y]))
@@ -293,7 +306,8 @@ function draw() {
       { id: 'pdi-title', triggerEvent: true, text: `+DI ${latestAdx?.pdi.toFixed(1) ?? '--'}`, left: '35%', top: '52%', textStyle: { color: showPdi.value ? '#95d475' : '#73767a', fontSize: 10, fontWeight: 'normal' } },
       { id: 'mdi-title', triggerEvent: true, text: `−DI ${latestAdx?.mdi.toFixed(1) ?? '--'}`, left: '65%', top: '52%', textStyle: { color: showMdi.value ? '#ff8a80' : '#73767a', fontSize: 10, fontWeight: 'normal' } },
       { id: 'rsi-title', text: `RSI(14) ${latestRsi?.toFixed(1) ?? '--'}`, left: 6, top: '67%', textStyle: { color: '#9b8afb', fontSize: 10, fontWeight: 'normal' } },
-      { id: 'macd-title', text: '', left: 6, top: '80%', textStyle: { color, fontSize: 9, fontWeight: 'normal' } }
+      { id: 'macd-title', text: '', left: 6, top: '80%', textStyle: { color, fontSize: 9, fontWeight: 'normal' } },
+      { id: 'er-title', text: '', right: 6, top: '67%', textStyle: { color: '#36cfc9', fontSize: 10, fontWeight: 'normal' } }
     ],
     // 上下绘图区边界必须一致，同一时间点的十字线才能垂直对齐。
     grid: [
@@ -343,8 +357,9 @@ function draw() {
       { name: 'RSI(14)', type: 'line', xAxisIndex: 3, yAxisIndex: 5, data: rsiValues,
         showSymbol: false, connectNulls: false, lineStyle: { width: 1.5 },
         // 超买超卖和中线仅供观察动能，不等同于反转或开仓信号。
-        markLine: { silent: true, symbol: 'none', label: { show: true, position: 'end', fontSize: 9, color, formatter: '{c}' },
-          lineStyle: { color, opacity: .45, type: 'dashed' }, data: [{ yAxis: 30 }, { yAxis: 50 }, { yAxis: 70 }] } },
+        markLine: { silent: true, symbol: 'none', label: { show: true, position: 'end', fontSize: 9, color, formatter: '{b}' },
+          lineStyle: { color, opacity: .45, type: 'dashed' }, data: [{ name: 'RSI 30', yAxis: 30 }, { name: 'RSI 50', yAxis: 50 }, { name: 'RSI 70', yAxis: 70 }] } },
+      { name: '趋势效率 ER20×100', type: 'line', xAxisIndex: 3, yAxisIndex: 5, data: erDisplayValues, showSymbol: false, connectNulls: false, lineStyle: { width: 1.5, type: 'dashed', color: '#36cfc9' } },
       ...(['dif', 'dea'] as const).map((key, index) => ({ name: key.toUpperCase(), type: 'line', xAxisIndex: 4, yAxisIndex: 6, data: macdValues.map(value => value?.[key] ?? null), showSymbol: false, connectNulls: false, lineStyle: { width: 1.2, color: index === 0 ? '#e6a23c' : '#9b8afb' } })),
       { name: 'MACD柱', type: 'bar', xAxisIndex: 4, yAxisIndex: 6, barMaxWidth: 10, data: macdValues.map(value => value?.histogram == null ? null : { value: value.histogram, itemStyle: { color: value.histogram >= 0 ? '#67c23a' : '#f56c6c', opacity: .65 } }) },
       ...(['adx', 'pdi', 'mdi'] as const).map((key, index) => ({
