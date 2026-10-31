@@ -222,12 +222,23 @@ function refreshChart() {
 }
 
 // 标记控制状态 - 从配置读取默认值
-const chartMarkerConfig = computed(() => botStore.config?.chartMarkerConfig || {})
-const showEMAMarkers = ref(chartMarkerConfig.value.showEMAMarkers ?? false)
-const showOrderMarkers = ref(chartMarkerConfig.value.showOrderMarkers ?? false)
+const chartMarkerConfig = computed(() => botStore.botConfig?.chartMarkerConfig)
+const showEMAMarkers = ref(chartMarkerConfig.value?.showEMAMarkers ?? false)
+const showOrderMarkers = ref(chartMarkerConfig.value?.showOrderMarkers ?? false)
 // 默认不过滤不同策略主周期的订单，用户可在订单开关旁开启过滤。
 const filterOrderMarkersByTimeframe = ref(false)
-const showEMALines = ref(chartMarkerConfig.value.showEMALines ?? true)
+const showEMALines = ref(chartMarkerConfig.value?.showEMALines ?? true)
+
+// 只监听各项默认值的实际变化：保存全局配置立即同步，重复拉取相同配置不覆盖首页临时切换。
+watch(() => chartMarkerConfig.value?.showEMAMarkers, (show) => {
+  showEMAMarkers.value = show ?? false
+})
+watch(() => chartMarkerConfig.value?.showOrderMarkers, (show) => {
+  showOrderMarkers.value = show ?? false
+})
+watch(() => chartMarkerConfig.value?.showEMALines, (show) => {
+  showEMALines.value = show ?? true
+})
 const showScanMarkers = ref(false)
 const scanLoading = ref(false)
 const scanResults = ref<StrategyScanResult[]>([])
@@ -253,7 +264,9 @@ let requestGeneration = 0
 
 // 监听botStore.config变化（仅用于首次初始化加载配置）
 // 注意：后续配置轮询更新时，不再覆盖用户手动选择的周期和EMA配置
-watch(() => botStore.config, (newConfig, oldConfig) => {
+watch(() => botStore.botConfig, (newConfig) => {
+  // 状态接口只有策略摘要，必须等完整配置到达后才能完成首次初始化。
+  if (!newConfig) return
   // 首次初始化时
   if (!hasInitialized) {
     hasInitialized = true
@@ -261,14 +274,6 @@ watch(() => botStore.config, (newConfig, oldConfig) => {
     // 首次从配置读取EMA周期
     if (newConfig?.emaPeriods && newConfig.emaPeriods.length > 0) {
       selectedEmaPeriods.value = [...newConfig.emaPeriods]
-    }
-    
-    // 首次从配置读取标记开关默认值
-    if (newConfig?.chartMarkerConfig) {
-      const cfg = newConfig.chartMarkerConfig
-      if (cfg.showEMAMarkers !== undefined) showEMAMarkers.value = cfg.showEMAMarkers
-      if (cfg.showOrderMarkers !== undefined) showOrderMarkers.value = cfg.showOrderMarkers
-      if (cfg.showEMALines !== undefined) showEMALines.value = cfg.showEMALines
     }
     
     selectedTimeframe.value = computedTimeframe.value

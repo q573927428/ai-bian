@@ -133,7 +133,7 @@
           />
         </el-tooltip>
         <!-- 菜单保持展开，便于连续调整；继续复用至少两个、最多三个周期的限制。 -->
-        <el-dropdown trigger="click" :hide-on-click="false" @command="toggleEmaPeriod">
+        <el-dropdown v-if="showEMALines" trigger="click" :hide-on-click="false" @command="toggleEmaPeriod">
           <el-button size="small" class="ema-period-select" aria-label="选择EMA周期">
             {{ selectedEmaPeriods.join(' / ') }}
             <el-icon class="ema-select-arrow"><ElIconArrowDown /></el-icon>
@@ -210,10 +210,10 @@ interface Props {
   timeframe?: string
   theme?: 'light' | 'dark'
   loading?: boolean
-  showEMAMarkers?: boolean
+  showEmaMarkers?: boolean
   showOrderMarkers?: boolean
   filterOrderMarkersByTimeframe?: boolean
-  showEMALines?: boolean
+  showEmaLines?: boolean
   showScanMarkers?: boolean
   scanLoading?: boolean
   scanSupported?: boolean
@@ -229,10 +229,10 @@ const props = withDefaults(defineProps<Props>(), {
   timeframe: '1h',
   theme: 'light',
   loading: false,
-  showEMAMarkers: false,
+  showEmaMarkers: false,
   showOrderMarkers: false,
   filterOrderMarkersByTimeframe: false,
-  showEMALines: true,
+  showEmaLines: true,
   showScanMarkers: false,
   scanLoading: false,
   scanSupported: true,
@@ -277,10 +277,11 @@ const timeframeOptions = [
 // 响应式数据
 const selectedTimeframe = ref(props.timeframe)
 const selectedEmaPeriods = ref<number[]>([...props.emaPeriods])
-const showEMAMarkers = ref(props.showEMAMarkers)
+// 与父组件的 show-ema-* 绑定保持标准驼峰命名，避免缩写全大写导致属性无法匹配。
+const showEMAMarkers = ref(props.showEmaMarkers)
 const showOrderMarkers = ref(props.showOrderMarkers)
 const filterOrderMarkersByTimeframe = ref(props.filterOrderMarkersByTimeframe)
-const showEMALines = ref(props.showEMALines)
+const showEMALines = ref(props.showEmaLines)
 const showScanMarkers = ref(props.showScanMarkers)
 const scanRangePopoverVisible = ref(false)
 const scanDateRange = ref<[number, number] | null>(props.scanTimeRange ? [...props.scanTimeRange] : null)
@@ -395,8 +396,8 @@ watch(() => props.emaPeriods, (newPeriods) => {
   }
 }, { deep: true })
 
-// 监听props.showEMAMarkers变化
-watch(() => props.showEMAMarkers, (newValue) => {
+// 监听全局配置同步到控制栏的 EMA 标记状态。
+watch(() => props.showEmaMarkers, (newValue) => {
   if (newValue !== undefined && newValue !== showEMAMarkers.value) {
     showEMAMarkers.value = newValue
   }
@@ -415,8 +416,8 @@ watch(() => props.filterOrderMarkersByTimeframe, (newValue) => {
   }
 })
 
-// 监听props.showEMALines变化
-watch(() => props.showEMALines, (newValue) => {
+// 监听全局配置同步到控制栏的 EMA 线状态。
+watch(() => props.showEmaLines, (newValue) => {
   if (newValue !== undefined && newValue !== showEMALines.value) {
     showEMALines.value = newValue
   }
