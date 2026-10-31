@@ -29,6 +29,9 @@ function loadModule(path, dependencies = {}, globals = {}) {
 }
 
 const hashes = loadModule('../server/utils/stable-hash.ts')
+const { SnapshotIndicatorCalculator } = loadModule('../server/modules/strategy-engine/SnapshotIndicatorCalculator.ts', {
+  '../../utils/stable-hash': hashes
+})
 const candleVolume = loadModule('../server/utils/candle-volume.ts')
 const snapshots = loadModule('../server/utils/ai-analysis-snapshot.ts', { './candle-volume.ts': candleVolume })
 const { AIPreScreener } = loadModule('../server/utils/ai-pre-screen.ts')
@@ -109,6 +112,7 @@ function createFixture() {
     '../../../app/utils/efficiency-ratio': efficiencyRatio,
     '../../utils/logger': { logger },
     '../../utils/stable-hash': hashes,
+    './SnapshotIndicatorCalculator': { SnapshotIndicatorCalculator },
     '../../utils/ai-pre-screen': { aiPreScreener: screener },
     '../../utils/market-breadth': { getMarketBreadth: async () => ({}) },
     '../../utils/money-flow': { calculateMoneyFlow: () => ({}), formatMoneyFlowPrompt: () => '' }
@@ -116,8 +120,8 @@ function createFixture() {
   const engine = Object.assign(Object.create(StrategyEngine.prototype), {
     config, indicatorsHub: hub, indicatorRegistry: registry, indicatorPrecompute: precompute,
     aiCache: new Map(), currentLoopAIRequests: 0,
-    // 此夹具跳过构造函数，需要显式初始化每轮回退统计。
-    indicatorFallbackStats: { analyses: 0, indicators: 0, symbols: new Set(), samples: new Set() },
+    // 此夹具跳过构造函数，需要显式初始化本轮快照任务管理器。
+    snapshotIndicatorCalculator: new SnapshotIndicatorCalculator(),
     getOpeningBlockReason: () => null,
     positionManager: { hasConflict: async () => false },
     aiAnalyzer: { async analyze(...args) { calls.push(args); return null } }
@@ -125,6 +129,46 @@ function createFixture() {
   const instance = { strategy }
   return { clock, globals, config, source, versions, hub, strategy, registry, precompute, scheduler, engine, instance, calls, screener }
 }
+
+test('AI 通信失败明确记录分析不可用，不生成观望信号或缓存失败结果', async () => {
+  const entries = []
+  let requests = 0
+  const { MultiStrategyAIAnalyzer } = loadModule('../server/modules/ai-analyzer/MultiStrategyAIAnalyzer.ts', {
+    '../../utils/logger': { logger: { ...logger, warn: (...args) => entries.push(args) } },
+    '../../utils/stable-hash': hashes,
+    '../strategy-store/StrategyStore': { strategyStore: { getStrategy: async () => ({}) } },
+    '../../utils/environment-context': { loadEnvironmentContext: async () => ({}) },
+    '../../utils/ai-analysis-snapshot': { createStrategySnapshot: () => ({ marketData: { timeframes: ['15m'] } }), createQuantitativeSnapshot: () => ({}) },
+    '../../utils/concurrency-pool': { concurrencyPoolManager: { getAIPool: () => ({ submit: task => task() }) } },
+    '../../utils/ai-service': {
+      getProviderConfig: () => ({}),
+      callAIAPI: async () => {
+        requests++
+        throw new Error(requests === 1 ? 'fetch failed' : 'This operation was aborted')
+      }
+    }
+  }, { process: { env: {} }, useRuntimeConfig: () => ({ aiProvider: 'doubao-agent' }) })
+  const analyzer = new MultiStrategyAIAnalyzer({}, {})
+  analyzer.buildFullPrompt = () => '测试提示词'
+  analyzer.buildSystemPrompt = async () => '测试系统提示词'
+  for (let i = 0; i < 2; i++) {
+    // 冷却期外重试相同输入，验证失败不会被缓存成正常 IDLE 结果。
+    analyzer.providerCooldownUntil.clear()
+    const signal = await analyzer.analyze('failure-strategy', 'BTCUSDT', {}, { emaList: [] }, 100, 10)
+    assert.equal(signal, null)
+  }
+  assert.equal(requests, 2)
+  assert.equal(entries.length, 2)
+  for (const [category, message, data] of entries) {
+    assert.equal(category, '🔍扫描结果')
+    assert.match(message, /BTCUSDT @100 分析不可用 ｜ 本轮跳过/)
+    assert.doesNotMatch(message, /置信度|评分|观望/)
+    assert.equal(data.analysisStatus, 'unavailable')
+    assert.equal(data.mainTimeframe, '15m')
+    assert.equal(data.confidence, undefined)
+    assert.equal(data.score, undefined)
+  }
+})
 
 test('缓存摘要覆盖完整行情与参数，字段顺序保持稳定', () => {
   const common = { indicators: { longCommonPrefix: 'x'.repeat(200), volumeEmaAverage: 100 }, candleProgress: 0.5 }

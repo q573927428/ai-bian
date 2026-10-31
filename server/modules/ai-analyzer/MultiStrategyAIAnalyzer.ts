@@ -78,7 +78,7 @@ const aiCache = new Map<string, MultiStrategyAICache>()
  * 1. 支持每个策略自定义的 AI 提示词
  * 2. 统一的 AI 调用接口
  * 3. 智能缓存（相同市场数据不重复调用）
- * 4. 降级处理（API 失败时返回安全默认值）
+ * 4. 降级处理（API 失败时明确记录不可用并跳过分析）
  * 5. 并发控制和批量写入优化
  */
 export class MultiStrategyAIAnalyzer {
@@ -1085,25 +1085,14 @@ ${historySection}
         this.recordAIError(provider, error)
         logger.error('MultiStrategyAIAnalyzer', `AI API 调用失败: ${error.message}`, { strategyId, symbol, provider })
         
-        // 返回默认分析结果（降级处理）
-        const fallbackAnalysis: AIAnalysis = {
+        // 通信或解析失败没有有效交易判断，不能伪装成低置信度的正常观望信号，也不能写入信号缓存。
+        logger.warn('🔍扫描结果', `${symbol} @${price} 分析不可用 ｜ 本轮跳过 [${strategyId}] ===详细AI日志=== ${error.message}`, {
           symbol,
-          timestamp: Date.now(),
           strategyId,
-          direction: 'IDLE',
-          confidence: 5,
-          riskLevel: 'HIGH',
-          isBullish: false,
-          reasoning: `AI分析暂时不可用: ${error.message}`,
-          technicalData: {
-            price,
-            ...Object.fromEntries(indicators.emaList.map(item => [item.name, item.value])),
-            rsi: indicators.rsi ?? 0,
-            volume,
-          },
-        }
-
-        return fallbackAnalysis
+          mainTimeframe: strategySnapshot?.marketData?.timeframes?.[0],
+          analysisStatus: 'unavailable'
+        })
+        return null
       }
     })
   }
