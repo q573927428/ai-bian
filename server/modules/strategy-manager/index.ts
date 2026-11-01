@@ -6,7 +6,8 @@ import { StrategyEngine, getInitialScanDelayMs } from '../strategy-engine/Strate
 import { IndicatorsHub } from '../indicators/IndicatorsHub'
 import { PositionManager, positionManager } from '../position-manager/PositionManager'
 import { BinanceService } from '../../utils/binance'
-import { loadBotConfig } from '../../utils/storage'
+import { loadBotConfig, loadBotState, saveBotState } from '../../utils/storage'
+import { resetDailyRiskState } from '../risk-control/DailyRiskState'
 import { logger } from '../../utils/logger'
 import type { BotState } from '../../../types'
 import { getSyncService, waitForSyncReady, startKLineAutoSync } from '../../utils/kline-sync-service'
@@ -72,9 +73,14 @@ export async function initStrategyManager(): Promise<StrategyManager> {
     // 加载本地持久化状态
     await positionMgr.init()
 
-    // 只维护各策略每日风控窗口，运行状态由策略实例管理。
-    const defaultState: BotState = {
+    // 同一天重启必须恢复净盈亏和已触发的门禁，避免重启重新获得亏损额度。
+    // 运行状态仍由策略实例管理，不从风控文件恢复。
+    const state: BotState = await loadBotState() ?? {
       strategyDailyRisk: {}
+    }
+    // 在首次持仓监控和策略扫描前切换日期，不能把昨天的熔断带入今天。
+    if (resetDailyRiskState(state)) {
+      await saveBotState(state)
     }
 
     // 初始化策略执行引擎
@@ -84,7 +90,7 @@ export async function initStrategyManager(): Promise<StrategyManager> {
       positionMgr,
       binanceService,
       config,
-      defaultState,
+      state,
       indicatorCombinationRegistry,
       indicatorPrecompute
     )

@@ -591,6 +591,103 @@ test('策略列表使用与开仓门禁相同的亏损金额，盈利不提前�
   assert.equal(f.calls.committed, 1)
 })
 
+/** 执行真实启动入口，以内存存储模拟重启，隔离行情同步和交易所连接。 */
+async function restartWithRiskState(savedState, now) {
+  const f = createFixture(now)
+  const startup = { loaded: 0, persisted: [], beforeMonitor: null, beforeScan: null }
+  const indicators = { async initializeAllData() {}, startUpdateLoop() {} }
+  const manager = {
+    setEngine(engine) { this.engine = engine },
+    setIndicatorsHub() {}, setIndicatorPrecomputeService() {},
+    async loadActiveStrategies() {}
+  }
+  f.engine.pauseStrategyScans = () => {}
+  f.engine.startPositionMonitor = async () => { startup.beforeMonitor = structuredClone(f.engine.state) }
+  f.engine.resumeStrategyScans = () => { startup.beforeScan = structuredClone(f.engine.state) }
+  const { initStrategyManager } = loadModule('../server/modules/strategy-manager/index.ts', {
+    './StrategyManager': { StrategyManager: function () { return manager } },
+    '../strategy-store/StrategyStore': { StrategyStore: function () {} },
+    '../strategy-engine/StrategyEngine': {
+      StrategyEngine: function (_store, _hub, _positions, _binance, _config, state) {
+        f.engine.state = state
+        return f.engine
+      },
+      getInitialScanDelayMs: () => 0
+    },
+    '../indicators/IndicatorsHub': { IndicatorsHub: { getInstance: () => indicators } },
+    '../position-manager/PositionManager': { positionManager: { async init() {} } },
+    '../../utils/binance': { BinanceService: function () { this.initialize = async () => {} } },
+    '../../utils/storage': {
+      async loadBotConfig() { return {} },
+      async loadBotState() { startup.loaded++; return structuredClone(savedState) },
+      async saveBotState(state) { startup.persisted.push(structuredClone(state)) }
+    },
+    '../risk-control/DailyRiskState': f.dailyRiskState,
+    '../../utils/logger': { logger },
+    '../../utils/kline-sync-service': { getSyncService: () => null, startKLineAutoSync() {} },
+    '../../utils/kline-simple-storage': { async initKLineDb() {} },
+    '../../utils/concurrency-pool': { concurrencyPoolManager: { updateConfig() {} } },
+    '../../utils/binance-api-gateway': { binanceApiGateway: { updateConfig() {} } },
+    '../indicators/IndicatorPrecomputeService': { IndicatorPrecomputeService: function () { this.start = () => {} } }
+  }, f.globals)
+  await initStrategyManager()
+  assert.equal(startup.loaded, 1)
+  return { ...f, state: f.engine.state, startup }
+}
+
+test('同一天重启保留各策略净亏损，后续平仓从恢复的金额继续累计', async () => {
+  const source = createFixture(midnight)
+  addStrategy(source, 'strategy-b', 20)
+  const closer = createCloser(source)
+  await closer.updateRiskStateAfterClose('strategy-a', -3.2, midnight)
+  await closer.updateRiskStateAfterClose('strategy-b', -2.5, midnight)
+  const f = await restartWithRiskState(source.state, midnight + 60_000)
+  assert.deepEqual(f.startup.beforeMonitor, structuredClone(source.state))
+  assert.deepEqual(f.startup.beforeScan, structuredClone(source.state))
+  assert.equal(f.engine.getDailyLossStatus('strategy-a', 10).todayLossAmount, 3.2)
+  assert.equal(f.engine.getDailyLossStatus('strategy-b', 20).todayLossAmount, 2.5)
+  assert.equal(f.startup.persisted.length, 0)
+  await createCloser(f).updateRiskStateAfterClose('strategy-a', -6.8, f.clock.now)
+  assert.equal(f.engine.getDailyLossStatus('strategy-a', 10).dailyLossLimitReached, true)
+  await assert.rejects(f.engine.executeSignal(f.instance, f.signal, new Map()), /策略熔断/)
+})
+
+test('同一天重启保留已触发的熔断，即使后续盈利使净亏损归零', async () => {
+  const source = createFixture(midnight)
+  const closer = createCloser(source)
+  await closer.updateRiskStateAfterClose('strategy-a', -10, midnight)
+  await closer.updateRiskStateAfterClose('strategy-a', 15, midnight)
+  const f = await restartWithRiskState(source.state, midnight + 60_000)
+  const status = f.engine.getDailyLossStatus('strategy-a', 10)
+  assert.equal(status.todayLossAmount, 0)
+  assert.equal(status.dailyLossLimitReached, true)
+  assert.equal(status.reason, source.state.strategyDailyRisk['strategy-a'].circuitBreaker.reason)
+  await assert.rejects(f.engine.executeSignal(f.instance, f.signal, new Map()), /策略熔断/)
+  assert.equal(f.calls.orders.length, 0)
+})
+
+test('跨日重启在首次持仓监控和扫描前清空昨日统计并保存新窗口', async () => {
+  const source = createFixture(beforeMidnight)
+  await createCloser(source).updateRiskStateAfterClose('strategy-a', -10, beforeMidnight)
+  const f = await restartWithRiskState(source.state, midnight)
+  for (const state of [f.startup.beforeMonitor, f.startup.beforeScan, ...f.startup.persisted]) {
+    assert.equal(state.riskDayKey, dailyRisk.getRiskDayKey(midnight))
+    assert.equal(Object.keys(state.strategyDailyRisk).length, 0)
+  }
+  assert.equal(f.startup.persisted.length, 1)
+  assert.equal(f.engine.getDailyLossStatus('strategy-a', 10).todayLossAmount, 0)
+  assert.equal(f.engine.getDailyLossStatus('strategy-a', 10).dailyLossLimitReached, false)
+  await f.engine.executeSignal(f.instance, f.signal, new Map())
+  assert.equal(f.calls.committed, 1)
+})
+
+test('首次启动没有状态文件时正常初始化当日风控', async () => {
+  const f = await restartWithRiskState(null, midnight)
+  assert.equal(f.startup.beforeMonitor.riskDayKey, dailyRisk.getRiskDayKey(midnight))
+  assert.equal(f.engine.getDailyLossStatus('strategy-a', 10).todayLossAmount, 0)
+  assert.equal(f.engine.getDailyLossStatus('strategy-a', 10).dailyLossLimitReached, false)
+})
+
 test('策略列表接口同时返回每日开仓次数和各策略的亏损金额，不把运行数据写入配置', async () => {
   const f = createFixture(midnight)
   addStrategy(f, 'strategy-b', 20)
