@@ -176,7 +176,8 @@ export class MultiStrategyAIAnalyzer {
       return Math.min(max, Math.max(min, value))
     }
 
-    const baseScore = clamp(toNumber(raw?.baseScore, 0), 0, 20)
+    // 基础分固定给 20 分，不受市场情况或 AI 返回值影响。
+    const baseScore = 20
     const hardScore = clamp(toNumber(raw?.hardScore, 0), 0, 50)
     const softScore = clamp(toNumber(raw?.softScore, 0), 0, 30)
     const penaltyScore = clamp(toNumber(raw?.penaltyScore, 0), -10, 0)
@@ -811,7 +812,7 @@ ${formatEnvironmentConfidence(environmentContext)}
 
 ### scoreBreakdown 计算规则（必须严格遵守）
 按当前交易方向，逐条检查策略条件并计算以下分数：
-- baseScore（基础分，0~20）：结合策略适配度、趋势强弱和市场背景评分；越有利于当前策略，分数越高，反之降低。
+- baseScore（基础分，固定 20）：任何情况下都给 20 分，不扣分。
 - hardScore（硬条件分，0~50）：全部满足得 50 分，每项不满足扣 30 分，最低 0 分。公式：max(0, 50 - 30 × 不满足的硬条件数量)。
 - softScore（辅助条件分，0~30）：全部满足得 30 分，每项不满足扣 10 分，最低 0 分。公式：max(0, 30 - 10 × 不满足的辅助条件数量)。
 - penaltyScore（惩罚分，-10~0）：仅对前三项未覆盖、且违反当前策略规则的独立异常扣分，例如条件冲突、波动异常、过度追价；无此类异常为 0，累计最多扣 10 分，同一问题不得重复扣分。
@@ -852,7 +853,7 @@ ${historySection}
 4. 输出必须是合法JSON，无任何多余内容。
 5. confidence 使用用户提示词中对应方向的置信度结果（0-100）。
 6. scoreBreakdown.finalScore 为策略规则匹配度（0-100），仅反映策略条件满足程度（微观）。
-7. scoreBreakdown 必须满足：baseScore∈[0,20]，hardScore∈[0,50]，softScore∈[0,30]，penaltyScore∈[-10,0]。
+7. scoreBreakdown 必须满足：baseScore 固定为 20，hardScore∈[0,50]，softScore∈[0,30]，penaltyScore∈[-10,0]。
 8. finalScore 必须严格等于 baseScore + hardScore + softScore + penaltyScore（再截断到0~100）。
 9. riskLevel 综合市场波动性、趋势强度等给出风险等级。
 
