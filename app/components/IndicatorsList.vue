@@ -36,10 +36,10 @@
       <el-input v-model="symbolSearch" class="symbol-search" size="small" placeholder="搜索交易对" aria-label="搜索交易对" clearable>
         <template #prefix><el-icon><ElIconSearch /></el-icon></template>
       </el-input>
-      <el-select :model-value="confidenceSort" class="confidence-sort" size="small" placeholder="当前按列排序" aria-label="交易对评分排序" @change="handleConfidenceSortChange">
+      <el-select :model-value="confidenceSort" class="confidence-sort" size="small" placeholder="当前按列排序" aria-label="交易对置信度排序" @change="handleConfidenceSortChange">
         <el-option label="默认排序" value="default" />
-        <el-option label="多头评分 ↓" value="longConfidence" />
-        <el-option label="空头评分 ↓" value="shortConfidence" />
+        <el-option label="多头置信度 ↓" value="longConfidence" />
+        <el-option label="空头置信度 ↓" value="shortConfidence" />
       </el-select>
       <el-button size="small" :type="activeNumericFilters ? 'primary' : 'default'" :plain="!!activeNumericFilters" :aria-expanded="showNumericFilters" @click="showNumericFilters = !showNumericFilters">
         筛选{{ activeNumericFilters ? ` (${activeNumericFilters})` : '' }} {{ showNumericFilters ? '▴' : '▾' }}
@@ -110,7 +110,7 @@
               :title="`${period}：${periodSignals[row.symbol]?.[period] ?? '暂无数据'}`"
             ></span>
           </div>
-          <div class="symbol-confidence" :title="row.environmentDescription || '暂无可用环境评分'">
+          <div class="symbol-confidence" :title="row.environmentDescription || '暂无可用环境置信度'">
             <span :class="[row.longConfidence == null ? 'muted' : 'up', { 'confidence-leading': row.longConfidence != null && row.shortConfidence != null && row.longConfidence > row.shortConfidence }]">多 {{ row.longConfidence ?? '--' }}</span>
             <span class="muted" aria-hidden="true">·</span>
             <span :class="[row.shortConfidence == null ? 'muted' : 'down', { 'confidence-leading': row.longConfidence != null && row.shortConfidence != null && row.shortConfidence > row.longConfidence }]">空 {{ row.shortConfidence ?? '--' }}</span>
