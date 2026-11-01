@@ -12,7 +12,6 @@
     </header>
     <div v-if="error" class="error" role="status">{{ error }}</div>
     <div ref="canvas" class="chart" :aria-label="`${symbol} ${selectedTimeframe} K线、成交量、合约CVD、Delta及趋势效率ER联动图`" />
-    <div class="flow-note">{{ flowNote }}</div>
   </section>
 </template>
 <script setup lang="ts">
@@ -28,10 +27,12 @@ import type { Timeframe } from '../../types/strategy'
 import { calculateContractFlow } from '../utils/contract-order-flow'
 import { detectCvdDivergences } from '../utils/cvd-divergence'
 import { useBotStore } from '../stores/bot'
+import { useSupportResistancePreview } from '../composables/useSupportResistancePreview'
 
 /** 主表选择交易对时传入其周期；图表仍允许独立切换周期。 */
 interface Props { symbol: string; timeframe: string }
 const props = defineProps<Props>()
+const structurePreview = useSupportResistancePreview()
 const emit = defineEmits<{ 'timeframe-change': [timeframe: string] }>()
 const timeframes = ['5m', '15m', '1h', '4h', '1d']
 const selectedTimeframe = ref(props.timeframe)
@@ -44,7 +45,6 @@ const panel = ref<HTMLDivElement>()
 const canvas = ref<HTMLDivElement>()
 const loading = ref(false)
 const error = ref('')
-const flowNote = ref('')
 // 每次重绘替换数据读取闭包，鼠标事件只注册一次，避免读取过期行情。
 let inspectAt: ((x: number, y: number) => void) | undefined
 let resetInspect: (() => void) | undefined
@@ -58,6 +58,8 @@ let currentBars: SimpleKLineData[] = []
 let snapshot: SupportResistanceSnapshot | undefined
 let periods = [20, 60]
 // 右侧预留12根空位，让最新行情与价格轴保持距离。
+// 与首页默认视口一致；仅改变展示数量，不改变指标计算窗口。
+const defaultVisibleBars = 200
 const rightPaddingBars = 12
 let viewport: { start?: number; end?: number } | undefined
 const interval = () => ({ '5m': 300, '15m': 900, '1h': 3600, '4h': 14400, '1d': 86400 }[selectedTimeframe.value] || 3600)
@@ -75,7 +77,7 @@ async function load() {
     const [candles, diagnostics] = await Promise.allSettled([
       // 不传 limit，读取当前交易对、当前周期在本地数据库中的全部历史。
       $fetch<KLineApiResponse>('/api/kline-simple', { query: { symbol: props.symbol, timeframe: selectedTimeframe.value } }),
-      $fetch<any>('/api/bot/indicators', { query: { symbol: props.symbol, timeframe: selectedTimeframe.value, structureOnly: 'true', includeSlowStats: 'false' } })
+      $fetch<any>('/api/bot/indicators', { query: { symbol: props.symbol, timeframe: selectedTimeframe.value, ...structurePreview.value, structureOnly: 'true', includeSlowStats: 'false' } })
     ])
     if (disposed || request !== version) return
     if (candles.status !== 'fulfilled' || !candles.value.success) throw new Error('K线加载失败，请刷新重试')
@@ -97,7 +99,7 @@ async function load() {
 /** 只用可见蜡烛的高低点定价轴，远处均线和关键位不参与撑大范围。 */
 function visiblePriceRange() {
   const lastAxisIndex = currentBars.length + rightPaddingBars - 1
-  const zoom = viewport || { start: Math.max(0, (currentBars.length - 80) / (currentBars.length + rightPaddingBars) * 100), end: 100 }
+  const zoom = viewport || { start: Math.max(0, (currentBars.length - defaultVisibleBars) / (currentBars.length + rightPaddingBars) * 100), end: 100 }
   const start = Math.max(0, Math.ceil((zoom.start ?? 0) / 100 * lastAxisIndex))
   const end = Math.min(currentBars.length - 1, Math.floor((zoom.end ?? 100) / 100 * lastAxisIndex))
   const visible = currentBars.slice(start, end + 1)
@@ -116,7 +118,7 @@ function visiblePriceRange() {
 function visibleCvdRange() {
   const cvd = calculateContractFlow(currentBars, interval()).cvd
   const lastAxisIndex = currentBars.length + rightPaddingBars - 1
-  const zoom = viewport || { start: Math.max(0, (currentBars.length - 80) / (currentBars.length + rightPaddingBars) * 100), end: 100 }
+  const zoom = viewport || { start: Math.max(0, (currentBars.length - defaultVisibleBars) / (currentBars.length + rightPaddingBars) * 100), end: 100 }
   const start = Math.max(0, Math.ceil((zoom.start ?? 0) / 100 * lastAxisIndex))
   const end = Math.min(currentBars.length - 1, Math.floor((zoom.end ?? 100) / 100 * lastAxisIndex))
   const values = cvd.slice(start, end + 1).filter((value): value is number => value !== null && Number.isFinite(value))
@@ -130,7 +132,7 @@ function visibleCvdRange() {
 function visibleDeltaRange() {
   const delta = calculateContractFlow(currentBars, interval()).delta
   const lastAxisIndex = currentBars.length + rightPaddingBars - 1
-  const zoom = viewport || { start: Math.max(0, (currentBars.length - 80) / (currentBars.length + rightPaddingBars) * 100), end: 100 }
+  const zoom = viewport || { start: Math.max(0, (currentBars.length - defaultVisibleBars) / (currentBars.length + rightPaddingBars) * 100), end: 100 }
   const start = Math.max(0, Math.ceil((zoom.start ?? 0) / 100 * lastAxisIndex))
   const end = Math.min(currentBars.length - 1, Math.floor((zoom.end ?? 100) / 100 * lastAxisIndex))
   const values = delta.slice(start, end + 1).filter((value): value is number => value !== null && Number.isFinite(value))
@@ -141,7 +143,7 @@ function visibleDeltaRange() {
 /** 只按可见的三条 ADX / DI 曲线定轴，参考线不参与撑大范围。 */
 function visibleAdxRange(values = calculateAdxChartSeries(currentBars, interval())) {
   const lastAxisIndex = currentBars.length + rightPaddingBars - 1
-  const zoom = viewport || { start: Math.max(0, (currentBars.length - 80) / (currentBars.length + rightPaddingBars) * 100), end: 100 }
+  const zoom = viewport || { start: Math.max(0, (currentBars.length - defaultVisibleBars) / (currentBars.length + rightPaddingBars) * 100), end: 100 }
   const start = Math.max(0, Math.ceil((zoom.start ?? 0) / 100 * lastAxisIndex))
   const end = Math.min(currentBars.length - 1, Math.floor((zoom.end ?? 100) / 100 * lastAxisIndex))
   // 隐藏曲线不参与定轴，避免不可见的极值压缩正在观察的指标。
@@ -161,7 +163,7 @@ function visibleAdxRange(values = calculateAdxChartSeries(currentBars, interval(
 /** MACD 按可见双线和柱体对称定轴，避免历史极值压扁当前动能。 */
 function visibleMacdRange(values = calculateMacdChartSeries(currentBars, interval())) {
   const lastAxisIndex = currentBars.length + rightPaddingBars - 1
-  const zoom = viewport || { start: Math.max(0, (currentBars.length - 80) / (currentBars.length + rightPaddingBars) * 100), end: 100 }
+  const zoom = viewport || { start: Math.max(0, (currentBars.length - defaultVisibleBars) / (currentBars.length + rightPaddingBars) * 100), end: 100 }
   const start = Math.max(0, Math.ceil((zoom.start ?? 0) / 100 * lastAxisIndex))
   const end = Math.min(currentBars.length - 1, Math.floor((zoom.end ?? 100) / 100 * lastAxisIndex))
   const visible = values.slice(start, end + 1).flatMap(value => value ? [value.dif, value.dea, value.histogram] : []).filter((value): value is number => value != null && Number.isFinite(value))
@@ -227,11 +229,6 @@ function draw() {
   })
   const volumeRatios = bars.map((bar, index) => validVolume(bar.v) && volumeAverages[index] != null && volumeAverages[index]! > 0 ? bar.v / volumeAverages[index]! : null)
   const last = bars.length - 1
-  const segment = flow.segmentStarts[last] ?? -1
-  const valid = flow.delta.filter(value => value !== null).length
-  flowNote.value = segment >= 0
-    ? `合约 CVD 自 ${dateLabel(bars[segment]!.t)} 从零累计；单位 USDT。${valid < bars.length || flow.segmentStarts.some((start, i) => i > 0 && start === i) ? '缺口后分段重算。' : ''}末根可能未收盘。`
-    : '末根成交额缺失，CVD / Delta 留空；有效历史区间分段累计，单位 USDT。'
   const divergences = showDivergence.value ? detectCvdDivergences(bars, interval(), Date.now() / 1000) : []
   const color = getComputedStyle(canvas.value).getPropertyValue('--el-text-color-secondary').trim() || '#909399'
   const price = (value: number) => Number(value.toPrecision(7)).toString()
@@ -311,28 +308,28 @@ function draw() {
     animation: false,
     title: [
       { id: 'price-title', text: '', left: 6, top: 0, textStyle: { color, fontSize: 9, lineHeight: 13, fontWeight: 'normal' } },
-      { id: 'cvd-title', text: '', left: 6, top: '35%', textStyle: { color: '#409eff', fontSize: 10, fontWeight: 'normal' } },
-      { id: 'delta-title', text: '', right: 6, top: '35%', textStyle: { color, fontSize: 10, fontWeight: 'normal' } },
-      { id: 'adx-title', triggerEvent: true, text: `ADX(14) ${latestAdx?.adx.toFixed(1) ?? '--'}`, left: 6, top: '52%', textStyle: { color: showAdx.value ? '#f4d35e' : '#73767a', fontSize: 10, fontWeight: 'normal' } },
-      { id: 'pdi-title', triggerEvent: true, text: `+DI ${latestAdx?.pdi.toFixed(1) ?? '--'}`, left: '35%', top: '52%', textStyle: { color: showPdi.value ? '#95d475' : '#73767a', fontSize: 10, fontWeight: 'normal' } },
-      { id: 'mdi-title', triggerEvent: true, text: `−DI ${latestAdx?.mdi.toFixed(1) ?? '--'}`, left: '65%', top: '52%', textStyle: { color: showMdi.value ? '#ff8a80' : '#73767a', fontSize: 10, fontWeight: 'normal' } },
-      { id: 'rsi-title', text: `RSI(14) ${latestRsi?.toFixed(1) ?? '--'}`, left: 6, top: '67%', textStyle: { color: '#9b8afb', fontSize: 10, fontWeight: 'normal' } },
-      { id: 'macd-title', text: '', left: 6, top: '80%', textStyle: { color, fontSize: 9, fontWeight: 'normal' } },
-      { id: 'er-title', text: '', right: 6, top: '67%', textStyle: { color: '#36cfc9', fontSize: 10, fontWeight: 'normal' } }
+      { id: 'cvd-title', text: '', left: 6, top: '42%', textStyle: { color: '#409eff', fontSize: 10, fontWeight: 'normal' } },
+      { id: 'delta-title', text: '', right: 6, top: '42%', textStyle: { color, fontSize: 10, fontWeight: 'normal' } },
+      { id: 'adx-title', triggerEvent: true, text: `ADX(14) ${latestAdx?.adx.toFixed(1) ?? '--'}`, left: 6, top: '58%', textStyle: { color: showAdx.value ? '#f4d35e' : '#73767a', fontSize: 10, fontWeight: 'normal' } },
+      { id: 'pdi-title', triggerEvent: true, text: `+DI ${latestAdx?.pdi.toFixed(1) ?? '--'}`, left: '35%', top: '58%', textStyle: { color: showPdi.value ? '#95d475' : '#73767a', fontSize: 10, fontWeight: 'normal' } },
+      { id: 'mdi-title', triggerEvent: true, text: `−DI ${latestAdx?.mdi.toFixed(1) ?? '--'}`, left: '65%', top: '58%', textStyle: { color: showMdi.value ? '#ff8a80' : '#73767a', fontSize: 10, fontWeight: 'normal' } },
+      { id: 'rsi-title', text: `RSI(14) ${latestRsi?.toFixed(1) ?? '--'}`, left: 6, top: '72%', textStyle: { color: '#9b8afb', fontSize: 10, fontWeight: 'normal' } },
+      { id: 'macd-title', text: '', left: 6, top: '84%', textStyle: { color, fontSize: 9, fontWeight: 'normal' } },
+      { id: 'er-title', text: '', right: 6, top: '72%', textStyle: { color: '#36cfc9', fontSize: 10, fontWeight: 'normal' } }
     ],
     // 上下绘图区边界必须一致，同一时间点的十字线才能垂直对齐。
     grid: [
-      { left: 8, right: 65, top: 25, height: '28%' },
+      { left: 8, right: 65, top: 25, height: '36%' },
       // 标题之后固定预留20px，将原先随高度增长的空白归还给曲线。
-      { left: 8, right: 65, top: chart.getHeight() * .35 + 20, bottom: '50%' },
-      { left: 8, right: 65, top: chart.getHeight() * .52 + 20, bottom: '35%' },
-      { left: 8, right: 65, top: chart.getHeight() * .67 + 20, bottom: '22%' },
-      { left: 8, right: 65, top: chart.getHeight() * .80 + 20, bottom: 28 }
+      { left: 8, right: 65, top: chart.getHeight() * .42 + 20, bottom: '44%' },
+      { left: 8, right: 65, top: chart.getHeight() * .58 + 20, bottom: '30%' },
+      { left: 8, right: 65, top: chart.getHeight() * .72 + 20, bottom: '18%' },
+      { left: 8, right: 65, top: chart.getHeight() * .84 + 20, bottom: 28 }
     ],
     axisPointer: { link: [{ xAxisIndex: 'all' }] },
     // 数值由各图标题原位显示，保留联动十字线并关闭悬浮框。
     tooltip: { trigger: 'axis', showContent: false, axisPointer: { type: 'cross' } },
-    dataZoom: [{ type: 'inside', xAxisIndex: [0, 1, 2, 3, 4], filterMode: 'none', ...(viewport || { start: Math.max(0, (bars.length - 80) / axis.length * 100), end: 100 }) }],
+    dataZoom: [{ type: 'inside', xAxisIndex: [0, 1, 2, 3, 4], filterMode: 'none', ...(viewport || { start: Math.max(0, (bars.length - defaultVisibleBars) / axis.length * 100), end: 100 }) }],
     // 十字线时间提示只显示在主图下方，底部副图仍保留常规时间刻度。
     xAxis: [0, 1, 2, 3, 4].map(index => ({ type: 'category', gridIndex: index, data: axis, boundaryGap: true, axisPointer: { label: { show: index === 0, margin: 3 } }, axisLabel: { show: index === 4, color, fontSize: 9, hideOverlap: true }, axisTick: { show: false }, axisLine: { lineStyle: { color, opacity: .4 } } })),
     yAxis: [
@@ -393,7 +390,6 @@ function draw() {
 function resetAndLoad() {
   viewport = undefined
   currentBars = []
-  flowNote.value = ''
   inspectAt = undefined
   resetInspect = undefined
   chart?.clear()
@@ -403,6 +399,12 @@ function onKey(event: KeyboardEvent) { if (event.key === 'Escape') expanded.valu
 watch(() => props.timeframe, value => { selectedTimeframe.value = value })
 watch(selectedTimeframe, value => emit('timeframe-change', value))
 watch(() => [props.symbol, selectedTimeframe.value], resetAndLoad)
+// 试算保留缩放位置，先移除旧关键位，再按新参数加载；版本号拦截迟到响应。
+watch(() => [structurePreview.value.pivotLeft, structurePreview.value.pivotRight], () => {
+  snapshot = undefined
+  draw()
+  void load()
+})
 watch(showDivergence, draw)
 watch([showAdx, showPdi, showMdi], draw)
 watch(expanded, async () => { await nextTick(); chart?.resize(); draw() })
@@ -417,7 +419,7 @@ onBeforeUnmount(() => { disposed = true; version++; if (timer) clearInterval(tim
 </script>
 <style scoped>
 .trend-card { display: flex; flex-direction: column; min-width: 0; min-height: 0; height: 100%; box-sizing: border-box; border: 1px solid var(--el-border-color); border-radius: 6px; padding: 8px; background: var(--bg-card, var(--el-bg-color)); }
-.trend-card.expanded { position: fixed; top: 50%; left: 50%; width: min(88vw, 1000px); transform: translate(-50%, -50%); z-index: 2000; height: 92dvh; overflow-y: auto; box-shadow: 0 0 0 100vmax rgba(0,0,0,.5); }
+.trend-card.expanded { position: fixed; top: 50%; left: 50%; width: min(88vw, 1000px); transform: translate(-50%, -50%); z-index: 2000; min-height: 0; height: 92dvh; overflow-y: auto; box-shadow: 0 0 0 100vmax rgba(0,0,0,.5); }
 header { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; font-size: 12px; flex-shrink: 0; }
 header strong { margin-right: auto; }
 header button { background: transparent; border: 1px solid var(--el-border-color); border-radius: 3px; color: var(--el-text-color-primary); cursor: pointer; padding: 3px 5px; font-size: 11px; }
@@ -425,6 +427,5 @@ header button { background: transparent; border: 1px solid var(--el-border-color
 .period-buttons button.active { background: var(--el-color-primary); color: #fff; }
 .ema-toggle { display: flex; align-items: center; font-size: 11px; }
 .chart { flex: 1; min-height: 0; width: 100%; margin-top: 8px; }
-.flow-note { color: var(--el-text-color-secondary); font-size: 10px; line-height: 1.5; padding-top: 4px; }
 .error { color: var(--el-color-warning); font-size: 12px; }
 </style>

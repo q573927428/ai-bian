@@ -58,6 +58,21 @@
         </span>
       </div>
       <div class="numeric-filter-grid">
+        <div class="numeric-filter-item" role="group" aria-label="支撑阻力试算参数">
+          <span class="numeric-filter-label">支撑阻力</span>
+          <div class="structure-controls">
+            <label>左
+              <el-select v-model="structurePreview.pivotLeft" size="small" aria-label="支撑阻力左侧确认根数">
+                <el-option v-for="count in 10" :key="count" :label="`${count} 根`" :value="count" />
+              </el-select>
+            </label>
+            <label>右
+              <el-select v-model="structurePreview.pivotRight" size="small" aria-label="支撑阻力右侧确认根数">
+                <el-option v-for="count in 10" :key="count" :label="`${count} 根`" :value="count" />
+              </el-select>
+            </label>
+          </div>
+        </div>
         <div v-for="field in numericFilterFields" :key="field.key" class="numeric-filter-item">
           <span class="numeric-filter-label">{{ field.label }}<span v-if="field.unit" class="muted"> ({{ field.unit }})</span></span>
           <div class="numeric-filter-range">
@@ -226,7 +241,7 @@
       <el-table-column label="预量比" align="center" header-align="center" min-width="78" prop="volumeRatio" sortable="custom">
         <template #default="{ row }">{{ format(row.volumeRatio) }}x</template>
       </el-table-column>
-      <el-table-column label="资金流" width="130" prop="netInflowPercent" sortable="custom">
+      <el-table-column label="资金流" width="90" prop="netInflowPercent" sortable="custom">
         <template #default="{ row }">
           <el-tooltip placement="top">
             <template #content>
@@ -276,6 +291,7 @@ import { computed, ref, watch, onUnmounted } from 'vue'
 import { ElDrawer, type TableInstance } from 'element-plus'
 import { useBotStore } from '../stores/bot'
 import { useCoinIcon } from '../composables/useCoinIcon'
+import { useSupportResistancePreview } from '../composables/useSupportResistancePreview'
 import type { SupportResistanceSnapshot } from '../../types/support-resistance'
 import SupportResistanceInfo from './SupportResistanceInfo.vue'
 import { TREND_PERIODS, type EnvironmentContext } from '../utils/environment-confidence'
@@ -340,6 +356,12 @@ const botStore = useBotStore()
 const { getCoinIconUrl } = useCoinIcon()
 const iconFailed = ref<Record<string, boolean>>({})
 const timeframe = ref('1h')
+const structurePreview = useSupportResistancePreview()
+const structurePresets = [
+  { label: '默认 3/3', left: 3, right: 3 },
+  { label: '5/3', left: 5, right: 3 },
+  { label: '5/5', left: 5, right: 5 }
+]
 // 周期切换立即通知独立指标页，不必再次点击交易对才刷新右侧图表。
 watch(timeframe, value => emit('timeframe-change', value))
 const progressNow = ref(Date.now())
@@ -464,6 +486,7 @@ async function refreshStructure() {
   refreshingStructure = true
   const version = fetchVersion
   const selectedTimeframe = timeframe.value
+  const structureParams = { ...structurePreview.value }
   const targets = rows.value.map(row => row.symbol)
   let cursor = 0
   try {
@@ -472,7 +495,7 @@ async function refreshStructure() {
         const symbol = targets[cursor++]!
         try {
           const response: any = await $fetch('/api/bot/indicators', {
-            query: { symbol, timeframe: selectedTimeframe, includeSlowStats: 'false', structureOnly: 'true' }
+            query: { symbol, timeframe: selectedTimeframe, ...structureParams, includeSlowStats: 'false', structureOnly: 'true' }
           })
           if (!visible.value || version !== fetchVersion) return
           const row = rows.value.find(item => item.symbol === symbol)
@@ -560,11 +583,12 @@ async function fetchData() {
   loading.value = true; errorMessage.value = ''
   const requestedTimeframe = timeframe.value
   const requestedEmaPeriods = [...emaPeriods.value]
+  const structureParams = { ...structurePreview.value }
   let initializing = false
   // 五周期环境已由服务端统一返回，浏览器只请求当前主表指标。
   const results = await Promise.all(symbols.value.map(async (symbol: string) => {
     try {
-      const response: any = await $fetch('/api/bot/indicators', { query: { symbol, timeframe: requestedTimeframe, emaPeriods: requestedEmaPeriods.join(','), includeSlowStats: 'false' } })
+      const response: any = await $fetch('/api/bot/indicators', { query: { symbol, timeframe: requestedTimeframe, ...structureParams, emaPeriods: requestedEmaPeriods.join(','), includeSlowStats: 'false' } })
       if (response.initializing) { initializing = true; return null }
       if (!response.success || !response.data) return null
       return toRow(response.data)
@@ -931,6 +955,12 @@ function macdResultClass(current?: number, previous?: number) {
   return strengthening ? directionClass(current) : `${directionClass(current)} macd-weakening`
 }
 
+// 切换参数立即使旧请求失效，避免快速切换后旧区域覆盖新结果。
+watch(() => [structurePreview.value.pivotLeft, structurePreview.value.pivotRight], () => {
+  for (const row of rows.value) row.supportResistance = undefined
+  if (visible.value) void fetchData()
+  else fetchVersion++
+})
 watch(() => symbols.value.join(','), () => {
   if (visible.value) fetchData()
 })
@@ -956,6 +986,9 @@ onUnmounted(() => {
 
 <style scoped>
 .toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 16px; }
+.structure-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.structure-controls label { display: flex; align-items: center; gap: 6px; }
+.structure-controls :deep(.el-select) { width: 78px; }
 .numeric-filters { flex-shrink: 0; margin: -4px 0 12px; padding: 10px 12px; border: 1px solid var(--el-border-color); border-radius: 4px; background: var(--el-fill-color-light); font-size: 12px; max-height: 40vh; overflow-y: auto; }
 .numeric-filter-header, .numeric-filter-actions { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .numeric-filter-header { margin-bottom: 8px; flex-wrap: wrap; }
@@ -983,7 +1016,7 @@ onUnmounted(() => {
 .symbol-search { width: 170px; margin-left: auto; }
 .confidence-sort { width: 140px; }
 .adx-line { display: flex; align-items: center; gap: 8px; white-space: nowrap; }
-.di-line { display: flex; align-items: center; gap: 8px; white-space: nowrap; }
+.di-line { display: flex; flex-direction: column; align-items: flex-start; white-space: nowrap; }
 .up { color: var(--el-color-success); }.down { color: var(--el-color-danger); }.muted { color: var(--el-text-color-secondary); }
 .symbol-cell { display: flex; align-items: center; gap: 4px; white-space: nowrap; }
 .symbol-link { padding: 0; border: 0; background: transparent; color: inherit; font: inherit; cursor: pointer; text-align: left; }
@@ -1004,10 +1037,10 @@ onUnmounted(() => {
 .coin-icon { display: block; object-fit: cover; }
 .coin-icon-placeholder { display: inline-flex; align-items: center; justify-content: center; color: #fff; font-size: 10px; font-weight: 600; line-height: 1; }
 .macd-cell { display: flex; flex-direction: column; gap: 5px; min-width: 0; line-height: 1.5; }
-.flow-cell { display: grid; grid-template-columns: max-content max-content max-content; column-gap: 3px; row-gap: 3px; width: max-content; font-weight: 400; line-height: 1.35; }
+.flow-cell { width: max-content; font-weight: 400; }
 /* 金额与比例减少小数位，保留窗口标签及两行布局，避免撑高整行。 */
-.flow-row { display: contents; white-space: nowrap; font-variant-numeric: tabular-nums; }
-.flow-row > span { text-align: right; }
+.flow-row { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.flow-row > span:last-child { display: block; text-align: right; }
 .flow-secondary > span { opacity: .7; }
 .sentiment-cell { display: flex; flex-direction: column; gap: 3px; line-height: 1.35; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .oi-cell { display: flex; flex-direction: column; gap: 3px; line-height: 1.35; white-space: nowrap; font-variant-numeric: tabular-nums; }
@@ -1033,8 +1066,7 @@ onUnmounted(() => {
 .previous-values .macd-chart-bar { opacity: .12; }
 
 /* 分组留白优先于缩小文字，当前值与辅助说明保持清晰层级。 */
-.indicators-table :deep(.trend-column .cell),
-.indicators-table :deep(.structure-levels) { display: flex; flex-direction: column; gap: 6px; }
+.indicators-table :deep(.structure-info) { line-height: inherit; }
 .indicators-table :deep(.structure-status) { color: var(--el-text-color-secondary); }
 .indicators-table :deep(.structure-info .distance) { font-size: 11px; }
 .indicators-table :deep(.ema-column .cell) { line-height: 1.8; }

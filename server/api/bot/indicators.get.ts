@@ -103,6 +103,11 @@ export default defineEventHandler(async (event) => {
     .slice(0, 5)
   const effectiveEmaPeriods = emaPeriods.length > 0 ? emaPeriods : [14, 50]
   const erPeriod = normalizeERPeriod(query.erPeriod)
+  // 参数参与指标中心的缓存键，页面试算不会覆盖策略或默认区域缓存。
+  const structureParams = {
+    pivotLeft: parseBoundedInteger(query.pivotLeft, 3, 1, 10),
+    pivotRight: parseBoundedInteger(query.pivotRight, 3, 1, 10)
+  }
 
   const indicators: Record<string, IndicatorDiagnosticResult> = {}
   const errors: Record<string, string> = {}
@@ -144,7 +149,7 @@ export default defineEventHandler(async (event) => {
     }))] : []),
     collect('moneyFlow', () => indicatorsHub.getIndicators(indicatorSymbol, timeframe, 'MoneyFlow')),
     collect('volume', () => indicatorsHub.getIndicators(indicatorSymbol, timeframe, 'Volume')),
-    collect('supportResistance', () => indicatorsHub.getIndicators(indicatorSymbol, timeframe, 'SupportResistance')),
+    collect('supportResistance', () => indicatorsHub.getIndicators(indicatorSymbol, timeframe, 'SupportResistance', structureParams)),
     ...(includeSlowStats ? [collect('squareHeat', () => indicatorsHub.getIndicators(indicatorSymbol, timeframe, 'SquareHeat', {
       lookbackMinutes: squareHeatWindowMinutes
     }))] : [])
@@ -203,6 +208,7 @@ export default defineEventHandler(async (event) => {
       parameters: {
         emaPeriods: effectiveEmaPeriods,
         erPeriod,
+        ...structureParams,
         changePeriod,
         maxChangePeriod,
         oiLookbackMinutes: lookbackMinutes,

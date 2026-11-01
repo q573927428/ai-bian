@@ -28,8 +28,8 @@ function selectSymbol(symbol: string, timeframe: string) { selected.value = symb
 </script>
 <style scoped>
 .indicator-page { padding: 10px 12px; color: var(--el-text-color-primary); height: calc(100dvh - var(--app-header-height, 60px) - var(--app-footer-height, 27px)); box-sizing: border-box; display: flex; flex-direction: column; overflow: hidden; }
-/* 表格内部滚动，右侧图表保持紧凑高度，不随左侧表格拉伸。 */
-.dashboard-grid { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 18fr) minmax(0, 6fr); grid-template-rows: minmax(0, 1fr); gap: 10px; }
+/* 表格内部滚动，右侧图表保持原有整体高度。 */
+.dashboard-grid { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 16fr) minmax(0, 8fr); grid-template-rows: minmax(0, 1fr); gap: 10px; }
 .board { min-width: 0; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
 .board :deep(.indicators-table) { flex: 1; min-height: 0; }
 /* 单张联动图占满右栏，主图与 CVD 副图共用时间轴。 */

@@ -15,6 +15,7 @@
 <script setup lang="ts">
 import { computed, shallowRef, watch, onMounted, onBeforeUnmount } from 'vue'
 import { useChartOverlayPreference } from '../../composables/useChartOverlayPreference'
+import { useSupportResistancePreview } from '../../composables/useSupportResistancePreview'
 import SupportResistanceInfo from '../SupportResistanceInfo.vue'
 import type { IChartApi, ISeriesApi } from 'lightweight-charts'
 import type { SimpleKLineData } from '../../../types/kline-simple'
@@ -32,6 +33,7 @@ interface Props {
   getSeries: () => ISeriesApi<'Candlestick'> | null
 }
 const props = defineProps<Props>()
+const structurePreview = useSupportResistancePreview()
 // 已保存的显示偏好优先，切换历史订单时也不覆盖用户的选择。
 const enabled = useChartOverlayPreference('chart-support-resistance-enabled', !!props.historicalOrder)
 const snapshot = shallowRef<SupportResistanceSnapshot | null>(null)
@@ -60,7 +62,7 @@ async function refresh() {
   pending = true
   try {
     const response: any = await $fetch('/api/bot/indicators', { query: {
-      symbol: props.symbol, timeframe: props.timeframe, includeSlowStats: 'false', structureOnly: 'true'
+      symbol: props.symbol, timeframe: props.timeframe, ...structurePreview.value, includeSlowStats: 'false', structureOnly: 'true'
     } })
     if (current === version) snapshot.value = response.data?.indicators?.supportResistance?.values ?? null
   } catch {
@@ -112,7 +114,7 @@ function draw() {
   if (serialized !== previous) { geometry.value = next; previous = serialized }
   frame = requestAnimationFrame(draw)
 }
-watch(() => [props.symbol, props.timeframe, props.historicalOrder], () => {
+watch(() => [props.symbol, props.timeframe, props.historicalOrder, structurePreview.value.pivotLeft, structurePreview.value.pivotRight], () => {
   version++
   snapshot.value = null
   void refresh()
