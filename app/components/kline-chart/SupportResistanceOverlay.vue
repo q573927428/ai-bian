@@ -104,7 +104,7 @@ function draw() {
       const atrLabel = distanceATR != null && Number.isFinite(distanceATR) ? distanceATR.toFixed(2) : '--'
       zones.push({ left: Math.max(0, x), top: Math.min(upper, lower), height: Math.max(1, Math.abs(lower - upper)),
         touches: zone.touches, color: kind === '支撑' ? '#67c23a' : '#f56c6c',
-        label: `${order ? '入场' : ''}${kind} ${price(zone.lower)}～${price(zone.upper)}（${zone.touches}） · ${atrLabel} ATR` })
+        label: `${order ? '入场' : ''}${kind} ${price(zone.lower)}～${price(zone.upper)}（${zone.touches}） · ${atrLabel}` })
     }
     next = { width, height: chart.panes()[0]?.getHeight() ?? 0, zones }
   }
@@ -132,8 +132,8 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
-/* 放在原有两行行情指标下方，透明摘要不拦截十字光标与图表拖动。 */
-.structure-summary { position: absolute; top: 72px; left: 20px; right: 90px; z-index: 2; pointer-events: none; }
+/* 紧接两行行情指标展示，避免额外留出一行空白；透明摘要不拦截图表操作。 */
+.structure-summary { position: absolute; top: 56px; left: 20px; right: 90px; z-index: 2; pointer-events: none; }
 .structure-overlay { position: absolute; top: 0; left: 0; pointer-events: none; overflow: hidden; z-index: 1; }
 .structure-toggle { position: absolute; left: 12px; bottom: 30px; z-index: 3; border: 1px solid var(--border-color); border-radius: 4px; background: var(--bg-card, #141414); color: var(--text-secondary); cursor: pointer; font-size: 11px; padding: 3px 6px; }
 text { font-size: 11px; paint-order: stroke; stroke: var(--bg-card, #141414); stroke-width: 3px; }

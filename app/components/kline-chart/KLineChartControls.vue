@@ -617,18 +617,18 @@ watch(() => props.scanTimeRange, (newRange) => {
     min-width: 0;
     width: 100%;
     margin-left: 0;
-    align-items: stretch;
+    align-items: center;
     gap: 8px;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
   }
   
   .marker-controls {
-    /* 开关独占一行并按可用宽度换行，操作按钮另起一行，避免挤出卡片。 */
-    flex: 1 1 100%;
+    /* 开关与操作按钮并排；新增的周期、EMA 控件只在开关区域内换行。 */
+    flex: 1 1 0;
     min-width: 0;
     box-sizing: border-box;
-    gap: 8px;
-    padding: 2px 8px;
+    gap: 4px;
+    padding: 2px 4px;
     border-radius: 6px;
     flex-wrap: wrap;
   }
@@ -645,7 +645,7 @@ watch(() => props.scanTimeRange, (newRange) => {
   .action-buttons {
     flex: none;
     margin-left: auto;
-    gap: 4px;
+    gap: 1px;
   }
 
   .action-buttons :deep(.el-button) {
@@ -653,7 +653,7 @@ watch(() => props.scanTimeRange, (newRange) => {
   }
   
   .action-btn {
-    padding: 6px 8px;
+    padding: 6px;
   }
   
   .action-btn .el-icon {

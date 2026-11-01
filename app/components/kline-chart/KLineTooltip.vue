@@ -343,15 +343,25 @@ const style = computed(() => ({
 }
 
 .tooltip-content .data-item .label {
+  /* 行情标签按内容宽度展示，不为短标签预留对齐空白。 */
+  flex: 0 0 auto;
+  width: auto;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
   color: var(--text-secondary);
   font-size: 11px;
 }
 
 .tooltip-content .data-item .value {
+  flex: 0 0 auto;
+  width: auto;
+  min-width: 0;
+  margin: 0;
   font-weight: 600;
   font-family: 'Courier New', monospace;
-  text-align: right;
-  padding-left: 1px;
+  text-align: left;
+  padding-left: 0;
   padding-top: 3px;
 }
 
@@ -535,19 +545,20 @@ const style = computed(() => ({
   margin-left: auto;
 }
 
-/* 响应式设计 - 手机端 (480px以下) */
-@media (max-width: 480px) {
+/* 手机端按图表实际宽度换行，为右侧价格轴保留空间。 */
+@media (max-width: 768px) {
   .kline-tooltip {
-    left: 20px !important;
+    left: 12px !important;
     top: 10px !important;
-    margin-right: 70px;
+    right: 70px;
+    min-width: 0;
   }
   
   .tooltip-content {
     font-size: 11px;
     gap: 4px;
     flex-wrap: wrap;
-    max-width: 95vw;
+    max-width: 100%;
   }
   
   .tooltip-content .symbol,
@@ -557,11 +568,12 @@ const style = computed(() => ({
   }
   
   .tooltip-content .data-item {
+    /* 标签与数值作为整体换行，避免 EMA 差等指标被拆散。 */
+    flex-shrink: 0;
     font-size: 10px;
   }
   
   .tooltip-content .data-item .value {
-    min-width: 40px;
     font-size: 10px;
   }
 }
