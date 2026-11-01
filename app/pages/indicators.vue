@@ -3,10 +3,10 @@
   <main class="indicator-page">
     <ClientOnly>
       <div class="dashboard-grid">
-        <IndicatorsList class="board" :model-value="true" :selected-symbol="selected" embedded @symbols-ready="initializeSymbol" @select-symbol="selectSymbol" @timeframe-change="chartTimeframe = $event" />
+        <IndicatorsList ref="listRef" class="board" :model-value="true" :selected-symbol="selected" embedded coordinated-refresh @refresh-request="refreshDashboard" @symbols-ready="initializeSymbol" @select-symbol="selectSymbol" @timeframe-change="chartTimeframe = $event" />
         <aside>
           <template v-if="selected">
-            <IndicatorTrendChart :symbol="selected" :timeframe="chartTimeframe" @timeframe-change="chartTimeframe = $event" />
+            <IndicatorTrendChart ref="chartRef" :symbol="selected" :timeframe="chartTimeframe" coordinated-refresh @refresh-request="refreshDashboard" @timeframe-change="chartTimeframe = $event" />
           </template>
           <el-empty v-else description="等待看板数据，加载后默认显示第一个交易对" />
         </aside>
@@ -19,6 +19,24 @@ import IndicatorsList from '../components/IndicatorsList.vue'
 import IndicatorTrendChart from '../components/IndicatorTrendChart.vue'
 const selected = ref('')
 const chartTimeframe = ref('1h')
+const listRef = ref<InstanceType<typeof IndicatorsList>>()
+const chartRef = ref<InstanceType<typeof IndicatorTrendChart>>()
+let refreshTimer: ReturnType<typeof setInterval> | undefined
+let refreshing = false
+
+/** 同一计时器同时发起两侧刷新，整轮结束前不重入；列表刷新全部指标而非仅更新结构。 */
+async function refreshDashboard() {
+  if (refreshing) return
+  refreshing = true
+  try {
+    await Promise.allSettled([listRef.value?.refresh(), chartRef.value?.refresh()])
+  } finally {
+    refreshing = false
+  }
+}
+// 初次加载及切换交易对仍立即请求；后续两侧共用每 60 秒的刷新节拍。
+onMounted(() => { refreshTimer = setInterval(() => { void refreshDashboard() }, 60_000) })
+onBeforeUnmount(() => { if (refreshTimer) clearInterval(refreshTimer) })
 /** 首次取表格第一行；刷新保留用户选择，移除的交易对自动回退。 */
 function initializeSymbol(symbols: string[]) {
   if (!symbols.includes(selected.value)) selected.value = symbols[0] || ''

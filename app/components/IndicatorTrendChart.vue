@@ -7,7 +7,7 @@
         <button v-for="period in timeframes" :key="period" type="button" :class="{ active: selectedTimeframe === period }" :aria-pressed="selectedTimeframe === period" @click="selectedTimeframe = period">{{ period }}</button>
       </div>
       <label class="ema-toggle" title="价格摆动点左右各3根收盘确认；比较对应CVD，非反转信号"><input v-model="showDivergence" type="checkbox">背离</label>
-      <button type="button" @click="load">刷新</button>
+      <button type="button" @click="requestRefresh">刷新</button>
       <button type="button" :aria-pressed="expanded" @click="expanded = !expanded">{{ expanded ? '收起' : '放大' }}</button>
     </header>
     <div v-if="error" class="error" role="status">{{ error }}</div>
@@ -30,10 +30,10 @@ import { useBotStore } from '../stores/bot'
 import { useSupportResistancePreview } from '../composables/useSupportResistancePreview'
 
 /** 主表选择交易对时传入其周期；图表仍允许独立切换周期。 */
-interface Props { symbol: string; timeframe: string }
+interface Props { symbol: string; timeframe: string; coordinatedRefresh?: boolean }
 const props = defineProps<Props>()
 const structurePreview = useSupportResistancePreview()
-const emit = defineEmits<{ 'timeframe-change': [timeframe: string] }>()
+const emit = defineEmits<{ 'timeframe-change': [timeframe: string]; 'refresh-request': [] }>()
 const timeframes = ['5m', '15m', '1h', '4h', '1d']
 const selectedTimeframe = ref(props.timeframe)
 const showDivergence = ref(true)
@@ -45,6 +45,19 @@ const panel = ref<HTMLDivElement>()
 const canvas = ref<HTMLDivElement>()
 const loading = ref(false)
 const error = ref('')
+
+/** 指标页手动刷新交给共同调度器，独立使用图表时保持原有行为。 */
+function requestRefresh() {
+  if (props.coordinatedRefresh) emit('refresh-request')
+  else void load()
+}
+
+/** 自动调度不重入加载，防止慢请求被下一轮持续作废。 */
+async function refresh() {
+  if (loading.value) return
+  await load()
+}
+defineExpose({ refresh })
 // 每次重绘替换数据读取闭包，鼠标事件只注册一次，避免读取过期行情。
 let inspectAt: ((x: number, y: number) => void) | undefined
 let resetInspect: (() => void) | undefined
@@ -57,11 +70,20 @@ let disposed = false
 let currentBars: SimpleKLineData[] = []
 let snapshot: SupportResistanceSnapshot | undefined
 let periods = [20, 60]
-// 右侧预留12根空位，让最新行情与价格轴保持距离。
 // 与首页默认视口一致；仅改变展示数量，不改变指标计算窗口。
 const defaultVisibleBars = 200
-const rightPaddingBars = 12
+// 提供一屏可拖动留白，让最新蜡烛可以继续左移；默认只露出12根空位。
+const rightPaddingBars = defaultVisibleBars
 let viewport: { start?: number; end?: number } | undefined
+
+/** 默认展示最近200根及12根留白；其余空位只用于平移，不生成未来行情。 */
+function defaultViewport(barCount = currentBars.length) {
+  const lastAxisIndex = Math.max(1, barCount + rightPaddingBars - 1)
+  return {
+    start: Math.max(0, barCount - defaultVisibleBars) / lastAxisIndex * 100,
+    end: Math.min(lastAxisIndex, barCount - 1 + 12) / lastAxisIndex * 100
+  }
+}
 const interval = () => ({ '5m': 300, '15m': 900, '1h': 3600, '4h': 14400, '1d': 86400 }[selectedTimeframe.value] || 3600)
 const compact = (value: number) => Math.abs(value) >= 1e6 ? `${(value / 1e6).toFixed(2)}M` : Math.abs(value) >= 1e3 ? `${(value / 1e3).toFixed(1)}K` : Number(value.toPrecision(6)).toString()
 const dateLabel = (time: number) => new Date(time * 1000).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false })
@@ -99,7 +121,7 @@ async function load() {
 /** 只用可见蜡烛的高低点定价轴，远处均线和关键位不参与撑大范围。 */
 function visiblePriceRange() {
   const lastAxisIndex = currentBars.length + rightPaddingBars - 1
-  const zoom = viewport || { start: Math.max(0, (currentBars.length - defaultVisibleBars) / (currentBars.length + rightPaddingBars) * 100), end: 100 }
+  const zoom = viewport || defaultViewport()
   const start = Math.max(0, Math.ceil((zoom.start ?? 0) / 100 * lastAxisIndex))
   const end = Math.min(currentBars.length - 1, Math.floor((zoom.end ?? 100) / 100 * lastAxisIndex))
   const visible = currentBars.slice(start, end + 1)
@@ -118,7 +140,7 @@ function visiblePriceRange() {
 function visibleCvdRange() {
   const cvd = calculateContractFlow(currentBars, interval()).cvd
   const lastAxisIndex = currentBars.length + rightPaddingBars - 1
-  const zoom = viewport || { start: Math.max(0, (currentBars.length - defaultVisibleBars) / (currentBars.length + rightPaddingBars) * 100), end: 100 }
+  const zoom = viewport || defaultViewport()
   const start = Math.max(0, Math.ceil((zoom.start ?? 0) / 100 * lastAxisIndex))
   const end = Math.min(currentBars.length - 1, Math.floor((zoom.end ?? 100) / 100 * lastAxisIndex))
   const values = cvd.slice(start, end + 1).filter((value): value is number => value !== null && Number.isFinite(value))
@@ -132,7 +154,7 @@ function visibleCvdRange() {
 function visibleDeltaRange() {
   const delta = calculateContractFlow(currentBars, interval()).delta
   const lastAxisIndex = currentBars.length + rightPaddingBars - 1
-  const zoom = viewport || { start: Math.max(0, (currentBars.length - defaultVisibleBars) / (currentBars.length + rightPaddingBars) * 100), end: 100 }
+  const zoom = viewport || defaultViewport()
   const start = Math.max(0, Math.ceil((zoom.start ?? 0) / 100 * lastAxisIndex))
   const end = Math.min(currentBars.length - 1, Math.floor((zoom.end ?? 100) / 100 * lastAxisIndex))
   const values = delta.slice(start, end + 1).filter((value): value is number => value !== null && Number.isFinite(value))
@@ -143,7 +165,7 @@ function visibleDeltaRange() {
 /** 只按可见的三条 ADX / DI 曲线定轴，参考线不参与撑大范围。 */
 function visibleAdxRange(values = calculateAdxChartSeries(currentBars, interval())) {
   const lastAxisIndex = currentBars.length + rightPaddingBars - 1
-  const zoom = viewport || { start: Math.max(0, (currentBars.length - defaultVisibleBars) / (currentBars.length + rightPaddingBars) * 100), end: 100 }
+  const zoom = viewport || defaultViewport()
   const start = Math.max(0, Math.ceil((zoom.start ?? 0) / 100 * lastAxisIndex))
   const end = Math.min(currentBars.length - 1, Math.floor((zoom.end ?? 100) / 100 * lastAxisIndex))
   // 隐藏曲线不参与定轴，避免不可见的极值压缩正在观察的指标。
@@ -163,7 +185,7 @@ function visibleAdxRange(values = calculateAdxChartSeries(currentBars, interval(
 /** MACD 按可见双线和柱体对称定轴，避免历史极值压扁当前动能。 */
 function visibleMacdRange(values = calculateMacdChartSeries(currentBars, interval())) {
   const lastAxisIndex = currentBars.length + rightPaddingBars - 1
-  const zoom = viewport || { start: Math.max(0, (currentBars.length - defaultVisibleBars) / (currentBars.length + rightPaddingBars) * 100), end: 100 }
+  const zoom = viewport || defaultViewport()
   const start = Math.max(0, Math.ceil((zoom.start ?? 0) / 100 * lastAxisIndex))
   const end = Math.min(currentBars.length - 1, Math.floor((zoom.end ?? 100) / 100 * lastAxisIndex))
   const visible = values.slice(start, end + 1).flatMap(value => value ? [value.dif, value.dea, value.histogram] : []).filter((value): value is number => value != null && Number.isFinite(value))
@@ -329,7 +351,8 @@ function draw() {
     axisPointer: { link: [{ xAxisIndex: 'all' }] },
     // 数值由各图标题原位显示，保留联动十字线并关闭悬浮框。
     tooltip: { trigger: 'axis', showContent: false, axisPointer: { type: 'cross' } },
-    dataZoom: [{ type: 'inside', xAxisIndex: [0, 1, 2, 3, 4], filterMode: 'none', ...(viewport || { start: Math.max(0, (bars.length - defaultVisibleBars) / axis.length * 100), end: 100 }) }],
+    // 拖动平移、滚轮缩放共用五个时间轴，留白范围内也允许继续向左移动蜡烛。
+    dataZoom: [{ type: 'inside', xAxisIndex: [0, 1, 2, 3, 4], filterMode: 'none', moveOnMouseMove: true, zoomOnMouseWheel: true, moveOnMouseWheel: false, ...(viewport || defaultViewport()) }],
     // 十字线时间提示只显示在主图下方，底部副图仍保留常规时间刻度。
     xAxis: [0, 1, 2, 3, 4].map(index => ({ type: 'category', gridIndex: index, data: axis, boundaryGap: true, axisPointer: { label: { show: index === 0, margin: 3 } }, axisLabel: { show: index === 4, color, fontSize: 9, hideOverlap: true }, axisTick: { show: false }, axisLine: { lineStyle: { color, opacity: .4 } } })),
     yAxis: [
@@ -413,7 +436,7 @@ onMounted(() => {
   if (canvas.value) observer.observe(canvas.value)
   window.addEventListener('keydown', onKey)
   void load()
-  timer = setInterval(() => { if (!loading.value) void load() }, 30_000)
+  if (!props.coordinatedRefresh) timer = setInterval(() => { void refresh() }, 30_000)
 })
 onBeforeUnmount(() => { disposed = true; version++; if (timer) clearInterval(timer); observer?.disconnect(); chart?.dispose(); window.removeEventListener('keydown', onKey) })
 </script>

@@ -14,6 +14,27 @@ export interface CvdDivergence {
   cvdTo: number
 }
 
+/** 列表使用的最新已确认背离；时间为秒，确认时间取右侧确认柱的收盘时刻。 */
+export interface LatestCvdDivergence {
+  kind: CvdDivergence['kind']
+  confirmedAt: number
+  pivotAt: number
+}
+
+/** 与图表复用检测规则，仅返回最新确认的一次背离，不把摆动点时间当作发现时间。 */
+export function latestCvdDivergence(bars: SimpleKLineData[], intervalSeconds: number, nowSeconds: number): LatestCvdDivergence | undefined {
+  const latest = detectCvdDivergences(bars, intervalSeconds, nowSeconds).at(-1)
+  if (!latest) return undefined
+  return { kind: latest.kind, confirmedAt: bars[latest.confirmedIndex]!.t + intervalSeconds, pivotAt: bars[latest.to]!.t }
+}
+
+/** 最近 N 根按当前周期的已收盘时间窗口计数；行情断档不会让历史背离一直保持“最新”。 */
+export function isRecentCvdDivergence(signal: LatestCvdDivergence | undefined, intervalSeconds: number, nowSeconds: number, windowBars: number): boolean {
+  if (!signal || intervalSeconds <= 0 || windowBars < 1) return false
+  const latestClose = Math.floor(nowSeconds / intervalSeconds) * intervalSeconds
+  return signal.confirmedAt <= latestClose && signal.confirmedAt > latestClose - windowBars * intervalSeconds
+}
+
 /**
  * 比较相邻同类价格摆动点对应的 CVD，不要求 CVD 自身也是局部极值。
  * 高低点左右各三根严格确认，相隔 6～60 根；全部确认窗口必须位于同一完整成交区间。

@@ -11,6 +11,7 @@ import { getBotConfig } from '../../utils/storage'
 import { formatEnvironmentConfidence } from '../../../app/utils/environment-confidence'
 import { normalizeERPeriod } from '../../../app/utils/efficiency-ratio'
 import { normalizeSupportResistanceConfig } from '../../../types/support-resistance'
+import { latestCvdDivergence } from '../../../app/utils/cvd-divergence'
 
 const VALID_TIMEFRAMES: Timeframe[] = ['5m', '15m', '1h', '4h', '1d']
 const TIMEFRAME_MINUTES: Record<Timeframe, number> = {
@@ -203,6 +204,11 @@ export default defineEventHandler(async (event) => {
       environmentDescription: formatEnvironmentConfidence(environmentContext),
       completedAt,
       durationMs: completedAt - requestedAt,
+      // 复用本地行情缓存和图表规则，轮询时同步更新，方向标记请求无需重复检测。
+      latestDivergence: signalOnly ? undefined : latestCvdDivergence(klines.map(bar => ({
+        t: bar.timestamp / 1000, o: bar.open, h: bar.high, l: bar.low, c: bar.close,
+        v: bar.volume, q: bar.quoteVolume, bq: bar.takerBuyQuoteVolume
+      })), TIMEFRAME_MINUTES[timeframe] * 60, requestedAt / 1000),
       status: {
         complete: failedIndicators.length === 0,
         availableIndicators,

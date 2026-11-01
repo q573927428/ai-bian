@@ -41,23 +41,38 @@
         <el-option label="多头置信度 ↓" value="longConfidence" />
         <el-option label="空头置信度 ↓" value="shortConfidence" />
       </el-select>
-      <el-button size="small" :type="activeNumericFilters ? 'primary' : 'default'" :plain="!!activeNumericFilters" :aria-expanded="showNumericFilters" @click="showNumericFilters = !showNumericFilters">
-        筛选{{ activeNumericFilters ? ` (${activeNumericFilters})` : '' }} {{ showNumericFilters ? '▴' : '▾' }}
+      <el-button size="small" :type="activeFilters ? 'primary' : 'default'" :plain="!!activeFilters" :aria-expanded="showNumericFilters" @click="showNumericFilters = !showNumericFilters">
+        筛选{{ activeFilters ? ` (${activeFilters})` : '' }} {{ showNumericFilters ? '▴' : '▾' }}
       </el-button>
-      <el-button class="refresh-button" size="small" :loading="loading" @click="fetchData">
+      <el-button class="refresh-button" size="small" :loading="loading" @click="requestRefresh">
         <el-icon><ElIconRefresh /></el-icon>刷新
       </el-button>
     </div>
 
-    <div v-show="showNumericFilters" class="numeric-filters" role="region" aria-label="指标数值筛选">
+    <div v-show="showNumericFilters" class="numeric-filters" role="region" aria-label="指标筛选">
       <div class="numeric-filter-header">
-        <span class="muted">区间筛选</span>
+        <span class="muted">指标筛选</span>
         <span class="numeric-filter-actions">
           <span class="muted" aria-live="polite">{{ filteredRows.length }} / {{ rows.length }} 个交易对</span>
-          <el-button size="small" text :disabled="!activeNumericFilters" @click="resetNumericFilters">重置</el-button>
+          <el-button size="small" text :disabled="!activeFilters" @click="resetNumericFilters">重置筛选</el-button>
         </span>
       </div>
       <div class="numeric-filter-grid">
+        <div class="numeric-filter-item">
+          <span class="numeric-filter-label">CVD 背离</span>
+          <el-select v-model="divergenceFilter" size="small" aria-label="最新 CVD 背离筛选" title="价格与 CVD 背离，左右各 3 根收盘确认；按确认时间筛选，最新确认优先">
+            <el-option label="不限" value="all" />
+            <el-option label="最新背离" value="recent" />
+            <el-option label="最新顶背离" value="bearish" />
+            <el-option label="最新底背离" value="bullish" />
+          </el-select>
+        </div>
+        <div class="numeric-filter-item">
+          <span class="numeric-filter-label">背离确认范围</span>
+          <el-select v-model="divergenceWindow" :disabled="divergenceFilter === 'all'" size="small" aria-label="背离确认时间范围">
+            <el-option v-for="count in [1, 3, 5, 10]" :key="count" :label="`近 ${count} 根确认`" :value="count" />
+          </el-select>
+        </div>
         <div class="numeric-filter-item" role="group" aria-label="支撑阻力试算参数">
           <span class="numeric-filter-label">支撑阻力</span>
           <div class="structure-controls">
@@ -129,6 +144,9 @@
             <span :class="[row.longConfidence == null ? 'muted' : 'up', { 'confidence-leading': row.longConfidence != null && row.shortConfidence != null && row.longConfidence > row.shortConfidence }]">多 {{ row.longConfidence ?? '--' }}</span>
             <span class="muted" aria-hidden="true">·</span>
             <span :class="[row.shortConfidence == null ? 'muted' : 'down', { 'confidence-leading': row.longConfidence != null && row.shortConfidence != null && row.shortConfidence > row.longConfidence }]">空 {{ row.shortConfidence ?? '--' }}</span>
+          </div>
+          <div v-if="recentDivergence(row.latestDivergence)" :class="row.latestDivergence?.kind === 'bullish' ? 'up' : 'down'" :title="`CVD 背离确认于 ${formatOITime((row.latestDivergence?.confirmedAt ?? 0) * 1000)}；摆动点左右各 3 根收盘确认`">
+            {{ row.latestDivergence?.kind === 'bullish' ? '底背离' : '顶背离' }} · 近{{ divergenceWindow }}根确认
           </div>
         </template>
       </el-table-column>
@@ -295,9 +313,11 @@ import { useSupportResistancePreview } from '../composables/useSupportResistance
 import type { SupportResistanceSnapshot } from '../../types/support-resistance'
 import SupportResistanceInfo from './SupportResistanceInfo.vue'
 import { TREND_PERIODS, type EnvironmentContext } from '../utils/environment-confidence'
+import { isRecentCvdDivergence, type LatestCvdDivergence } from '../utils/cvd-divergence'
 
 /** 指标列表中的单个交易对展示数据。 */
 interface IndicatorRow {
+  latestDivergence?: LatestCvdDivergence
   supportResistance?: SupportResistanceSnapshot
   symbol: string; price?: number; closeChangePercent?: number
   candleProgressPercent?: number
@@ -336,10 +356,13 @@ interface Props {
   modelValue: boolean
   embedded?: boolean
   selectedSymbol?: string
+  /** 独立指标页由父组件统一调度列表和图表。 */
+  coordinatedRefresh?: boolean
 }
 
 /** 指标抽屉向父组件同步开关状态的事件。 */
 interface Emits {
+  (event: 'refresh-request'): void
   (event: 'update:modelValue', value: boolean): void
   (event: 'select-symbol', symbol: string, timeframe: string): void
   (event: 'symbols-ready', symbols: string[]): void
@@ -363,7 +386,11 @@ const structurePresets = [
   { label: '5/5', left: 5, right: 5 }
 ]
 // 周期切换立即通知独立指标页，不必再次点击交易对才刷新右侧图表。
-watch(timeframe, value => emit('timeframe-change', value))
+watch(timeframe, value => {
+  // 新周期请求完成前清除旧背离，避免沿用另一周期的确认结果。
+  rows.value.forEach(row => { row.latestDivergence = undefined })
+  emit('timeframe-change', value)
+})
 const progressNow = ref(Date.now())
 // Binance 周期按 UTC 对齐，时间进度属于整个周期，无需逐交易对重复展示。
 const currentCandleProgress = computed(() => {
@@ -394,9 +421,30 @@ const timeframes = TREND_PERIODS
 const rows = ref<IndicatorRow[]>([])
 const loading = ref(false)
 const errorMessage = ref('')
+
+/** 页面模式联动两侧手动刷新，抽屉模式继续独立刷新。 */
+function requestRefresh() {
+  if (props.coordinatedRefresh) emit('refresh-request')
+  else void fetchData()
+}
+
+/** 统一调度时刷新全部指标；已有请求进行中则等待下一轮，避免重复请求。 */
+async function refresh() {
+  if (loading.value) return
+  await fetchData()
+}
+defineExpose({ refresh })
 type SignalTone = '多头' | '空头' | '反转' | '观望'
 const signalFilter = ref<SignalTone | '全部'>('全部')
 const symbolSearch = ref('')
+const divergenceFilter = ref<'all' | 'recent' | 'bearish' | 'bullish'>('all')
+const divergenceWindow = ref(3)
+
+/** 最近范围使用当前所选周期的确认收盘时间，与右侧图表的确认规则一致。 */
+function recentDivergence(signal?: LatestCvdDivergence) {
+  const seconds = ({ '5m': 300, '15m': 900, '1h': 3600, '4h': 14400, '1d': 86400 } as Record<string, number>)[timeframe.value]!
+  return isRecentCvdDivergence(signal, seconds, progressNow.value / 1000, divergenceWindow.value)
+}
 type NumericFilterKey = 'supportDistanceATR' | 'resistanceDistanceATR' | 'adx' | 'adxSlope' | 'emaSlope' | 'rsi' | 'oiChangePercent' | 'volumeRatio' | 'atrPercent' | 'er'
 /** 空边界表示不限；区间包含端点，反向区间不匹配任何交易对。 */
 interface NumericFilterRange {
@@ -424,12 +472,18 @@ const activeNumericFilters = computed(() => numericFilterFields.filter(({ key })
   const range = numericFilters.value[key]
   return range.min != null || range.max != null
 }).length + Number(!!trendStateFilter.value) + Number(!!macdStateFilter.value))
+// 折叠后仍提示所有生效的筛选条件；排序不会减少结果，不计入筛选数量。
+const activeFilters = computed(() => activeNumericFilters.value
+  + Number(signalFilter.value !== '全部') + Number(divergenceFilter.value !== 'all'))
 
-/** 重置数值条件，保留用户已有的方向和交易对搜索。 */
+/** 重置全部筛选（含顶部方向），保留交易对搜索及用户选择的排序。 */
 function resetNumericFilters() {
   for (const { key } of numericFilterFields) numericFilters.value[key] = { min: null, max: null }
   trendStateFilter.value = ''
   macdStateFilter.value = ''
+  signalFilter.value = '全部'
+  divergenceFilter.value = 'all'
+  divergenceWindow.value = 3
 }
 
 /** 明确提示填反的区间，避免静默交换上下限导致筛选含义改变。 */
@@ -461,11 +515,16 @@ function matchesNumericFilters(row: IndicatorRow) {
 const filteredRows = computed(() => {
   // 搜索仅过滤已加载数据，与方向筛选叠加，不触发额外指标请求或改变当前排序。
   const keyword = symbolSearch.value.toUpperCase().replace(/[\s/_-]/g, '')
-  return sortedRows.value.filter(row => row.symbol.toUpperCase().replace(/[\s/_-]/g, '').includes(keyword)
+  const result = sortedRows.value.filter(row => row.symbol.toUpperCase().replace(/[\s/_-]/g, '').includes(keyword)
+    && (divergenceFilter.value === 'all' || (recentDivergence(row.latestDivergence)
+      && (divergenceFilter.value === 'recent' || row.latestDivergence?.kind === divergenceFilter.value)))
     && (signalFilter.value === '全部' || resonanceInfo(row.symbol).tone === signalFilter.value)
     && matchesNumericFilters(row)
     && (!trendStateFilter.value || row.diDirection === trendStateFilter.value)
     && (!macdStateFilter.value || macdResult(row.macdHistogram, row.previousMacdHistogram) === macdStateFilter.value))
+  // 背离筛选默认优先显示最新确认；用户显式选择列排序后保留其排序意图。
+  return divergenceFilter.value !== 'all' && !sortOrder.value
+    ? result.sort((a, b) => (b.latestDivergence?.confirmedAt ?? 0) - (a.latestDivergence?.confirmedAt ?? 0)) : result
 })
 const periodSignals = computed(() => Object.fromEntries(
   rows.value.map(row => [row.symbol, row.environmentContext?.periods ?? {}])
@@ -503,6 +562,7 @@ async function refreshStructure() {
             // 价格和蜡烛图使用同一快照，随现有轮询更新未收盘 K 线。
             const latest = response.data?.kline?.latest
             row.candle = buildCurrentCandle(latest)
+            row.latestDivergence = response.data?.latestDivergence
             row.price = finiteNumber(latest?.close)
             row.closeChangePercent = finiteNumber(response.data?.kline?.closeChangePercent)
             row.supportResistance = response.data?.indicators?.supportResistance?.values
@@ -517,6 +577,7 @@ async function refreshStructure() {
             const row = rows.value.find(item => item.symbol === symbol)
             if (row) {
               row.supportResistance = undefined
+              row.latestDivergence = undefined
               row.environmentContext = undefined
               row.environmentDescription = undefined
               row.longConfidence = undefined
@@ -736,7 +797,7 @@ function toRow(data: any): IndicatorRow {
     `统计窗口：${windowMinutes == null ? '--' : windowMinutes % 60 === 0 ? `${windowMinutes / 60}小时` : `${windowMinutes}分钟`}`
   ].join('\n')
   return {
-    symbol: data.symbol, price, closeChangePercent: Number(data.kline?.closeChangePercent),
+    symbol: data.symbol, latestDivergence: data.latestDivergence, price, closeChangePercent: Number(data.kline?.closeChangePercent),
     candle: buildCurrentCandle(data.kline?.latest),
     supportResistance: data?.indicators?.supportResistance?.values,
     candleProgressPercent: Number(data.kline?.candleProgressPercent),
@@ -972,7 +1033,7 @@ watch(visible, value => {
   structureTimer = undefined
   if (value) {
     void fetchData()
-    structureTimer = setInterval(() => { void refreshStructure() }, 15_000)
+    if (!props.coordinatedRefresh) structureTimer = setInterval(() => { void refreshStructure() }, 15_000)
   } else {
     // 关闭后使首屏及后台尚未完成的旧请求失效。
     fetchVersion++
@@ -985,14 +1046,15 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-.toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 16px; }
+.toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 10px; }
 .structure-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .structure-controls label { display: flex; align-items: center; gap: 6px; }
 .structure-controls :deep(.el-select) { width: 78px; }
 .numeric-filters { flex-shrink: 0; margin: -4px 0 12px; padding: 10px 12px; border: 1px solid var(--el-border-color); border-radius: 4px; background: var(--el-fill-color-light); font-size: 12px; max-height: 40vh; overflow-y: auto; }
 .numeric-filter-header, .numeric-filter-actions { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .numeric-filter-header { margin-bottom: 8px; flex-wrap: wrap; }
-.numeric-filter-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 10px 16px; }
+.numeric-filter-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(210px, 100%), 1fr)); gap: 10px 16px; }
+.numeric-filter-item { min-width: 0; }
 .numeric-filter-label { display: block; margin-bottom: 5px; }
 .numeric-filter-range { display: flex; align-items: center; gap: 6px; }
 .numeric-filter-range :deep(.el-input-number) { width: 0; min-width: 0; flex: 1; }
@@ -1013,8 +1075,10 @@ onUnmounted(() => {
 .symbol-confidence { display: flex; align-items: center; gap: 5px; margin-top: 6px; padding-left: 25px; line-height: 1.5; white-space: nowrap; font-variant-numeric: tabular-nums; }
 /* 仅突出双向评分中更高的一侧；相等或数据缺失时不暗示方向优势。 */
 .confidence-leading { font-weight: 700; }
-.symbol-search { width: 170px; margin-left: auto; }
-.confidence-sort { width: 140px; }
+.symbol-search { flex: 1; min-width: 110px; max-width: 190px; margin-left: auto; }
+.confidence-sort { width: 140px; flex-shrink: 0; }
+/* 不沿用相邻按钮的额外左间距，统一由工具栏 gap 控制。 */
+.toolbar > .el-button { margin-left: 0; }
 .adx-line { display: flex; align-items: center; gap: 8px; white-space: nowrap; }
 .di-line { display: flex; flex-direction: column; align-items: flex-start; white-space: nowrap; }
 .up { color: var(--el-color-success); }.down { color: var(--el-color-danger); }.muted { color: var(--el-text-color-secondary); }
@@ -1129,7 +1193,6 @@ onUnmounted(() => {
   .candle-progress { gap: 5px; padding: 0 6px; }
   .candle-progress-track { width: 24px; }
   .symbol-search { flex: 1; width: auto; min-width: 110px; margin-left: 0; }
-  .confidence-sort { width: 140px; }
   /* Element Plus 相邻按钮默认有左边距；换行间距统一由工具栏 gap 控制。 */
   .toolbar > .el-button { margin-left: 0; }
 
