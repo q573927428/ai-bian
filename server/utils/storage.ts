@@ -2,6 +2,7 @@ import { readFile, writeFile, mkdir } from 'fs/promises'
 import { join } from 'path'
 import { existsSync } from 'fs'
 import type { TradeHistory, BotState, BotConfig } from '../../types'
+import { normalizeSupportResistanceConfig } from '../../types/support-resistance'
 import type { PositionInfo } from '../modules/position-manager/PositionManager'
 import { readTradeHistoryFiles, writeMonthlyTradeHistory } from './trade-history-files'
 
@@ -313,6 +314,7 @@ function normalizeBotConfig(input: Partial<BotConfig> = {}): BotConfig {
     config.volumeEmaPeriod = 12
   }
 
+  config.supportResistanceConfig = normalizeSupportResistanceConfig(config.supportResistanceConfig)
   config.concurrencyPool!.indicator.maxConcurrency = clampInteger(config.concurrencyPool!.indicator.maxConcurrency, 1, 64, 6)
   config.concurrencyPool!.ai.maxConcurrency = clampInteger(config.concurrencyPool!.ai.maxConcurrency, 1, 32, 3)
   config.concurrencyPool!.tradeApi.maxConcurrency = clampInteger(config.concurrencyPool!.tradeApi.maxConcurrency, 1, 16, 1)
@@ -365,6 +367,7 @@ function getDefaultBotConfig(): BotConfig {
       emaSlopePeriod: 3 // EMA斜率计算回看周期
     },
     emaPeriods: [14, 50], // EMA周期数组
+    supportResistanceConfig: { pivotLeft: 3, pivotRight: 3 },
     volumeEmaPeriod: 12, // 成交量EMA均值周期
     aiCacheTtlMinutes: 10, // AI缓存时间（分钟）
     aiAnalysisConfig: {

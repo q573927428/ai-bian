@@ -358,6 +358,8 @@ export interface BotConfig {
   monitorInterval: number
   indicatorsConfig: IndicatorsConfig
   emaPeriods: number[]
+  /** 全局支撑阻力左右确认根数，缺失时使用3/3。 */
+  supportResistanceConfig?: import('./support-resistance').SupportResistanceConfig
   volumeEmaPeriod?: number
   aiCacheTtlMinutes: number
   aiAnalysisConfig: AIAnalysisSaveConfig

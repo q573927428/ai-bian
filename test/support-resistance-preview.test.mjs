@@ -6,6 +6,7 @@ import vm from 'node:vm'
 import ts from 'typescript'
 import * as vue from 'vue'
 import { parse } from 'vue/compiler-sfc'
+import { normalizeSupportResistanceConfig } from '../types/support-resistance.ts'
 
 /** 执行实际源码，仅隔离 Nuxt 上下文、网络和图表挂载。 */
 function evaluate(source, dependencies = {}, globals = {}) {
@@ -17,7 +18,7 @@ function evaluate(source, dependencies = {}, globals = {}) {
 }
 
 /** 不启动交易进程，记录只读接口传给指标中心的实际参数。 */
-function createHandler() {
+function createHandler(config = {}) {
   const calls = []
   const hub = {
     getCacheStatus: () => ({ symbols: ['BTC/USDT'] }),
@@ -33,7 +34,8 @@ function createHandler() {
     '../../utils/strategy-indicators-normalizer': { getMaxOIChangePeriod: () => 10 },
     '../../utils/kline-simple-storage': { getSimpleKLineLastUpdatedAt: () => 0 },
     '../../utils/market-breadth': { getMarketBreadth: async () => ({}) },
-    '../../utils/storage': { getBotConfig: async () => ({}) },
+    '../../utils/storage': { getBotConfig: async () => config },
+    '../../../types/support-resistance': { normalizeSupportResistanceConfig },
     '../../utils/environment-context': { loadEnvironmentContext: async () => undefined },
     '../../../app/utils/environment-confidence': { formatEnvironmentConfidence: () => '' },
     '../../../app/utils/efficiency-ratio': { normalizeERPeriod: () => 20 }
@@ -62,7 +64,11 @@ test('试算接口传递左右参数、约束范围，省略参数仍使用3/3',
 
 test('共享试算参数触发真实图表请求，快速切换时迟到结果不能覆盖新区域', async () => {
   const state = new Map()
+  const store = vue.reactive({ botConfig: null })
   const { useSupportResistancePreview } = evaluate(readFileSync(new URL('../app/composables/useSupportResistancePreview.ts', import.meta.url), 'utf8'), {
+    vue,
+    '../stores/bot': { useBotStore: () => store },
+    '../../types/support-resistance': { normalizeSupportResistanceConfig },
     '#app': { useState: (key, init) => {
       if (!state.has(key)) state.set(key, vue.ref(init()))
       return state.get(key)
@@ -102,5 +108,52 @@ test('共享试算参数触发真实图表请求，快速切换时迟到结果�
     requests[1].resolve({ success: true, data: { indicators: { supportResistance: { values: { tag: '5/3' } } } } })
     await new Promise(setImmediate)
     assert.equal(chart.probe().snapshot.tag, '5/5')
+    store.botConfig = { supportResistanceConfig: { pivotLeft: 4, pivotRight: 6 } }
+    await vue.nextTick()
+    assert.equal(preview.value.pivotLeft, 4)
+    assert.equal(preview.value.pivotRight, 6)
+    assert.equal(requests.at(-1).query.pivotRight, 6)
+    requests.at(-1).resolve({ success: true, data: { indicators: {} } })
+    await new Promise(setImmediate)
   } finally { scope.stop() }
+})
+
+test('全局参数作为接口默认值，页面左右确认仍可分别覆盖', async () => {
+  const { handler, calls } = createHandler({ supportResistanceConfig: { pivotLeft: 5, pivotRight: 4 } })
+  await handler({})
+  assert.equal(calls.at(-1).options.pivotLeft, 5)
+  assert.equal(calls.at(-1).options.pivotRight, 4)
+  await handler({ pivotLeft: '6' })
+  assert.equal(calls.at(-1).options.pivotLeft, 6)
+  assert.equal(calls.at(-1).options.pivotRight, 4)
+})
+
+test('指标中心随全局配置热更新，策略独立参数仍优先', async () => {
+  const source = readFileSync(new URL('../server/modules/indicators/IndicatorsHub.ts', import.meta.url), 'utf8')
+  const builds = []
+  const { IndicatorsHub } = evaluate(source, {
+    '../../../types/support-resistance': { normalizeSupportResistanceConfig },
+    './SupportResistanceCalculator': { calculateSupportResistance: (_bars, _tf, _ms, options) => { builds.push(options); return options } },
+    './SupportResistanceCache': { SupportResistanceCache: class { get(_key, _price, _now, build) { return build() } } },
+    './OISnapshotService': { OISnapshotService: class {} },
+    '../../utils/stable-hash': { shortHash: JSON.stringify },
+    '../../utils/logger': { logger: { info() {}, warn() {} } },
+    '../../utils/binance-api-gateway': { binanceApiGateway: { updateConfig() {} } }
+  }, { Map, Set })
+  const hub = new IndicatorsHub({}, {})
+  await hub.getIndicators('BTCUSDT', '1h', 'SupportResistance', {}, [])
+  assert.equal(builds.at(-1).pivotLeft, 3)
+  hub.updateConfig({ supportResistanceConfig: { pivotLeft: 5, pivotRight: 4 } })
+  await hub.getIndicators('BTCUSDT', '1h', 'SupportResistance', {}, [])
+  assert.equal(builds.at(-1).pivotLeft, 5)
+  assert.equal(builds.at(-1).pivotRight, 4)
+  await hub.getIndicators('BTCUSDT', '1h', 'SupportResistance', { pivotRight: 2 }, [])
+  assert.equal(builds.at(-1).pivotLeft, 5)
+  assert.equal(builds.at(-1).pivotRight, 2)
+})
+
+test('旧配置与非法确认根数统一归一化为有效整数', () => {
+  assert.deepEqual(normalizeSupportResistanceConfig(), { pivotLeft: 3, pivotRight: 3 })
+  assert.deepEqual(normalizeSupportResistanceConfig({ pivotLeft: NaN, pivotRight: null }), { pivotLeft: 3, pivotRight: 3 })
+  assert.deepEqual(normalizeSupportResistanceConfig({ pivotLeft: -5, pivotRight: 20.5 }), { pivotLeft: 1, pivotRight: 10 })
 })

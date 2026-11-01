@@ -10,6 +10,7 @@ import { getMarketBreadth } from '../../utils/market-breadth'
 import { getBotConfig } from '../../utils/storage'
 import { formatEnvironmentConfidence } from '../../../app/utils/environment-confidence'
 import { normalizeERPeriod } from '../../../app/utils/efficiency-ratio'
+import { normalizeSupportResistanceConfig } from '../../../types/support-resistance'
 
 const VALID_TIMEFRAMES: Timeframe[] = ['5m', '15m', '1h', '4h', '1d']
 const TIMEFRAME_MINUTES: Record<Timeframe, number> = {
@@ -103,10 +104,12 @@ export default defineEventHandler(async (event) => {
     .slice(0, 5)
   const effectiveEmaPeriods = emaPeriods.length > 0 ? emaPeriods : [14, 50]
   const erPeriod = normalizeERPeriod(query.erPeriod)
+  const botConfig = await getBotConfig()
+  const structureDefaults = normalizeSupportResistanceConfig(botConfig.supportResistanceConfig)
   // 参数参与指标中心的缓存键，页面试算不会覆盖策略或默认区域缓存。
   const structureParams = {
-    pivotLeft: parseBoundedInteger(query.pivotLeft, 3, 1, 10),
-    pivotRight: parseBoundedInteger(query.pivotRight, 3, 1, 10)
+    pivotLeft: parseBoundedInteger(query.pivotLeft, structureDefaults.pivotLeft, 1, 10),
+    pivotRight: parseBoundedInteger(query.pivotRight, structureDefaults.pivotRight, 1, 10)
   }
 
   const indicators: Record<string, IndicatorDiagnosticResult> = {}
@@ -114,7 +117,7 @@ export default defineEventHandler(async (event) => {
   // 复用策略分析的服务端评分口径；方向标记请求无需重复计算五周期环境。
   // 环境计算失败仅清空评分，不影响其他指标展示。
   const environmentContext = !signalOnly
-    ? await Promise.resolve().then(async () => getMarketBreadth(await getBotConfig()))
+    ? await Promise.resolve().then(async () => getMarketBreadth(botConfig))
       .then(breadth => loadEnvironmentContext(indicatorsHub, indicatorSymbol, breadth))
       .catch(() => undefined)
     : undefined

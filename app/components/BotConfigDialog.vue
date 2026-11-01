@@ -101,6 +101,18 @@
             </div>
           </div>
 
+          <div class="config-section">
+            <el-divider content-position="left">支撑阻力配置</el-divider>
+            <div v-if="form.supportResistanceConfig" class="config-grid">
+              <el-form-item label="左确认根数">
+                <el-input-number v-model="form.supportResistanceConfig.pivotLeft" :min="1" :max="10" :precision="0" :step="1" :value-on-clear="3" />
+              </el-form-item>
+              <el-form-item label="右确认根数">
+                <el-input-number v-model="form.supportResistanceConfig.pivotRight" :min="1" :max="10" :precision="0" :step="1" :value-on-clear="3" />
+              </el-form-item>
+            </div>
+          </div>
+
           <!-- ============ 交易规则配置 ============ -->
           <div class="config-section">
             <el-divider content-position="left">5. 交易规则配置</el-divider>
@@ -259,6 +271,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import type { BotConfig } from '../../types'
+import { normalizeSupportResistanceConfig } from '../../types/support-resistance'
 import { useBotStore } from '../stores/bot'
 import TopSymbolsTable from './TopSymbolsTable.vue'
 
@@ -311,6 +324,7 @@ const loadConfig = async () => {
         config.emaPeriods = [20, 200]
       }
       
+      config.supportResistanceConfig = normalizeSupportResistanceConfig(config.supportResistanceConfig)
       form.value = config
       originalSymbols.value = [...(config.symbols || [])]
     }
@@ -324,6 +338,7 @@ const loadConfig = async () => {
 // 保存配置
 const handleSave = async () => {
   if (!form.value) return
+  form.value.supportResistanceConfig = normalizeSupportResistanceConfig(form.value.supportResistanceConfig)
   
   // 确保 emaPeriods 是正确的格式
   if (!form.value.emaPeriods || !Array.isArray(form.value.emaPeriods)) {

@@ -1,5 +1,18 @@
 // ==================== 实时支撑阻力快照 ====================
 
+/** 全局摆动点确认窗口；策略显式参数和页面试算可覆盖此默认值。 */
+export interface SupportResistanceConfig {
+  pivotLeft: number
+  pivotRight: number
+}
+
+/** 统一配置边界，兼容旧配置缺失、清空输入及非法请求，默认左右各3根。 */
+export function normalizeSupportResistanceConfig(input?: Partial<SupportResistanceConfig> | null): SupportResistanceConfig {
+  const normalize = (value: unknown) => typeof value === 'number' && Number.isFinite(value)
+    ? Math.max(1, Math.min(10, Math.floor(value))) : 3
+  return { pivotLeft: normalize(input?.pivotLeft), pivotRight: normalize(input?.pivotRight) }
+}
+
 /** 已确认摆动点聚合的价格区域；触碰次数仅统计独立摆动点。 */
 export interface PriceZone {
   lower: number

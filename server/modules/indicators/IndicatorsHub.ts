@@ -5,6 +5,7 @@ import { calculateEfficiencyRatio } from '../../../app/utils/efficiency-ratio'
 import { EMA, RSI, ADX, ATR, MACD } from 'technicalindicators'
 import { calculateSupportResistance, type SupportResistanceOptions } from './SupportResistanceCalculator'
 import { SupportResistanceCache } from './SupportResistanceCache'
+import { normalizeSupportResistanceConfig } from '../../../types/support-resistance'
 import type {
   IndicatorData,
   Timeframe,
@@ -545,9 +546,10 @@ export class IndicatorsHub {
     if (type === 'SupportResistance') {
       // 区域由统一预计算刷新；读取只更新价格距离，冷启动/过期仅兜底构建一次。
       const now = Date.now()
+      const defaults = normalizeSupportResistanceConfig(this.config.supportResistanceConfig)
       const params = {
-        lookback: options?.lookback ?? 96, pivotLeft: options?.pivotLeft ?? 3,
-        pivotRight: options?.pivotRight ?? 3, mergeDistanceATR: options?.mergeDistanceATR ?? 0.5,
+        lookback: options?.lookback ?? 96, pivotLeft: options?.pivotLeft ?? defaults.pivotLeft,
+        pivotRight: options?.pivotRight ?? defaults.pivotRight, mergeDistanceATR: options?.mergeDistanceATR ?? 0.5,
         minTouches: options?.minTouches ?? 1, breakoutBufferATR: options?.breakoutBufferATR ?? 0.1
       }
       const klines = snapshotKlines ?? this.getKlines(symbol, timeframe) ?? []
