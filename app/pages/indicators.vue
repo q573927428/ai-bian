@@ -36,4 +36,8 @@ function selectSymbol(symbol: string, timeframe: string) { selected.value = symb
 aside { min-width: 0; min-height: 0; display: grid; grid-template-rows: minmax(0, 1fr); overflow: hidden; }
 /* 窄屏保留可读尺寸，仅内容区滚动，不撑高全局页面。 */
 @media (max-width: 1000px) { .dashboard-grid { display: flex; flex-direction: column; overflow-y: auto; } .board { height: 60dvh; flex-shrink: 0; } aside { height: 800px; min-height: 800px; flex-shrink: 0; overflow: hidden; } }
+@media (max-width: 768px) {
+  /* 手机看板接近一屏高，短屏至少保留足够的表格空间，图表通过内容区滚动查看。 */
+  .board { height: calc(100dvh - var(--app-header-height, 60px) - var(--app-footer-height, 27px) - 20px); min-height: 640px; }
+}
 </style>

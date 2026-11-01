@@ -133,8 +133,12 @@ onBeforeUnmount(() => {
 
 <style scoped>
 /* 放在原有两行行情指标下方，透明摘要不拦截十字光标与图表拖动。 */
-.structure-summary { position: absolute; top: 56px; left: 20px; right: 90px; z-index: 2; pointer-events: none; }
+.structure-summary { position: absolute; top: 72px; left: 20px; right: 90px; z-index: 2; pointer-events: none; }
 .structure-overlay { position: absolute; top: 0; left: 0; pointer-events: none; overflow: hidden; z-index: 1; }
 .structure-toggle { position: absolute; left: 12px; bottom: 30px; z-index: 3; border: 1px solid var(--border-color); border-radius: 4px; background: var(--bg-card, #141414); color: var(--text-secondary); cursor: pointer; font-size: 11px; padding: 3px 6px; }
 text { font-size: 11px; paint-order: stroke; stroke: var(--bg-card, #141414); stroke-width: 3px; }
+@media (max-width: 768px) {
+  /* 手机端行情指标会折行，隐藏顶部重复摘要，避免遮挡涨跌与 EMA 差；区域标记和开关仍可使用。 */
+  .structure-summary { display: none; }
+}
 </style>

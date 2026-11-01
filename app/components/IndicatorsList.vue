@@ -151,7 +151,7 @@
           <span :class="[row.diDirection.startsWith('多头') ? 'up' : row.diDirection.startsWith('空头') ? 'down' : 'muted', { 'macd-weakening': row.diDirection.endsWith('减弱') }]">{{ row.diDirection }}</span>
         </template>
       </el-table-column>
-      <el-table-column label="实时支撑 / 阻力" min-width="150">
+      <el-table-column label="实时阻力 / 支撑" min-width="150">
         <template #default="{ row }">
           <SupportResistanceInfo :snapshot="row.supportResistance" nearest-only />
         </template>
@@ -1086,11 +1086,20 @@ onUnmounted(() => {
 }
 
 @media (max-width: 768px) {
+  /* 控件按可用宽度并排换行，避免工具栏逐项独占一行挤压表格。 */
   .toolbar {
-    align-items: flex-start;
-    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
   }
-  .symbol-search { width: 100%; margin-left: 0; }
+  .toolbar :deep(.el-radio-group) { flex-shrink: 0; }
+  .toolbar :deep(.el-radio-button__inner) { padding-left: 8px; padding-right: 8px; }
+  .candle-progress { gap: 5px; padding: 0 6px; }
+  .candle-progress-track { width: 24px; }
+  .symbol-search { flex: 1; width: auto; min-width: 110px; margin-left: 0; }
+  .confidence-sort { width: 140px; }
+  /* Element Plus 相邻按钮默认有左边距；换行间距统一由工具栏 gap 控制。 */
+  .toolbar > .el-button { margin-left: 0; }
 
   /* 手机端占满屏幕，保持与日志抽屉一致的操作体验。 */
   :global(.indicators-drawer) {

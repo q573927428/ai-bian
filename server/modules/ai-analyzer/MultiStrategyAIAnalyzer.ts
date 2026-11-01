@@ -38,8 +38,8 @@ function formatSupportResistance(snapshot?: SupportResistanceSnapshot): string {
     breakdown_confirmed: '区域更新时已收盘确认跌破', breakout_confirmed: '区域更新时已收盘确认突破'
   }
   return `### 支撑阻力（${snapshot.timeframe}）
-- 最近支撑：${zone(snapshot.nearestSupport)}；距离 ${distance(snapshot.supportDistancePercent)}% / ${distance(snapshot.supportDistanceATR)} ATR
 - 最近阻力：${zone(snapshot.nearestResistance)}；距离 ${distance(snapshot.resistanceDistancePercent)}% / ${distance(snapshot.resistanceDistanceATR)} ATR
+- 最近支撑：${zone(snapshot.nearestSupport)}；距离 ${distance(snapshot.supportDistancePercent)}% / ${distance(snapshot.supportDistanceATR)} ATR
 - 状态：${states[snapshot.status]}
 区域每5分钟更新，距离随价格更新；未识别不代表没有障碍，收盘突破不代表回踩确认。仅作位置参考，开仓按策略规则判断。
 `

@@ -1,8 +1,8 @@
 <!-- ==================== 看板及交易记录共用支撑阻力展示 ==================== -->
 <template>
   <div v-if="compact && snapshot" class="structure-info-compact">
-    <span class="support">支撑 {{ zone(snapshot.nearestSupport) }}<template v-if="snapshot.nearestSupport"> · {{ number(snapshot.supportDistancePercent) }}% / {{ number(snapshot.supportDistanceATR) }} ATR</template></span>
     <span class="resistance">阻力 {{ zone(snapshot.nearestResistance) }}<template v-if="snapshot.nearestResistance"> · {{ number(snapshot.resistanceDistancePercent) }}% / {{ number(snapshot.resistanceDistanceATR) }} ATR</template></span>
+    <span class="support">支撑 {{ zone(snapshot.nearestSupport) }}<template v-if="snapshot.nearestSupport"> · {{ number(snapshot.supportDistancePercent) }}% / {{ number(snapshot.supportDistanceATR) }} ATR</template></span>
   </div>
   <div v-else-if="snapshot" class="structure-info" :class="{ 'structure-info-detailed': detailed }">
     <el-tooltip placement="top">
