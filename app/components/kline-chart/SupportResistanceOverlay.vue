@@ -101,12 +101,15 @@ function draw() {
       const lower = series.priceToCoordinate(zone.lower)
       if (x == null || upper == null || lower == null || x >= width) continue
       const price = (value: number) => Number(value.toPrecision(7)).toString()
-      // 沿用快照中到区域近端的 ATR 距离；历史复盘保持入场口径，不使用当前行情重算。
+      // 显示区域近端价格，与快照中的百分比、ATR 距离保持一致；历史复盘沿用入场口径。
+      const nearestPrice = kind === '支撑' ? zone.upper : zone.lower
+      const distancePercent = kind === '支撑' ? data.supportDistancePercent : data.resistanceDistancePercent
+      const percentLabel = distancePercent != null && Number.isFinite(distancePercent) ? distancePercent.toFixed(2) : '--'
       const distanceATR = kind === '支撑' ? data.supportDistanceATR : data.resistanceDistanceATR
       const atrLabel = distanceATR != null && Number.isFinite(distanceATR) ? distanceATR.toFixed(2) : '--'
       zones.push({ left: Math.max(0, x), top: Math.min(upper, lower), height: Math.max(1, Math.abs(lower - upper)),
         touches: zone.touches, color: kind === '支撑' ? '#67c23a' : '#f56c6c',
-        label: `${order ? '入场' : ''}${kind} ${price(zone.lower)}～${price(zone.upper)}（${zone.touches}） · ${atrLabel}` })
+        label: `${order ? '入场' : ''}${kind} ${price(nearestPrice)}（${zone.touches}） · ${percentLabel}% / ${atrLabel}` })
     }
     next = { width, height: chart.panes()[0]?.getHeight() ?? 0, zones }
   }
