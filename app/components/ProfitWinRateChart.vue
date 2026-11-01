@@ -12,7 +12,7 @@
 
     <!-- 筛选器 -->
     <div class="filters">
-      <el-radio-group v-model="chartType" size="small" @change="renderChart" class="filter-item">
+      <el-radio-group v-model="chartType" size="small" class="filter-item">
         <el-radio-button value="pnl">盈亏</el-radio-button>
         <el-radio-button value="winRate">胜率</el-radio-button>
       </el-radio-group>
@@ -142,6 +142,7 @@ const stats = ref({
 })
 const { theme } = useTheme()
 let chartInstance: ECharts | null = null
+let summaryRequestId = 0
 
 /** 小时最多保留一位小数并省略末尾 .0；短线持仓保留分钟，避免显示为 0h。 */
 const formatHoldDuration = (durationMs: number) => {
@@ -175,8 +176,9 @@ const getPeriodParams = () => {
   }
 }
 
-// 加载历史数据
+/** 加载当前筛选的汇总及下拉选项；盈亏和胜率共用同一份筛选结果。 */
 const loadData = async () => {
+  const requestId = ++summaryRequestId
   loading.value = true
   try {
     const response = await $fetch('/api/bot/history-summary', {
@@ -186,6 +188,8 @@ const loadData = async () => {
         ...getPeriodParams(),
       },
     }) as any
+    // 快速切换筛选或刷新时，只允许最新请求更新曲线、统计和选项。
+    if (requestId !== summaryRequestId) return
     chartData.value = response.success ? response.data || [] : []
     if (response.stats) stats.value = response.stats
 
@@ -195,6 +199,7 @@ const loadData = async () => {
 
     // 下拉选项由全量历史的服务端元数据提供，不下载完整订单。
     if (strategiesStore.strategies.length === 0) await strategiesStore.loadStrategies()
+    if (requestId !== summaryRequestId) return
     const strategySet = new Set<string>(response.options?.strategies || [])
     strategies.value = strategiesStore.strategies.filter(s => strategySet.has(s.id))
     symbols.value = response.options?.symbols || []
@@ -202,7 +207,7 @@ const loadData = async () => {
   } catch (error) {
     console.error('加载历史数据失败:', error)
   } finally {
-    loading.value = false
+    if (requestId === summaryRequestId) loading.value = false
   }
 }
 
@@ -211,27 +216,7 @@ const refreshData = async () => {
   await loadData()
 }
 
-/** 根据筛选条件获取服务端汇总，避免在浏览器扫描完整订单。 */
-const loadSummary = async () => {
-  try {
-    const response = await $fetch('/api/bot/history-summary', {
-      params: {
-        strategyId: selectedStrategy.value || undefined,
-        symbol: selectedSymbol.value || undefined,
-        ...getPeriodParams(),
-      },
-    }) as any
-    chartData.value = response.success ? response.data || [] : []
-    if (response.stats) stats.value = response.stats
-    // 筛选从无数据切换为有数据时，同样需要等待容器恢复显示。
-    await nextTick()
-    renderChart()
-  } catch (error) {
-    console.error('加载盈亏汇总失败:', error)
-  }
-}
-
-// 渲染图表
+/** 按当前指标重绘最新筛选结果，切换指标时重置坐标范围和曲线配置。 */
 const renderChart = () => {
   if (!chartRef.value || chartData.value.length === 0) return
 
@@ -351,16 +336,17 @@ const renderChart = () => {
     ]
   }
 
-  chartInstance.setOption(option)
+  // 盈亏与胜率的量纲、范围不同，完整替换配置，避免沿用上个指标的状态。
+  chartInstance.setOption(option, { notMerge: true })
 }
 
 // 监听筛选变化
 watch([selectedStrategy, selectedSymbol, selectedPeriod], () => {
-  void loadSummary()
+  void loadData()
 })
 
-// 监听主题变化，重新渲染图表以更新坐标轴颜色
-watch(theme, () => {
+// 指标和主题变化都从当前筛选结果重绘，不依赖单选组件的 change 事件时序。
+watch([chartType, theme], () => {
   if (chartData.value.length > 0) {
     renderChart()
   }
@@ -383,6 +369,8 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
+  // 离开页面后忽略尚未返回的汇总请求，避免重新创建已销毁的图表。
+  summaryRequestId++
   chartResizeObserver?.disconnect()
   window.removeEventListener('resize', handleResize)
   chartInstance?.dispose()
