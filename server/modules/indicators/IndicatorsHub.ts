@@ -523,7 +523,7 @@ export class IndicatorsHub {
       rsiPeriod?: number // RSI计算周期，默认14
       atrPeriod?: number // ATR计算周期，默认14
       erPeriod?: number // ER收盘价变化段数，默认20
-      snapshotTimestamp?: number // ER按行情快照判定已收盘，避免排队期间口径变化
+      snapshotTimestamp?: number // ER使用行情快照时刻及盘中价，避免排队期间口径变化
       macdFastPeriod?: number // MACD快线周期，默认12
       macdSlowPeriod?: number // MACD慢线周期，默认26
       macdSignalPeriod?: number // MACD信号线周期，默认9
@@ -535,7 +535,7 @@ export class IndicatorsHub {
     if (type === 'ER') {
       const now = options?.snapshotTimestamp ?? Date.now()
       const klines = snapshotKlines ?? this.getKlines(symbol, timeframe) ?? []
-      // ER 计算开销小，按扫描快照即时计算；跨收盘边界不能复用数分钟前的预计算结果。
+      // ER 含盘中价，按扫描快照即时计算，不能复用数分钟前的预计算结果。
       return {
         symbol, timeframe, timestamp: now,
         values: calculateEfficiencyRatio(klines, timeframe, { period: options?.erPeriod, now })

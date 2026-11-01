@@ -37,7 +37,7 @@ export function normalizeERTimeframes(strategyTimeframes: unknown, fallback: Tim
 
 /**
  * 计算 ER = |末收盘价 - 首收盘价| / Σ|相邻收盘价之差|。
- * now 必须使用本轮行情快照时刻；只使用该时刻已收盘且连续的 N+1 根 K 线。
+ * now 必须使用本轮行情快照时刻；使用连续 N+1 根 K 线，末根未收盘时取其当前 close。
  */
 export function calculateEfficiencyRatio<T extends ERTimeframe>(
   klines: readonly OHLCV[], timeframe: T,
@@ -56,24 +56,24 @@ export function calculateEfficiencyRatio<T extends ERTimeframe>(
     return { ...result, status: 'invalid_data', reason: '快照时刻、周期或K线时间戳无效' }
   }
 
-  // 排除盘中和未来 K 线，不能让未收盘的剧烈波动改变当前 ER。
-  const closed = klines.filter(c => c.timestamp + timeframeMs <= now)
+  // 盘中 close 是最新成交价，应参与计算；尚未开盘的未来 K 线必须排除。
+  const candles = klines.filter(c => c.timestamp <= now)
     .sort((a, b) => a.timestamp - b.timestamp)
-  result.availableClosedCandles = closed.length
-  const latest = closed.at(-1)
+  result.availableClosedCandles = candles.filter(c => c.timestamp + timeframeMs <= now).length
+  const latest = candles.at(-1)
   if (latest) {
     result.lastCandleTimestamp = latest.timestamp
     result.closedAt = latest.timestamp + timeframeMs
   }
-  if (closed.length < period + 1) {
-    return { ...result, reason: `需要${period + 1}个已收盘价，当前仅${closed.length}个` }
+  if (candles.length < period + 1) {
+    return { ...result, reason: `需要${period + 1}个K线价格（含未收盘），当前仅${candles.length}个` }
   }
   // 最新应收盘 K 线缺失时不把旧趋势当成当前行情。
   if (now - result.closedAt! >= timeframeMs) {
     return { ...result, status: 'stale_data', reason: '缺少最近应收盘K线，ER已过期' }
   }
 
-  const window = closed.slice(-(period + 1))
+  const window = candles.slice(-(period + 1))
   result.firstCandleTimestamp = window[0]!.timestamp
   if (window.some((c, i) => !Number.isFinite(c.close) || c.close <= 0
     || (i > 0 && c.timestamp - window[i - 1]!.timestamp !== timeframeMs))) {

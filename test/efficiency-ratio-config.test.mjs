@@ -52,24 +52,22 @@ async function strategyFixture(indicators) {
   return { ...strategy, marketData: { symbols: ['BTCUSDT'], timeframes: ['5m'] }, indicators }
 }
 
-test('新策略默认 ER20，自动跟随策略全部勾选周期并保存窗口', async () => {
+test('新策略固定 ER20，自动跟随策略全部勾选周期并保存', async () => {
   const f = await createEditor()
   try {
     let config = f.editor.form.value.indicators.find(i => i.type === 'ER')
     assert.equal(config.params.period, 20)
     assert.deepEqual(Array.from(config.timeframes), ['1h'])
     f.editor.form.value.marketData.timeframes = ['1h', '5m', '15m']
-    f.editor.erPeriod.value = 30
     await vue.nextTick()
-    assert.equal(f.editor.erTimeframeLabel.value, '5m、15m、1h')
     await f.editor.handleSave()
     config = f.events.find(([event]) => event === 'save')[1].indicators.find(i => i.type === 'ER')
-    assert.equal(config.params.period, 30)
+    assert.equal(config.params.period, 20)
     assert.deepEqual(Array.from(config.timeframes), ['5m', '15m', '1h'])
   } finally { f.stop() }
 })
 
-test('编辑旧 ER 策略保留窗口，忽略独立周期并随策略周期增删自动更新', async () => {
+test('编辑旧 ER 策略统一为 ER20，忽略独立周期并随策略周期增删自动更新', async () => {
   const strategy = await strategyFixture([
     { id: 'er', type: 'ER', enabled: true, params: { period: 35 }, timeframes: ['15m', '1h'] }
   ])
@@ -80,7 +78,7 @@ test('编辑旧 ER 策略保留窗口，忽略独立周期并随策略周期增�
     f.editor.form.value.marketData.timeframes = ['4h', '1d']
     await vue.nextTick()
     config = f.editor.form.value.indicators.find(i => i.type === 'ER')
-    assert.equal(config.params.period, 35)
+    assert.equal(config.params.period, 20)
     assert.deepEqual(Array.from(config.timeframes), ['4h', '1d'])
     f.editor.form.value.marketData.timeframes = ['1d']
     await vue.nextTick()

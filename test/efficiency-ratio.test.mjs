@@ -1,4 +1,4 @@
-// ==================== ER 数学、已收盘窗口及数据质量回归 ====================
+// ==================== ER 数学、盘中窗口及数据质量回归 ====================
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { calculateEfficiencyRatio, normalizeERPeriod, normalizeERTimeframes } from '../app/utils/efficiency-ratio.ts'
@@ -52,10 +52,13 @@ test('折返原点和完全不动均为有效 ER=0，区别于数据不足', () 
   assert.equal(missing.direction, null)
 })
 
-test('ER20 需要 21 个已收盘价，不能拿第 21 根盘中 K 线凑数', () => {
+test('ER20 使用 21 个价格，第 21 根未收盘时即参与计算', () => {
   const klines = bars(Array.from({ length: 21 }, (_, i) => 100 + i))
   const before = calculateEfficiencyRatio(klines, '15m', { now: start + 20.9 * duration })
-  assert.equal(before.status, 'insufficient_data')
+  assert.equal(before.status, 'ready')
+  assert.equal(before.er, 1)
+  assert.equal(before.endClose, 120)
+  assert.ok(before.closedAt > before.calculatedAt)
   assert.equal(before.availableClosedCandles, 20)
   assert.equal(before.requiredClosedCandles, 21)
   const atClose = calculateEfficiencyRatio(klines, '15m', { now: start + 21 * duration })
@@ -65,7 +68,7 @@ test('ER20 需要 21 个已收盘价，不能拿第 21 根盘中 K 线凑数', (
   assert.equal(atClose.closedAt - (atClose.firstCandleTimestamp + duration), 20 * duration)
 })
 
-test('未收盘和未来 K 线不能影响 ER；输入不被排序或修改', () => {
+test('盘中价格改变 ER，未来 K 线不参与；输入不被排序或修改', () => {
   const klines = bars([100, 104, 102, 106, 105, 110])
   const options = { period: 5, now: start + 6.5 * duration }
   const expected = calculateEfficiencyRatio(klines, '15m', options)
@@ -73,17 +76,22 @@ test('未收盘和未来 K 线不能影响 ER；输入不被排序或修改', ()
   klines.push({ ...klines.at(-1), timestamp: start + 7 * duration, close: 1 })
   klines.reverse()
   const original = structuredClone(klines)
-  assert.deepEqual(calculateEfficiencyRatio(klines, '15m', options), expected)
+  const live = calculateEfficiencyRatio(klines, '15m', options)
+  assert.notEqual(live.er, expected.er)
+  assert.equal(live.endClose, 500)
+  klines.find(c => c.timestamp === start + 7 * duration).close = NaN
+  assert.deepEqual(calculateEfficiencyRatio(klines, '15m', options), live)
+  klines.find(c => c.timestamp === start + 7 * duration).close = 1
   assert.deepEqual(klines, original)
   klines.find(c => c.timestamp === start + 6 * duration).close = NaN
-  assert.deepEqual(calculateEfficiencyRatio(klines, '15m', options), expected)
+  assert.equal(calculateEfficiencyRatio(klines, '15m', options).status, 'invalid_data')
 })
 
-test('跨收盘边界立即更新窗口，同一快照时刻始终返回相同 ER', () => {
+test('新 K 线开盘立即滚动窗口，同一快照时刻始终返回相同 ER', () => {
   const klines = bars([100, 101, 102, 99])
-  const beforeOptions = { period: 2, now: start + 3.9 * duration }
+  const beforeOptions = { period: 2, now: start + 2.9 * duration }
   const before = calculateEfficiencyRatio(klines, '15m', beforeOptions)
-  const after = calculateEfficiencyRatio(klines, '15m', { period: 2, now: start + 4 * duration })
+  const after = calculateEfficiencyRatio(klines, '15m', { period: 2, now: start + 3 * duration })
   assert.equal(before.er, 1)
   assert.equal(after.er, 0.5)
   assert.equal(after.direction, 'down')

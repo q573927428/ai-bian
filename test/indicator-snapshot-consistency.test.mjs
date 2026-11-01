@@ -511,7 +511,8 @@ test('ER 只计算策略勾选周期，忽略旧独立配置，将全部周期�
   for (const er of indicators.er) {
     assert.equal(er.period, 20)
     assert.equal(er.calculatedAt, snapshot.timestamp)
-    assert.ok(er.closedAt <= snapshot.timestamp)
+    assert.ok(er.lastCandleTimestamp <= snapshot.timestamp)
+    assert.ok(er.closedAt > snapshot.timestamp)
   }
 })
 
@@ -539,25 +540,26 @@ test('ER 跟随策略切换为 4h/1d，其他统计所需周期不会混入 ER �
   assert.deepEqual(Array.from(f.calls.at(-1)[3].er, e => e.timeframe), ['4h', '1d'])
 })
 
-test('ER 以扫描快照判定已收盘，跨收盘时刻立即更新且不被旧缓存覆盖', async () => {
+test('ER 包含盘中价并隔离扫描快照，新快照更新且不被旧缓存覆盖', async () => {
   const f = createERFixture()
   f.clock.now = Date.UTC(2026, 9, 30, 10, 14, 59)
   const bars = f.source.get('15m')
   bars.at(-1).close = 1
   const snapshot = await f.scheduler.buildMarketSnapshot('BTCUSDT')
   const expected = efficiencyRatio.calculateEfficiencyRatio(snapshot.klinesByTimeframe.get('15m'), '15m', { now: snapshot.timestamp })
-  // 排队跨过 10:15，不能把扫描时仍在盘中的 K 线当成已收盘数据。
+  // 排队跨过 10:15，必须保留扫描时的盘中价，不能混入排队后的价格。
   f.clock.now += 2000
   bars.at(-1).close = 5000
   const data = new Map([['15m_ER', { values: { er: 0.1234 } }]])
   await f.engine.hydrateIndicatorsForStrategy(f.strategy, 'BTCUSDT', '5m', data, snapshot)
   assert.deepEqual(data.get('15m_ER').values, expected)
-  assert.equal(data.get('15m_ER').values.er, 1)
+  assert.equal(data.get('15m_ER').values.endClose, 1)
+  assert.ok(data.get('15m_ER').values.er < 1)
   f.versions.set('15m', 'main-2')
   const newSnapshot = await f.scheduler.buildMarketSnapshot('BTCUSDT')
   await f.engine.hydrateIndicatorsForStrategy(f.strategy, 'BTCUSDT', '5m', data, newSnapshot)
   const next = data.get('15m_ER').values
-  assert.equal(next.lastCandleTimestamp - expected.lastCandleTimestamp, 900000)
+  assert.equal(next.lastCandleTimestamp, expected.lastCandleTimestamp)
   assert.equal(next.endClose, 5000)
   assert.equal(next.calculatedAt, newSnapshot.timestamp)
 })
@@ -566,7 +568,7 @@ test('ER 提示词、信号和分析快照保留相同窗口，缺数据不显�
   const f = createERFixture()
   const snapshot = await f.scheduler.buildMarketSnapshot('BTCUSDT')
   // 有效行情保留不足 N+1 根的历史，AI 应看到明确的不可用状态。
-  snapshot.klinesByTimeframe.set('1h', snapshot.klinesByTimeframe.get('1h').slice(-21))
+  snapshot.klinesByTimeframe.set('1h', snapshot.klinesByTimeframe.get('1h').slice(-20))
   await f.engine.analyzeSymbol(f.instance, 'BTCUSDT', snapshot)
   const [, , promptConfig, indicators, price, volume, progress] = f.calls[0]
   const { MultiStrategyAIAnalyzer } = loadModule('../server/modules/ai-analyzer/MultiStrategyAIAnalyzer.ts', {
@@ -580,13 +582,13 @@ test('ER 提示词、信号和分析快照保留相同窗口，缺数据不显�
   }, f.globals)
   const analyzer = new MultiStrategyAIAnalyzer({}, f.config)
   const prompt = analyzer.buildFullPrompt(promptConfig, 'BTCUSDT', price, indicators, volume, progress)
-  assert.match(prompt, /趋势效率 ER（已收盘）/)
-  assert.match(prompt, /趋势效率 ER\(20, 5m\)=1\.00；净涨跌\+8\.73%/)
-  assert.match(prompt, /趋势效率 ER\(20, 15m\)=1\.00；净涨跌\+8\.73%/)
-  assert.match(prompt, /ER\(20, 1h\)：不可用（需要21个已收盘价，当前仅20个）/)
+  assert.match(prompt, /趋势效率 ER（含最新未收盘K线）/)
+  assert.match(prompt, /趋势效率 ER\(20, 5m\)=1\.00；净涨跌\+8\.70%/)
+  assert.match(prompt, /趋势效率 ER\(20, 15m\)=1\.00；净涨跌\+8\.70%/)
+  assert.match(prompt, /ER\(20, 1h\)：不可用（需要21个K线价格（含未收盘），当前仅20个）/)
   assert.match(prompt, /方向看净涨跌/)
   assert.match(prompt, /未来胜率/)
-  assert.match(prompt, /收盘2026-10-30T10:00:00Z/)
+  assert.match(prompt, /末根未收盘，预计收盘2026-10-30T10:15:00Z/)
   const requests = []
   analyzer.callAI = async (...args) => {
     requests.push(args)

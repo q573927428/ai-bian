@@ -9,7 +9,7 @@ export interface ErChartMetrics {
   netChangePercent: number | null
 }
 
-/** 默认仅计算已收盘 ER；includeOpen 用当前价预览盘中 ER，预热、未来及断档始终留空。 */
+/** 默认包含盘中 ER；显式 includeOpen=false 可仅展示已收盘柱，预热、未来及断档留空。 */
 export function calculateErChartSeries(bars: SimpleKLineData[], timeframe: ERTimeframe, step: number, now = Date.now(), period = 20, options: { includeOpen?: boolean } = {}): Array<number | null> {
   return calculateErChartMetricsSeries(bars, timeframe, step, now, period, options).map(value => value?.er ?? null)
 }
@@ -18,12 +18,12 @@ export function calculateErChartSeries(bars: SimpleKLineData[], timeframe: ERTim
 export function calculateErChartMetricsSeries(bars: SimpleKLineData[], timeframe: ERTimeframe, step: number, now = Date.now(), period = 20, options: { includeOpen?: boolean } = {}): Array<ErChartMetrics | null> {
   const window = normalizeERPeriod(period)
   return bars.map((bar, index) => {
-    if (index < window || bar.t * 1000 > now || (!options.includeOpen && (bar.t + step) * 1000 > now)) return null
+    if (index < window || bar.t * 1000 > now || (options.includeOpen === false && (bar.t + step) * 1000 > now)) return null
     const candles = bars.slice(index - window, index + 1).map(item => ({
       timestamp: item.t * 1000, open: item.o, high: item.h, low: item.l, close: item.c, volume: item.v
     }))
-    // 盘中预览将当前价临时视为该根收盘价，仅用于图表；不改变策略的已收盘筛选规则。
-    const snapshot = calculateEfficiencyRatio(candles, timeframe, { period: window, now: (bar.t + step) * 1000 })
+    // 历史柱按当时收盘时刻计算，盘中柱使用真实快照时刻，前后端共用同一规则。
+    const snapshot = calculateEfficiencyRatio(candles, timeframe, { period: window, now: Math.min(now, (bar.t + step) * 1000) })
     return snapshot.status === 'ready' ? { er: snapshot.er, netChangePercent: snapshot.netChangePercent } : null
   })
 }

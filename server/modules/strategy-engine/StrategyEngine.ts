@@ -769,7 +769,7 @@ export class StrategyEngine {
         () => this.indicatorsHub.getEMAByPeriods(symbol, mainTimeframe, periods, klines)))
     }
 
-    // ER 使用扫描时点判定已收盘窗口；缺历史仍保留明确的不可用状态。
+    // ER 使用扫描快照中的盘中价，不读取排队期间的新行情；缺历史仍保留不可用状态。
     for (const indicator of strategy.indicators.filter(i => i.enabled && i.type === 'ER')) {
       for (const timeframe of normalizeERTimeframes(strategy.marketData.timeframes, mainTimeframe)) {
         const options = { erPeriod: normalizeERPeriod(indicator.params?.period), snapshotTimestamp: snapshot.timestamp }

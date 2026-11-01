@@ -292,7 +292,7 @@ interface IndicatorRow {
   /** 文案、圆点与评分共用后端同一环境快照，不在浏览器重新判断。 */
   environmentContext?: EnvironmentContext; environmentDescription?: string
   adx?: number; rsi?: number; atrPercent?: number; oiChangePercent?: number
-  /** 只展示已收盘的 ER；方向颜色取同窗口净涨跌，不取 ER 高低。 */
+  /** ER 包含最新未收盘 K 线；方向颜色取同窗口净涨跌，不取 ER 高低。 */
   er?: number; erNetChangePercent?: number; erTooltip: string
   /** 与 ADX 共用后端计算结果，回看窗口以该次计算实际使用的配置为准。 */
   adxSlope?: number; adxSlopePeriod?: number; emaSlope?: number
@@ -657,10 +657,10 @@ function toRow(data: any): IndicatorRow {
   const emaList = values('ema').emaList || []
   const erReady = er.status === 'ready'
   const erTooltip = [
-    `ER(${er.period ?? 20}, ${data.timeframe})，仅使用已收盘K线`,
+    `ER(${er.period ?? 20}, ${data.timeframe})，包含最新未收盘K线`,
     '净位移绝对值 / 累计绝对变化，范围 0～1',
     '下方百分数为同窗口净涨跌；ER不表示未来胜率',
-    erReady ? `末根收盘：${formatOITime(er.closedAt)}` : `不可用：${er.reason ?? '数据缺失'}`
+    erReady ? `末根${er.closedAt > er.calculatedAt ? '预计收盘' : '收盘'}：${formatOITime(er.closedAt)}` : `不可用：${er.reason ?? '数据缺失'}`
   ].join('\n')
   const pdi = adx.pdi == null ? undefined : Number(adx.pdi)
   const mdi = adx.mdi == null ? undefined : Number(adx.mdi)

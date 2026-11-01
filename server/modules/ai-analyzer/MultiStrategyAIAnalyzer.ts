@@ -493,7 +493,7 @@ export class MultiStrategyAIAnalyzer {
     // 口径只说明一次，各周期仅保留判断所需的效率、净涨跌和收盘时刻。
     const erLines: string[] = []
     if (indicators.enabledIndicators?.er) {
-      erLines.push('ER范围0～1，越高越单向；方向看净涨跌，非振幅或未来胜率；仅用已收盘数据，缺失不作0。')
+      erLines.push('ER范围0～1，越高越单向；方向看净涨跌，非振幅或未来胜率；包含最新未收盘K线当前价，盘中数值会变化，缺失不作0。')
       if (!indicators.er?.length) erLines.push('- ER：数据缺失。')
       for (const snapshot of indicators.er ?? []) {
         if (!snapshot) {
@@ -508,7 +508,8 @@ export class MultiStrategyAIAnalyzer {
         // 净涨跌保留正负号，避免精简方向文字后将上涨和下跌混淆；Z 表示 UTC。
         const change = `${snapshot.netChangePercent! > 0 ? '+' : ''}${snapshot.netChangePercent!.toFixed(2)}%`
         const closedAt = new Date(snapshot.closedAt!).toISOString().replace('.000Z', 'Z')
-        erLines.push(`- ${label}=${snapshot.er.toFixed(2)}；净涨跌${change}；收盘${closedAt}。`)
+        const closeLabel = snapshot.closedAt! > snapshot.calculatedAt ? '末根未收盘，预计收盘' : '收盘'
+        erLines.push(`- ${label}=${snapshot.er.toFixed(2)}；净涨跌${change}；${closeLabel}${closedAt}。`)
       }
     }
 
@@ -687,7 +688,7 @@ export class MultiStrategyAIAnalyzer {
       section('EMA趋势与价格位置', [...emaLines, ...emaDeviationLines, ...priceInRangeLines]),
       section('动能', momentumLines),
       section('趋势强度与方向', adxLines),
-      section('趋势效率 ER（已收盘）', erLines),
+      section('趋势效率 ER（含最新未收盘K线）', erLines),
       section('波动', volatilityLines),
       section('持仓量', oiLines),
       formatSupportResistance(indicators.supportResistance).trim(),
