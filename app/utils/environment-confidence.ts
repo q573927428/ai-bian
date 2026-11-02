@@ -16,12 +16,12 @@ export const ADJACENT_PERIODS: Record<TrendPeriod, readonly TrendPeriod[]> = {
   '5m': ['15m', '1h'], '15m': ['1h'], '1h': ['4h'], '4h': ['1d'], '1d': []
 }
 
-/** 整组参考周期均同向才奖励20点结构分，折算最终置信度最多6分；不满足不扣分。 */
+/** 整组参考周期均同向才奖励10点结构分，折算最终置信度最多3分；不满足不扣分。 */
 export function adjacentPeriodBonus(periods: PeriodSignals, mainTimeframe: TrendPeriod | undefined, side: number): number {
   const reference = mainTimeframe ? ADJACENT_PERIODS[mainTimeframe] : undefined
   if (!reference?.length) return 0
   const prefix = side > 0 ? '多头' : '空头'
-  return reference.every(period => periods[period]?.startsWith(prefix)) ? 20 : 0
+  return reference.every(period => periods[period]?.startsWith(prefix)) ? 10 : 0
 }
 
 /** 多周期结构标签；看板颜色、筛选和服务端提示词共用这一结果。 */
@@ -37,7 +37,7 @@ export interface EnvironmentAssessment {
   market: number | null
   structure: number | null
   relativeStrength: number | null
-  /** 五周期支持分中实际计入的同向奖励，上限20；旧档案允许缺失。 */
+  /** 五周期支持分中实际计入的同向奖励，上限10；旧档案允许缺失。 */
   adjacentBonus?: number
   coverage: number
 }

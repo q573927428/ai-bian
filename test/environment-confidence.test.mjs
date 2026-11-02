@@ -226,12 +226,12 @@ test('实际用户提示词中的DI持平与环境细分使用同一规则', () 
   }
 })
 
-test('相邻周期整组同向才加20点结构分，支持多空各状态且不满足不扣分', () => {
+test('相邻周期整组同向才加10点结构分，支持多空各状态且不满足不扣分', () => {
   for (const [timeframe, required] of [['5m', ['15m', '1h']], ['15m', ['1h']], ['1h', ['4h']], ['4h', ['1d']]]) {
     for (const [side, prefix] of [[1, '多头'], [-1, '空头']]) {
       for (const state of ['双增强', '双持平', '双减弱', 'DI增强、MACD减弱', 'DI减弱、MACD增强']) {
         const periods = all(`${prefix}${state}`)
-        assert.equal(adjacentPeriodBonus(periods, timeframe, side), 20)
+        assert.equal(adjacentPeriodBonus(periods, timeframe, side), 10)
         assert.equal(adjacentPeriodBonus(periods, timeframe, -side), 0)
         for (const period of required) for (const invalid of ['中性', '方向分歧', '--', undefined, `${prefix === '多头' ? '空头' : '多头'}双增强`]) {
           assert.equal(adjacentPeriodBonus({ ...periods, [period]: invalid }, timeframe, side), 0)
@@ -241,7 +241,7 @@ test('相邻周期整组同向才加20点结构分，支持多空各状态且不
   }
   assert.equal(adjacentPeriodBonus(all('多头双增强'), '1d', 1), 0)
   assert.equal(adjacentPeriodBonus(all('空头双增强'), '1d', -1), 0)
-  assert.equal(adjacentPeriodBonus({ '1h': '多头双减弱' }, '15m', 1), 20)
+  assert.equal(adjacentPeriodBonus({ '1h': '多头双减弱' }, '15m', 1), 10)
   assert.equal(adjacentPeriodBonus(all('多头双增强'), undefined, 1), 0)
 })
 
@@ -250,15 +250,15 @@ test('同向奖励计入原五周期30%分项，无新提示词规则，分项�
   const periods = all('多头双减弱')
   const baseline = buildEnvironmentContext(periods, breadth(), 'BTCUSDT')
   const environment = buildEnvironmentContext(periods, breadth(), 'BTCUSDT', '5m')
-  assert.equal(environment.long.structure, baseline.long.structure + 20)
-  assert.equal(environment.long.confidence, baseline.long.confidence + 6)
-  assert.equal(environment.long.adjacentBonus, 20)
+  assert.equal(environment.long.structure, baseline.long.structure + 10)
+  assert.equal(environment.long.confidence, baseline.long.confidence + 3)
+  assert.equal(environment.long.adjacentBonus, 10)
   assert.equal(environment.short.confidence, baseline.short.confidence)
   assert.ok(environment.short.confidence > 0)
   assert.equal(environment.short.adjacentBonus, 0)
   const prompt = fixture.prompt({}, environment)
   assert.ok(!prompt.includes('相邻周期') && !prompt.includes('独立开仓必要条件'))
-  assert.match(prompt, /五周期支持80×30%/)
+  assert.match(prompt, /五周期支持70×30%/)
   assert.equal(environment.long.confidence, Math.round(environment.long.market * .4 + environment.long.structure * .3 + environment.long.relativeStrength * .3))
 })
 
@@ -274,7 +274,7 @@ test('奖励封顶100、5m不部分奖励、日线不变且缺失仍不可用', 
   const split = { ...all('多头双减弱'), '1h': '空头双减弱' }
   const baseline = buildEnvironmentContext(split, snapshot, 'BTCUSDT')
   assert.equal(buildEnvironmentContext(split, snapshot, 'BTCUSDT', '5m').long.confidence, baseline.long.confidence)
-  assert.equal(buildEnvironmentContext(split, snapshot, 'BTCUSDT', '15m').short.adjacentBonus, 20)
+  assert.equal(buildEnvironmentContext(split, snapshot, 'BTCUSDT', '15m').short.adjacentBonus, 10)
   const daily = buildEnvironmentContext(split, snapshot, 'BTCUSDT', '1d')
   assert.equal(daily.long.confidence, baseline.long.confidence)
   assert.equal(daily.short.confidence, baseline.short.confidence)
