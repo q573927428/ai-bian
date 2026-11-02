@@ -123,7 +123,7 @@ let chartResizeObserver: ResizeObserver | undefined
 const loading = ref(false)
 const selectedStrategy = ref('')
 const selectedSymbol = ref('')
-const selectedPeriod = ref<'all' | 'today' | 'yesterday' | '7days' | '30days' | 'month'>('today')
+const selectedPeriod = ref<'all' | 'today' | 'yesterday' | '7days' | '30days' | 'month'>('7days')
 const chartType = ref<'pnl' | 'winRate'>('pnl')
 const strategies = ref<any[]>([])
 const symbols = ref<string[]>([])
