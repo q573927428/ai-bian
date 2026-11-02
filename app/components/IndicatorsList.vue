@@ -26,13 +26,16 @@
         <span class="candle-progress-track" aria-hidden="true"><span :style="{ width: `${currentCandleProgress}%` }"></span></span>
         <span class="candle-progress-value">{{ currentCandleProgress }}%</span>
       </div>
-      <el-radio-group v-model="signalFilter" size="small" aria-label="五周期方向筛选">
-        <el-radio-button value="全部">全部</el-radio-button>
-        <el-radio-button value="多头" title="多头背景">多头</el-radio-button>
-        <el-radio-button value="空头" title="空头背景">空头</el-radio-button>
-        <el-radio-button value="反转" title="反转观察">反转</el-radio-button>
-        <el-radio-button value="观望" title="分歧观望">观望</el-radio-button>
-      </el-radio-group>
+      <div class="market-counts" :title="`按全部已配置交易对的 ${breadthPeriod} 实时涨跌幅统计`">
+        <span>总 {{ breadthSymbols.length }}</span>
+        <span class="up">涨 {{ marketBreadth.upCount }}</span>
+        <span class="down">跌 {{ marketBreadth.downCount }}</span>
+        <span>上涨占比 {{ marketBreadth.upRatioPct === null ? '—' : `${marketBreadth.upRatioPct.toFixed(0)}%` }}</span>
+        <span :class="directionClass(marketBreadth.medianChangePct ?? undefined)">
+          中位数 {{ marketBreadth.medianChangePct === null ? '—' : `${signed(marketBreadth.medianChangePct, 2)}%` }}
+        </span>
+        <span v-if="marketBreadth.missingCount" class="muted">待更新 {{ marketBreadth.missingCount }}</span>
+      </div>
       <el-input v-model="symbolSearch" class="symbol-search" size="small" placeholder="搜索交易对" aria-label="搜索交易对" clearable>
         <template #prefix><el-icon><ElIconSearch /></el-icon></template>
       </el-input>
@@ -58,6 +61,16 @@
         </span>
       </div>
       <div class="numeric-filter-grid">
+        <div class="numeric-filter-item direction-filter">
+          <span class="numeric-filter-label">五周期方向</span>
+          <el-radio-group v-model="signalFilter" size="small" aria-label="五周期方向筛选">
+            <el-radio-button value="全部">全部</el-radio-button>
+            <el-radio-button value="多头" title="多头背景">多头</el-radio-button>
+            <el-radio-button value="空头" title="空头背景">空头</el-radio-button>
+            <el-radio-button value="反转" title="反转观察">反转</el-radio-button>
+            <el-radio-button value="观望" title="分歧观望">观望</el-radio-button>
+          </el-radio-group>
+        </div>
         <div class="numeric-filter-item">
           <span class="numeric-filter-label">CVD 背离</span>
           <el-select v-model="divergenceFilter" size="small" aria-label="最新 CVD 背离筛选" title="价格与 CVD 背离，左右各 3 根收盘确认；按确认时间筛选，最新确认优先">
@@ -314,6 +327,8 @@ import type { SupportResistanceSnapshot } from '../../types/support-resistance'
 import SupportResistanceInfo from './SupportResistanceInfo.vue'
 import { TREND_PERIODS, type EnvironmentContext } from '../utils/environment-confidence'
 import { isRecentCvdDivergence, type LatestCvdDivergence } from '../utils/cvd-divergence'
+import { calculateLiveBreadth } from '../utils/market-breadth'
+import type { BreadthPeriod, MarketBreadthSnapshot } from '../../types/market-breadth'
 
 /** 指标列表中的单个交易对展示数据。 */
 interface IndicatorRow {
@@ -476,7 +491,7 @@ const activeNumericFilters = computed(() => numericFilterFields.filter(({ key })
 const activeFilters = computed(() => activeNumericFilters.value
   + Number(signalFilter.value !== '全部') + Number(divergenceFilter.value !== 'all'))
 
-/** 重置全部筛选（含顶部方向），保留交易对搜索及用户选择的排序。 */
+/** 重置全部指标筛选，保留交易对搜索及用户选择的排序。 */
 function resetNumericFilters() {
   for (const { key } of numericFilterFields) numericFilters.value[key] = { min: null, max: null }
   trendStateFilter.value = ''
@@ -511,9 +526,9 @@ function matchesNumericFilters(row: IndicatorRow) {
       && (range.max == null || value <= range.max)
   })
 }
-// 筛选与交易对下方的一致性文字使用同一规则，随后台五周期数据更新。
+// 筛选仅影响表格，顶部市场统计始终覆盖全部已配置交易对。
 const filteredRows = computed(() => {
-  // 搜索仅过滤已加载数据，与方向筛选叠加，不触发额外指标请求或改变当前排序。
+  // 搜索仅过滤已加载数据，不触发额外指标请求或改变当前排序。
   const keyword = symbolSearch.value.toUpperCase().replace(/[\s/_-]/g, '')
   const result = sortedRows.value.filter(row => row.symbol.toUpperCase().replace(/[\s/_-]/g, '').includes(keyword)
     && (divergenceFilter.value === 'all' || (recentDivergence(row.latestDivergence)
@@ -620,6 +635,37 @@ const symbols = computed<string[]>(() => {
   if (!Array.isArray(configuredSymbols)) return []
   return configuredSymbols.map((symbol: string) => symbol.replace('/', '').toUpperCase())
 })
+
+const breadthSymbols = computed(() => [...new Set(symbols.value.map(symbol => symbol.trim()).filter(Boolean))])
+// 日线对应价格看板的滚动 24h，其余周期直接复用同一份本地 5m 基准。
+const breadthPeriod = computed<BreadthPeriod>(() => timeframe.value === '1d' ? '24h' : timeframe.value as BreadthPeriod)
+const breadthSnapshot = ref<MarketBreadthSnapshot | null>(null)
+const breadthClock = ref(Date.now())
+let breadthRequestId = 0
+let breadthTimer: ReturnType<typeof setInterval> | undefined
+const marketBreadth = computed(() => {
+  const snapshot = breadthSnapshot.value
+  const valid = snapshot && breadthClock.value < snapshot.expiresAt
+    && JSON.stringify([...breadthSymbols.value].sort()) === JSON.stringify(snapshot.symbols)
+  const stats = valid ? snapshot.periods[breadthPeriod.value] : null
+  return calculateLiveBreadth(breadthSymbols.value, botStore.prices, breadthPeriod.value,
+    stats?.bases ?? {}, stats?.referenceTime ?? null, Math.max(breadthClock.value, Date.now()))
+})
+
+/** 与价格看板共用市场快照接口；关闭或配置变化后丢弃旧请求，缺失行情不补零。 */
+async function loadMarketBreadth() {
+  const requestId = ++breadthRequestId
+  breadthClock.value = Date.now()
+  try {
+    const snapshot = await $fetch<MarketBreadthSnapshot>('/api/market/breadth')
+    if (requestId === breadthRequestId) {
+      breadthSnapshot.value = snapshot
+      breadthClock.value = Date.now()
+    }
+  } catch (error) {
+    console.warn('[Indicators] 获取市场广度失败:', error)
+  }
+}
 
 // 指标看板使用机器人配置中的周期；配置缺失时与服务端默认周期保持一致。
 const emaPeriods = computed<[number, number]>(() => {
@@ -1023,15 +1069,25 @@ watch(() => [structurePreview.value.pivotLeft, structurePreview.value.pivotRight
   else fetchVersion++
 })
 watch(() => symbols.value.join(','), () => {
+  breadthRequestId++
+  breadthSnapshot.value = null
+  if (visible.value && import.meta.client) void loadMarketBreadth()
   if (visible.value) fetchData()
 })
 watch(() => emaPeriods.value.join(','), () => {
   if (visible.value) fetchData()
 })
 watch(visible, value => {
+  breadthRequestId++
+  if (breadthTimer) clearInterval(breadthTimer)
+  breadthTimer = undefined
   if (structureTimer) clearInterval(structureTimer)
   structureTimer = undefined
   if (value) {
+    if (import.meta.client) {
+      void loadMarketBreadth()
+      breadthTimer = setInterval(() => { void loadMarketBreadth() }, 10_000)
+    }
     void fetchData()
     if (!props.coordinatedRefresh) structureTimer = setInterval(() => { void refreshStructure() }, 15_000)
   } else {
@@ -1040,6 +1096,8 @@ watch(visible, value => {
   }
 }, { immediate: true })
 onUnmounted(() => {
+  breadthRequestId++
+  if (breadthTimer) clearInterval(breadthTimer)
   fetchVersion++
   if (structureTimer) clearInterval(structureTimer)
 })
@@ -1047,6 +1105,8 @@ onUnmounted(() => {
 
 <style scoped>
 .toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 10px; }
+.market-counts { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; font-size: 12px; font-variant-numeric: tabular-nums; }
+.market-counts > span { white-space: nowrap; }
 .structure-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .structure-controls label { display: flex; align-items: center; gap: 6px; }
 .structure-controls :deep(.el-select) { width: 78px; }
@@ -1055,6 +1115,8 @@ onUnmounted(() => {
 .numeric-filter-header { margin-bottom: 8px; flex-wrap: wrap; }
 .numeric-filter-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(210px, 100%), 1fr)); gap: 10px 16px; }
 .numeric-filter-item { min-width: 0; }
+/* 方向选项独占一行，避免五个按钮挤入单个数值筛选列。 */
+.direction-filter { grid-column: 1 / -1; }
 .numeric-filter-label { display: block; margin-bottom: 5px; }
 .numeric-filter-range { display: flex; align-items: center; gap: 6px; }
 .numeric-filter-range :deep(.el-input-number) { width: 0; min-width: 0; flex: 1; }
@@ -1076,7 +1138,7 @@ onUnmounted(() => {
 /* 仅突出双向评分中更高的一侧；相等或数据缺失时不暗示方向优势。 */
 .confidence-leading { font-weight: 700; }
 .symbol-search { flex: 1; min-width: 110px; max-width: 190px; margin-left: auto; }
-.confidence-sort { width: 140px; flex-shrink: 0; }
+.confidence-sort { width: 100px; flex-shrink: 0; }
 /* 不沿用相邻按钮的额外左间距，统一由工具栏 gap 控制。 */
 .toolbar > .el-button { margin-left: 0; }
 .adx-line { display: flex; align-items: center; gap: 8px; white-space: nowrap; }
