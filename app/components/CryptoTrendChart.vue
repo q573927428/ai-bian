@@ -9,9 +9,9 @@ import { CanvasRenderer } from 'echarts/renderers'
 import { useTheme } from '../composables/useTheme'
 import type { TrendPoint } from '../../types/crypto-trends'
 
-/** 每条美元序列的图形、颜色和左右轴配置。 */
+/** 每条序列的图形、颜色和左右轴配置，单位由图表指定。 */
 interface ChartSeries { name: string; points: TrendPoint[]; color: string; bar?: boolean; right?: boolean; dashed?: boolean; stack?: string }
-const props = defineProps<{ series: ChartSeries[]; days: number; percent?: boolean }>()
+const props = defineProps<{ series: ChartSeries[]; days: number; format?: 'money' | 'percent' | 'index' }>()
 use([LineChart, BarChart, GridComponent, TooltipComponent, LegendComponent, DataZoomComponent, CanvasRenderer])
 const element = ref<HTMLElement | null>(null)
 const { theme } = useTheme()
@@ -30,7 +30,7 @@ function render() {
   const dates = Array.from({ length: props.days }, (_, i) => new Date(end - (props.days - 1 - i) * 86400000).toISOString().slice(0, 10))
   const dark = theme.value === 'dark'
   const text = dark ? '#c4cbd5' : '#596579'
-  const label = (value: number) => props.percent ? `${value.toFixed(1)}%` : money(value)
+  const label = (value: number) => props.format === 'percent' ? `${value.toFixed(2)}%` : props.format === 'index' ? `${value.toLocaleString('en-US', { maximumFractionDigits: 2 })} 点` : money(value)
   chart.setOption({
     animation: false, color: props.series.map(s => s.color),
     legend: { top: 2, type: 'scroll', textStyle: { color: text, fontSize: 10 } },
@@ -46,7 +46,7 @@ function render() {
     }),
   }, true)
 }
-watch(() => [props.series, props.days, props.percent, theme.value], render, { deep: true })
+watch(() => [props.series, props.days, props.format, theme.value], render, { deep: true })
 onMounted(() => { if (element.value) { chart = init(element.value); observer = new ResizeObserver(() => chart?.resize()); observer.observe(element.value); render() } })
 onUnmounted(() => { observer?.disconnect(); chart?.dispose() })
 </script>

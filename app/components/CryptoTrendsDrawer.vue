@@ -2,7 +2,7 @@
 <template>
   <component :is="embedded ? 'section' : ElDrawer" v-model="visible" title="加密市场趋势" size="90%" destroy-on-close :class="embedded ? 'trends-content' : 'crypto-trends-drawer'">
     <div class="trends-toolbar">
-      <span>价格 · 机构资金 · 流动性 · 杠杆风险</span>
+      <span>价格 · 相对强弱 · 机构资金 · 流动性 · 杠杆风险</span>
       <div class="toolbar-actions">
         <el-radio-group v-model="days" size="small"><el-radio-button v-for="value in [30, 90, 365]" :key="value" :value="value">{{ value === 365 ? '近1年' : `近${value}天` }}</el-radio-button></el-radio-group>
         <el-button size="small" :loading="loading" @click="load">刷新</el-button>
@@ -14,10 +14,16 @@
         <header><strong>{{ panel.title }}</strong><small>{{ panel.date ? `数据至 ${panel.date}` : '暂无数据' }}<span v-if="panel.stale"> · 待同步</span></small></header>
         <div class="panel-controls">
           <small>{{ panel.source }}</small>
+          <el-radio-group v-if="panel.prices" v-model="priceMode" size="small"><el-radio-button value="change">涨跌幅</el-radio-button><el-radio-button value="price">价格</el-radio-button></el-radio-group>
           <el-radio-group v-if="panel.supply" v-model="supplyMode" size="small"><el-radio-button value="total">总量</el-radio-button><el-radio-button value="change">30日变化</el-radio-button></el-radio-group>
         </div>
+        <div v-if="panel.dominance" class="dominance-stats">
+          <span>最新 <strong>{{ dominanceSummary.value }}</strong></span>
+          <span>7日 <strong>{{ dominanceSummary.week }}</strong></span>
+          <span>30日 <strong>{{ dominanceSummary.month }}</strong></span>
+        </div>
         <div class="panel-chart">
-          <CryptoTrendChart v-if="panel.series.some(s => s.points.length)" :series="panel.series" :days="days" :percent="panel.supply && supplyMode === 'change'" />
+          <CryptoTrendChart v-if="panel.series.some(s => s.points.length)" :series="panel.series" :days="days" :format="panel.supply ? (supplyMode === 'change' ? 'percent' : 'money') : panel.format" />
           <div v-else class="chart-empty">{{ loading ? '读取缓存中…' : '暂无历史数据，等待服务端同步' }}</div>
         </div>
         <footer>{{ panel.note }}</footer>
@@ -29,7 +35,7 @@
 import { computed, onUnmounted, ref, watch } from 'vue'
 import { ElDrawer } from 'element-plus'
 import type { CryptoTrendsResponse, CryptoTrendKey, TrendPoint } from '../../types/crypto-trends'
-import { rollingDisclosedFlows, changeOver30Days } from '../utils/crypto-trend-calculations'
+import { rollingDisclosedFlows, changeOver30Days, relativePriceChanges, latestDayChange } from '../utils/crypto-trend-calculations'
 import CryptoTrendChart from './CryptoTrendChart.vue'
 
 // 页面模式沿用抽屉的数据请求与卸载清理，避免维护两套业务逻辑。
@@ -41,18 +47,31 @@ const loading = ref(false)
 const error = ref('')
 const days = ref(90)
 const supplyMode = ref('total')
+const priceMode = ref('change')
 let timer: ReturnType<typeof setInterval> | undefined
 let controller: AbortController | undefined
 const points = (key: CryptoTrendKey) => data.value?.metrics[key]?.points ?? []
 const latest = (rows: TrendPoint[]) => rows.at(-1)?.date
 const status = (keys: CryptoTrendKey[]) => keys.some(key => data.value?.metrics[key]?.stale ?? true)
 const coverage = (key: CryptoTrendKey) => data.value?.metrics[key]?.coverage.join('、') || '等待同步'
+const dominanceSummary = computed(() => {
+  const rows = data.value?.prices.btcdom ?? []
+  const formatChange = (value: number | null) => value === null ? '--' : `${value > 0 ? '+' : ''}${value.toFixed(2)}%`
+  return {
+    value: rows.length ? `${rows.at(-1)!.value.toLocaleString('en-US', { maximumFractionDigits: 2 })} 点` : '--',
+    week: formatChange(latestDayChange(rows, 7)),
+    month: formatChange(latestDayChange(rows, 30)),
+  }
+})
 const panels = computed(() => {
-  const btc = data.value?.prices.btc ?? [], eth = data.value?.prices.eth ?? []
+  const btc = data.value?.prices.btc ?? [], eth = data.value?.prices.eth ?? [], btcdom = data.value?.prices.btcdom ?? []
+  const [btcChange, ethChange] = relativePriceChanges(btc, eth, days.value)
+  const priceChange = priceMode.value === 'change'
+  const format: 'money' | 'percent' = priceChange ? 'percent' : 'money'
   const dateRange = (keys: CryptoTrendKey[]) => keys.map(key => latest(points(key)) ?? '--').join(' / ')
   return [
-    { title: 'BTC 价格趋势', source: '币安 · 本地日线 · USDT', date: latest(btc), stale: false, note: '日线收盘价；当日日线尚未收盘，仅展示本地已有历史。', series: [{ name: 'BTC', points: btc, color: '#f59e0b' }] },
-    { title: 'ETH 价格趋势', source: '币安 · 本地日线 · USDT', date: latest(eth), stale: false, note: '日线收盘价；价格方向是资金与杠杆指标的对照基准。', series: [{ name: 'ETH', points: eth, color: '#9b87f5' }] },
+    { title: 'BTC / ETH 走势', source: priceChange ? '币安 · 本地日线 · 区间涨跌幅' : '币安 · 本地日线 · USDT · BTC左轴 / ETH右轴', date: `${latest(btc) ?? '--'} / ${latest(eth) ?? '--'}`, stale: false, prices: true, format, note: priceChange ? '以所选区间首个共同有效日为0%；缺失日不补值。当日日线尚未收盘。' : '日线收盘价；BTC左轴、ETH右轴，双轴仅对照价格，不代表涨幅相同。当日日线尚未收盘。', series: [{ name: 'BTC', points: priceChange ? btcChange : btc, color: '#f59e0b' }, { name: priceChange ? 'ETH' : 'ETH（右轴）', points: priceChange ? ethChange : eth, color: '#9b87f5', right: !priceChange }] },
+    { title: 'BTC 主导指数', source: '币安 · BTCDOM/USDT · 本地日线 · 指数点位', date: latest(btcdom), stale: false, dominance: true, format: 'index' as const, note: '上涨表示BTC相对指数篮子山寨币走强，下跌表示走弱；非全市场市占率%。涨跌幅相对最新数据日，缺少基准日显示--；当日未收盘。', series: [{ name: 'BTCDOM', points: btcdom, color: '#38bdf8' }] },
     { title: 'ETF 资金流', source: 'The Block · 美元', date: dateRange(['btcEtf', 'ethEtf']), stale: status(['btcEtf', 'ethEtf']), note: '柱：单日净流入；虚线/右轴：7自然日已披露累计。非交易日不补零，注意来源延迟。', series: [
       { name: 'BTC 单日', points: points('btcEtf'), color: '#f59e0b', bar: true }, { name: 'ETH 单日', points: points('ethEtf'), color: '#9b87f5', bar: true },
       { name: 'BTC 7日累计', points: rollingDisclosedFlows(points('btcEtf')), color: '#fbbf24', right: true, dashed: true }, { name: 'ETH 7日累计', points: rollingDisclosedFlows(points('ethEtf')), color: '#c4b5fd', right: true, dashed: true },
@@ -87,7 +106,9 @@ onUnmounted(() => { clearInterval(timer); controller?.abort() })
 .trend-panel { display: flex; flex-direction: column; min-width: 0; height: max(330px, calc((100dvh - 170px) / 2)); border: 1px solid var(--el-border-color); border-radius: 6px; background: var(--bg-card); overflow: hidden; }
 header { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px; padding: 10px 12px 4px; color: var(--text-primary); font-size: 13px; }
 small, footer { color: var(--text-secondary); font-size: 11px; }
-.panel-controls { min-height: 28px; padding: 0 12px; display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+.panel-controls { min-height: 28px; padding: 0 12px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px; }
+.dominance-stats { display: flex; flex-wrap: wrap; gap: 6px 16px; padding: 4px 12px; color: var(--text-secondary); font-size: 11px; }
+.dominance-stats strong { color: var(--text-primary); font-variant-numeric: tabular-nums; }
 .panel-chart { flex: 1; min-height: 180px; }
 footer { padding: 6px 12px; line-height: 1.5; max-height: 52px; overflow-y: auto; border-top: 1px solid var(--el-border-color-lighter); }
 .chart-empty { height: 100%; display: grid; place-items: center; font-size: 12px; color: var(--text-secondary); }
