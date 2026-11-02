@@ -18,7 +18,7 @@
       </el-radio-group>
       <el-select v-model="selectedPeriod" size="small" class="filter-item" aria-label="收益分析时间范围">
         <el-option label="全部" value="all" />
-        <el-option label="当日" value="today" />
+        <el-option label="今日" value="today" />
         <el-option label="昨日" value="yesterday" />
         <el-option label="近7天" value="7days" />
         <el-option label="近30天" value="30days" />
