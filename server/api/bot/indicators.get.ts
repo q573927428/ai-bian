@@ -12,6 +12,7 @@ import { formatEnvironmentConfidence } from '../../../app/utils/environment-conf
 import { normalizeERPeriod } from '../../../app/utils/efficiency-ratio'
 import { normalizeSupportResistanceConfig } from '../../../types/support-resistance'
 import { latestCvdDivergence } from '../../../app/utils/cvd-divergence'
+import { normalizeSquareHeatWindows, SQUARE_HEAT_MAX_WINDOW_MINUTES } from '../../../types/square-heat-config'
 
 const VALID_TIMEFRAMES: Timeframe[] = ['5m', '15m', '1h', '4h', '1d']
 const TIMEFRAME_MINUTES: Record<Timeframe, number> = {
@@ -96,7 +97,6 @@ export default defineEventHandler(async (event) => {
   const maxChangePeriod = getMaxOIChangePeriod(timeframe)
   const changePeriod = parseBoundedInteger(query.changePeriod, 1, 1, maxChangePeriod)
   const lookbackMinutes = TIMEFRAME_MINUTES[timeframe] * changePeriod
-  const squareHeatWindowMinutes = parseBoundedInteger(query.squareHeatWindowMinutes, 1440, 5, 1440)
   const emaPeriods = String(query.emaPeriods || '14,50')
     .split(',')
     .map(value => Number(value.trim()))
@@ -106,6 +106,9 @@ export default defineEventHandler(async (event) => {
   const effectiveEmaPeriods = emaPeriods.length > 0 ? emaPeriods : [14, 50]
   const erPeriod = normalizeERPeriod(query.erPeriod)
   const botConfig = await getBotConfig()
+  // 看板窗口按当前 K 线周期读取；显式诊断参数仍可覆盖，但不影响策略配置。
+  const squareHeatWindowMinutes = parseBoundedInteger(query.squareHeatWindowMinutes,
+    normalizeSquareHeatWindows(botConfig.squareHeatWindows)[timeframe], 5, SQUARE_HEAT_MAX_WINDOW_MINUTES)
   const structureDefaults = normalizeSupportResistanceConfig(botConfig.supportResistanceConfig)
   // 参数参与指标中心的缓存键，页面试算不会覆盖策略或默认区域缓存。
   const structureParams = {

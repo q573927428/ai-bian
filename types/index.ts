@@ -360,6 +360,8 @@ export interface BotConfig {
   emaPeriods: number[]
   /** 全局支撑阻力左右确认根数，缺失时使用3/3。 */
   supportResistanceConfig?: import('./support-resistance').SupportResistanceConfig
+  /** 指标看板按 K 线周期配置社区情绪回看分钟数，缺失时均为 1440。 */
+  squareHeatWindows?: import('./square-heat-config').SquareHeatWindows
   volumeEmaPeriod?: number
   aiCacheTtlMinutes: number
   aiAnalysisConfig: AIAnalysisSaveConfig

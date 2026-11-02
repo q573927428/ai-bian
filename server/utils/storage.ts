@@ -3,6 +3,7 @@ import { join } from 'path'
 import { existsSync } from 'fs'
 import type { TradeHistory, BotState, BotConfig } from '../../types'
 import { normalizeSupportResistanceConfig } from '../../types/support-resistance'
+import { normalizeSquareHeatWindows } from '../../types/square-heat-config'
 import type { PositionInfo } from '../modules/position-manager/PositionManager'
 import { readTradeHistoryFiles, writeMonthlyTradeHistory } from './trade-history-files'
 
@@ -315,6 +316,7 @@ function normalizeBotConfig(input: Partial<BotConfig> = {}): BotConfig {
   }
 
   config.supportResistanceConfig = normalizeSupportResistanceConfig(config.supportResistanceConfig)
+  config.squareHeatWindows = normalizeSquareHeatWindows(config.squareHeatWindows)
   config.concurrencyPool!.indicator.maxConcurrency = clampInteger(config.concurrencyPool!.indicator.maxConcurrency, 1, 64, 6)
   config.concurrencyPool!.ai.maxConcurrency = clampInteger(config.concurrencyPool!.ai.maxConcurrency, 1, 32, 3)
   config.concurrencyPool!.tradeApi.maxConcurrency = clampInteger(config.concurrencyPool!.tradeApi.maxConcurrency, 1, 16, 1)

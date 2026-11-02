@@ -6,6 +6,7 @@ import { EMA, RSI, ADX, ATR, MACD } from 'technicalindicators'
 import { calculateSupportResistance, type SupportResistanceOptions } from './SupportResistanceCalculator'
 import { SupportResistanceCache } from './SupportResistanceCache'
 import { normalizeSupportResistanceConfig } from '../../../types/support-resistance'
+import { normalizeSquareHeatWindows } from '../../../types/square-heat-config'
 import type {
   IndicatorData,
   Timeframe,
@@ -928,11 +929,21 @@ export class IndicatorsHub {
       // 2. 刷新当前持仓量，供策略及看板共用。
       await this.fetchAndCacheOI(symbol)
 
-      // 看板不再触发外部采集，因此后端需独立准备历史基准和默认 24 小时情绪缓存。
-      // 历史成功后不重复回填；情绪工具按 30 分钟 TTL 复用，单项失败不阻塞另一项。
+      // 看板只读缓存；后台按配置准备各窗口，相同分钟数只抓取一次。
+      // 窗口串行采集，避免五个周期同时放大外部请求并发；单窗口失败不阻塞其他窗口。
       const stats = await Promise.allSettled([
         this.oiSnapshotService.bootstrapSymbol(symbol),
-        getSquareHeat(symbol, 1440)
+        (async () => {
+          // 保留原有 24h 公共缓存，避免看板自定义窗口影响其他默认消费者。
+          const windows = [...new Set([1440, ...Object.values(normalizeSquareHeatWindows(this.config.squareHeatWindows))])]
+          for (const minutes of windows) {
+            try {
+              await getSquareHeat(symbol, minutes)
+            } catch (error: any) {
+              logger.warn('IndicatorsHub', `${symbol} ${minutes}分钟情绪更新失败: ${error.message}`)
+            }
+          }
+        })()
       ])
       for (const result of stats) {
         if (result.status === 'rejected') {

@@ -82,6 +82,12 @@
               <el-form-item label="EMA斜率周期">
                 <el-input-number v-model="form.indicatorsConfig.emaSlopePeriod" :min="1" :max="20" />
               </el-form-item>
+              <template v-if="form.squareHeatWindows">
+                <el-form-item v-for="period in SQUARE_HEAT_TIMEFRAMES" :key="period" :label="`${period} 情绪回看`">
+                  <el-input-number v-model="form.squareHeatWindows[period]" :min="5" :max="SQUARE_HEAT_MAX_WINDOW_MINUTES" :precision="0" :step="5" :value-on-clear="1440" />
+                  <span class="config-unit">分钟</span>
+                </el-form-item>
+              </template>
             </div>
           </div>
 
@@ -120,11 +126,13 @@
               <el-form-item label="手续费率">
                 <el-input-number v-model="form.commissionRate" :min="0" :max="0.1" :step="0.0001" />
               </el-form-item>
-              <el-form-item label="持仓监控间隔(秒)">
+              <el-form-item label="持仓监控间隔">
                 <el-input-number v-model="form.monitorInterval" :min="1" :max="600" :step="1" />
+                <span class="config-unit">秒</span>
               </el-form-item>
-              <el-form-item label="初始本金 (USDT)" class="hint-wrap">
+              <el-form-item label="初始本金" class="hint-wrap">
                 <el-input-number v-model="form.initialCapital" :min="0" :step="100" :precision="2" />
+                <span class="config-unit">USDT</span>
                 <div class="hint-text">用于年化收益率计算</div>
               </el-form-item>
             </div>
@@ -138,11 +146,13 @@
                 <el-form-item label="每批交易对数量">
                   <el-input-number v-model="form.strategyScheduler.symbolBatchSize" :min="1" :max="20" />
                 </el-form-item>
-                <el-form-item label="批次间延迟(ms)">
+                <el-form-item label="批次间延迟">
                   <el-input-number v-model="form.strategyScheduler.symbolBatchDelayMs" :min="1000" :max="30000" :step="500" />
+                  <span class="config-unit">ms</span>
                 </el-form-item>
-                <el-form-item label="循环最大耗时(ms)">
+                <el-form-item label="循环最大耗时">
                   <el-input-number v-model="form.strategyScheduler.maxLoopDurationMs" :min="30000" :max="600000" :step="10000" />
+                  <span class="config-unit">ms</span>
                 </el-form-item>
               </template>
             </div>
@@ -177,11 +187,13 @@
                 <el-form-item label="每次扫描最大请求数">
                   <el-input-number v-model="form.aiRateLimit.maxRequestsPerScan" :min="1" :max="200" />
                 </el-form-item>
-                <el-form-item label="请求超时(ms)">
+                <el-form-item label="请求超时">
                   <el-input-number v-model="form.aiRateLimit.timeoutMs" :min="5000" :max="120000" :step="5000" />
+                  <span class="config-unit">ms</span>
                 </el-form-item>
-                <el-form-item label="错误后冷却(ms)">
+                <el-form-item label="错误后冷却">
                   <el-input-number v-model="form.aiRateLimit.cooldownAfterErrorMs" :min="5000" :max="300000" :step="5000" />
+                  <span class="config-unit">ms</span>
                 </el-form-item>
               </template>
             </div>
@@ -204,11 +216,13 @@
                 <el-form-item label="权重使用率上限">
                   <el-input-number v-model="form.binanceRateLimit.maxUsedWeight1mRatio" :min="0.1" :max="1" :step="0.05" />
                 </el-form-item>
-                <el-form-item label="重试基时(ms)">
+                <el-form-item label="重试基时">
                   <el-input-number v-model="form.binanceRateLimit.retryBaseMs" :min="100" :max="10000" :step="100" />
+                  <span class="config-unit">ms</span>
                 </el-form-item>
-                <el-form-item label="重试最大间隔(ms)">
+                <el-form-item label="重试最大间隔">
                   <el-input-number v-model="form.binanceRateLimit.retryMaxMs" :min="1000" :max="300000" :step="1000" />
+                  <span class="config-unit">ms</span>
                 </el-form-item>
               </template>
             </div>
@@ -221,8 +235,9 @@
               <el-form-item label="启用AI分析日志">
                 <el-switch v-model="form.aiAnalysisConfig.enabled" />
               </el-form-item>
-              <el-form-item label="AI缓存TTL(分钟)">
+              <el-form-item label="AI缓存TTL">
                 <el-input-number v-model="form.aiCacheTtlMinutes" :min="1" :max="60" />
+                <span class="config-unit">分钟</span>
               </el-form-item>
               <el-form-item label="最大缓存记录数">
                 <el-input-number v-model="form.aiAnalysisConfig.maxRecords" :min="100" :max="10000" />
@@ -269,6 +284,7 @@
 </template>
 
 <script setup lang="ts">
+import { SQUARE_HEAT_TIMEFRAMES, SQUARE_HEAT_MAX_WINDOW_MINUTES, normalizeSquareHeatWindows } from '../../types/square-heat-config'
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import type { BotConfig } from '../../types'
 import { normalizeSupportResistanceConfig } from '../../types/support-resistance'
@@ -325,6 +341,7 @@ const loadConfig = async () => {
       }
       
       config.supportResistanceConfig = normalizeSupportResistanceConfig(config.supportResistanceConfig)
+      config.squareHeatWindows = normalizeSquareHeatWindows(config.squareHeatWindows)
       form.value = config
       originalSymbols.value = [...(config.symbols || [])]
     }
@@ -339,6 +356,7 @@ const loadConfig = async () => {
 const handleSave = async () => {
   if (!form.value) return
   form.value.supportResistanceConfig = normalizeSupportResistanceConfig(form.value.supportResistanceConfig)
+  form.value.squareHeatWindows = normalizeSquareHeatWindows(form.value.squareHeatWindows)
   
   // 确保 emaPeriods 是正确的格式
   if (!form.value.emaPeriods || !Array.isArray(form.value.emaPeriods)) {
@@ -524,6 +542,13 @@ onUnmounted(() => {
   margin-left: 8px;
   font-size: 12px;
   color: #909399;
+}
+
+/* 单位紧随数值显示，统一间距并避免单位自身折行。 */
+.config-unit {
+  margin-left: 8px;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 /* 数字输入框自适应宽度，不拉伸 */

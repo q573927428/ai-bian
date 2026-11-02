@@ -1079,6 +1079,10 @@ watch(() => symbols.value.join(','), () => {
 watch(() => emaPeriods.value.join(','), () => {
   if (visible.value) fetchData()
 })
+// 保存各周期情绪窗口后立即重读当前周期缓存，避免继续展示旧窗口的统计。
+watch(() => JSON.stringify(botStore.botConfig?.squareHeatWindows), () => {
+  if (visible.value) void fetchData()
+})
 watch(visible, value => {
   breadthRequestId++
   if (breadthTimer) clearInterval(breadthTimer)

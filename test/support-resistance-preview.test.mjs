@@ -7,6 +7,8 @@ import ts from 'typescript'
 import * as vue from 'vue'
 import { parse } from 'vue/compiler-sfc'
 import { normalizeSupportResistanceConfig } from '../types/support-resistance.ts'
+import { normalizeSquareHeatWindows, SQUARE_HEAT_MAX_WINDOW_MINUTES } from '../types/square-heat-config.ts'
+import { latestCvdDivergence } from '../app/utils/cvd-divergence.ts'
 
 /** 执行实际源码，仅隔离 Nuxt 上下文、网络和图表挂载。 */
 function evaluate(source, dependencies = {}, globals = {}) {
@@ -36,6 +38,8 @@ function createHandler(config = {}) {
     '../../utils/market-breadth': { getMarketBreadth: async () => ({}) },
     '../../utils/storage': { getBotConfig: async () => config },
     '../../../types/support-resistance': { normalizeSupportResistanceConfig },
+    '../../../types/square-heat-config': { normalizeSquareHeatWindows, SQUARE_HEAT_MAX_WINDOW_MINUTES },
+    '../../../app/utils/cvd-divergence': { latestCvdDivergence },
     '../../utils/environment-context': { loadEnvironmentContext: async () => undefined },
     '../../../app/utils/environment-confidence': { formatEnvironmentConfidence: () => '' },
     '../../../app/utils/efficiency-ratio': { normalizeERPeriod: () => 20 }
@@ -60,6 +64,40 @@ test('试算接口传递左右参数、约束范围，省略参数仍使用3/3',
     assert.equal(result.data.parameters.pivotRight, right)
   }
   assert.equal(calls.length, 5, '结构刷新不应额外加载其他指标')
+})
+
+test('情绪窗口按 K 线周期读取配置，旧配置默认24h，诊断覆盖仍有边界', async () => {
+  const windows = { '5m': 300, '15m': 1200, '1h': 1500, '4h': 3000, '1d': 3600 }
+  const { handler } = createHandler({ squareHeatWindows: windows })
+  for (const [timeframe, minutes] of Object.entries(windows)) {
+    const result = await handler({ timeframe })
+    assert.equal(result.data.parameters.squareHeatWindowMinutes, minutes)
+  }
+  assert.equal((await createHandler().handler({})).data.parameters.squareHeatWindowMinutes, 1440)
+  assert.equal((await handler({ timeframe: '5m', squareHeatWindowMinutes: '60' })).data.parameters.squareHeatWindowMinutes, 60)
+  assert.equal((await handler({ squareHeatWindowMinutes: '99999' })).data.parameters.squareHeatWindowMinutes, 10000)
+  assert.equal((await handler({ squareHeatWindowMinutes: '-1' })).data.parameters.squareHeatWindowMinutes, 5)
+  assert.deepEqual(normalizeSquareHeatWindows({ '5m': NaN, '15m': -1, '1h': 90.9, '4h': 99999 }),
+    { '5m': 1440, '15m': 5, '1h': 90, '4h': 10000, '1d': 1440 })
+})
+
+test('后台准备全部情绪窗口并去重，单个窗口失败不影响其他窗口', async () => {
+  const calls = []
+  const { IndicatorsHub } = evaluate(readFileSync(new URL('../server/modules/indicators/IndicatorsHub.ts', import.meta.url), 'utf8'), {
+    '../../../types/square-heat-config': { normalizeSquareHeatWindows },
+    './OISnapshotService': { OISnapshotService: class { async bootstrapSymbol() {} } },
+    './SupportResistanceCache': { SupportResistanceCache: class {} },
+    '../../utils/square-heat': { getSquareHeat: async (_symbol, minutes) => {
+      calls.push(minutes)
+      if (minutes === 30) throw new Error('模拟采集失败')
+    } },
+    '../../utils/logger': { logger: { warn() {}, error(error) { throw error } } }
+  }, { Map, Set })
+  const hub = new IndicatorsHub({}, { squareHeatWindows: { '5m': 30, '15m': 30, '1h': 1500, '4h': 3000, '1d': 3600 } })
+  hub.getKlines = () => []
+  hub.fetchAndCacheOI = async () => {}
+  await hub.refreshSymbolData('BTCUSDT')
+  assert.deepEqual(calls, [1440, 30, 1500, 3000, 3600])
 })
 
 test('共享试算参数触发真实图表请求，快速切换时迟到结果不能覆盖新区域', async () => {
