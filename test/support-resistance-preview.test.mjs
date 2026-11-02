@@ -9,6 +9,7 @@ import { parse } from 'vue/compiler-sfc'
 import { normalizeSupportResistanceConfig } from '../types/support-resistance.ts'
 import { normalizeSquareHeatWindows, SQUARE_HEAT_MAX_WINDOW_MINUTES } from '../types/square-heat-config.ts'
 import { latestCvdDivergence } from '../app/utils/cvd-divergence.ts'
+import { diTrend } from '../app/utils/environment-confidence.ts'
 
 /** 执行实际源码，仅隔离 Nuxt 上下文、网络和图表挂载。 */
 function evaluate(source, dependencies = {}, globals = {}) {
@@ -41,7 +42,7 @@ function createHandler(config = {}) {
     '../../../types/square-heat-config': { normalizeSquareHeatWindows, SQUARE_HEAT_MAX_WINDOW_MINUTES },
     '../../../app/utils/cvd-divergence': { latestCvdDivergence },
     '../../utils/environment-context': { loadEnvironmentContext: async () => undefined },
-    '../../../app/utils/environment-confidence': { formatEnvironmentConfidence: () => '' },
+    '../../../app/utils/environment-confidence': { diTrend, formatEnvironmentConfidence: () => '' },
     '../../../app/utils/efficiency-ratio': { normalizeERPeriod: () => 20 }
   }, { defineEventHandler: fn => fn, getQuery: event => event }).default
   return { handler: query => handler({ symbol: 'BTCUSDT', structureOnly: 'true', includeSlowStats: 'false', ...query }), calls }

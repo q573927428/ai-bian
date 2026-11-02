@@ -1,10 +1,10 @@
 // ==================== 服务端五周期环境快照 ====================
 import type { IndicatorsHub } from '../modules/indicators/IndicatorsHub'
 import type { MarketBreadthSnapshot } from '../../types/market-breadth'
-import { TREND_PERIODS, periodTrend, buildEnvironmentContext, type PeriodSignals } from '../../app/utils/environment-confidence'
+import { TREND_PERIODS, periodTrend, buildEnvironmentContext, type PeriodSignals, type TrendPeriod } from '../../app/utils/environment-confidence'
 
 /** 仅使用指标中心本地技术指标，失败保留缺失；不依赖看板打开或额外外部统计请求。 */
-export async function loadEnvironmentContext(hub: IndicatorsHub | undefined, symbol: string, breadth: MarketBreadthSnapshot | undefined) {
+export async function loadEnvironmentContext(hub: IndicatorsHub | undefined, symbol: string, breadth: MarketBreadthSnapshot | undefined, mainTimeframe: TrendPeriod = '15m') {
   const periods: PeriodSignals = {}
   if (hub) {
     await Promise.all(TREND_PERIODS.map(async timeframe => {
@@ -20,5 +20,5 @@ export async function loadEnvironmentContext(hub: IndicatorsHub | undefined, sym
       }
     }))
   }
-  return buildEnvironmentContext(periods, breadth, symbol)
+  return buildEnvironmentContext(periods, breadth, symbol, mainTimeframe)
 }

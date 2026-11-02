@@ -8,6 +8,7 @@ import { performance } from 'node:perf_hooks'
 import ts from 'typescript'
 import * as technicalIndicators from 'technicalindicators'
 import * as efficiencyRatio from '../app/utils/efficiency-ratio.ts'
+import { diTrend } from '../app/utils/environment-confidence.ts'
 
 const require = createRequire(import.meta.url)
 const logger = { info() {}, warn() {}, error() {}, success() {} }
@@ -411,7 +412,7 @@ test('AI提示词、信号与复算快照使用同一成交量周期和EMA比值
     '../../utils/ai-analysis-snapshot': { ...snapshots, createStrategySnapshot: () => ({}) },
     '../../utils/environment-context': { loadEnvironmentContext: async () => undefined },
     '../../utils/market-breadth': { formatMarketBreadth: () => '' },
-    '../../../app/utils/environment-confidence': { formatEnvironmentConfidence: () => '' },
+    '../../../app/utils/environment-confidence': { diTrend, formatEnvironmentConfidence: () => '' },
     '../strategy-store/StrategyStore': { strategyStore: { getStrategy: async () => f.strategy } }
   }, f.globals)
   const analyzer = new MultiStrategyAIAnalyzer({}, f.config)
@@ -577,7 +578,7 @@ test('ER 提示词、信号和分析快照保留相同窗口，缺数据不显�
     '../../utils/ai-analysis-snapshot': { ...snapshots, createStrategySnapshot: () => ({}) },
     '../../utils/environment-context': { loadEnvironmentContext: async () => undefined },
     '../../utils/market-breadth': { formatMarketBreadth: () => '' },
-    '../../../app/utils/environment-confidence': { formatEnvironmentConfidence: () => '' },
+    '../../../app/utils/environment-confidence': { diTrend, formatEnvironmentConfidence: () => '' },
     '../strategy-store/StrategyStore': { strategyStore: { getStrategy: async () => f.strategy } }
   }, f.globals)
   const analyzer = new MultiStrategyAIAnalyzer({}, f.config)

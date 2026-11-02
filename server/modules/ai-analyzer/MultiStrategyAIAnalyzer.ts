@@ -14,7 +14,7 @@ import { shortHash } from '../../utils/stable-hash'
 import { formatMarketBreadth } from '../../utils/market-breadth'
 import type { PriceZone, SupportResistanceSnapshot } from '../../../types/support-resistance'
 import type { IndicatorsHub } from '../indicators/IndicatorsHub'
-import { formatEnvironmentConfidence, type EnvironmentContext } from '../../../app/utils/environment-confidence'
+import { diTrend, formatEnvironmentConfidence, type EnvironmentContext } from '../../../app/utils/environment-confidence'
 import { loadEnvironmentContext } from '../../utils/environment-context'
 import { createStrategySnapshot, createQuantitativeSnapshot } from '../../utils/ai-analysis-snapshot'
 import { getCandleVolume } from '../../utils/candle-volume'
@@ -209,7 +209,7 @@ export class MultiStrategyAIAnalyzer {
       // 1. 获取策略规则并检查缓存
       const strategy = await strategyStore.getStrategy(strategyId)
       const structuredRules = (strategy as any)?.structuredRules as StructuredRules | undefined
-      const environmentContext = await loadEnvironmentContext(this.indicatorsHub, symbol, indicators.marketBreadth)
+      const environmentContext = await loadEnvironmentContext(this.indicatorsHub, symbol, indicators.marketBreadth, strategy?.marketData?.timeframes?.[0] || '15m')
       // 环境版本与五周期变化都必须参与缓存，不能复用旧口径的置信度。
       const cacheKey = this.buildCacheKey(strategyId, symbol, { ...indicators, environmentContext }, price, volume, candleProgress, promptConfig, structuredRules)
       const cached = aiCache.get(cacheKey)
@@ -482,12 +482,8 @@ export class MultiStrategyAIAnalyzer {
         adxLines.push(`- MDI(-DI): ${indicators.mdi.toFixed(2)}`)
       }
       if (indicators.diSpread !== undefined && indicators.diGapChange !== undefined) {
-        // 方向持平或差距不变时归为中性；缺少历史时不输出信号。
-        const direction = indicators.diSpread > 0 ? '多头' : '空头'
-        const strength = indicators.diGapChange > 0 ? '增强' : '减弱'
-        const signal = indicators.diSpread === 0 || indicators.diGapChange === 0
-          ? '中性'
-          : `${direction}${strength}`
+        // 与五周期环境和看板共用规则：差距不变保留方向并标为持平。
+        const signal = diTrend(indicators.diSpread, indicators.diGapChange)
         adxLines.push(`- DI信号趋势: ${signal}`)
       }
     }

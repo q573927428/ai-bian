@@ -325,7 +325,7 @@ import { useCoinIcon } from '../composables/useCoinIcon'
 import { useSupportResistancePreview } from '../composables/useSupportResistancePreview'
 import type { SupportResistanceSnapshot } from '../../types/support-resistance'
 import SupportResistanceInfo from './SupportResistanceInfo.vue'
-import { TREND_PERIODS, type EnvironmentContext } from '../utils/environment-confidence'
+import { TREND_PERIODS, diTrend, isDoubleStrengthening, type DirectionalTrend, type EnvironmentContext, type PeriodTrend } from '../utils/environment-confidence'
 import { isRecentCvdDivergence, type LatestCvdDivergence } from '../utils/cvd-divergence'
 import { calculateLiveBreadth } from '../utils/market-breadth'
 import type { BreadthPeriod, MarketBreadthSnapshot } from '../../types/market-breadth'
@@ -350,7 +350,7 @@ interface IndicatorRow {
   /** OI 增减仓折算额及含实际回看窗口的快照悬停数据。 */
   oiChangeLabel: string; oiTooltip: string
   /** ADX 方向指标及基于后端 DI 差距变化得出的趋势信号。 */
-  pdi?: number; mdi?: number; diDirection: '多头增强' | '多头减弱' | '空头减弱' | '空头增强' | '中性' | '--'
+  pdi?: number; mdi?: number; diDirection: DirectionalTrend
   /** EMA 周期与数值，以及短周期相对长周期的方向。 */
   fastEmaPeriod: number; slowEmaPeriod: number; fastEma?: number; slowEma?: number; emaBullish?: boolean
   macd?: number; macdSignal?: number; macdHistogram?: number
@@ -481,7 +481,7 @@ const numericFilterFields = [
   { key: 'er', label: 'ER', unit: '', step: 0.01 }
 ] as const
 const showNumericFilters = ref(false)
-const stateOptions = ['多头增强', '空头增强', '多头减弱', '空头减弱'] as const
+const stateOptions = ['多头增强', '空头增强', '多头持平', '空头持平', '多头减弱', '空头减弱'] as const
 const trendStateFilter = ref<typeof stateOptions[number] | ''>('')
 const macdStateFilter = ref<typeof stateOptions[number] | ''>('')
 const numericFilters = ref(Object.fromEntries(numericFilterFields.map(field => [field.key, { min: null, max: null }])) as Record<NumericFilterKey, NumericFilterRange>)
@@ -725,9 +725,9 @@ function resonanceInfo(symbol: string): { label: string; tone: SignalTone } {
 }
 
 /** 用颜色表达趋势与 MACD 共同确认的方向，非双增强状态使用淡色。 */
-function periodTrendClass(trend?: IndicatorRow['diDirection']) {
+function periodTrendClass(trend?: PeriodTrend) {
   const direction = trend?.startsWith('多头') ? 'up' : trend?.startsWith('空头') ? 'down' : 'muted'
-  return [direction, { 'trend-weakening': trend?.endsWith('减弱') === true }]
+  return [direction, { 'trend-weakening': direction !== 'muted' && !isDoubleStrengthening(trend) }]
 }
 
 /** 悬停说明圆点顺序与各周期状态，缺失数据不伪装成观望。 */
@@ -926,11 +926,7 @@ function formatOITime(value: unknown): string {
 
 /** 与后端 AI 信号保持一致：当前优势侧配合绝对差距变化，缺失数据不视为中性。 */
 function diTrendSignal(spread: unknown, gapChange: unknown): IndicatorRow['diDirection'] {
-  if (typeof spread !== 'number' || typeof gapChange !== 'number'
-    || !Number.isFinite(spread) || !Number.isFinite(gapChange)) return '--'
-  if (spread === 0 || gapChange === 0) return '中性'
-  if (spread > 0) return gapChange > 0 ? '多头增强' : '多头减弱'
-  return gapChange > 0 ? '空头增强' : '空头减弱'
+  return diTrend(spread, gapChange)
 }
 
 /** 资金金额使用统一缩写并保留正负号；缺失显示 --。 */

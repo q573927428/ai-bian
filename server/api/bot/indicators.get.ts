@@ -122,7 +122,7 @@ export default defineEventHandler(async (event) => {
   // 环境计算失败仅清空评分，不影响其他指标展示。
   const environmentContext = !signalOnly
     ? await Promise.resolve().then(async () => getMarketBreadth(botConfig))
-      .then(breadth => loadEnvironmentContext(indicatorsHub, indicatorSymbol, breadth))
+      .then(breadth => loadEnvironmentContext(indicatorsHub, indicatorSymbol, breadth, timeframe))
       .catch(() => undefined)
     : undefined
 
