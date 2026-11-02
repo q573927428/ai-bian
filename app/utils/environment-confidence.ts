@@ -1,5 +1,18 @@
 // ==================== 多周期趋势结构与环境置信度共享规则 ====================
 import type { MarketBreadthSnapshot } from '../../types/market-breadth'
+import type { TechnicalIndicators } from '../../types'
+
+/** 社区置信度修正结果；记录原分、修正值及原因，供分析快照复算。 */
+export interface CommunityConfidenceAdjustment {
+  version: 'community-v1'
+  baseConfidence: number | null
+  adjustment: number
+  finalConfidence: number | null
+  reason: string
+  directionalCount: number
+  coveragePercent: number
+  dataUpdatedAt?: number
+}
 
 export const TREND_PERIODS = ['5m', '15m', '1h', '4h', '1d'] as const
 export type TrendPeriod = typeof TREND_PERIODS[number]
@@ -40,6 +53,8 @@ export interface EnvironmentAssessment {
   /** 五周期支持分中实际计入的同向奖励，上限10；旧档案允许缺失。 */
   adjacentBonus?: number
   coverage: number
+  /** 仅策略启用社区情绪时存在；confidence 为修正后的开仓门槛值。 */
+  communityAdjustment?: CommunityConfidenceAdjustment
 }
 
 /** 本次请求固定快照，包含双方向评分，防止 AI 自由调整分数。 */
@@ -59,13 +74,58 @@ export function formatEnvironmentConfidence(context?: EnvironmentContext): strin
   const describe = (value: number) => value >= 80 ? '环境明显支持' : value >= 60 ? '环境偏支持' : value >= 40 ? '环境中性或分歧' : value >= 20 ? '环境偏不利' : '环境明显反向'
   // 分项仅为展示保留两位小数，避免浮点噪声；缺失值不能伪装成零分。
   const score = (value: number | null) => finite(value) ? `${Number(value.toFixed(2))}` : '暂无可用分数'
+  const community = (assessment: EnvironmentAssessment) => assessment.communityAdjustment
+    ? `（社区情绪修正${assessment.communityAdjustment.adjustment > 0 ? '+' : ''}${score(assessment.communityAdjustment.adjustment)}）`
+    : ''
   const direction = (name: string, assessment: EnvironmentAssessment) => assessment.available
-    ? `${name}：置信度${assessment.confidence}分，${describe(assessment.confidence!)}。\n\t\t（分项：市场支持${score(assessment.market)}×40% + 五周期支持${score(assessment.structure)}×30% + 相对强弱${score(assessment.relativeStrength)}×30%）`
+    ? `${name}：置信度${assessment.confidence}分，${describe(assessment.confidence!)}${community(assessment)}。\n\t\t（分项：市场支持${score(assessment.market)}×40% + 五周期支持${score(assessment.structure)}×30% + 相对强弱${score(assessment.relativeStrength)}×30%）`
     : `${name}：暂无可用分数，环境数据不足。市场支持：${score(assessment.market)}；五周期方向支持：${score(assessment.structure)}；相对强弱：${score(assessment.relativeStrength)}。`
   return [
     `五周期结构：${context.structure.label}；${TREND_PERIODS.map(period => `${period} ${context.periods[period] ?? '暂无数据'}`).join('，')}。`,
     direction('LONG做多', context.long), direction('SHORT做空', context.short)
   ].join('\n')
+}
+
+/** 按交易方向修正最多±3分；缺失环境不能补齐，关闭开关时完全沿用原结果。 */
+export function applyCommunityConfidence(
+  context: EnvironmentContext | undefined, indicators: Partial<TechnicalIndicators>, now = Date.now()
+): EnvironmentContext | undefined {
+  if (!context || !indicators.enabledIndicators?.squareHeat) return context
+  const bullish = indicators.squareHeatBullishCount
+  const bearish = indicators.squareHeatBearishCount
+  const total = indicators.squareHeatPostCount
+  const updatedAt = indicators.squareHeatDataUpdatedAt
+  const validCount = (value: unknown): value is number => finite(value) && Number.isSafeInteger(value) && value >= 0
+  const valid = validCount(bullish) && validCount(bearish)
+    && validCount(total) && bullish + bearish <= total
+  const count = valid ? bullish! + bearish! : 0
+  // 从原始计数复算覆盖率和净情绪，避免派生字段的取整误差或异常数据放大修正。
+  const coverage = valid && total! > 0 ? count / total! : 0
+  let reason = '社区多空均衡'
+  let delta = 0
+  if (!valid || !finite(updatedAt) || updatedAt <= 0 || updatedAt > now) reason = '社区数据不可用'
+  else if (now - updatedAt > 30 * 60 * 1000) reason = '社区数据已过期'
+  else if (count < 10) reason = '方向样本不足10帖'
+  else {
+    delta = 3 * (bullish! - bearish!) / count * Math.min(1, count / 40) * Math.min(1, coverage / 0.2)
+    reason = `${bullish! > bearish! ? '社区偏多' : bullish! < bearish! ? '社区偏空' : '社区多空均衡'}；方向样本${count}帖，覆盖率${(coverage * 100).toFixed(2)}%`
+  }
+  const adjust = (assessment: EnvironmentAssessment, side: number): EnvironmentAssessment => {
+    // 使用环境三个原始分项，只在社区修正后统一取整；无效社区数据保持旧置信度。
+    const base = assessment.available ? assessment.market! * 0.4 + assessment.structure! * 0.3 + assessment.relativeStrength! * 0.3 : null
+    const adjustment = assessment.available ? delta * side : 0
+    const confidence = base === null ? assessment.confidence : Math.round(Math.max(0, Math.min(100, base + adjustment)))
+    return {
+      ...assessment, confidence,
+      communityAdjustment: {
+        version: 'community-v1', baseConfidence: base, adjustment, finalConfidence: confidence,
+        reason: assessment.available ? reason : '环境数据不足，不进行社区修正',
+        directionalCount: count, coveragePercent: coverage * 100,
+        dataUpdatedAt: finite(updatedAt) ? updatedAt : undefined
+      }
+    }
+  }
+  return { ...context, long: adjust(context.long, 1), short: adjust(context.short, -1) }
 }
 
 /** 仅有限原始数值有效，null 和 undefined 不能隐式变成零。 */

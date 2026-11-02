@@ -14,7 +14,7 @@ import { shortHash } from '../../utils/stable-hash'
 import { formatMarketBreadth } from '../../utils/market-breadth'
 import type { PriceZone, SupportResistanceSnapshot } from '../../../types/support-resistance'
 import type { IndicatorsHub } from '../indicators/IndicatorsHub'
-import { diTrend, formatEnvironmentConfidence, type EnvironmentContext } from '../../../app/utils/environment-confidence'
+import { diTrend, formatEnvironmentConfidence, applyCommunityConfidence, type EnvironmentContext } from '../../../app/utils/environment-confidence'
 import { loadEnvironmentContext } from '../../utils/environment-context'
 import { createStrategySnapshot, createQuantitativeSnapshot } from '../../utils/ai-analysis-snapshot'
 import { getCandleVolume } from '../../utils/candle-volume'
@@ -209,7 +209,10 @@ export class MultiStrategyAIAnalyzer {
       // 1. 获取策略规则并检查缓存
       const strategy = await strategyStore.getStrategy(strategyId)
       const structuredRules = (strategy as any)?.structuredRules as StructuredRules | undefined
-      const environmentContext = await loadEnvironmentContext(this.indicatorsHub, symbol, indicators.marketBreadth, strategy?.marketData?.timeframes?.[0] || '15m')
+      const environmentContext = applyCommunityConfidence(
+        await loadEnvironmentContext(this.indicatorsHub, symbol, indicators.marketBreadth, strategy?.marketData?.timeframes?.[0] || '15m'),
+        indicators
+      )
       // 环境版本与五周期变化都必须参与缓存，不能复用旧口径的置信度。
       const cacheKey = this.buildCacheKey(strategyId, symbol, { ...indicators, environmentContext }, price, volume, candleProgress, promptConfig, structuredRules)
       const cached = aiCache.get(cacheKey)
@@ -832,11 +835,9 @@ ${formatEnvironmentConfidence(environmentContext)}
       historySection = historyAnalysis ? formatAnalysisToPromptSection(historyAnalysis) : ''
     }
 
-    const squareHeatWindow = this.formatSquareHeatWindow(squareHeatWindowMinutes)
-
     // 根据 squareHeat 是否启用来决定 reasoning 格式示例中是否包含币安广场热度相关展示
     const squareHeatReasoningExample = hasSquareHeat
-      ? `；币安广场热度(31) -3.2%：➡️正常；${squareHeatWindow}社区情绪🟢: 看涨(7) / 看跌(2) / 中立(78)，方向覆盖率 10.34%，多空情绪指数 +55.56%。`
+      ? `；币安广场热度(31) +3.2%，情绪偏多🟢（社区情绪修正+2）`
       : ''
 
     return `

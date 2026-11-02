@@ -6,9 +6,127 @@ import vm from 'node:vm'
 import { randomUUID } from 'node:crypto'
 import ts from 'typescript'
 import { getCandleVolume } from '../server/utils/candle-volume.ts'
-import { TREND_PERIODS, diTrend, combinePeriodTrend, periodTrend, periodSupport, isDoubleStrengthening, classifyTrendStructure, buildEnvironmentContext, formatEnvironmentConfidence, adjacentPeriodBonus } from '../app/utils/environment-confidence.ts'
+import { shortHash } from '../server/utils/stable-hash.ts'
+import { TREND_PERIODS, diTrend, combinePeriodTrend, periodTrend, periodSupport, isDoubleStrengthening, classifyTrendStructure, buildEnvironmentContext, formatEnvironmentConfidence, adjacentPeriodBonus, applyCommunityConfidence } from '../app/utils/environment-confidence.ts'
 
 const all = signal => Object.fromEntries(TREND_PERIODS.map(period => [period, signal]))
+
+/** 固定68分环境，避免社区修正被环境分的上下限遮蔽。 */
+function communityFixture(overrides = {}) {
+  const assessment = { available: true, confidence: 68, market: 68, structure: 68, relativeStrength: 68, coverage: 100 }
+  return {
+    context: { version: 'environment-v2', periods: {}, structure: { label: '测试', tone: '观望' }, long: { ...assessment }, short: { ...assessment } },
+    indicators: {
+      enabledIndicators: { squareHeat: true }, squareHeatBullishCount: 30, squareHeatBearishCount: 10,
+      squareHeatPostCount: 200, squareHeatDataUpdatedAt: 10000000, ...overrides
+    }, now: 10000000
+  }
+}
+
+test('社区情绪按多空方向修正、最多±3分，保留原分和版本且不修改输入', () => {
+  const { context, indicators, now } = communityFixture()
+  const result = applyCommunityConfidence(context, indicators, now)
+  assert.equal(result.long.confidence, 70)
+  assert.equal(result.short.confidence, 67)
+  assert.equal(result.long.communityAdjustment.adjustment, 1.5)
+  assert.equal(result.short.communityAdjustment.adjustment, -1.5)
+  assert.equal(result.long.communityAdjustment.baseConfidence, 68)
+  assert.equal(result.long.communityAdjustment.version, 'community-v1')
+  assert.equal(context.long.confidence, 68)
+  assert.equal(context.long.communityAdjustment, undefined)
+  assert.match(formatEnvironmentConfidence(result), /LONG做多：置信度70分，环境偏支持（社区情绪修正\+1.5）。/)
+  assert.match(formatEnvironmentConfidence(result), /SHORT做空：置信度67分，环境偏支持（社区情绪修正-1.5）。/)
+  assert.doesNotMatch(formatEnvironmentConfidence(result), /环境原分|方向样本|覆盖率|最终置信度/)
+  for (const [bullish, bearish, long, short] of [[40, 0, 71, 65], [0, 40, 65, 71], [20, 20, 68, 68]]) {
+    const output = applyCommunityConfidence(context, { ...indicators, squareHeatBullishCount: bullish, squareHeatBearishCount: bearish }, now)
+    assert.equal(output.long.confidence, long)
+    assert.equal(output.short.confidence, short)
+  }
+})
+
+test('样本不足、失效和异常数据不修正，关闭开关保持原结果', () => {
+  const { context, indicators, now } = communityFixture()
+  for (const [overrides, reason] of [
+    [{ squareHeatBullishCount: 2, squareHeatBearishCount: 0 }, '样本不足'],
+    [{ squareHeatBullishCount: 0, squareHeatBearishCount: 0, squareHeatPostCount: 0 }, '样本不足'],
+    [{ squareHeatDataUpdatedAt: now - 1800001 }, '已过期'],
+    [{ squareHeatDataUpdatedAt: now + 1 }, '不可用'],
+    [{ squareHeatDataUpdatedAt: undefined }, '不可用'],
+    [{ squareHeatBullishCount: undefined }, '不可用'],
+    [{ squareHeatBullishCount: NaN }, '不可用'],
+    [{ squareHeatBearishCount: -1 }, '不可用'],
+    [{ squareHeatBullishCount: 10.5 }, '不可用'],
+    [{ squareHeatPostCount: 39 }, '不可用']
+  ]) {
+    const output = applyCommunityConfidence(context, { ...indicators, ...overrides }, now)
+    assert.equal(output.long.confidence, 68)
+    assert.equal(output.short.confidence, 68)
+    assert.equal(output.long.communityAdjustment.adjustment, 0)
+    assert.match(output.long.communityAdjustment.reason, new RegExp(reason))
+  }
+  assert.equal(applyCommunityConfidence(context, { ...indicators, enabledIndicators: { squareHeat: false } }, now), context)
+  assert.equal(applyCommunityConfidence(undefined, indicators, now), undefined)
+  const boundary = applyCommunityConfidence(context, { ...indicators, squareHeatDataUpdatedAt: now - 1800000 }, now)
+  assert.equal(boundary.long.confidence, 70)
+})
+
+test('数量与覆盖率共同衰减，只在最后取整，热度变化不直接加分', () => {
+  const { context, indicators, now } = communityFixture()
+  const output = applyCommunityConfidence(context, { ...indicators, squareHeatBullishCount: 10, squareHeatBearishCount: 0 }, now)
+  assert.equal(output.long.communityAdjustment.adjustment, 0.1875)
+  assert.equal(output.long.confidence, 68)
+  const coverage = applyCommunityConfidence(context, { ...indicators, squareHeatPostCount: 400 }, now)
+  assert.equal(coverage.long.communityAdjustment.adjustment, 0.75)
+  const heat = applyCommunityConfidence(context, { ...indicators, squareHeat: 9999, squareHeatChangePercent: 9999 }, now)
+  assert.equal(heat.long.confidence, 70)
+  context.long.market = context.long.structure = context.long.relativeStrength = 68.4
+  const fractional = applyCommunityConfidence(context, { ...indicators, squareHeatBullishCount: 10, squareHeatBearishCount: 0 }, now)
+  assert.equal(fractional.long.confidence, 69)
+})
+
+test('环境不足不能靠情绪补分，最终分上下限有效且分析器使用修正结果', async () => {
+  const { context, indicators, now } = communityFixture({ squareHeatBullishCount: 40, squareHeatBearishCount: 0 })
+  context.long.market = context.long.structure = context.long.relativeStrength = 100
+  context.short.market = context.short.structure = context.short.relativeStrength = 0
+  let output = applyCommunityConfidence(context, indicators, now)
+  assert.equal(output.long.confidence, 100)
+  assert.equal(output.short.confidence, 0)
+  const normal = communityFixture()
+  output = applyCommunityConfidence(normal.context, normal.indicators, normal.now)
+  const fixture = analyzerFixture()
+  const long = await fixture.call(output)
+  assert.equal(long.confidence, 70)
+  assert.equal(long.environmentContext.long.communityAdjustment.adjustment, 1.5)
+  fixture.respond({ direction: 'SHORT', confidence: 100 })
+  assert.equal((await fixture.call(output)).confidence, 67)
+  context.long.available = false
+  context.long.confidence = null
+  context.long.market = null
+  output = applyCommunityConfidence(context, indicators, now)
+  assert.equal(output.long.available, false)
+  assert.equal(output.long.confidence, null)
+  assert.equal(output.long.communityAdjustment.adjustment, 0)
+  fixture.respond({ direction: 'LONG' })
+  assert.equal((await fixture.call(output)).direction, 'IDLE')
+})
+
+test('完整分析链路使用社区修正后的置信度，开关与反向数据隔离分析缓存', async () => {
+  const { context, indicators } = communityFixture({ squareHeatDataUpdatedAt: Date.now() })
+  const fixture = analyzerFixture()
+  const long = await fixture.analyze(context, indicators)
+  assert.ok(long)
+  assert.equal(long.confidence, 70)
+  assert.equal(long.environmentContext.long.communityAdjustment.finalConfidence, 70)
+  assert.equal(long.environmentContext.long.communityAdjustment.adjustment, 1.5)
+  assert.match(long.decisionSnapshot.messages[1].content, /置信度70分，环境偏支持（社区情绪修正\+1.5）。/)
+  const contrary = await fixture.analyze(context, { ...indicators, squareHeatBullishCount: 10, squareHeatBearishCount: 30 })
+  assert.equal(contrary.confidence, 67)
+  assert.equal(contrary.environmentContext.long.communityAdjustment.adjustment, -1.5)
+  const disabled = await fixture.analyze(context, { ...indicators, enabledIndicators: { squareHeat: false } })
+  assert.equal(disabled.confidence, 68)
+  assert.equal(disabled.indicators.communitySentiment, undefined)
+  assert.equal(long.environmentContext.long.communityAdjustment.finalConfidence, 70)
+})
 
 /** 同一市场快照包含强势、弱势与持平币，避免仅有单币时伪造排名。 */
 function breadth() {
@@ -189,11 +307,16 @@ test('服务端读取全部五周期，单周期失败不抹掉其他周期且�
 
 /** 隔离API和落盘，仅验证真实分析器接收响应后的交易信号语义。 */
 function analyzerFixture() {
+  let environmentForAnalyze
   let response = { direction: 'LONG', confidence: 72, reasoning: '方向：LONG；置信度：72', scoreBreakdown: {} }
   const context = {
     exports: {}, process: { env: {} }, useRuntimeConfig: () => ({}),
     require(id) {
-      if (id.includes('environment-confidence')) return { diTrend, formatEnvironmentConfidence }
+      if (id.includes('environment-confidence')) return { diTrend, formatEnvironmentConfidence, applyCommunityConfidence }
+      if (id.includes('environment-context')) return { loadEnvironmentContext: async () => environmentForAnalyze }
+      if (id.includes('strategy-store')) return { strategyStore: { getStrategy: async () => ({ marketData: { timeframes: ['15m'] } }) } }
+      if (id.includes('stable-hash')) return { shortHash }
+      if (id.includes('ai-analysis-snapshot')) return { createStrategySnapshot: () => ({}), createQuantitativeSnapshot: () => ({}) }
       if (id.includes('candle-volume')) return { getCandleVolume }
       if (id.includes('market-breadth')) return { formatMarketBreadth: () => '' }
       // 分析器已记录决策ID和提示词缓存，补齐隔离依赖，避免测试误走 API 降级分支。
@@ -213,6 +336,10 @@ function analyzerFixture() {
   const analyzer = new context.exports.MultiStrategyAIAnalyzer({}, { aiAnalysisConfig: { enabled: false, enableHistorySection: false } })
   return {
     respond(value) { response = { ...response, ...value } },
+    analyze(environment, indicators) {
+      environmentForAnalyze = environment
+      return analyzer.analyze('community-flow', 'BTCUSDT', { userPrompt: '' }, { emaList: [], ...indicators }, 100, 0)
+    },
     call(environment) { return analyzer.callAI('', 'BTCUSDT', 100, { emaList: [] }, 0, 'strategy', {}, environment) },
     prompt(indicators, environment) { return analyzer.buildFullPrompt({ userPrompt: '' }, 'BTCUSDT', 100, { emaList: [], ...indicators }, 0, 0.1, undefined, environment) }
   }
