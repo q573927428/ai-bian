@@ -61,15 +61,15 @@
         </span>
       </div>
       <div class="numeric-filter-grid">
-        <div class="numeric-filter-item direction-filter">
+        <div class="numeric-filter-item">
           <span class="numeric-filter-label">五周期方向</span>
-          <el-radio-group v-model="signalFilter" size="small" aria-label="五周期方向筛选">
-            <el-radio-button value="全部">全部</el-radio-button>
-            <el-radio-button value="多头" title="多头背景">多头</el-radio-button>
-            <el-radio-button value="空头" title="空头背景">空头</el-radio-button>
-            <el-radio-button value="反转" title="反转观察">反转</el-radio-button>
-            <el-radio-button value="观望" title="分歧观望">观望</el-radio-button>
-          </el-radio-group>
+          <el-select v-model="signalFilter" size="small" aria-label="五周期方向筛选">
+            <el-option label="全部" value="全部" />
+            <el-option label="多头" value="多头" title="多头背景" />
+            <el-option label="空头" value="空头" title="空头背景" />
+            <el-option label="反转" value="反转" title="反转观察" />
+            <el-option label="观望" value="观望" title="分歧观望" />
+          </el-select>
         </div>
         <div class="numeric-filter-item">
           <span class="numeric-filter-label">CVD 背离</span>
@@ -1118,14 +1118,12 @@ onUnmounted(() => {
 .market-counts > span { white-space: nowrap; }
 .structure-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .structure-controls label { display: flex; align-items: center; gap: 6px; }
-.structure-controls :deep(.el-select) { width: 78px; }
+.structure-controls :deep(.el-select) { width: 62px; }
 .numeric-filters { flex-shrink: 0; margin: -4px 0 12px; padding: 10px 12px; border: 1px solid var(--el-border-color); border-radius: 4px; background: var(--el-fill-color-light); font-size: 12px; max-height: 40vh; overflow-y: auto; }
 .numeric-filter-header, .numeric-filter-actions { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .numeric-filter-header { margin-bottom: 8px; flex-wrap: wrap; }
-.numeric-filter-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(210px, 100%), 1fr)); gap: 10px 16px; }
+.numeric-filter-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr)); gap: 10px 16px; }
 .numeric-filter-item { min-width: 0; }
-/* 方向选项独占一行，避免五个按钮挤入单个数值筛选列。 */
-.direction-filter { grid-column: 1 / -1; }
 .numeric-filter-label { display: block; margin-bottom: 5px; }
 .numeric-filter-range { display: flex; align-items: center; gap: 6px; }
 .numeric-filter-range :deep(.el-input-number) { width: 0; min-width: 0; flex: 1; }
