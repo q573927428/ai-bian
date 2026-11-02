@@ -89,6 +89,16 @@
     </template>
     <template #footer>
       <el-button @click="analysisDetailVisible = false">关闭</el-button>
+      <el-button
+        v-if="selectedPromptUrl"
+        tag="a"
+        :href="selectedPromptUrl"
+        target="_blank"
+        rel="noopener noreferrer"
+        title="查看该策略和交易对最近一次缓存的用户提示词"
+      >
+        查看提示词
+      </el-button>
       <el-button type="primary" :disabled="!selectedAnalysis || !getScanSymbol(selectedAnalysis)" @click="selectedAnalysis && viewAnalysisChart(selectedAnalysis)">
         查看 K 线
       </el-button>
@@ -126,6 +136,40 @@ const botStore = useBotStore()
 const analysisDetailVisible = ref(false)
 // 保存点击时的结果快照，避免轮询清理日志后弹窗内容丢失。
 const selectedAnalysis = ref<LogEntry | null>(null)
+const selectedPromptUrl = ref<string>()
+
+// 只查询缓存目录；关闭或切换详情后丢弃旧响应，避免显示上一条日志的入口。
+watch([analysisDetailVisible, selectedAnalysis], async ([isOpen, log], _previous, onCleanup) => {
+  selectedPromptUrl.value = undefined
+  let cancelled = false
+  let expiryTimer: ReturnType<typeof setTimeout> | undefined
+  onCleanup(() => {
+    cancelled = true
+    if (expiryTimer !== undefined) clearTimeout(expiryTimer)
+  })
+  if (!isOpen || !log) return
+  const promptUrl = getUserPromptUrl(log)
+  if (!promptUrl) return
+  const query = new URLSearchParams(promptUrl.split('?')[1])
+  const startedAt = Date.now()
+  try {
+    const response = await $fetch('/api/ai/prompts')
+    if (cancelled || !response.success) return
+    const normalizeSymbol = (value: string) => value.replace('/', '').toUpperCase()
+    const cached = response.data.find(entry => entry.strategyId === query.get('strategyId')
+      && normalizeSymbol(entry.symbol) === normalizeSymbol(query.get('symbol')!))
+    if (!cached) return
+    // 使用服务端剩余有效期并扣除请求耗时，避免客户端时钟偏差导致过期入口残留。
+    const remainingMs = cached.expiresAt - response.serverTime - (Date.now() - startedAt)
+    if (remainingMs <= 0) return
+    // 锁定目录中实际命中的请求，点击时不会跳到后来产生的另一份提示词。
+    query.set('timestamp', String(cached.timestamp))
+    selectedPromptUrl.value = `/api/ai/prompt?${query.toString()}`
+    expiryTimer = setTimeout(() => { selectedPromptUrl.value = undefined }, remainingMs)
+  } catch {
+    // 缓存查询不可用时隐藏入口，分析详情仍正常展示。
+  }
+})
 
 /** 新日志使用结构化交易对，历史日志从摘要回退读取。 */
 function getScanSymbol(log: LogEntry): string | undefined {
@@ -143,6 +187,7 @@ function getUserPromptUrl(log: LogEntry): string | undefined {
 
 /** 展示本次扫描的完整 AI 结果，保持当前图表不变。 */
 function openAnalysisDetail(log: LogEntry): void {
+  selectedPromptUrl.value = undefined
   selectedAnalysis.value = { ...log }
   analysisDetailVisible.value = true
 }
