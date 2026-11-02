@@ -92,8 +92,8 @@
         <div class="stat-value">{{ stats.validHoldCount ? formatHoldDuration(stats.averageHoldDurationMs) : '—' }}</div>
       </div>
       <div class="stat-item">
-        <div class="stat-label" title="当前筛选结果按平仓时间排序后的最长连续亏损笔数，盈利或保本交易中断连亏">最大连亏</div>
-        <div class="stat-value" :class="{ 'text-danger': stats.maxConsecutiveLosses > 0 }">{{ stats.maxConsecutiveLosses }} 笔</div>
+        <div class="stat-label" title="当前筛选结果按平仓时间排序后的最长连盈 / 最长连亏笔数，保本交易中断连续统计">连盈连亏</div>
+        <div class="stat-value"><span :class="{ 'text-success': stats.maxConsecutiveWins > 0 }">{{ stats.maxConsecutiveWins }}</span>/<span :class="{ 'text-danger': stats.maxConsecutiveLosses > 0 }">{{ stats.maxConsecutiveLosses }}</span> 笔</div>
       </div>
     </div>
 
@@ -123,7 +123,7 @@ let chartResizeObserver: ResizeObserver | undefined
 const loading = ref(false)
 const selectedStrategy = ref('')
 const selectedSymbol = ref('')
-const selectedPeriod = ref<'all' | 'today' | 'yesterday' | '7days' | '30days' | 'month'>('all')
+const selectedPeriod = ref<'all' | 'today' | 'yesterday' | '7days' | '30days' | 'month'>('today')
 const chartType = ref<'pnl' | 'winRate'>('pnl')
 const strategies = ref<any[]>([])
 const symbols = ref<string[]>([])
@@ -138,6 +138,7 @@ const stats = ref({
   averagePnl: 0,
   averageHoldDurationMs: 0,
   validHoldCount: 0,
+  maxConsecutiveWins: 0,
   maxConsecutiveLosses: 0
 })
 const { theme } = useTheme()
