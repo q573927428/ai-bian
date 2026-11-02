@@ -4,7 +4,7 @@ import type { TechnicalIndicators } from '../../types'
 
 /** 社区置信度修正结果；记录原分、修正值及原因，供分析快照复算。 */
 export interface CommunityConfidenceAdjustment {
-  version: 'community-v1'
+  version: 'community-v1' | 'community-v2'
   baseConfidence: number | null
   adjustment: number
   finalConfidence: number | null
@@ -105,9 +105,16 @@ export function applyCommunityConfidence(
   let delta = 0
   if (!valid || !finite(updatedAt) || updatedAt <= 0 || updatedAt > now) reason = '社区数据不可用'
   else if (now - updatedAt > 30 * 60 * 1000) reason = '社区数据已过期'
-  else if (count < 10) reason = '方向样本不足10帖'
+  else if (count === 0) reason = '无明确方向样本'
   else {
-    delta = 3 * (bullish! - bearish!) / count * Math.min(1, count / 40) * Math.min(1, coverage / 0.2)
+    // 用整数比较精确划分10%/30%/60%边界，避免浮点误差导致临界值落入错误档位。
+    const difference = bullish! - bearish!
+    const strength = Math.abs(difference) * 100
+    const tier = strength < count * 10 ? 0 : strength < count * 30 ? 1 : strength < count * 60 ? 2 : 3
+    // 小样本也可有限参与：1~2帖最多1分，3~9帖最多2分，10帖起最多3分。
+    // 覆盖率仅记录，不再与样本数量重复衰减修正。
+    const sampleCap = count <= 2 ? 1 : count <= 9 ? 2 : 3
+    delta = Math.sign(difference) * Math.min(tier, sampleCap)
     reason = `${bullish! > bearish! ? '社区偏多' : bullish! < bearish! ? '社区偏空' : '社区多空均衡'}；方向样本${count}帖，覆盖率${(coverage * 100).toFixed(2)}%`
   }
   const adjust = (assessment: EnvironmentAssessment, side: number): EnvironmentAssessment => {
@@ -118,7 +125,7 @@ export function applyCommunityConfidence(
     return {
       ...assessment, confidence,
       communityAdjustment: {
-        version: 'community-v1', baseConfidence: base, adjustment, finalConfidence: confidence,
+        version: 'community-v2', baseConfidence: base, adjustment, finalConfidence: confidence,
         reason: assessment.available ? reason : '环境数据不足，不进行社区修正',
         directionalCount: count, coveragePercent: coverage * 100,
         dataUpdatedAt: finite(updatedAt) ? updatedAt : undefined

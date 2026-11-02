@@ -27,15 +27,15 @@ test('社区情绪按多空方向修正、最多±3分，保留原分和版本�
   const { context, indicators, now } = communityFixture()
   const result = applyCommunityConfidence(context, indicators, now)
   assert.equal(result.long.confidence, 70)
-  assert.equal(result.short.confidence, 67)
-  assert.equal(result.long.communityAdjustment.adjustment, 1.5)
-  assert.equal(result.short.communityAdjustment.adjustment, -1.5)
+  assert.equal(result.short.confidence, 66)
+  assert.equal(result.long.communityAdjustment.adjustment, 2)
+  assert.equal(result.short.communityAdjustment.adjustment, -2)
   assert.equal(result.long.communityAdjustment.baseConfidence, 68)
-  assert.equal(result.long.communityAdjustment.version, 'community-v1')
+  assert.equal(result.long.communityAdjustment.version, 'community-v2')
   assert.equal(context.long.confidence, 68)
   assert.equal(context.long.communityAdjustment, undefined)
-  assert.match(formatEnvironmentConfidence(result), /LONG做多：置信度70分，环境偏支持（社区情绪修正\+1.5）。/)
-  assert.match(formatEnvironmentConfidence(result), /SHORT做空：置信度67分，环境偏支持（社区情绪修正-1.5）。/)
+  assert.match(formatEnvironmentConfidence(result), /LONG做多：置信度70分，环境偏支持（社区情绪修正\+2）。/)
+  assert.match(formatEnvironmentConfidence(result), /SHORT做空：置信度66分，环境偏支持（社区情绪修正-2）。/)
   assert.doesNotMatch(formatEnvironmentConfidence(result), /环境原分|方向样本|覆盖率|最终置信度/)
   for (const [bullish, bearish, long, short] of [[40, 0, 71, 65], [0, 40, 65, 71], [20, 20, 68, 68]]) {
     const output = applyCommunityConfidence(context, { ...indicators, squareHeatBullishCount: bullish, squareHeatBearishCount: bearish }, now)
@@ -44,11 +44,10 @@ test('社区情绪按多空方向修正、最多±3分，保留原分和版本�
   }
 })
 
-test('样本不足、失效和异常数据不修正，关闭开关保持原结果', () => {
+test('无样本、失效和异常数据不修正，关闭开关保持原结果', () => {
   const { context, indicators, now } = communityFixture()
   for (const [overrides, reason] of [
-    [{ squareHeatBullishCount: 2, squareHeatBearishCount: 0 }, '样本不足'],
-    [{ squareHeatBullishCount: 0, squareHeatBearishCount: 0, squareHeatPostCount: 0 }, '样本不足'],
+    [{ squareHeatBullishCount: 0, squareHeatBearishCount: 0, squareHeatPostCount: 0 }, '无明确方向样本'],
     [{ squareHeatDataUpdatedAt: now - 1800001 }, '已过期'],
     [{ squareHeatDataUpdatedAt: now + 1 }, '不可用'],
     [{ squareHeatDataUpdatedAt: undefined }, '不可用'],
@@ -70,18 +69,41 @@ test('样本不足、失效和异常数据不修正，关闭开关保持原结�
   assert.equal(boundary.long.confidence, 70)
 })
 
-test('数量与覆盖率共同衰减，只在最后取整，热度变化不直接加分', () => {
+test('情绪分档与样本上限覆盖边界、实际案例和反向修正', () => {
   const { context, indicators, now } = communityFixture()
-  const output = applyCommunityConfidence(context, { ...indicators, squareHeatBullishCount: 10, squareHeatBearishCount: 0 }, now)
-  assert.equal(output.long.communityAdjustment.adjustment, 0.1875)
-  assert.equal(output.long.confidence, 68)
-  const coverage = applyCommunityConfidence(context, { ...indicators, squareHeatPostCount: 400 }, now)
-  assert.equal(coverage.long.communityAdjustment.adjustment, 0.75)
-  const heat = applyCommunityConfidence(context, { ...indicators, squareHeat: 9999, squareHeatChangePercent: 9999 }, now)
-  assert.equal(heat.long.confidence, 70)
+  const cases = [
+    [0, 0, 0], [1, 0, 1], [2, 0, 1], [3, 0, 2], [9, 0, 2], [10, 0, 3],
+    [1, 1, 0], [10, 10, 0], [10, 9, 0],
+    [11, 9, 1], [12, 8, 1], [13, 7, 2], [15, 5, 2], [16, 4, 3],
+    [6, 1, 2], [9, 4, 2], [12, 9, 1], [13, 6, 2], [30, 11, 2], [22, 0, 3],
+    [4, 2, 2], [7, 4, 1], [3, 1, 2], [5, 1, 2]
+  ]
+  for (const [bullish, bearish, expected] of cases) {
+    for (const side of [1, -1]) {
+      const output = applyCommunityConfidence(context, { ...indicators,
+        squareHeatBullishCount: side > 0 ? bullish : bearish,
+        squareHeatBearishCount: side > 0 ? bearish : bullish
+      }, now)
+      const delta = expected * side
+      assert.equal(output.long.confidence, 68 + delta)
+      assert.equal(output.short.confidence, 68 - delta)
+      assert.equal(Math.abs(output.long.communityAdjustment.adjustment), expected)
+    }
+  }
+})
+
+test('覆盖率和热度变化不再衰减或放大修正，最终分仍统一取整', () => {
+  const { context, indicators, now } = communityFixture()
+  for (const total of [40, 400, 4000]) {
+    const output = applyCommunityConfidence(context, { ...indicators,
+      squareHeatPostCount: total, squareHeat: 9999, squareHeatChangePercent: 9999
+    }, now)
+    assert.equal(output.long.communityAdjustment.adjustment, 2)
+    assert.equal(output.long.confidence, 70)
+  }
   context.long.market = context.long.structure = context.long.relativeStrength = 68.4
-  const fractional = applyCommunityConfidence(context, { ...indicators, squareHeatBullishCount: 10, squareHeatBearishCount: 0 }, now)
-  assert.equal(fractional.long.confidence, 69)
+  const output = applyCommunityConfidence(context, indicators, now)
+  assert.equal(output.long.confidence, 70)
 })
 
 test('环境不足不能靠情绪补分，最终分上下限有效且分析器使用修正结果', async () => {
@@ -96,9 +118,9 @@ test('环境不足不能靠情绪补分，最终分上下限有效且分析器�
   const fixture = analyzerFixture()
   const long = await fixture.call(output)
   assert.equal(long.confidence, 70)
-  assert.equal(long.environmentContext.long.communityAdjustment.adjustment, 1.5)
+  assert.equal(long.environmentContext.long.communityAdjustment.adjustment, 2)
   fixture.respond({ direction: 'SHORT', confidence: 100 })
-  assert.equal((await fixture.call(output)).confidence, 67)
+  assert.equal((await fixture.call(output)).confidence, 66)
   context.long.available = false
   context.long.confidence = null
   context.long.market = null
@@ -117,11 +139,11 @@ test('完整分析链路使用社区修正后的置信度，开关与反向数�
   assert.ok(long)
   assert.equal(long.confidence, 70)
   assert.equal(long.environmentContext.long.communityAdjustment.finalConfidence, 70)
-  assert.equal(long.environmentContext.long.communityAdjustment.adjustment, 1.5)
-  assert.match(long.decisionSnapshot.messages[1].content, /置信度70分，环境偏支持（社区情绪修正\+1.5）。/)
+  assert.equal(long.environmentContext.long.communityAdjustment.adjustment, 2)
+  assert.match(long.decisionSnapshot.messages[1].content, /置信度70分，环境偏支持（社区情绪修正\+2）。/)
   const contrary = await fixture.analyze(context, { ...indicators, squareHeatBullishCount: 10, squareHeatBearishCount: 30 })
-  assert.equal(contrary.confidence, 67)
-  assert.equal(contrary.environmentContext.long.communityAdjustment.adjustment, -1.5)
+  assert.equal(contrary.confidence, 66)
+  assert.equal(contrary.environmentContext.long.communityAdjustment.adjustment, -2)
   const disabled = await fixture.analyze(context, { ...indicators, enabledIndicators: { squareHeat: false } })
   assert.equal(disabled.confidence, 68)
   assert.equal(disabled.indicators.communitySentiment, undefined)
