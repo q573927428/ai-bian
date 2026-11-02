@@ -163,7 +163,7 @@
           </div>
         </template>
       </el-table-column>
-      <el-table-column label="价格 / K线" min-width="105">
+      <el-table-column label="价格 / K线" min-width="88">
         <template #default="{ row }">
           <div class="price-candle-cell">
           <svg v-if="row.candle" class="current-candle" :class="row.candle.tone" viewBox="0 0 24 48" role="img" :aria-label="row.candle.description">
@@ -179,7 +179,7 @@
           </div>
         </template>
       </el-table-column>
-      <el-table-column label="趋势" min-width="125" class-name="trend-column">
+      <el-table-column label="趋势" min-width="108" class-name="trend-column">
         <template #default="{ row }">
           <div class="adx-line">
             <span><span class="muted">ADX</span> {{ format(row.adx) }}</span>
@@ -202,19 +202,6 @@
           <SupportResistanceInfo :snapshot="row.supportResistance" nearest-only />
         </template>
       </el-table-column>
-      <el-table-column label="ER(20)" min-width="78" prop="er" sortable="custom">
-        <template #default="{ row }">
-          <el-tooltip placement="top">
-            <template #content>
-              <div v-for="(line, index) in row.erTooltip.split('\n')" :key="index">{{ line }}</div>
-            </template>
-            <div>
-              <div>{{ format(row.er) }}</div>
-              <span :class="sentimentClass(row.erNetChangePercent)">{{ signed(row.erNetChangePercent) }}{{ row.erNetChangePercent == null ? '' : '%' }}</span>
-            </div>
-          </el-tooltip>
-        </template>
-      </el-table-column>
       <el-table-column label="EMA" min-width="90" class-name="ema-column">
         <template #default="{ row }">
           <div><span class="muted">{{ row.fastEmaPeriod }}</span> {{ formatPrice(row.fastEma) }}</div>
@@ -223,7 +210,7 @@
           <span class="ema-slope" :class="directionClass(row.emaSlope)" :title="`EMA${row.fastEmaPeriod}斜率（回看周期使用机器人配置）`">{{ signed(row.emaSlope) }}{{ row.emaSlope == null ? '' : '%' }}</span>
         </template>
       </el-table-column>
-      <el-table-column label="RSI" align="center" header-align="center" min-width="65" sortable="custom" prop="rsi">
+      <el-table-column label="RSI" align="center" header-align="center" min-width="60" sortable="custom" prop="rsi">
         <template #default="{ row }"><span :class="rsiClass(row.rsi)">{{ format(row.rsi) }}</span></template>
       </el-table-column>
       <el-table-column label="MACD 实时 · H" min-width="170" sortable="custom" prop="macdHistogram">
@@ -256,7 +243,7 @@
           </div>
         </template>
       </el-table-column>
-      <el-table-column label="OI变化" align="center" header-align="center" min-width="80" prop="oiChangePercent" sortable="custom">
+      <el-table-column label="OI" align="center" header-align="center" min-width="60" prop="oiChangePercent" sortable="custom">
         <template #default="{ row }">
           <el-tooltip placement="top">
             <template #content>
@@ -283,19 +270,19 @@
             <div class="flow-cell">
               <div class="flow-row">
                 <span class="muted">本根</span>
-                <span>{{ formatFlowAmount(row.netInflow, 1) }}</span>
+                <span :class="flowDirectionClass(row.netInflow)">{{ formatFlowAmount(row.netInflow, 1) }}</span>
                 <span :class="flowDirectionClass(row.netInflowPercent)">{{ formatFlowPercent(row.netInflowPercent) }}</span>
               </div>
               <div class="flow-row flow-secondary">
-                <span class="muted">{{ row.moneyFlowWindowBars ?? '--' }}根</span>
-                <span>{{ formatFlowAmount(row.cumulativeNetInflow, 1) }}</span>
+                <span class="muted">近{{ row.moneyFlowWindowBars ?? '--' }}根</span>
+                <span :class="flowDirectionClass(row.cumulativeNetInflow)">{{ formatFlowAmount(row.cumulativeNetInflow, 1) }}</span>
                 <span :class="flowDirectionClass(row.cumulativeNetInflowPercent)">{{ formatFlowPercent(row.cumulativeNetInflowPercent) }}</span>
               </div>
             </div>
           </el-tooltip>
         </template>
       </el-table-column>
-      <el-table-column label="ATR%" align="center" header-align="center" min-width="78" prop="atrPercent" sortable="custom">
+      <el-table-column label="ATR" align="center" header-align="center" min-width="65" prop="atrPercent" sortable="custom">
         <template #default="{ row }">{{ format(row.atrPercent) }}%</template>
       </el-table-column>
       <el-table-column label="社区情绪" min-width="90">
@@ -311,6 +298,19 @@
           </el-tooltip>
         </template>
       </el-table-column>
+      <el-table-column label="ER" min-width="60" prop="er" sortable="custom">
+        <template #default="{ row }">
+          <el-tooltip placement="top">
+            <template #content>
+              <div v-for="(line, index) in row.erTooltip.split('\n')" :key="index">{{ line }}</div>
+            </template>
+            <div>
+              <div>{{ format(row.er) }}</div>
+              <span :class="sentimentClass(row.erNetChangePercent)">{{ signed(row.erNetChangePercent) }}{{ row.erNetChangePercent == null ? '' : '%' }}</span>
+            </div>
+          </el-tooltip>
+        </template>
+      </el-table-column>
     </el-table>
     <el-empty v-if="!loading && rows.length === 0" description="暂无已配置交易对或指标数据" />
   </component>
@@ -318,7 +318,7 @@
 
 <script setup lang="ts">
 // ==================== 指标看板 ====================
-import { computed, ref, watch, onUnmounted } from 'vue'
+import { computed, ref, watch, onUnmounted, useId } from 'vue'
 import { ElDrawer, type TableInstance } from 'element-plus'
 import { useBotStore } from '../stores/bot'
 import { useCoinIcon } from '../composables/useCoinIcon'
@@ -391,6 +391,8 @@ const visible = computed({
   set: (value: boolean) => emit('update:modelValue', value)
 })
 const botStore = useBotStore()
+// 指标页可独立打开，必须自行订阅实时价格；实例 ID 避免与首页抽屉互相取消订阅。
+const priceSubscriberId = `indicators-${useId()}`
 const { getCoinIconUrl } = useCoinIcon()
 const iconFailed = ref<Record<string, boolean>>({})
 const timeframe = ref('1h')
@@ -1085,17 +1087,20 @@ watch(visible, value => {
   structureTimer = undefined
   if (value) {
     if (import.meta.client) {
+      void botStore.subscribeToPrices(priceSubscriberId)
       void loadMarketBreadth()
       breadthTimer = setInterval(() => { void loadMarketBreadth() }, 10_000)
     }
     void fetchData()
     if (!props.coordinatedRefresh) structureTimer = setInterval(() => { void refreshStructure() }, 15_000)
   } else {
+    if (import.meta.client) void botStore.unsubscribeFromPrices(priceSubscriberId)
     // 关闭后使首屏及后台尚未完成的旧请求失效。
     fetchVersion++
   }
 }, { immediate: true })
 onUnmounted(() => {
+  if (import.meta.client) void botStore.unsubscribeFromPrices(priceSubscriberId)
   breadthRequestId++
   if (breadthTimer) clearInterval(breadthTimer)
   fetchVersion++
@@ -1163,10 +1168,11 @@ onUnmounted(() => {
 .coin-icon { display: block; object-fit: cover; }
 .coin-icon-placeholder { display: inline-flex; align-items: center; justify-content: center; color: #fff; font-size: 10px; font-weight: 600; line-height: 1; }
 .macd-cell { display: flex; flex-direction: column; gap: 5px; min-width: 0; line-height: 1.5; }
-.flow-cell { width: max-content; font-weight: 400; }
-/* 金额与比例减少小数位，保留窗口标签及两行布局，避免撑高整行。 */
-.flow-row { white-space: nowrap; font-variant-numeric: tabular-nums; }
-.flow-row > span:last-child { display: block; text-align: right; }
+.flow-cell { width: 100%; display: flex; flex-direction: column; gap: 8px; font-weight: 400; }
+/* 两组共享单元格右边缘，标签与金额分列，百分比落在金额下方以便纵向比较。 */
+.flow-row { display: grid; grid-template-columns: minmax(0, 1fr) max-content; column-gap: 6px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.flow-row > span:not(:first-child) { text-align: right; }
+.flow-row > span:last-child { grid-column: 2; }
 .flow-secondary > span { opacity: .7; }
 .sentiment-cell { display: flex; flex-direction: column; gap: 3px; line-height: 1.35; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .oi-cell { display: flex; flex-direction: column; gap: 3px; line-height: 1.35; white-space: nowrap; font-variant-numeric: tabular-nums; }
