@@ -24,17 +24,26 @@ export type PeriodTrend = DirectionalTrend | '方向分歧'
   | `${'多头' | '空头'}DI${TrendStrength}、MACD${TrendStrength}`
 export type PeriodSignals = Partial<Record<TrendPeriod, PeriodTrend>>
 
-/** 按实际主周期选择同向加分参考周期；日线策略不调整。 */
-export const ADJACENT_PERIODS: Record<TrendPeriod, readonly TrendPeriod[]> = {
-  '5m': ['15m', '1h'], '15m': ['1h'], '1h': ['4h'], '4h': ['1d'], '1d': []
+/** 记录滚动24h市场家数共识及扣分；与个币日线指标无关。 */
+export interface MarketBreadthAdjustment {
+  state: '强势普涨' | '偏多' | '方向不明确' | '偏空' | '强势普跌'
+  adjustment: number
+  upPercent: number
+  downPercent: number
 }
 
-/** 整组参考周期均同向才奖励10点结构分，折算最终置信度最多3分；不满足不扣分。 */
-export function adjacentPeriodBonus(periods: PeriodSignals, mainTimeframe: TrendPeriod | undefined, side: number): number {
-  const reference = mainTimeframe ? ADJACENT_PERIODS[mainTimeframe] : undefined
-  if (!reference?.length) return 0
-  const prefix = side > 0 ? '多头' : '空头'
-  return reference.every(period => periods[period]?.startsWith(prefix)) ? 10 : 0
+/** 档位互斥：逆势扣3/5分，无方向共识多空均扣2分；持平计入分母。 */
+export function marketBreadthAdjustment(stats: MarketBreadthSnapshot['periods']['24h'], side: number): MarketBreadthAdjustment | null {
+  const { validCount, upCount, downCount, flatCount } = stats
+  if (![validCount, upCount, downCount, flatCount].every(value => Number.isSafeInteger(value) && value >= 0)
+    || validCount === 0 || upCount + downCount + flatCount !== validCount) return null
+  const upPercent = upCount / validCount * 100
+  const downPercent = downCount / validCount * 100
+  // 整数比较确保65%和80%边界不受浮点误差影响；每次只命中一个档位。
+  const direction = upCount * 100 >= validCount * 65 ? 1 : downCount * 100 >= validCount * 65 ? -1 : 0
+  const strong = Math.max(upCount, downCount) * 100 >= validCount * 80
+  const state = direction > 0 ? strong ? '强势普涨' : '偏多' : direction < 0 ? strong ? '强势普跌' : '偏空' : '方向不明确'
+  return { state, adjustment: direction === 0 ? -2 : direction === side ? 0 : strong ? -5 : -3, upPercent, downPercent }
 }
 
 /** 多周期结构标签；看板颜色、筛选和服务端提示词共用这一结果。 */
@@ -50,8 +59,10 @@ export interface EnvironmentAssessment {
   market: number | null
   structure: number | null
   relativeStrength: number | null
-  /** 五周期支持分中实际计入的同向奖励，上限10；旧档案允许缺失。 */
+  /** 仅兼容历史档案的相邻周期奖励，新计算不再使用。 */
   adjacentBonus?: number
+  /** 24h市场家数共识的独立修正；历史档案允许缺失。 */
+  marketBreadthAdjustment?: MarketBreadthAdjustment
   coverage: number
   /** 仅策略启用社区情绪时存在；confidence 为修正后的开仓门槛值。 */
   communityAdjustment?: CommunityConfidenceAdjustment
@@ -59,7 +70,7 @@ export interface EnvironmentAssessment {
 
 /** 本次请求固定快照，包含双方向评分，防止 AI 自由调整分数。 */
 export interface EnvironmentContext {
-  version: 'environment-v1' | 'environment-v2'
+  version: 'environment-v1' | 'environment-v2' | 'environment-v3'
   /** 计算该置信度时使用的策略或看板主周期；历史档案允许缺失。 */
   mainTimeframe?: TrendPeriod
   periods: PeriodSignals
@@ -77,8 +88,11 @@ export function formatEnvironmentConfidence(context?: EnvironmentContext): strin
   const community = (assessment: EnvironmentAssessment) => assessment.communityAdjustment
     ? `（社区情绪修正${assessment.communityAdjustment.adjustment > 0 ? '+' : ''}${score(assessment.communityAdjustment.adjustment)}）`
     : ''
+  const breadth = (assessment: EnvironmentAssessment) => assessment.marketBreadthAdjustment
+    ? `（24h市场${assessment.marketBreadthAdjustment.state}，广度修正${score(assessment.marketBreadthAdjustment.adjustment)}）`
+    : ''
   const direction = (name: string, assessment: EnvironmentAssessment) => assessment.available
-    ? `${name}：置信度${assessment.confidence}分，${describe(assessment.confidence!)}${community(assessment)}。\n\t\t（分项：市场支持${score(assessment.market)}×40% + 五周期支持${score(assessment.structure)}×30% + 相对强弱${score(assessment.relativeStrength)}×30%）`
+    ? `${name}：置信度${assessment.confidence}分，${describe(assessment.confidence!)}${breadth(assessment)}${community(assessment)}。\n\t\t（分项：市场支持${score(assessment.market)}×40% + 五周期支持${score(assessment.structure)}×30% + 相对强弱${score(assessment.relativeStrength)}×30%）`
     : `${name}：暂无可用分数，环境数据不足。市场支持：${score(assessment.market)}；五周期方向支持：${score(assessment.structure)}；相对强弱：${score(assessment.relativeStrength)}。`
   return [
     `五周期结构：${context.structure.label}；${TREND_PERIODS.map(period => `${period} ${context.periods[period] ?? '暂无数据'}`).join('，')}。`,
@@ -119,7 +133,9 @@ export function applyCommunityConfidence(
   }
   const adjust = (assessment: EnvironmentAssessment, side: number): EnvironmentAssessment => {
     // 使用环境三个原始分项，只在社区修正后统一取整；无效社区数据保持旧置信度。
-    const base = assessment.available ? assessment.market! * 0.4 + assessment.structure! * 0.3 + assessment.relativeStrength! * 0.3 : null
+    // 从未取整分项复算并保留广度扣分，防止启用社区情绪后覆盖市场风险修正。
+    const base = assessment.available ? assessment.market! * 0.4 + assessment.structure! * 0.3 + assessment.relativeStrength! * 0.3
+      + (assessment.marketBreadthAdjustment?.adjustment ?? 0) : null
     const adjustment = assessment.available ? delta * side : 0
     const confidence = base === null ? assessment.confidence : Math.round(Math.max(0, Math.min(100, base + adjustment)))
     return {
@@ -256,16 +272,15 @@ export function assessEnvironment(
     ? values.reduce<number>((sum, value, index) => sum + value! * weights[index]! / 100, 0) : null
   const market = average(marketValues)
   const relativeStrength = average(relativeValues)
-  const baseStructure = structureSupport(periods, side)
-  // 奖励放进原有结构分，沿用30%权重；结构分封顶100，缺失不能靠奖励补齐。
-  const adjacentBonus = baseStructure === null ? 0 : Math.min(100 - baseStructure, adjacentPeriodBonus(periods, mainTimeframe, side))
-  const structure = baseStructure === null ? null : baseStructure + adjacentBonus
-  const available = market !== null && structure !== null && relativeStrength !== null
+  const structure = structureSupport(periods, side)
+  const breadthAdjustment = validBreadth ? marketBreadthAdjustment(breadth.periods['24h'], side) : null
+  const available = market !== null && structure !== null && relativeStrength !== null && breadthAdjustment !== null
   const coverage = breadth && breadth.selectedCount > 0
     ? Math.round(windows.reduce((sum, window, index) => sum + breadth.periods[window].validCount / breadth.selectedCount * weights[index]!, 0)) : 0
   return {
-    available, confidence: available ? Math.round(market! * 0.4 + structure! * 0.3 + relativeStrength! * 0.3) : null,
-    market, structure, relativeStrength, adjacentBonus, coverage
+    available, confidence: available ? Math.round(Math.max(0, Math.min(100,
+      market! * 0.4 + structure! * 0.3 + relativeStrength! * 0.3 + breadthAdjustment!.adjustment))) : null,
+    market, structure, relativeStrength, marketBreadthAdjustment: breadthAdjustment ?? undefined, coverage
   }
 }
 
@@ -273,7 +288,7 @@ export function assessEnvironment(
 export function buildEnvironmentContext(periods: PeriodSignals, breadth: MarketBreadthSnapshot | undefined, symbol: string, mainTimeframe?: TrendPeriod): EnvironmentContext {
   const now = Date.now()
   return {
-    version: 'environment-v2', mainTimeframe, periods, structure: classifyTrendStructure(periods),
+    version: 'environment-v3', mainTimeframe, periods, structure: classifyTrendStructure(periods),
     long: assessEnvironment(periods, breadth, symbol, 1, now, mainTimeframe),
     short: assessEnvironment(periods, breadth, symbol, -1, now, mainTimeframe)
   }
