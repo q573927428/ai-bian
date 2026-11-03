@@ -1,4 +1,16 @@
 <template>
+  <Teleport to="body">
+    <div
+      ref="notificationContainer"
+      class="ai-analysis-notification-list"
+      :style="{ '--notification-bottom': `${notificationBottom}px` }"
+      role="region"
+      aria-label="AI 分析通知，可上下滚动"
+      tabindex="0"
+      @mouseenter="syncAnalysisNotificationTimers"
+      @mouseleave="syncAnalysisNotificationTimers"
+    />
+  </Teleport>
   <el-drawer v-model="visible" class="logs-drawer" title="运行日志" direction="rtl" size="50%" destroy-on-close>
     <div class="logs-toolbar">
           <div class="header-title-group">
@@ -341,10 +353,89 @@ function closeDesktopNotifications(): void {
 
 const seenLogs = new Map<string, number>()
 const notifications = new Set<ReturnType<typeof ElNotification>>()
-const pendingNotifications: LogEntry[] = []
+const ANALYSIS_NOTIFICATION_DURATION = 8000
+/** 每条通知独立记录剩余展示时间，悬停通知区域或打开 AI 详情时暂停。 */
+interface AnalysisNotificationTimer {
+  remaining: number
+  startedAt: number
+  timeout?: ReturnType<typeof setTimeout>
+  /** 由同一份剩余时间驱动，避免视觉进度与自动关闭时间出现偏差。 */
+  progressAnimation?: Animation
+}
+const notificationTimers = new Map<ReturnType<typeof ElNotification>, AnalysisNotificationTimer>()
+let notificationTimersPaused = false
+const notificationContainer = ref<HTMLElement | null>(null)
+const notificationBottom = ref(16)
+let tickerResizeObserver: ResizeObserver | undefined
+/** 同一次日志更新发现的新通知构成一批，序号和总数固定，不随关闭通知而变化。 */
+interface PendingAnalysisNotification {
+  log: LogEntry
+  index: number
+  total: number
+}
+const pendingNotifications: PendingAnalysisNotification[] = []
 let isCreatingNotifications = false
 let notificationsMounted = false
 let stopNotificationWatch: (() => void) | undefined
+
+// 详情打开时立即暂停，关闭后还需判断鼠标是否仍悬停在通知区域。
+watch(analysisDetailVisible, syncAnalysisNotificationTimers, { flush: 'sync' })
+
+/** 从剩余时间开始计时；禁用组件内置计时器后，统一控制整个通知区域。 */
+function startAnalysisNotificationTimer(notification: ReturnType<typeof ElNotification>): void {
+  const timer = notificationTimers.get(notification)
+  if (!timer || notificationTimersPaused || timer.timeout !== undefined) return
+  timer.startedAt = performance.now()
+  if (timer.progressAnimation) {
+    timer.progressAnimation.currentTime = ANALYSIS_NOTIFICATION_DURATION - timer.remaining
+    timer.progressAnimation.play()
+  }
+  timer.timeout = setTimeout(() => {
+    timer.timeout = undefined
+    notification.close()
+  }, timer.remaining)
+}
+
+/** 悬停通知区域或查看 AI 详情时暂停全部通知及对应进度条。 */
+function pauseAnalysisNotificationTimers(): void {
+  notificationTimersPaused = true
+  const now = performance.now()
+  for (const timer of notificationTimers.values()) {
+    if (timer.timeout === undefined) continue
+    clearTimeout(timer.timeout)
+    timer.timeout = undefined
+    timer.remaining = Math.max(0, timer.remaining - (now - timer.startedAt))
+    if (timer.progressAnimation) {
+      timer.progressAnimation.pause()
+      timer.progressAnimation.currentTime = ANALYSIS_NOTIFICATION_DURATION - timer.remaining
+    }
+  }
+}
+
+/** 暂停条件全部解除后继续剩余倒计时，不重置为完整展示时长。 */
+function resumeAnalysisNotificationTimers(): void {
+  notificationTimersPaused = false
+  for (const notification of notificationTimers.keys()) startAnalysisNotificationTimer(notification)
+}
+
+/** 仅在当前页面可见且有焦点时允许暂停；切走后即使详情仍打开也继续倒计时。 */
+function syncAnalysisNotificationTimers(): void {
+  const isPageActive = !document.hidden && document.hasFocus()
+  const isHovering = notificationContainer.value?.matches(':hover')
+  if (isPageActive && (analysisDetailVisible.value || isHovering)) {
+    pauseAnalysisNotificationTimers()
+  } else {
+    resumeAnalysisNotificationTimers()
+  }
+}
+
+/** 手动关闭、自动关闭和卸载均清理计时器，防止已关闭通知被重复处理。 */
+function clearAnalysisNotificationTimer(notification: ReturnType<typeof ElNotification>): void {
+  const timer = notificationTimers.get(notification)
+  if (timer?.timeout !== undefined) clearTimeout(timer.timeout)
+  timer?.progressAnimation?.cancel()
+  notificationTimers.delete(notification)
+}
 
 /** 优先使用扫描当时保存的周期；旧日志回退到对应策略的主周期，不猜测默认值。 */
 function getScanTimeframe(log: LogEntry): string | undefined {
@@ -355,6 +446,7 @@ function getScanTimeframe(log: LogEntry): string | undefined {
 /** 只提醒未处理的近期 AI 结果；抽屉内看过的结果也标记，避免关闭后补弹。 */
 function notifyRecentAnalysis(): void {
   const now = Date.now()
+  const batch: LogEntry[] = []
   for (const [key, timestamp] of seenLogs) {
     if (now - timestamp > 60_000) seenLogs.delete(key)
   }
@@ -366,25 +458,29 @@ function notifyRecentAnalysis(): void {
     seenLogs.set(key, log.timestamp)
     // 抽屉即使处于打开状态，后台页面也需要收到成功结果提醒。
     showDesktopNotification(log)
-    if (!visible.value) pendingNotifications.push(log)
+    if (!visible.value && getScanSymbol(log)) batch.push(log)
   }
+  // 先统计本次新增通知总数再入队，首条通知也能显示完整批次数量。
+  pendingNotifications.push(...batch.map((log, index) => ({ log, index: index + 1, total: batch.length })))
   void flushAnalysisNotifications()
 }
 
-/** 等上一条通知完成 DOM 更新后再创建下一条，确保组件能测得真实高度并正确堆叠。 */
+/** 顺序挂载通知，确保插入新卡片后能按实际高度保持阅读位置。 */
 async function flushAnalysisNotifications(): Promise<void> {
   if (isCreatingNotifications) return
   isCreatingNotifications = true
   try {
     while (pendingNotifications.length > 0) {
-      // ElNotification 初次挂载时隐藏，必须等待可见状态更新后才能计算下一条的偏移。
+      // 等待 Teleport 容器和通知的可见状态完成更新。
       await nextTick()
       if (!notificationsMounted || visible.value) {
         pendingNotifications.length = 0
         break
       }
-      const log = pendingNotifications.shift()!
-      if (Date.now() - log.timestamp <= 60_000) showAnalysisNotification(log)
+      const notification = pendingNotifications.shift()!
+      if (Date.now() - notification.log.timestamp <= 60_000) {
+        await showAnalysisNotification(notification)
+      }
     }
   } finally {
     isCreatingNotifications = false
@@ -392,7 +488,9 @@ async function flushAnalysisNotifications(): Promise<void> {
 }
 
 /** 兼容历史文本日志，新日志优先读取结构化分析字段，缺失值不猜测。 */
-function showAnalysisNotification(log: LogEntry): void {
+async function showAnalysisNotification({ log, index, total }: PendingAnalysisNotification): Promise<void> {
+  const container = notificationContainer.value
+  if (!container) return
   const summary = getLogSummary(log.message)
   const data = log.data
   const symbol = data?.symbol || summary.match(/^\s*(\S+)\s+@/)?.[1]
@@ -403,15 +501,32 @@ function showAnalysisNotification(log: LogEntry): void {
   const confidence = data?.confidence ?? log.message.match(/置信度[（(:：]\s*([\d.]+)/)?.[1] ?? '--'
   // 扫描引擎只在满足开仓条件时记录 SUCCESS，通知状态直接沿用日志级别。
   const type = log.level === 'SUCCESS' ? 'success' : 'warning'
-  // 背景表达开仓方向，与是否通过开仓检查的日志状态独立。
+  // 普通通知只给方向文字着色，只有满足开仓条件的 SUCCESS 通知才使用方向背景。
   const directionClass = direction === 'LONG' ? 'ai-analysis-long' : direction === 'SHORT' ? 'ai-analysis-short' : ''
+  const successClass = log.level === 'SUCCESS' ? 'ai-analysis-success' : ''
+  const previousScrollTop = container.scrollTop
+  const previousHeight = container.scrollHeight
   const notification = ElNotification({
-    title: `${symbol} · ${direction}`,
+    appendTo: container,
     type,
-    duration: 8000,
-    customClass: `ai-analysis-notification ${directionClass}`.trim(),
+    // 内置悬停仅暂停单张卡片且离开后重置时间，改由列表统一维护剩余时长。
+    duration: 0,
+    customClass: ['ai-analysis-notification', directionClass, successClass].filter(Boolean).join(' '),
     message: h('div', [
-      h('div', `评分 ${score} · 置信度 ${confidence} · ${strategyId}`),
+      // 方向单独渲染，避免标题整体变色；使用 VNode 保持日志文本安全转义。
+      h('div', { class: 'ai-analysis-heading' }, [
+        `${symbol} · `,
+        h('span', { class: 'ai-analysis-direction' }, direction),
+        h('span', {
+          class: 'ai-analysis-sequence',
+          title: `本批第 ${index} 条，共 ${total} 条`
+        }, `${index}/${total}`)
+      ]),
+      h('div', { class: 'ai-analysis-metrics' }, [
+        '评分 ', h('strong', { class: 'ai-analysis-value' }, String(score)),
+        ' · 置信度 ', h('strong', { class: 'ai-analysis-value' }, String(confidence)),
+        ` · ${strategyId}`
+      ]),
       h('div', { class: 'ai-analysis-actions' }, [
         h('button', {
           type: 'button',
@@ -420,7 +535,6 @@ function showAnalysisNotification(log: LogEntry): void {
             // 详情按钮阻止冒泡，避免同时触发通知主体的 K 线跳转。
             event.stopPropagation()
             openAnalysisDetail(log)
-            notification.close()
           }
         }, 'AI 详情'),
         h('button', {
@@ -429,7 +543,6 @@ function showAnalysisNotification(log: LogEntry): void {
           onClick: (event: MouseEvent) => {
             event.stopPropagation()
             viewAnalysisChart(log)
-            notification.close()
           }
         }, '查看 K 线'),
         h('a', {
@@ -443,27 +556,57 @@ function showAnalysisNotification(log: LogEntry): void {
             event.stopPropagation()
           }
         }, '查看提示词')
+      ]),
+      h('div', { class: 'ai-analysis-progress-track', 'aria-hidden': 'true' }, [
+        h('div', { class: 'ai-analysis-progress-bar' })
       ])
     ]),
     position: 'bottom-right',
-    // 在固定行情栏上方保留 16px 间距，实际高度包含移动端底部安全区。
-    offset: Math.ceil(document.querySelector('.market-ticker')?.getBoundingClientRect().height ?? 0) + 16,
     onClick: () => {
+      // 查看图表后保留通知，仍可返回查看详情或提示词，关闭交由倒计时和关闭按钮处理。
       viewAnalysisChart(log)
-      notification.close()
     },
     onClose: () => {
+      clearAnalysisNotificationTimer(notification)
       notifications.delete(notification)
     }
   })
   notifications.add(notification)
+  const progressBar = container.lastElementChild?.querySelector<HTMLElement>('.ai-analysis-progress-bar')
+  const timer: AnalysisNotificationTimer = { remaining: ANALYSIS_NOTIFICATION_DURATION, startedAt: 0 }
+  notificationTimers.set(notification, timer)
+  // 最新通知排在顶部；用户已向下阅读时，补偿新增卡片占用的高度，避免内容跳动。
+  if (container.lastElementChild) container.prepend(container.lastElementChild)
+  await nextTick()
+  // 动画先停在满格，真正开始、暂停和恢复均由通知倒计时统一控制。
+  if (progressBar && notificationTimers.has(notification)) {
+    timer.progressAnimation = progressBar.animate(
+      [{ transform: 'scaleX(1)' }, { transform: 'scaleX(0)' }],
+      { duration: ANALYSIS_NOTIFICATION_DURATION, easing: 'linear', fill: 'forwards' }
+    )
+    timer.progressAnimation.pause()
+    timer.progressAnimation.currentTime = 0
+  }
+  container.scrollTop = previousScrollTop > 0
+    ? previousScrollTop + container.scrollHeight - previousHeight
+    : 0
+  syncAnalysisNotificationTimers()
+}
+
+/** 通知区域避开底部行情栏，行情栏换行或窗口尺寸变化时同步调整。 */
+function updateNotificationBottom(): void {
+  notificationBottom.value = Math.ceil(document.querySelector('.market-ticker')?.getBoundingClientRect().height ?? 0) + 16
 }
 
 /** 打开日志时撤下通知，避免与抽屉重复展示。 */
 function closeAnalysisNotifications(): void {
   pendingNotifications.length = 0
-  for (const notification of notifications) notification.close()
+  for (const notification of notifications) {
+    clearAnalysisNotificationTimer(notification)
+    notification.close()
+  }
   notifications.clear()
+  notificationTimersPaused = false
 }
 
 // 详细 AI 日志默认收起，并由标题栏按钮统一控制全部日志。
@@ -508,6 +651,16 @@ function fetchSymbols() {
 
 // 组件加载时获取日志并订阅共享轮询
 onMounted(async () => {
+  window.addEventListener('blur', syncAnalysisNotificationTimers)
+  window.addEventListener('focus', syncAnalysisNotificationTimers)
+  document.addEventListener('visibilitychange', syncAnalysisNotificationTimers)
+  updateNotificationBottom()
+  window.addEventListener('resize', updateNotificationBottom)
+  const ticker = document.querySelector('.market-ticker')
+  if (ticker) {
+    tickerResizeObserver = new ResizeObserver(updateNotificationBottom)
+    tickerResizeObserver.observe(ticker)
+  }
   desktopNotificationsSupported.value = window.isSecureContext && 'Notification' in window
   try {
     desktopNotificationsEnabled.value = desktopNotificationsSupported.value
@@ -532,6 +685,11 @@ onMounted(async () => {
 // 组件卸载时取消订阅共享轮询
 onUnmounted(() => {
   notificationsMounted = false
+  window.removeEventListener('blur', syncAnalysisNotificationTimers)
+  window.removeEventListener('focus', syncAnalysisNotificationTimers)
+  document.removeEventListener('visibilitychange', syncAnalysisNotificationTimers)
+  window.removeEventListener('resize', updateNotificationBottom)
+  tickerResizeObserver?.disconnect()
   stopNotificationWatch?.()
   closeAnalysisNotifications()
   closeDesktopNotifications()
@@ -763,20 +921,63 @@ onUnmounted(() => {
 </style>
 
 <style>
+/* 使用普通文档流排列卡片，让超出屏幕的通知始终能在容器内部滚动查看。 */
+.ai-analysis-notification-list {
+  position: fixed;
+  right: 16px;
+  bottom: var(--notification-bottom, 16px);
+  z-index: 2000;
+  width: 350px;
+  max-width: calc(100vw - 32px);
+  max-height: min(80vh, calc(100vh - var(--notification-bottom, 16px) - 16px));
+  max-height: min(80dvh, calc(100dvh - var(--notification-bottom, 16px) - 16px));
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior-y: contain;
+  overflow-anchor: none;
+  /* 隐藏滚动条外观，保留滚轮、触控与键盘滚动能力。 */
+  scrollbar-width: none;
+}
+.ai-analysis-notification-list::-webkit-scrollbar {
+  display: none;
+}
+.ai-analysis-notification-list:empty {
+  display: none;
+}
+.ai-analysis-notification-list > .ai-analysis-notification {
+  /* 覆盖 Element Plus 为独立悬浮通知计算的偏移，统一交给滚动容器布局。 */
+  position: relative;
+  inset: auto !important;
+  width: 100%;
+  max-width: 100%;
+}
+.ai-analysis-notification-list > .ai-analysis-notification + .ai-analysis-notification {
+  margin-top: 16px;
+}
 /* 通知挂载到 body，使用全局样式；只让背景透明，保持文字与图标清晰。 */
 .ai-analysis-notification {
+  /* 使用不透明主题色，让剩余进度与半透明通知背景明显区分。 */
+  --ai-analysis-progress-color: var(--el-color-primary);
   width: 350px;
   max-width: calc(100vw - 32px);
   background: color-mix(in srgb, var(--el-bg-color-overlay) 65%, transparent);
   backdrop-filter: blur(8px);
   cursor: pointer;
 }
-/* 混合主题底色保持深浅主题文字可读，方向只影响背景和边框。 */
+/* 普通通知背景统一，方向颜色仅用于文字；成功通知再扩展到背景、边框和进度条。 */
 .ai-analysis-notification.ai-analysis-long {
+  --ai-analysis-direction-color: var(--el-color-success);
+}
+.ai-analysis-notification.ai-analysis-short {
+  --ai-analysis-direction-color: var(--el-color-danger);
+}
+.ai-analysis-notification.ai-analysis-success.ai-analysis-long {
+  --ai-analysis-progress-color: var(--el-color-success);
   background: color-mix(in srgb, var(--el-color-success) 25%, var(--el-bg-color-overlay) 75%);
   border-color: var(--el-color-success);
 }
-.ai-analysis-notification.ai-analysis-short {
+.ai-analysis-notification.ai-analysis-success.ai-analysis-short {
+  --ai-analysis-progress-color: var(--el-color-danger);
   background: color-mix(in srgb, var(--el-color-danger) 25%, var(--el-bg-color-overlay) 75%);
   border-color: var(--el-color-danger);
 }
@@ -784,14 +985,54 @@ onUnmounted(() => {
   flex: 1;
   min-width: 0;
 }
-.ai-analysis-notification .el-notification__title {
+.ai-analysis-heading {
+  color: var(--el-text-color-primary);
+  font-weight: 700;
   font-size: 13px;
   line-height: 1.5;
   overflow-wrap: anywhere;
 }
+.ai-analysis-direction {
+  color: var(--ai-analysis-direction-color, var(--el-text-color-secondary));
+}
+.ai-analysis-sequence {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 0 5px;
+  border-radius: 4px;
+  background: var(--el-fill-color);
+  color: var(--el-text-color-regular);
+  font-size: 11px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.ai-analysis-metrics {
+  margin-top: 4px;
+}
+.ai-analysis-value {
+  color: var(--el-color-primary);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
 .ai-analysis-notification .el-notification__content {
+  margin-top: 0;
   font-size: 12px;
   text-align: left;
+}
+/* 贴在卡片底部，不占用正文空间，也不拦截原有操作按钮。 */
+.ai-analysis-progress-track {
+  position: absolute;
+  inset: auto 0 0;
+  height: 3px;
+  background: color-mix(in srgb, var(--el-text-color-primary) 18%, var(--el-bg-color-overlay));
+  pointer-events: none;
+}
+.ai-analysis-progress-bar {
+  width: 100%;
+  height: 100%;
+  background: var(--ai-analysis-progress-color);
+  transform-origin: left center;
 }
 .ai-analysis-actions {
   display: flex;
