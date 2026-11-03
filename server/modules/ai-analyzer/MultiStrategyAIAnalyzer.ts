@@ -213,6 +213,17 @@ export class MultiStrategyAIAnalyzer {
         await loadEnvironmentContext(this.indicatorsHub, symbol, indicators.marketBreadth, strategy?.marketData?.timeframes?.[0] || '15m'),
         indicators
       )
+      // 复用提示词中的最终环境分，先检查门槛再读缓存，避免旧结果绕过当前配置。
+      if (strategy?.preScreenConfig?.enableConfidence) {
+        const threshold = strategy.minConfidence ?? 50
+        const passed = [environmentContext?.long, environmentContext?.short].some(
+          assessment => assessment?.available && Number.isFinite(assessment.confidence)
+            && assessment.confidence! >= threshold
+        )
+        if (!passed) {
+          return null
+        }
+      }
       // 环境版本与五周期变化都必须参与缓存，不能复用旧口径的置信度。
       const cacheKey = this.buildCacheKey(strategyId, symbol, { ...indicators, environmentContext }, price, volume, candleProgress, promptConfig, structuredRules)
       const cached = aiCache.get(cacheKey)

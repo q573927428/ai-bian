@@ -1038,7 +1038,8 @@ export class StrategyEngine {
 
       // 即使命中AI缓存，也必须重新执行当前策略的预筛阈值。
       const cached = this.aiCache.get(cacheKey)
-      if (cached && (Date.now() - cached.timestamp < this.getAiCacheTtl())) {
+      // 启用置信度预筛时交由分析器检查最新环境分，其内部缓存仍可复用。
+      if (!strategyPreScreenConfig?.enableConfidence && cached && (Date.now() - cached.timestamp < this.getAiCacheTtl())) {
         logger.info('StrategyEngine', `使用 AI 缓存结果: ${symbol} [策略 ${strategyId}]`)
         return { ...cached.signal, strategyId }
       }

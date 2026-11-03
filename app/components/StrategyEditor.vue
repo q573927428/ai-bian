@@ -149,6 +149,7 @@
             <!-- 最小置信度 -->
             <el-form-item label="最小置信度">
               <el-input-number v-model="form.minConfidence" :min="0" :max="100" :step="1" placeholder="全局默认" />
+              <el-switch v-model="form.preScreenConfig.enableConfidence" style="margin-left: 12px" active-text="AI分析前检查" title="多空任一方向达到最小置信度，才进行AI分析" />
             </el-form-item>
 
             <!-- 开仓判定依据 -->
@@ -698,6 +699,7 @@ const form = ref<CreateStrategyInput>({
     dynamicLeverageMax: 10
   },
   preScreenConfig: {
+    enableConfidence: false,
     minAdx: 10,
     maxAdx: 60,
     minAdxSlope: 0,
@@ -889,6 +891,7 @@ watch(() => props.strategy, (newVal) => {
       maxRiskLevel: newVal.maxRiskLevel,
       // 合并默认值，确保旧策略在没有 OI 预筛字段时也能获得完整配置。
       preScreenConfig: {
+        enableConfidence: false,
         minAdx: 10,
         maxAdx: 60,
         minAdxSlope: 0,

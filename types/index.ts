@@ -251,6 +251,9 @@ export interface AIAnalysis {
 
 // AI预筛配置
 export interface PreScreenConfig {
+  /** AI 分析前检查策略最小置信度，默认关闭；多空任一有效方向达标即可。 */
+  enableConfidence?: boolean
+
   // ADX阈值（趋势强度）
   minAdx?: number // 默认 15
   maxAdx?: number // 默认 60
