@@ -7,12 +7,18 @@ export interface MacroCrosshairPosition {
   source: string
   period: MacroPeriod
   key: number
+  /** 双点模式的结束日期；month 模式以月份内现有 K 线为区间。 */
+  endKey?: number
+  month?: string
 }
 
 /** 固定日期下单市场的真实 K 线比较，不依赖光标是否在当前可视区域内。 */
 export interface MacroPinnedSummary {
   marketId: string
   key: number
+  endKey?: number
+  month?: string
+  selectedKey?: number
   period: MacroPeriod
   status: string
   from?: string
@@ -31,6 +37,7 @@ export interface MacroPinnedSummary {
 /** 每个抽屉独享同步通道，避免不同页面实例间互相影响。 */
 export interface MacroCrosshairChannel {
   pinned: Ref<MacroCrosshairPosition | null>
+  mode: Ref<'latest' | 'range' | 'month'>
   publish: (position: MacroCrosshairPosition | null) => void
   subscribe: (listener: (position: MacroCrosshairPosition | null) => void) => () => void
 }

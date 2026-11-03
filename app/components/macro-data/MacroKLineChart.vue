@@ -3,8 +3,9 @@
   <div class="macro-local-chart">
     <div ref="container" class="canvas" :title="chartHint" @mouseenter="enterChart" @mouseleave="clearSyncedCrosshair" />
     <div v-if="comparison" class="crosshair-comparison">
-      <div>光标收盘 {{ comparison.from }} → 最新 {{ comparison.to }}</div>
-      <div>至最新涨跌 <span :class="comparison.changeClass">{{ comparison.percent }}</span> · 相隔 {{ comparison.duration }}</div>
+      <div>{{ comparison.fixed ? '区间收盘' : '光标 → 最新' }} {{ comparison.from }} → {{ comparison.to }}</div>
+      <div>涨跌 <span :class="comparison.changeClass">{{ comparison.percent }}</span> · 相隔 {{ comparison.duration }}</div>
+      <div v-if="comparison.fixed">{{ comparison.dates }}</div>
     </div>
     <div v-if="!hasData" class="empty-state">
       <span>{{ loading ? '正在读取本地数据…' : error || '暂无本地数据，等待同步' }}</span>
@@ -16,12 +17,13 @@
 
 <script setup lang="ts">
 import { computed, ref, watch, onMounted, onBeforeUnmount, inject } from 'vue'
-import { createChart, ColorType, CandlestickSeries, TickMarkType, type Time, type IChartApi, type ISeriesApi, type UTCTimestamp, type MouseEventParams } from 'lightweight-charts'
+import { createChart, createSeriesMarkers, ColorType, CandlestickSeries, TickMarkType, type Time, type IChartApi, type ISeriesApi, type UTCTimestamp, type MouseEventParams } from 'lightweight-charts'
 import type { MacroMarket, MacroPeriod, MacroKlineResponse } from '../../../types/macro-market'
 import { macroCrosshairKey, crosshairTimeKey, type MacroCrosshairPosition, type MacroPinnedSummary } from './crosshair-sync'
 import { macroViewportKey, logicalToCalendar, calendarToLogical, type MacroViewport } from './viewport-sync'
 import { useTheme } from '../../composables/useTheme'
 import { maxCloseDrawdown, formatMacroDuration } from '../../utils/macro-performance'
+import { resolveMacroComparison } from '../../utils/macro-comparison'
 
 const { theme } = useTheme()
 // Canvas 不会继承 CSS 主题变量，主题切换时仅更新配色，不重建图表或重置视区。
@@ -67,13 +69,15 @@ const hasData = ref(false)
 const updatedAt = ref<number | null>(null)
 // 来源与同步信息按需查看，不再占用每张图的常驻底栏。
 const chartHint = computed(() => [
-  '单击固定联动光标，再次单击解除',
+  crosshairChannel?.mode.value === 'month' ? '在顶部选择月份，比较月内已有 K 线首尾收盘价'
+    : crosshairChannel?.mode.value === 'range' ? '依次单击两根 K 线固定起止区间；完成后再次单击重新选择' : '单击固定联动光标，再次单击解除',
   `${props.market.source === 'yahoo' ? 'Yahoo Finance' : '币安合约'} · 本地缓存`,
   updatedAt.value ? `同步 ${beijingClock.format(new Date(updatedAt.value))}（北京时间）` : '',
   error.value,
 ].filter(Boolean).join('\n'))
 let chart: IChartApi | undefined
 let series: ISeriesApi<'Candlestick'> | undefined
+let endpointMarkers: ReturnType<typeof createSeriesMarkers<Time>> | undefined
 let request: AbortController | undefined
 let timer: ReturnType<typeof setInterval> | undefined
 let disposed = false
@@ -125,18 +129,54 @@ let unsubscribeCrosshair: (() => void) | undefined
 const crosshairBars = new Map<number, { time: UTCTimestamp; close: number }>()
 const selectedBar = ref<{ time: UTCTimestamp; close: number } | null>(null)
 const latestBar = ref<{ time: UTCTimestamp; close: number } | null>(null)
+const dataVersion = ref(0)
+
+// 固定区间直接读取缓存，端点移出可视区后仍然可以比较。
+const comparisonRange = computed(() => {
+  void dataVersion.value
+  const pinned = crosshairChannel?.pinned.value
+  if (pinned) {
+    if (crosshairChannel?.mode.value === 'range' && pinned.endKey == null) return null
+    return pinned.period === props.period ? resolveMacroComparison(crosshairBars, pinned) : null
+  }
+  const selected = selectedBar.value
+  const latest = latestBar.value
+  // 普通悬停只做 O(1) 首尾比较，避免每次移动光标扫描全部历史 K 线。
+  return selected && latest ? { from: selected, to: latest,
+    fromKey: crosshairTimeKey(selected.time, props.period, props.market.id),
+    toKey: crosshairTimeKey(latest.time, props.period, props.market.id), closes: [], count: 0 } : null
+})
+
+/** 标出固定起止位置；未完成双点选择时只标起点，缩放拖动不会改变选择。 */
+function updateEndpointMarkers() {
+  const pinned = crosshairChannel?.pinned.value
+  if (!pinned || pinned.period !== props.period || crosshairChannel?.mode.value === 'latest') {
+    endpointMarkers?.setMarkers([])
+    return
+  }
+  const range = comparisonRange.value
+  const start = range?.from ?? crosshairBars.get(pinned.key)
+  const end = range?.to
+  endpointMarkers?.setMarkers([
+    ...(start ? [{ time: start.time, position: 'belowBar' as const, color: '#409eff', shape: 'arrowUp' as const, text: end?.time === start.time ? '起止' : '起点' }] : []),
+    ...(end && end.time !== start?.time ? [{ time: end.time, position: 'aboveBar' as const, color: '#e6a23c', shape: 'arrowDown' as const, text: '终点' }] : []),
+  ])
+}
+watch([dataVersion, () => crosshairChannel?.pinned.value], updateEndpointMarkers)
 
 // 用所选 K 线收盘价作为收益基准；时间差使用真实时间戳，包含休市时段。
 const comparison = computed(() => {
-  const selected = selectedBar.value
-  const latest = latestBar.value
-  if (!selected || !latest) return null
+  const range = comparisonRange.value
+  if (!range) return null
+  const { from: selected, to: latest } = range
   const percent = selected.close !== 0 ? (latest.close - selected.close) / selected.close * 100 : null
   const formatPrice = (price: number) => `${price.toLocaleString('zh-CN', {
     minimumFractionDigits: props.market.yield ? 3 : props.market.id === 'btc' ? 1 : 2,
     maximumFractionDigits: props.market.yield ? 3 : props.market.id === 'btc' ? 1 : 2,
   })}${props.market.yield ? '%' : ''}`
   return {
+    fixed: crosshairChannel?.mode.value !== 'latest' && !!crosshairChannel?.pinned.value,
+    dates: `${beijingCrosshairTime.format(new Date(selected.time * 1000))} → ${beijingCrosshairTime.format(new Date(latest.time * 1000))} 北京时间`,
     from: formatPrice(selected.close), to: formatPrice(latest.close),
     percent: percent === null ? '—' : `${percent > 0 ? '+' : ''}${percent.toFixed(2)}%`,
     changeClass: percent === null || percent === 0 ? '' : percent > 0 ? 'positive' : 'negative',
@@ -148,25 +188,24 @@ const comparison = computed(() => {
 watch(() => {
   const pinned = crosshairChannel?.pinned.value
   if (!pinned) return null
-  const summary: MacroPinnedSummary = { marketId: props.market.id, key: pinned.key, period: props.period, status: '' }
+  const summary: MacroPinnedSummary = { marketId: props.market.id, key: pinned.key, endKey: pinned.endKey, month: pinned.month, period: props.period, status: '' }
   if (pinned.period !== props.period) return { ...summary, status: '周期不同' }
-  const latest = latestBar.value
-  const selected = crosshairBars.get(pinned.key)
-  if (!selected || !latest) return { ...summary, status: loading.value ? '加载中' : '固定时间无数据 / 休市' }
+  const range = comparisonRange.value
+  if (!range) return { ...summary, status: loading.value ? '加载中' : crosshairChannel?.mode.value === 'range' && pinned.endKey == null ? '待选择终点' : pinned.month ? '所选月份无数据' : '固定时间无数据 / 休市' }
+  const { from: selected, to: latest } = range
   const formatPrice = (price: number) => `${price.toLocaleString('zh-CN', {
     minimumFractionDigits: props.market.yield ? 3 : props.market.id === 'btc' ? 1 : 2,
     maximumFractionDigits: props.market.yield ? 3 : props.market.id === 'btc' ? 1 : 2,
   })}${props.market.yield ? '%' : ''}`
   const percent = selected.close === 0 ? null : (latest.close - selected.close) / selected.close * 100
-  return { ...summary, status: '可比较', from: formatPrice(selected.close), to: formatPrice(latest.close),
+  return { ...summary, status: pinned.month ? `月内现有 ${range.count} 根` : '可比较', from: formatPrice(selected.close), to: formatPrice(latest.close),
     percent: percent === null ? '—' : `${percent > 0 ? '+' : ''}${percent.toFixed(2)}%`,
     changeClass: percent === null || percent === 0 ? '' : percent > 0 ? 'positive' : 'negative',
     duration: formatMacroDuration(latest.time - selected.time),
     selectedTime: selected.time, latestTime: latest.time,
     returnPercent: percent ?? undefined,
-    latestKey: crosshairTimeKey(latest.time, props.period, props.market.id),
-    maxDrawdown: maxCloseDrawdown([...crosshairBars.values()]
-      .filter(bar => bar.time >= selected.time && bar.time <= latest.time).map(bar => bar.close)) ?? undefined }
+    selectedKey: range.fromKey, latestKey: range.toKey,
+    maxDrawdown: maxCloseDrawdown(range.closes) ?? undefined }
 }, summary => { if (summary) emit('pinned-summary', summary) }, { immediate: true })
 
 /** 使用独立处理函数标记当前鼠标所在的来源图。 */
@@ -177,7 +216,7 @@ function enterChart() {
 /** 只有用户实际指向的图表发送事件；程序设置产生的事件不能再广播。 */
 function onCrosshairMove(event: MouseEventParams) {
   if (applyingCrosshair) return
-  if (crosshairChannel?.pinned.value) {
+  if (crosshairChannel?.pinned.value && !(crosshairChannel.mode.value === 'range' && crosshairChannel.pinned.value.endKey == null)) {
     receiveCrosshair(crosshairChannel.pinned.value)
     return
   }
@@ -213,10 +252,11 @@ function receiveCrosshair(position: MacroCrosshairPosition | null) {
   }
 }
 
-/** 单击有效 K 线固定共享日期；固定期间任意图再次单击即可解除。 */
+/** 最新模式单击切换固定；区间模式依次记录两端，月份模式由顶部选择器控制。 */
 function onChartClick(event: MouseEventParams) {
   if (!crosshairChannel) return
-  if (crosshairChannel.pinned.value) {
+  if (crosshairChannel.mode.value === 'month') return
+  if (crosshairChannel.pinned.value && crosshairChannel.mode.value === 'latest') {
     crosshairChannel.pinned.value = null
     crosshairChannel.publish(null)
     return
@@ -226,6 +266,14 @@ function onChartClick(event: MouseEventParams) {
     || point.x >= (chart?.timeScale().width() ?? 0) || point.y >= (chart?.paneSize().height ?? 0)) return
   const key = crosshairTimeKey(event.time, props.period, props.market.id)
   if (!crosshairBars.has(key)) return
+  const start = crosshairChannel.pinned.value
+  if (crosshairChannel.mode.value === 'range' && start && start.endKey == null && start.period === props.period) {
+    // 按时间顺序比较，允许先点右端再点左端；缺失交易日由各市场自行报告。
+    const position = { ...start, key: Math.min(start.key, key), endKey: Math.max(start.key, key) }
+    crosshairChannel.pinned.value = position
+    crosshairChannel.publish(position)
+    return
+  }
   const position = { source: props.market.id, period: props.period, key }
   crosshairChannel.pinned.value = position
   crosshairChannel.publish(position)
@@ -256,6 +304,7 @@ async function load() {
     const firstLoad = !hasData.value
     crosshairBars.clear()
     for (const bar of result.data) crosshairBars.set(crosshairTimeKey(bar.t, props.period, props.market.id), { time: bar.t as UTCTimestamp, close: bar.c })
+    dataVersion.value++
     const last = result.data[result.data.length - 1]
     latestBar.value = last ? { time: last.t as UTCTimestamp, close: last.c } : null
     // 定时刷新后更新比较基准，已移出缓存的光标数据不再继续显示。
@@ -323,6 +372,7 @@ onMounted(() => {
       ? { type: 'custom', minMove: 0.001, formatter: (price: number) => `${price.toFixed(3)}%` }
       : { type: 'price', precision: props.market.id === 'btc' ? 1 : 2, minMove: props.market.id === 'btc' ? 0.1 : 0.01 },
   })
+  endpointMarkers = createSeriesMarkers<Time>(series, [])
   chart.subscribeCrosshairMove(onCrosshairMove)
   chart.subscribeClick(onChartClick)
   chart.timeScale().subscribeVisibleLogicalRangeChange(publishViewport)
@@ -339,6 +389,7 @@ watch(() => props.period, () => {
   if (crosshairChannel?.pinned.value?.source === props.market.id) crosshairChannel.pinned.value = null
   crosshairChannel?.publish(null)
   crosshairBars.clear()
+  dataVersion.value++
   calendarKeys = []
   selectedBar.value = null
   latestBar.value = null

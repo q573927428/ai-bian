@@ -8,7 +8,17 @@
         <el-option v-for="option in addableMarkets" :key="option.id" :value="option.id" :label="`${option.name} · ${option.symbol}`" />
       </el-select>
       <button type="button" class="crosshair-unpin" @click="restoreDefaultMarkets">恢复默认12格</button>
-      <button v-if="pinnedCrosshair" type="button" class="crosshair-unpin" @click="clearPinnedCrosshair">光标已固定 · 解除</button>
+      <el-select v-if="dataSource === 'local'" v-model="comparisonMode" class="comparison-selector" size="small" aria-label="涨跌比较方式" @change="clearPinnedCrosshair">
+        <el-option label="光标 → 最新" value="latest" />
+        <el-option label="固定起止区间" value="range" />
+        <el-option label="按月份比较" value="month" />
+      </el-select>
+      <template v-if="dataSource === 'local' && comparisonMode === 'month'">
+        <el-date-picker v-model="comparisonMonth" class="comparison-month-picker" type="month" value-format="YYYY-MM" size="small" placeholder="选择月份" aria-label="比较月份" @change="applyComparisonMonth" />
+        <button type="button" class="crosshair-unpin" :disabled="!comparisonMonth" @click="applyComparisonMonth">计算月份涨跌</button>
+      </template>
+      <span v-if="dataSource === 'local' && comparisonMode === 'range'" class="comparison-hint">{{ !pinnedCrosshair ? '点击起点 K 线' : pinnedCrosshair.endKey == null ? '起点已固定，请点击终点 K 线' : '起止已固定，再次点击可重选' }}</span>
+      <button v-if="pinnedCrosshair" type="button" class="crosshair-unpin comparison-clear" @click="clearPinnedCrosshair">比较已固定 · 解除</button>
       <button v-if="pinnedCrosshair" type="button" class="crosshair-unpin" @click="showPinnedSummary = true">查看汇总</button>
       <el-switch v-model="timeSyncEnabled" :disabled="dataSource !== 'local'" active-text="时间联动" size="small" :title="dataSource === 'local' ? '同步同周期图表的横向缩放和拖动，价格轴保持独立' : '时间联动仅支持本地图表'" />
       <div class="periods" aria-label="数据源">
@@ -50,22 +60,21 @@
         </div>
       </section>
     </div>
-    <el-dialog v-model="showPinnedSummary" title="固定光标 · 全市场涨跌汇总" width="min(1180px, 96vw)" draggable append-to-body :close-on-click-modal="false">
+    <el-dialog v-model="showPinnedSummary" title="区间比较 · 全市场涨跌汇总" width="min(1180px, 96vw)" draggable append-to-body :close-on-click-modal="false">
       <div v-if="pinnedCrosshair" class="summary-description">
-        <div>固定{{ pinnedCrosshair.period === '1d' || pinnedCrosshair.period === '1w' ? '交易日期' : '时间' }}：{{ pinnedTimeLabel }} · 周期 {{ pinnedCrosshair.period }}</div>
+        <div>比较区间：{{ pinnedTimeLabel }} · 周期 {{ pinnedCrosshair.period }}</div>
         <div>{{ overallDuration }}</div>
-        <small>各市场以固定 K 线收盘价对比自身最新 K 线收盘价；相隔时间包含休市，按 K 线时间戳计算。美债涨跌为收益率相对变化。</small>
-        <small>相对 BTC 为本市场/BTC 比值在同起止日期的涨跌幅；最大回撤按区间 K 线收盘价计算，不含柱内波动。最新未收盘 K 线随行情变化。</small>
       </div>
       <el-table class="summary-table" :data="pinnedSummaryRows" max-height="55vh" size="small">
         <el-table-column prop="name" label="市场" min-width="125" fixed show-overflow-tooltip />
-        <el-table-column prop="from" label="固定收盘" min-width="85"><template #default="{ row }">{{ row.from ?? '—' }}</template></el-table-column>
-        <el-table-column prop="to" label="最新收盘" min-width="85"><template #default="{ row }">{{ row.to ?? '—' }}</template></el-table-column>
+        <el-table-column prop="from" label="起点收盘" min-width="85"><template #default="{ row }">{{ row.from ?? '—' }}</template></el-table-column>
+        <el-table-column prop="to" label="终点收盘" min-width="85"><template #default="{ row }">{{ row.to ?? '—' }}</template></el-table-column>
         <el-table-column label="涨跌幅" min-width="75"><template #default="{ row }"><span :class="row.changeClass">{{ row.percent ?? '—' }}</span></template></el-table-column>
         <el-table-column label="相对 BTC" min-width="80"><template #default="{ row }"><span :class="row.relativeClass" :title="row.relativeHint">{{ row.relativeLabel }}</span></template></el-table-column>
         <el-table-column label="最大回撤" min-width="80"><template #default="{ row }"><span :class="row.maxDrawdown > 0 ? 'negative' : ''">{{ row.maxDrawdown == null ? '—' : `${row.maxDrawdown > 0 ? '-' : ''}${row.maxDrawdown.toFixed(2)}%` }}</span></template></el-table-column>
         <el-table-column label="相隔时间" min-width="110"><template #default="{ row }"><span :title="row.duration">{{ row.duration?.replace('小时', '时').replace('分钟', '分') ?? '—' }}</span></template></el-table-column>
-        <el-table-column label="最新K线（北京时间）" min-width="155"><template #default="{ row }">{{ row.latestTime ? formatSummaryTime(row.latestTime) : '—' }}</template></el-table-column>
+        <el-table-column label="起点K线（北京时间）" min-width="155"><template #default="{ row }">{{ row.selectedTime != null ? formatSummaryTime(row.selectedTime) : '—' }}</template></el-table-column>
+        <el-table-column label="终点K线（北京时间）" min-width="155"><template #default="{ row }">{{ row.latestTime != null ? formatSummaryTime(row.latestTime) : '—' }}</template></el-table-column>
         <el-table-column prop="status" label="状态" min-width="90" show-overflow-tooltip />
       </el-table>
       <template #footer><el-button @click="showPinnedSummary = false">关闭窗口</el-button><el-button type="primary" @click="clearPinnedCrosshair">解除固定</el-button></template>
@@ -107,6 +116,8 @@ provide(macroViewportKey, {
 // 通道仅在当前图表网格内广播，组件卸载时各自移除订阅。
 const crosshairListeners = new Set<(position: MacroCrosshairPosition | null) => void>()
 const pinnedCrosshair = ref<MacroCrosshairPosition | null>(null)
+const comparisonMode = ref<'latest' | 'range' | 'month'>('latest')
+const comparisonMonth = ref<string | null>(null)
 const showPinnedSummary = ref(false)
 const pinnedSummaries = reactive<Record<string, MacroPinnedSummary>>({})
 const btcCloses = ref(new Map<number, number>())
@@ -116,7 +127,7 @@ let btcRequest: AbortController | undefined
 // BTC 即使未出现在网格中，也从本地读取；固定日期或最新数据更新时刷新基准。
 watch(() => {
   const pinned = pinnedCrosshair.value
-  return pinned ? `${pinned.period}:${pinned.key}:${Math.max(0, ...Object.values(pinnedSummaries).map(row => row.latestTime ?? 0))}` : ''
+  return pinned ? `${pinned.period}:${pinned.key}:${pinned.endKey ?? ''}:${pinned.month ?? ''}:${Math.max(0, ...Object.values(pinnedSummaries).map(row => row.latestTime ?? 0))}` : ''
 }, async key => {
   btcRequest?.abort()
   btcCloses.value = new Map()
@@ -143,17 +154,20 @@ const formatSummaryTime = (time: number) => summaryClock.format(new Date(time * 
 const pinnedTimeLabel = computed(() => {
   const pinned = pinnedCrosshair.value
   if (!pinned) return ''
-  return pinned.period === '1d' || pinned.period === '1w'
-    ? new Date(pinned.key * 1000).toISOString().slice(0, 10) : `${formatSummaryTime(pinned.key)}（北京时间）`
+  if (pinned.month) return `${pinned.month} 月内已有数据`
+  const label = (key: number) => pinned.period === '1d' || pinned.period === '1w'
+    ? new Date(key * 1000).toISOString().slice(0, 10) : `${formatSummaryTime(key)}（北京时间）`
+  return `${label(pinned.key)} → ${pinned.endKey == null ? comparisonMode.value === 'range' ? '待选择终点' : '各市场最新' : label(pinned.endKey)}`
 })
 const pinnedSummaryRows = computed(() => markets.value.map(market => {
   const pinned = pinnedCrosshair.value
   const report = pinnedSummaries[market.id]
   const summary: Partial<MacroPinnedSummary> = pinned && report?.key === pinned.key && report.period === pinned.period
+    && report.endKey === pinned.endKey && report.month === pinned.month
     && selectedPeriods[market.symbol] === report.period
     ? report : { status: selectedPeriods[market.symbol] !== pinned?.period ? '周期不同' : '等待数据' }
   // 收益率标的不与 BTC 价格收益做强弱排名，避免将利率变化误解为投资回报。
-  const relative = market.yield ? null : relativeToBtc(summary.returnPercent, pinned?.key, summary.latestKey, btcCloses.value)
+  const relative = market.yield ? null : relativeToBtc(summary.returnPercent, summary.selectedKey, summary.latestKey, btcCloses.value)
   return { name: market.name, ...summary,
     relativeLabel: market.yield ? '不适用' : relative == null ? '—' : Math.abs(relative) < 0.005 ? '0.00%' : `${relative > 0 ? '+' : ''}${relative.toFixed(2)}%`,
     relativeClass: relative == null || Math.abs(relative) < 0.005 ? '' : relative > 0 ? 'positive' : 'negative',
@@ -167,14 +181,17 @@ const overallDuration = computed(() => {
     ? [Math.abs(row.latestTime - row.selectedTime)] : [])
   if (!durations.length) return '暂无可比较数据'
   const min = Math.min(...durations), max = Math.max(...durations)
-  return min === max ? `至最新相隔：${formatMacroDuration(max)}` : `至各市场最新数据相隔：${formatMacroDuration(min)} ～ ${formatMacroDuration(max)}`
+  return min === max ? `区间相隔：${formatMacroDuration(max)}` : `各市场区间相隔：${formatMacroDuration(min)} ～ ${formatMacroDuration(max)}`
 })
 /** 只接收当前固定日期的报告，防止旧日期的延迟更新混入弹窗。 */
 function updatePinnedSummary(summary: MacroPinnedSummary) {
-  if (summary.key === pinnedCrosshair.value?.key) pinnedSummaries[summary.marketId] = summary
+  const pinned = pinnedCrosshair.value
+  if (pinned && summary.key === pinned.key && summary.period === pinned.period
+    && summary.endKey === pinned.endKey && summary.month === pinned.month) pinnedSummaries[summary.marketId] = summary
 }
 watch(pinnedCrosshair, position => {
-  showPinnedSummary.value = !!position
+  // 双点模式只在终点选完后弹出，避免弹窗挡住第二次点击。
+  showPinnedSummary.value = !!position && (comparisonMode.value !== 'range' || position.endKey != null)
   if (!position) Object.keys(pinnedSummaries).forEach(key => { delete pinnedSummaries[key] })
 })
 /** 主动解除时广播清空，避免其他图保留旧的固定日期。 */
@@ -182,10 +199,23 @@ function clearPinnedCrosshair() {
   pinnedCrosshair.value = null
   crosshairListeners.forEach(listener => listener(null))
 }
+/** 月份按全局周期计算；跨周期市场明确显示“周期不同”。 */
+function applyComparisonMonth() {
+  clearPinnedCrosshair()
+  if (!comparisonMonth.value || !/^\d{4}-(0[1-9]|1[0-2])$/.test(comparisonMonth.value)) return
+  pinnedCrosshair.value = { source: 'month-selection', period: globalPeriod.value,
+    key: Date.parse(`${comparisonMonth.value}-01T00:00:00Z`) / 1000, month: comparisonMonth.value }
+  crosshairListeners.forEach(listener => listener(pinnedCrosshair.value))
+}
 provide(macroCrosshairKey, {
   pinned: pinnedCrosshair,
+  mode: comparisonMode,
   // 固定期间忽略其他图的移出、加载或周期切换产生的清空事件。
-  publish: position => crosshairListeners.forEach(listener => listener(pinnedCrosshair.value ?? position)),
+  publish: position => {
+    const pinned = pinnedCrosshair.value
+    const selectingEnd = comparisonMode.value === 'range' && pinned && pinned.endKey == null
+    crosshairListeners.forEach(listener => listener(selectingEnd ? position : pinned ?? position))
+  },
   subscribe: listener => {
     crosshairListeners.add(listener)
     return () => { crosshairListeners.delete(listener) }
@@ -332,6 +362,7 @@ const selectedPeriods = reactive<Record<string, Period>>(
 
 /** 顶部周期切换同步更新全部图表，单卡切换仍可独立覆盖。 */
 function setGlobalPeriod(period: Period) {
+  clearPinnedCrosshair()
   globalPeriod.value = period
   markets.value.forEach(item => {
     if (supportsPeriod(item.id, period)) selectedPeriods[item.symbol] = period
@@ -356,6 +387,11 @@ function chartUrl(symbol: string, period: Period): string {
 .overview-title { color: var(--text-primary); font-size: 14px; font-weight: 600; line-height: 22px; }
 .macro-toolbar-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; }
 .crosshair-unpin { border: 1px solid var(--el-color-primary); border-radius: 4px; padding: 3px 6px; background: var(--el-color-primary-light-9); color: var(--el-color-primary); font-size: 11px; cursor: pointer; }
+.crosshair-unpin:disabled { opacity: 0.4; cursor: not-allowed; }
+.comparison-clear { border-color: var(--el-color-danger); background: var(--el-color-danger-light-9); color: var(--el-color-danger); }
+.comparison-selector { width: 140px; }
+.macro-toolbar-actions :deep(.comparison-month-picker.el-date-editor) { --el-date-editor-width: 132px; width: 132px; flex: 0 0 132px; }
+.comparison-hint { color: var(--text-secondary); font-size: 12px; }
 .summary-description { display: grid; gap: 8px; margin-bottom: 14px; line-height: 1.5; color: var(--text-regular); }
 .summary-description small { color: var(--text-secondary); }
 .summary-table :deep(.cell) { padding: 0 6px; font-variant-numeric: tabular-nums; }
