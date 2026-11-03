@@ -950,6 +950,8 @@ ${historySection}
   ): Promise<(AIAnalysis & { decisionSnapshot?: TradeDecision }) | null> {
     // 使用并发池控制AI调用并发数
     return concurrencyPoolManager.getAIPool().submit(async () => {
+      // 保留本次请求实际采用的模型，失败日志也能展示策略覆盖后的配置。
+      let model = promptConfig?.model || '未知模型'
       try {
         const emaEntries = indicators.emaList
         const runtimeConfig = useRuntimeConfig()
@@ -966,6 +968,7 @@ ${historySection}
           apiUrl: promptConfig?.apiUrl,
           model: promptConfig?.model
         })
+        model = providerConfig.model || model
         
         // 构建系统提示词（根据 squareHeat 是否启用动态调整 confidence 宏观因素描述）
         const hasSquareHeat = !!(indicators.enabledIndicators?.squareHeat)
@@ -1084,12 +1087,14 @@ ${historySection}
         const runtimeConfig = useRuntimeConfig()
         const provider = promptConfig?.provider || (runtimeConfig.aiProvider as AIProvider) || 'deepseek'
         this.recordAIError(provider, error)
-        logger.error('MultiStrategyAIAnalyzer', `AI API 调用失败: ${error.message}`, { strategyId, symbol, provider })
+        logger.error('MultiStrategyAIAnalyzer', `AI API 调用失败: ${error.message} ｜ 模型=${model}`, { strategyId, symbol, provider, model })
         
         // 通信或解析失败没有有效交易判断，不能伪装成低置信度的正常观望信号，也不能写入信号缓存。
-        logger.warn('🔍扫描结果', `${symbol} @${price} 分析不可用 ｜ 本轮跳过 [${strategyId}] ===详细AI日志=== ${error.message}`, {
+        logger.warn('🔍扫描结果', `${symbol} @${price} 分析不可用 ｜ 本轮跳过 [${strategyId}] ｜ 模型=${model} ===详细AI日志=== ${error.message}`, {
           symbol,
           strategyId,
+          provider,
+          model,
           mainTimeframe: strategySnapshot?.marketData?.timeframes?.[0],
           analysisStatus: 'unavailable'
         })

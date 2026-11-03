@@ -187,13 +187,13 @@ export async function callAIAPI(
       body: JSON.stringify(requestBody),
       signal: controller.signal,
     }, (attempt, delayMs) => {
-      logger.warn('AIService', 'AI 建连失败，准备重试', {
+      logger.warn('AIService', `AI 建连失败，准备重试 ｜ 模型=${providerConfig.model}`, {
         url: diagnosticUrl, model: providerConfig.model, attempt, delayMs
       })
     })
   } catch (error: unknown) {
     clearTimeout(timeout)
-    logger.error('AIService', 'AI 请求通信失败', {
+    logger.error('AIService', `AI 请求通信失败 ｜ 模型=${providerConfig.model}`, {
       url: diagnosticUrl,
       model: providerConfig.model,
       elapsedMs: Date.now() - startedAt,
@@ -207,7 +207,7 @@ export async function callAIAPI(
   try {
     if (!response.ok) {
       // 不额外读取错误响应正文，避免诊断过程阻塞或记录服务商回显的敏感内容。
-      logger.error('AIService', 'AI HTTP 请求失败', {
+      logger.error('AIService', `AI HTTP 请求失败 ｜ 模型=${providerConfig.model}`, {
         url: diagnosticUrl,
         model: providerConfig.model,
         elapsedMs: Date.now() - startedAt,
