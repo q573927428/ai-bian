@@ -553,17 +553,15 @@ const providerModels: Record<string, Array<{ label: string; value: string }>> = 
     { label: 'deepseek-v4-pro', value: 'deepseek-v4-pro' }
   ],
   doubao: [
-    { label: 'doubao-seed-2-0-pro-260215', value: 'doubao-seed-2-0-pro-260215' },
-    { label: 'doubao-seed-2-0-lite-260215', value: 'doubao-seed-2-0-lite-260215' },
-    { label: 'doubao-seed-2-0-mini-260215', value: 'doubao-seed-2-0-mini-260215' }
+    { label: 'doubao-seed-2-1-lite-260915', value: 'doubao-seed-2-1-lite-260915' },
+    { label: 'doubao-seed-2-1-pro-260915', value: 'doubao-seed-2-1-pro-260915' }
   ],
   'doubao-agent': [
     { label: 'doubao-seed-2.1-lite', value: 'doubao-seed-2.1-lite' }
   ],
   qwen: [
-    { label: 'qwen3.6-plus', value: 'qwen3.6-plus' },
-    { label: 'qwen3.6-flash', value: 'qwen3.6-flash' },
-    { label: 'qwen3.6-max-preview', value: 'qwen3.6-max-preview' }
+    { label: 'qwen3.8-flash', value: 'qwen3.8-flash' },
+    { label: 'qwen3.8-max', value: 'qwen3.8-max' }
   ],
   openai: [
     { label: 'gpt-4o-mini', value: 'gpt-4o-mini' },

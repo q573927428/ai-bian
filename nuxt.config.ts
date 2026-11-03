@@ -41,7 +41,7 @@ export default defineNuxtConfig({
     // 阿里千问 (Qwen) 配置
     qwenApiKey: process.env.QWEN_API_KEY || '',
     qwenApiUrl: process.env.QWEN_API_URL || 'https://dashscope.aliyuncs.com/compatible-mode/v1',
-    qwenModel: process.env.QWEN_MODEL || 'qwen-plus',
+    qwenModel: process.env.QWEN_MODEL || 'qwen3.8-flash',
     // OpenAI 兼容配置
     openaiApiKey: process.env.OPENAI_API_KEY || '',
     openaiApiUrl: process.env.OPENAI_API_URL || 'https://api.openai.com/v1',
