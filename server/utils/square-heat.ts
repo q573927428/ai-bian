@@ -167,9 +167,9 @@ async function fetchPosts(baseAsset: string): Promise<PostSnapshot> {
       ?? `${post.date}_${post.tendency}_${post.title ?? post.content ?? ''}`)
     uniquePosts.set(key, post)
   }
-  if (Date.now() - startedAt >= 5000) {
-    logger.warn('SquareHeat', `${baseAsset} 情绪采集较慢: ${Date.now() - startedAt}ms，帖子=${uniquePosts.size}`)
-  }
+  // if (Date.now() - startedAt >= 8000) {
+  //   logger.warn('SquareHeat', `${baseAsset} 情绪采集较慢: ${Date.now() - startedAt}ms，帖子=${uniquePosts.size}`)
+  // }
   // 常驻缓存只保留统计字段，避免六页帖子的正文和媒体占用交易进程内存。
   return { posts: Array.from(uniquePosts.values(), post => ({ date: post.date, tendency: post.tendency })), timestamp: Date.now() }
 }
