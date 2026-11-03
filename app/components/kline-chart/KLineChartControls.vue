@@ -42,22 +42,22 @@
 
           <el-popover
             v-if="showScanMarkers"
-            v-model:visible="scanRangePopoverVisible"
+            :visible="scanRangePopoverVisible"
             placement="bottom-end"
             :width="390"
-            trigger="click"
+            :trigger="[]"
             popper-class="scan-range-popover"
           >
             <template #reference>
-              <el-button
-                size="small"
-                :type="scanTimeRange ? 'primary' : 'default'"
+              <el-switch
+                v-model="scanRangePopoverVisible"
+                inline-prompt
+                active-text="时间"
+                inactive-text="时间"
                 :disabled="!scanSupported || !scanRangeBounds"
-                class="scan-range-btn"
-                title="设置扫描时间范围"
-              >
-                <el-icon><ElIconCalendar /></el-icon>
-              </el-button>
+                class="marker-switch scan-range-switch"
+                aria-label="显示扫描时间范围"
+              />
             </template>
 
             <div class="scan-range-panel">
@@ -283,6 +283,7 @@ const showOrderMarkers = ref(props.showOrderMarkers)
 const filterOrderMarkersByTimeframe = ref(props.filterOrderMarkersByTimeframe)
 const showEMALines = ref(props.showEmaLines)
 const showScanMarkers = ref(props.showScanMarkers)
+// 时间面板默认收起，仅由开关控制，应用或重置范围后保持展开。
 const scanRangePopoverVisible = ref(false)
 const scanDateRange = ref<[number, number] | null>(props.scanTimeRange ? [...props.scanTimeRange] : null)
 
@@ -360,7 +361,6 @@ const applyScanTimeRange = () => {
     ? [Number(scanDateRange.value[0]), Number(scanDateRange.value[1])] as [number, number]
     : null
   emit('scan-range-change', range)
-  scanRangePopoverVisible.value = false
 }
 
 /**
@@ -369,7 +369,6 @@ const applyScanTimeRange = () => {
 const resetScanTimeRange = () => {
   scanDateRange.value = null
   emit('scan-range-change', null)
-  scanRangePopoverVisible.value = false
 }
 
 /**
@@ -433,6 +432,14 @@ watch(() => props.showScanMarkers, (newValue) => {
 watch(() => props.scanTimeRange, (newRange) => {
   scanDateRange.value = newRange ? [...newRange] : null
 }, { deep: true })
+
+// 扫描关闭、切入分时或数据不可用时收起面板，避免恢复后意外弹出。
+watch(
+  () => !props.timeline && showScanMarkers.value && props.scanSupported && Boolean(props.scanRangeBounds),
+  (available) => {
+    if (!available) scanRangePopoverVisible.value = false
+  }
+)
 </script>
 
 <style scoped>
@@ -501,11 +508,8 @@ watch(() => props.scanTimeRange, (newRange) => {
   flex-shrink: 0;
 }
 
-.scan-range-btn {
+.scan-range-switch {
   flex-shrink: 0;
-  width: 32px;
-  padding: 1px;
-  border-radius: 12px;
 }
 
 .scan-range-panel {
