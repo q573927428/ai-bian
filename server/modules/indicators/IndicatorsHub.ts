@@ -89,6 +89,8 @@ export class IndicatorsHub {
   private updateTimer: NodeJS.Timeout | null = null
   // 网络变慢时一轮刷新可能超过定时间隔，锁用于防止多轮刷新同时持有 K 线和请求对象。
   private isRefreshingAllData = false
+  // 记录正在执行的刷新起点，跳过重叠轮次时展示其已运行时长。
+  private refreshAllDataStartedAt = 0
 
   // 最大并发数
   private readonly MAX_CONCURRENT = 3
@@ -886,7 +888,8 @@ export class IndicatorsHub {
     }
 
     if (this.isRefreshingAllData) {
-      logger.warn('IndicatorsHub', '上一轮数据刷新尚未完成，跳过本轮刷新')
+      const elapsedMs = Math.max(0, Date.now() - this.refreshAllDataStartedAt)
+      logger.warn('IndicatorsHub', `上一轮数据刷新尚未完成，跳过本轮刷新 ｜ 上一轮已耗时 ${(elapsedMs / 1000).toFixed(1)}秒`, { elapsedMs })
       return
     }
 
@@ -894,10 +897,11 @@ export class IndicatorsHub {
     if (symbols.length === 0) return
 
     this.isRefreshingAllData = true
+    this.refreshAllDataStartedAt = Date.now()
     try {
       this.oiSnapshotService.pruneExpiredHistory()
       // logger.info('IndicatorsHub', `开始刷新 ${symbols.length} 个交易对的数据...`)
-      const startTime = Date.now()
+      const startTime = this.refreshAllDataStartedAt
 
       for (let i = 0; i < symbols.length; i += this.MAX_CONCURRENT) {
         if (binanceApiGateway.shouldPauseBackgroundWork()) {
@@ -913,6 +917,7 @@ export class IndicatorsHub {
       // logger.info('IndicatorsHub', `数据刷新完成，耗时 ${duration}ms`)
     } finally {
       this.isRefreshingAllData = false
+      this.refreshAllDataStartedAt = 0
     }
   }
 
