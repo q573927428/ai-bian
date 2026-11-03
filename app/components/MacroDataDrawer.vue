@@ -62,10 +62,14 @@
     </div>
     <el-dialog v-model="showPinnedSummary" title="区间比较 · 全市场涨跌汇总" width="min(1180px, 96vw)" draggable append-to-body :close-on-click-modal="false">
       <div v-if="pinnedCrosshair" class="summary-description">
-        <div>比较区间：{{ pinnedTimeLabel }} · 周期 {{ pinnedCrosshair.period }}</div>
+        <div class="summary-heading">
+          <span>比较区间：{{ pinnedTimeLabel }} · 周期 {{ pinnedCrosshair.period }}</span>
+          <el-button size="small" :aria-pressed="summaryView === 'chart'" @click="summaryView = summaryView === 'table' ? 'chart' : 'table'">{{ summaryView === 'table' ? '切换为图表' : '切换为表格' }}</el-button>
+        </div>
         <div>{{ overallDuration }}</div>
       </div>
-      <el-table class="summary-table" :data="pinnedSummaryRows" max-height="55vh" size="small">
+      <MacroSummaryChart v-if="summaryView === 'chart'" :rows="pinnedSummaryRows" />
+      <el-table v-else class="summary-table" :data="pinnedSummaryRows" max-height="55vh" size="small">
         <el-table-column prop="name" label="市场" min-width="125" fixed show-overflow-tooltip />
         <el-table-column prop="from" label="起点收盘" min-width="85"><template #default="{ row }">{{ row.from ?? '—' }}</template></el-table-column>
         <el-table-column prop="to" label="终点收盘" min-width="85"><template #default="{ row }">{{ row.to ?? '—' }}</template></el-table-column>
@@ -75,7 +79,7 @@
         <el-table-column label="相隔时间" min-width="110"><template #default="{ row }"><span :title="row.duration">{{ row.duration?.replace('小时', '时').replace('分钟', '分') ?? '—' }}</span></template></el-table-column>
         <el-table-column label="起点K线（北京时间）" min-width="155"><template #default="{ row }">{{ row.selectedTime != null ? formatSummaryTime(row.selectedTime) : '—' }}</template></el-table-column>
         <el-table-column label="终点K线（北京时间）" min-width="155"><template #default="{ row }">{{ row.latestTime != null ? formatSummaryTime(row.latestTime) : '—' }}</template></el-table-column>
-        <el-table-column prop="status" label="状态" min-width="90" show-overflow-tooltip />
+        <el-table-column prop="status" label="状态" min-width="130" show-overflow-tooltip />
       </el-table>
       <template #footer><el-button @click="showPinnedSummary = false">关闭窗口</el-button><el-button type="primary" @click="clearPinnedCrosshair">解除固定</el-button></template>
     </el-dialog>
@@ -87,6 +91,7 @@ import { computed, reactive, ref, onMounted, onBeforeUnmount, watch, provide } f
 import { ElDrawer } from 'element-plus'
 import { MACRO_MARKETS } from '../../types/macro-market'
 import MacroKLineChart from './macro-data/MacroKLineChart.vue'
+import MacroSummaryChart from './macro-data/MacroSummaryChart.vue'
 import { macroCrosshairKey, crosshairTimeKey, type MacroCrosshairPosition, type MacroPinnedSummary } from './macro-data/crosshair-sync'
 import { macroViewportKey, type MacroViewport } from './macro-data/viewport-sync'
 import type { MacroPeriod, LocalMacroMarket, MacroKlineResponse } from '../../types/macro-market'
@@ -119,6 +124,7 @@ const pinnedCrosshair = ref<MacroCrosshairPosition | null>(null)
 const comparisonMode = ref<'latest' | 'range' | 'month'>('latest')
 const comparisonMonth = ref<string | null>(null)
 const showPinnedSummary = ref(false)
+const summaryView = ref<'table' | 'chart'>('chart')
 const pinnedSummaries = reactive<Record<string, MacroPinnedSummary>>({})
 const btcCloses = ref(new Map<number, number>())
 const btcLoading = ref(false)
@@ -168,10 +174,10 @@ const pinnedSummaryRows = computed(() => markets.value.map(market => {
     ? report : { status: selectedPeriods[market.symbol] !== pinned?.period ? '周期不同' : '等待数据' }
   // 收益率标的不与 BTC 价格收益做强弱排名，避免将利率变化误解为投资回报。
   const relative = market.yield ? null : relativeToBtc(summary.returnPercent, summary.selectedKey, summary.latestKey, btcCloses.value)
-  return { name: market.name, ...summary,
+  return { name: market.name, ...summary, relativePercent: relative,
     relativeLabel: market.yield ? '不适用' : relative == null ? '—' : Math.abs(relative) < 0.005 ? '0.00%' : `${relative > 0 ? '+' : ''}${relative.toFixed(2)}%`,
     relativeClass: relative == null || Math.abs(relative) < 0.005 ? '' : relative > 0 ? 'positive' : 'negative',
-    relativeHint: market.yield ? '收益率相对变化不等于资产价格收益' : relative != null ? '本市场/BTC 比值的区间涨跌幅；正值跑赢，负值跑输；使用相同起止日期'
+    relativeHint: market.yield ? '收益率相对变化不等于资产价格收益' : relative != null ? '本市场/BTC ：正值跑赢，负值跑输'
       : btcLoading.value ? 'BTC 本地数据读取中' : btcError.value ? 'BTC 本地数据读取失败' : '本市场或 BTC 缺少同起止日期数据',
   }
 }))
@@ -394,6 +400,7 @@ function chartUrl(symbol: string, period: Period): string {
 .comparison-hint { color: var(--text-secondary); font-size: 12px; }
 .summary-description { display: grid; gap: 8px; margin-bottom: 14px; line-height: 1.5; color: var(--text-regular); }
 .summary-description small { color: var(--text-secondary); }
+.summary-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
 .summary-table :deep(.cell) { padding: 0 6px; font-variant-numeric: tabular-nums; }
 .positive { color: #26a69a; }
 .negative { color: #ef5350; }
