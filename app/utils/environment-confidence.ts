@@ -32,7 +32,7 @@ export interface MarketBreadthAdjustment {
   downPercent: number
 }
 
-/** 档位互斥：逆势扣3/5分，无方向共识多空均扣2分；持平计入分母。 */
+/** 档位互斥：逆势扣5/8分，无方向共识多空均扣3分；持平计入分母。 */
 export function marketBreadthAdjustment(stats: MarketBreadthSnapshot['periods']['24h'], side: number): MarketBreadthAdjustment | null {
   const { validCount, upCount, downCount, flatCount } = stats
   if (![validCount, upCount, downCount, flatCount].every(value => Number.isSafeInteger(value) && value >= 0)
@@ -43,7 +43,7 @@ export function marketBreadthAdjustment(stats: MarketBreadthSnapshot['periods'][
   const direction = upCount * 100 >= validCount * 65 ? 1 : downCount * 100 >= validCount * 65 ? -1 : 0
   const strong = Math.max(upCount, downCount) * 100 >= validCount * 80
   const state = direction > 0 ? strong ? '强势普涨' : '偏多' : direction < 0 ? strong ? '强势普跌' : '偏空' : '方向不明确'
-  return { state, adjustment: direction === 0 ? -2 : direction === side ? 0 : strong ? -5 : -3, upPercent, downPercent }
+  return { state, adjustment: direction === 0 ? -3 : direction === side ? 0 : strong ? -8 : -5, upPercent, downPercent }
 }
 
 /** 多周期结构标签；看板颜色、筛选和服务端提示词共用这一结果。 */

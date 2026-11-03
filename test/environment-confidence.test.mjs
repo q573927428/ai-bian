@@ -232,8 +232,8 @@ test('固定权重给出多空分数，持平排名中性且不按K线进度扣�
     stats.upCount = stats.downCount = 0
     stats.flatCount = 10
   }
-  assert.equal(buildEnvironmentContext(all('中性'), flat, 'BTCUSDT').long.confidence, 48)
-  assert.match(formatEnvironmentConfidence(buildEnvironmentContext(all('中性'), flat, 'BTCUSDT')), /24h市场方向不明确，广度修正-2/)
+  assert.equal(buildEnvironmentContext(all('中性'), flat, 'BTCUSDT').long.confidence, 47)
+  assert.match(formatEnvironmentConfidence(buildEnvironmentContext(all('中性'), flat, 'BTCUSDT')), /24h市场方向不明确，广度修正-3/)
 })
 
 test('统一方向权重：短线逆向不当作支持，回调是否可入场由策略判断', () => {
@@ -268,7 +268,7 @@ test('市场与排名按五窗口10/20/30/25/15加权，24h反向同时触发独
   const result = buildEnvironmentContext(all('多头增强'), snapshot, 'BTCUSDT')
   assert.equal(result.long.market, 85)
   assert.equal(result.long.relativeStrength, 85)
-  assert.equal(result.long.confidence, 85)
+  assert.equal(result.long.confidence, 82)
   assert.equal(result.long.coverage, 97)
   for (const [period, weight] of [['5m', 10], ['15m', 20], ['1h', 30], ['4h', 25], ['24h', 15]]) {
     const sample = breadth()
@@ -380,11 +380,11 @@ test('实际用户提示词中的DI持平与环境细分使用同一规则', () 
 
 test('24h广度65%/80%边界对称分档，含持平且扣分不叠加', () => {
   for (const [upCount, downCount, flatCount, long, short, state] of [
-    [80, 20, 0, 0, -5, '强势普涨'], [79, 21, 0, 0, -3, '偏多'],
-    [65, 35, 0, 0, -3, '偏多'], [64, 36, 0, -2, -2, '方向不明确'],
-    [35, 65, 0, -3, 0, '偏空'], [21, 79, 0, -3, 0, '偏空'],
-    [20, 80, 0, -5, 0, '强势普跌'], [0, 0, 100, -2, -2, '方向不明确'],
-    [60, 0, 40, -2, -2, '方向不明确'], [8, 60, 0, -5, 0, '强势普跌']
+    [80, 20, 0, 0, -8, '强势普涨'], [79, 21, 0, 0, -5, '偏多'],
+    [65, 35, 0, 0, -5, '偏多'], [64, 36, 0, -3, -3, '方向不明确'],
+    [35, 65, 0, -5, 0, '偏空'], [21, 79, 0, -5, 0, '偏空'],
+    [20, 80, 0, -8, 0, '强势普跌'], [0, 0, 100, -3, -3, '方向不明确'],
+    [60, 0, 40, -3, -3, '方向不明确'], [8, 60, 0, -8, 0, '强势普跌']
   ]) {
     const stats = { validCount: upCount + downCount + flatCount, upCount, downCount, flatCount }
     for (const [side, expected] of [[1, long], [-1, short]]) {
@@ -408,10 +408,10 @@ test('所有主周期取消同向奖励，广度扣分独立于五周期支持�
     assert.equal(result.long.structure, 60)
     assert.equal(result.short.structure, 40)
     assert.equal(result.long.adjacentBonus, undefined)
-    assert.equal(result.short.marketBreadthAdjustment.adjustment, -3)
-    assert.equal(result.short.confidence, 9)
+    assert.equal(result.short.marketBreadthAdjustment.adjustment, -5)
+    assert.equal(result.short.confidence, 7)
     assert.equal(result.long.confidence, 88)
-    assert.match(formatEnvironmentConfidence(result), /24h市场偏多，广度修正-3/)
+    assert.match(formatEnvironmentConfidence(result), /24h市场偏多，广度修正-5/)
     assert.match(formatEnvironmentConfidence(result), /五周期支持60×30%/)
   }
 })
@@ -423,11 +423,11 @@ test('广度扣分与社区修正合并后统一取整，重算不重复扣分�
   const { indicators, now } = communityFixture()
   const result = applyCommunityConfidence(base, indicators, now)
   const raw = base.long.market * .4 + base.long.structure * .3 + base.long.relativeStrength * .3
-  assert.equal(result.long.confidence, Math.round(raw - 5 + 2))
-  assert.equal(result.long.communityAdjustment.baseConfidence, raw - 5)
+  assert.equal(result.long.confidence, Math.round(raw - 8 + 2))
+  assert.equal(result.long.communityAdjustment.baseConfidence, raw - 8)
   assert.equal(applyCommunityConfidence(result, indicators, now).long.confidence, result.long.confidence)
   assert.equal((await analyzerFixture().call(result)).confidence, result.long.confidence)
-  assert.match(formatEnvironmentConfidence(result), /广度修正-5.*社区情绪修正\+2/)
+  assert.match(formatEnvironmentConfidence(result), /广度修正-8.*社区情绪修正\+2/)
   const missing = buildEnvironmentContext({ ...all('多头双增强'), '1d': '--' }, snapshot, 'BTCUSDT')
   assert.equal(applyCommunityConfidence(missing, indicators, now).long.confidence, null)
   snapshot.periods['24h'].upCount = 9
