@@ -24,7 +24,7 @@ import {
   hasKLineData 
 } from '../../utils/kline-simple-storage'
 import { EventEmitter } from 'node:events'
-import { getSquareHeat, SQUARE_HEAT_CACHE_TTL_MS } from '../../utils/square-heat'
+import { getSquareHeat, cleanExpiredSquareHeatCache } from '../../utils/square-heat'
 import { shortHash } from '../../utils/stable-hash'
 import { binanceApiGateway } from '../../utils/binance-api-gateway'
 import { OISnapshotService } from './OISnapshotService'
@@ -87,6 +87,10 @@ export class IndicatorsHub {
 
   // 定时更新定时器
   private updateTimer: NodeJS.Timeout | null = null
+  // 情绪采集单独调度，不占用 OI 刷新锁；停止后不再派发剩余币种。
+  private sentimentTimer: NodeJS.Timeout | null = null
+  private isRefreshingSentiment = false
+  private sentimentGeneration = 0
   // 网络变慢时一轮刷新可能超过定时间隔，锁用于防止多轮刷新同时持有 K 线和请求对象。
   private isRefreshingAllData = false
   // 记录正在执行的刷新起点，跳过重叠轮次时展示其已运行时长。
@@ -266,6 +270,9 @@ export class IndicatorsHub {
     // 看板只读缓存：启动后后台预热慢统计，不阻塞行情初始化及定时循环启动。
     void this.refreshAllData().catch((error: any) => {
       logger.error('IndicatorsHub', `看板统计预热失败: ${error.message}`)
+    })
+    void this.refreshSentimentData().catch((error: any) => {
+      logger.error('IndicatorsHub', `情绪预热失败: ${error.message}`)
     })
   }
 
@@ -625,14 +632,10 @@ export class IndicatorsHub {
         ? Math.floor(windowMinutes)
         : 24 * 60
       const cacheKey = `${symbol}_SquareHeat_${normalizedWindowMinutes}`
-      const cached = symbolData.indicators.get(cacheKey)
-      // 指标层也必须检查 TTL，否则会绕过 square-heat 工具层一直复用旧结果
-      if (cached && Date.now() - cached.timestamp < SQUARE_HEAT_CACHE_TTL_MS) {
-        return cached
-      }
-      if (cached) symbolData.indicators.delete(cacheKey)
-
+      // 工具层统一处理错峰刷新和失败回退；避免第二层缓存掩盖过期标记。
       const heatData = await getSquareHeat(symbol, normalizedWindowMinutes)
+      // 看板可展示旧样本，但策略不能将回退数据当作当前社区情绪。
+      if (heatData.stale) throw new Error(`${symbol} 社区情绪已过期，最后采集时间=${heatData.lastUpdated}`)
 
       const indicatorData: IndicatorData = {
         symbol,
@@ -650,6 +653,8 @@ export class IndicatorsHub {
           directionalCoveragePercent: heatData.directionalCoveragePercent,
           netDirectionalSentimentPercent: heatData.netDirectionalSentimentPercent,
           dataUpdatedAt: heatData.lastUpdated,
+          stale: heatData.stale ?? false,
+          refreshError: heatData.refreshError,
         }
       }
 
@@ -863,6 +868,11 @@ export class IndicatorsHub {
         logger.error('IndicatorsHub', `定时刷新数据失败: ${error.message}`)
       })
     }, intervalMs)
+    this.sentimentTimer = setInterval(() => {
+      void this.refreshSentimentData().catch((error: any) => {
+        logger.error('IndicatorsHub', `情绪后台刷新失败: ${error.message}`)
+      })
+    }, intervalMs)
 
     // logger.info('IndicatorsHub', `定时更新循环已启动，间隔 ${intervalMs / 1000}秒`)
   }
@@ -871,10 +881,48 @@ export class IndicatorsHub {
    * 停止定时更新
    */
   stopUpdateLoop(): void {
+    this.sentimentGeneration++
+    if (this.sentimentTimer) {
+      clearInterval(this.sentimentTimer)
+      this.sentimentTimer = null
+    }
     if (this.updateTimer) {
       clearInterval(this.updateTimer)
       this.updateTimer = null
       logger.info('IndicatorsHub', '定时更新循环已停止')
+    }
+  }
+
+  /** 情绪慢数据独立采集；两个工作协程持续取下一个币种，避免整批等待最慢请求。 */
+  private async refreshSentimentData(): Promise<void> {
+    if (this.isRefreshingSentiment) return
+    this.isRefreshingSentiment = true
+    const generation = this.sentimentGeneration
+    const symbols = Array.from(this.symbolDataCache.keys())
+    let cursor = 0
+    try {
+      cleanExpiredSquareHeatCache()
+      await Promise.allSettled(Array.from({ length: 2 }, async () => {
+        while (cursor < symbols.length && generation === this.sentimentGeneration) {
+          const symbol = symbols[cursor++]!
+          await this.refreshSymbolSentiment(symbol, generation)
+        }
+      }))
+    } finally {
+      this.isRefreshingSentiment = false
+    }
+  }
+
+  /** 各窗口使用同币种的共享帖子快照，窗口之间不重复发起分页采集。 */
+  private async refreshSymbolSentiment(symbol: string, generation = this.sentimentGeneration): Promise<void> {
+    const windows = [...new Set([1440, ...Object.values(normalizeSquareHeatWindows(this.config.squareHeatWindows))])]
+    for (const minutes of windows) {
+      if (generation !== this.sentimentGeneration) return
+      try {
+        await getSquareHeat(symbol, minutes)
+      } catch {
+        // 工具层已记录币种、页码和耗时；同币种的失败冷却会覆盖其他窗口，避免重复日志。
+      }
     }
   }
 
@@ -934,27 +982,7 @@ export class IndicatorsHub {
       // 2. 刷新当前持仓量，供策略及看板共用。
       await this.fetchAndCacheOI(symbol)
 
-      // 看板只读缓存；后台按配置准备各窗口，相同分钟数只抓取一次。
-      // 窗口串行采集，避免五个周期同时放大外部请求并发；单窗口失败不阻塞其他窗口。
-      const stats = await Promise.allSettled([
-        this.oiSnapshotService.bootstrapSymbol(symbol),
-        (async () => {
-          // 保留原有 24h 公共缓存，避免看板自定义窗口影响其他默认消费者。
-          const windows = [...new Set([1440, ...Object.values(normalizeSquareHeatWindows(this.config.squareHeatWindows))])]
-          for (const minutes of windows) {
-            try {
-              await getSquareHeat(symbol, minutes)
-            } catch (error: any) {
-              logger.warn('IndicatorsHub', `${symbol} ${minutes}分钟情绪更新失败: ${error.message}`)
-            }
-          }
-        })()
-      ])
-      for (const result of stats) {
-        if (result.status === 'rejected') {
-          logger.warn('IndicatorsHub', `${symbol} 看板统计更新失败: ${result.reason?.message || result.reason}`)
-        }
-      }
+      await this.oiSnapshotService.bootstrapSymbol(symbol)
 
       // 3. 清除指标缓存 - 注意：getKlines 已经在文件更新时调用了 invalidateIndicatorsCache
       // 这里不需要再清除所有指标缓存，避免不必要的重新计算

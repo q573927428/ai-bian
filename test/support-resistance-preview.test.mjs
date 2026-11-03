@@ -97,7 +97,7 @@ test('后台准备全部情绪窗口并去重，单个窗口失败不影响其�
   const hub = new IndicatorsHub({}, { squareHeatWindows: { '5m': 30, '15m': 30, '1h': 1500, '4h': 3000, '1d': 3600 } })
   hub.getKlines = () => []
   hub.fetchAndCacheOI = async () => {}
-  await hub.refreshSymbolData('BTCUSDT')
+  await hub.refreshSymbolSentiment('BTCUSDT')
   assert.deepEqual(calls, [1440, 30, 1500, 3000, 3600])
 })
 

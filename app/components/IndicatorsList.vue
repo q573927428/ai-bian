@@ -293,6 +293,7 @@
             </template>
             <div class="sentiment-cell">
               <div :class="sentimentClass(row.sentiment)">{{ row.sentimentLabel }}<span v-if="row.sentiment != null"> {{ signed(row.sentiment, 1) }}%</span></div>
+              <div v-if="row.sentimentStale" class="muted">已过期</div>
               <div class="muted">多 {{ formatOICompact(row.bullishCount) }} / 空 {{ formatOICompact(row.bearishCount) }}</div>
             </div>
           </el-tooltip>
@@ -363,7 +364,7 @@ interface IndicatorRow {
   moneyFlowWindowBars?: number
   volumeRatio?: number; sentiment?: number; sentimentLabel: string; stale: boolean
   /** 后端缓存中的情绪样本量与解释信息。 */
-  bullishCount?: number; bearishCount?: number; sentimentTooltip: string
+  bullishCount?: number; bearishCount?: number; sentimentTooltip: string; sentimentStale?: boolean
 }
 
 /** 指标抽屉的外部控制参数。 */
@@ -839,6 +840,8 @@ function toRow(data: any): IndicatorRow {
     ? finiteNumber(heat.netDirectionalSentimentPercent) : undefined
   const windowMinutes = finiteNumber(data?.parameters?.squareHeatWindowMinutes)
   const sentimentTooltip = [
+    ...(heat.stale ? ['当前展示历史样本，已过期，等待更新'] : []),
+    ...(finiteNumber(heat.dataUpdatedAt) != null ? [`采集时间：${new Date(heat.dataUpdatedAt).toLocaleString()}`] : []),
     `总帖数：${formatOICompact(heat.postCount)}`,
     `方向覆盖：${format(finiteNumber(heat.directionalCoveragePercent))}%`,
     `热度变化：${signed(finiteNumber(heat.changePercent))}%`,
@@ -878,7 +881,7 @@ function toRow(data: any): IndicatorRow {
     cumulativeFlowTooltip: `近${flow.windowBars ?? '--'}根：${flowWindow}\n${flow.complete ? '累计比例 = 净流入 / 成交额' : '数据不足，等待补齐'}`,
     volumeRatio: Number(values('volume').ratio), sentiment,
     sentimentLabel: sentiment == null ? '--' : sentiment > 0 ? '偏多' : sentiment < 0 ? '偏空' : '中性',
-    bullishCount, bearishCount, sentimentTooltip,
+    bullishCount, bearishCount, sentimentTooltip, sentimentStale: heat.stale === true,
     // dataAgeMs 由服务端按最近一次成功写入时间计算，不再使用 K 线开盘时间。
     emaBullish: fastEma == null || slowEma == null || !Number.isFinite(fastEma) || !Number.isFinite(slowEma)
       ? undefined : fastEma >= slowEma,
