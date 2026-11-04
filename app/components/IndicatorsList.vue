@@ -47,6 +47,7 @@
       <el-button size="small" :type="activeFilters ? 'primary' : 'default'" :plain="!!activeFilters" :aria-expanded="showNumericFilters" @click="showNumericFilters = !showNumericFilters">
         筛选{{ activeFilters ? ` (${activeFilters})` : '' }} {{ showNumericFilters ? '▴' : '▾' }}
       </el-button>
+      <el-button v-if="showNumericFilters" size="small" text @click="resetNumericFilters">重置</el-button>
       <el-button class="refresh-button" size="small" :loading="loading" @click="requestRefresh">
         <el-icon><ElIconRefresh /></el-icon>刷新
       </el-button>
@@ -57,7 +58,6 @@
         <span class="muted">指标筛选</span>
         <span class="numeric-filter-actions">
           <span class="muted" aria-live="polite">{{ filteredRows.length }} / {{ rows.length }} 个交易对</span>
-          <el-button size="small" text :disabled="!activeFilters" @click="resetNumericFilters">重置筛选</el-button>
         </span>
       </div>
       <div class="numeric-filter-grid">
@@ -104,9 +104,9 @@
         <div v-for="field in numericFilterFields" :key="field.key" class="numeric-filter-item">
           <span class="numeric-filter-label">{{ field.label }}<span v-if="field.unit" class="muted"> ({{ field.unit }})</span></span>
           <div class="numeric-filter-range">
-            <el-input-number v-model="numericFilters[field.key].min" size="small" :controls="false" :step="field.step" :value-on-clear="null" placeholder="最小值" :aria-label="`${field.label}最小值${field.unit ? `（${field.unit}）` : ''}`" />
+            <el-input-number v-model="numericFilters[field.key].min" size="small" :controls="false" :step="field.step" :value-on-clear="null" placeholder="最小" :aria-label="`${field.label}最小${field.unit ? `（${field.unit}）` : ''}`" />
             <span class="muted">—</span>
-            <el-input-number v-model="numericFilters[field.key].max" size="small" :controls="false" :step="field.step" :value-on-clear="null" placeholder="最大值" :aria-label="`${field.label}最大值${field.unit ? `（${field.unit}）` : ''}`" />
+            <el-input-number v-model="numericFilters[field.key].max" size="small" :controls="false" :step="field.step" :value-on-clear="null" placeholder="最大" :aria-label="`${field.label}最大${field.unit ? `（${field.unit}）` : ''}`" />
           </div>
           <span v-if="isReversedRange(numericFilters[field.key])" class="numeric-filter-error" role="alert">最小值不能大于最大值</span>
         </div>
@@ -1118,12 +1118,25 @@ onUnmounted(() => {
 .structure-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .structure-controls label { display: flex; align-items: center; gap: 6px; }
 .structure-controls :deep(.el-select) { width: 62px; }
-.numeric-filters { flex-shrink: 0; margin: -4px 0 12px; padding: 10px 12px; border: 1px solid var(--el-border-color); border-radius: 4px; background: var(--el-fill-color-light); font-size: 12px; max-height: 40vh; overflow-y: auto; }
+/* 与订单筛选共用面板底色和边框，避免浅填充色在深色主题下显得过亮。 */
+.numeric-filters {
+  flex-shrink: 0;
+  margin: 0 0 12px;
+  padding: 8px 10px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: var(--bg-expand);
+  font-size: 12px;
+  max-height: 40vh;
+  overflow-y: auto;
+  --el-fill-color-blank: var(--bg-page);
+}
 .numeric-filter-header, .numeric-filter-actions { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .numeric-filter-header { margin-bottom: 8px; flex-wrap: wrap; }
-.numeric-filter-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr)); gap: 10px 16px; }
+.numeric-filter-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr)); gap: 8px 28px; align-items: start; }
 .numeric-filter-item { min-width: 0; }
-.numeric-filter-label { display: block; margin-bottom: 5px; }
+.numeric-filter-label { display: block; margin-bottom: 4px; font-size: 13px; line-height: 18px; color: var(--text-regular); }
+.numeric-filter-item > :deep(.el-select) { width: 80%; }
 .numeric-filter-range { display: flex; align-items: center; gap: 6px; }
 .numeric-filter-range :deep(.el-input-number) { width: 0; min-width: 0; flex: 1; }
 .numeric-filter-error { display: block; margin-top: 4px; color: var(--el-color-danger); }
