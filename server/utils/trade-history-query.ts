@@ -30,7 +30,7 @@ function getSortValue(order: TradeHistory, field: SortField): number | string | 
 /**
  * 判断数值是否处于闭区间内；启用区间后，缺少该指标的历史订单不参与结果。
  */
-function matchesRange(value: number | undefined, min?: number, max?: number): boolean {
+function matchesRange(value: number | null | undefined, min?: number, max?: number): boolean {
   if (min == null && max == null) return true
   if (value == null || !Number.isFinite(value)) return false
   if (min != null && value < min) return false
@@ -45,6 +45,24 @@ export function queryTradeHistory(allHistory: TradeHistory[], query: Record<stri
   for (const key of ['pnlMin','pnlMax','scoreMin','scoreMax','confidenceMin','confidenceMax','oiMin','oiMax','estimatedVolumeMin','estimatedVolumeMax','openTimeMin','openTimeMax']) {
     filter[key] = query[key] === undefined || query[key] === '' ? undefined : Number(query[key])
     if (filter[key] !== undefined && !Number.isFinite(filter[key])) throw new Error(`无效筛选参数: ${key}`)
+  }
+  // 指标按入场快照筛选，不用当前行情补算旧记录，避免复盘数据随行情变化。
+  const indicatorRanges = [
+    ['rsi', (order: TradeHistory) => order.entryIndicators?.RSI],
+    ['adx', (order: TradeHistory) => order.entryIndicators?.ADX],
+    ['adxSlope', (order: TradeHistory) => order.entryIndicators?.ADXSlope],
+    ['atrPercent', (order: TradeHistory) => order.entryIndicators?.ATRVolatilityPercent],
+    ['resistanceDistanceATR', (order: TradeHistory) => order.entrySupportResistance?.resistanceDistanceATR],
+    ['supportDistanceATR', (order: TradeHistory) => order.entrySupportResistance?.supportDistanceATR],
+  ] as const
+  for (const [name] of indicatorRanges) {
+    for (const key of [`${name}Min`, `${name}Max`]) {
+      filter[key] = query[key] === undefined || query[key] === '' ? undefined : Number(query[key])
+      if (filter[key] !== undefined && !Number.isFinite(filter[key])) throw new Error(`无效筛选参数: ${key}`)
+    }
+    if (filter[`${name}Min`] != null && filter[`${name}Max`] != null && filter[`${name}Min`] > filter[`${name}Max`]) {
+      throw new Error(`筛选最小值不能大于最大值: ${name}`)
+    }
   }
   if (filter.openTimeMin != null && filter.openTimeMax != null && filter.openTimeMin > filter.openTimeMax) {
     throw new Error('开始时间不能晚于结束时间')
@@ -97,6 +115,11 @@ export function queryTradeHistory(allHistory: TradeHistory[], query: Record<stri
     order.entryIndicators?.EstimatedVolumeEmaRatioPercent,
     filter.estimatedVolumeMin,
     filter.estimatedVolumeMax
+  ))
+
+  // 在分页和汇总之前组合全部指标条件，缺少指标的旧记录沿用区间筛选规则。
+  result = result.filter(order => indicatorRanges.every(([name, getValue]) =>
+    matchesRange(getValue(order), filter[`${name}Min`], filter[`${name}Max`])
   ))
 
   // 排序

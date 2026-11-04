@@ -42,6 +42,18 @@ export interface FilterConfig {
   oiMax?: number
   estimatedVolumeMin?: number
   estimatedVolumeMax?: number
+  rsiMin?: number
+  rsiMax?: number
+  adxMin?: number
+  adxMax?: number
+  adxSlopeMin?: number
+  adxSlopeMax?: number
+  atrPercentMin?: number
+  atrPercentMax?: number
+  resistanceDistanceATRMin?: number
+  resistanceDistanceATRMax?: number
+  supportDistanceATRMin?: number
+  supportDistanceATRMax?: number
   /** 开仓时间的起止毫秒时间戳，包含两端边界。 */
   openTimeMin?: number
   openTimeMax?: number

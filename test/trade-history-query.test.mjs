@@ -35,6 +35,48 @@ test('数值筛选包含边界、评分优先采用明细终分，缺指标旧�
   assert.deepEqual(result.options.symbols, ['BTC/USDT', 'ETH/USDT'])
 })
 
+test('六项入场指标支持闭区间、单侧与组合筛选，缺失值不视为零', () => {
+  const metrics = [
+    ['rsi', 'RSI', 50], ['adx', 'ADX', 25], ['adxSlope', 'ADXSlope', -0.5],
+    ['atrPercent', 'ATRVolatilityPercent', 1.5],
+    ['resistanceDistanceATR', 'resistanceDistanceATR', 2], ['supportDistanceATR', 'supportDistanceATR', 0],
+  ]
+  for (const [name, key, value] of metrics) {
+    const snapshot = input => name.endsWith('DistanceATR')
+      ? { entrySupportResistance: { [key]: input } }
+      : { entryIndicators: { [key]: input } }
+    const trades = [
+      { ...records[0], ...snapshot(value), pnl: 10 },
+      { ...records[1], ...snapshot(value + 1), pnl: -5 },
+      { ...records[1], entryIndicators: undefined },
+      { ...records[1], ...snapshot(null) },
+      { ...records[1], ...snapshot(NaN) },
+    ]
+    assert.equal(queryTradeHistory(trades, {}).pagination.total, 5)
+    const exact = queryTradeHistory(trades, { [`${name}Min`]: String(value), [`${name}Max`]: String(value), pageSize: 1 })
+    assert.equal(exact.pagination.total, 1, name)
+    assert.equal(exact.summary.totalPnl, 10)
+    assert.equal(exact.summary.winRate, 100)
+    assert.equal(queryTradeHistory(trades, { [`${name}Min`]: value }).pagination.total, 2)
+    assert.equal(queryTradeHistory(trades, { [`${name}Max`]: value }).pagination.total, 1)
+    assert.equal(queryTradeHistory(trades, { [`${name}Min`]: '', [`${name}Max`]: '' }).pagination.total, 5)
+    assert.throws(() => queryTradeHistory(trades, { [`${name}Min`]: 'invalid' }))
+    assert.throws(() => queryTradeHistory(trades, { [`${name}Max`]: 'Infinity' }))
+    assert.throws(() => queryTradeHistory(trades, { [`${name}Min`]: value + 1, [`${name}Max`]: value }))
+  }
+  const trades = [20, 30, 40].map((adx, index) => ({
+    ...records[index], entryIndicators: { RSI: 50, ADX: adx, ADXSlope: -1, ATRVolatilityPercent: 1.5 },
+    entrySupportResistance: { resistanceDistanceATR: 2, supportDistanceATR: 0 },
+  }))
+  const combined = queryTradeHistory(trades, {
+    rsiMin: 50, adxMin: 30, adxSlopeMax: 0, atrPercentMax: 2,
+    resistanceDistanceATRMin: 2, supportDistanceATRMax: 0, pageSize: 1,
+  })
+  assert.equal(combined.pagination.total, 2)
+  assert.equal(combined.data.length, 1)
+  assert.equal(combined.summary.orderCount, 2)
+})
+
 test('开仓时间筛选包含边界，支持单侧限制，并在分页前计算汇总', () => {
   const result = queryTradeHistory(records, { openTimeMin: '1000', openTimeMax: '1002', pageSize: 1 })
   assert.equal(result.pagination.total, 3)

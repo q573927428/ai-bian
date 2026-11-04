@@ -212,6 +212,27 @@
           <span class="range-unit">%</span>
         </div>
 
+        <div v-for="metric in indicatorRangeFilters" :key="metric.minKey" class="filter-item range-filter-item">
+          <span class="filter-label">{{ metric.label }}</span>
+          <el-input-number
+            v-model="filter[metric.minKey]"
+            class="range-input"
+            placeholder="最小"
+            size="small"
+            :controls="false"
+            @change="handleFilterChange"
+          />
+          <span class="range-separator">—</span>
+          <el-input-number
+            v-model="filter[metric.maxKey]"
+            class="range-input"
+            placeholder="最大"
+            size="small"
+            :controls="false"
+            @change="handleFilterChange"
+          />
+        </div>
+
         <div class="filter-item time-filter-item">
           <span class="filter-label">开仓时间</span>
           <el-date-picker
@@ -674,7 +695,7 @@ function selectChart(symbol: string, mainTimeframe?: string) {
 const orders = ref<TradeHistory[]>([])
 const currentPage = ref(1)
 // 筛选区展开后减少行数，为筛选条件留出显示空间。
-const pageSize = computed(() => showFilter.value ? 14 : 18)
+const pageSize = computed(() => showFilter.value ? 12 : 18)
 const total = ref(0)
 const totalPages = ref(0)
 const loading = ref(false)
@@ -816,6 +837,16 @@ function formatCommunitySentimentValue(key: string, value: unknown): string {
   return key.endsWith('Percent') ? `${formatted}%` : formatted
 }
 
+// 指标区间共用输入与重置逻辑，百分比直接使用页面数值（如 1 表示 1%）。
+const indicatorRangeFilters = [
+  { label: 'RSI', minKey: 'rsiMin', maxKey: 'rsiMax' },
+  { label: 'ADX', minKey: 'adxMin', maxKey: 'adxMax' },
+  { label: 'ADX斜率', minKey: 'adxSlopeMin', maxKey: 'adxSlopeMax' },
+  { label: 'ATR (%)', minKey: 'atrPercentMin', maxKey: 'atrPercentMax' },
+  { label: '阻力距离 (ATR)', minKey: 'resistanceDistanceATRMin', maxKey: 'resistanceDistanceATRMax' },
+  { label: '支撑距离 (ATR)', minKey: 'supportDistanceATRMin', maxKey: 'supportDistanceATRMax' },
+] as const satisfies ReadonlyArray<{ label: string; minKey: keyof FilterConfig; maxKey: keyof FilterConfig }>
+
 // 本地筛选条件（与 store 同步）
 
 const filter = reactive<FilterConfig>({
@@ -901,6 +932,10 @@ const handleResetFilter = () => {
   filter.oiMax = undefined
   filter.estimatedVolumeMin = undefined
   filter.estimatedVolumeMax = undefined
+  for (const metric of indicatorRangeFilters) {
+    filter[metric.minKey] = undefined
+    filter[metric.maxKey] = undefined
+  }
   openTimeRange.value = null
   tradeHistoryStore.resetFilter()
   currentPage.value = 1
@@ -1060,6 +1095,7 @@ onUnmounted(() => {
 }
 
 .filter-bar {
+  container-type: inline-size;
   /* 筛选与汇总共用底色，形成一个完整面板，同时保持紧凑的底部留白。 */
   padding: 8px 10px 12px;
   border: 1px solid var(--border-color);
@@ -1076,7 +1112,7 @@ onUnmounted(() => {
 .filter-row {
   /* 下拉和区间共用同一网格，确保所有筛选项按列对齐并随容器宽度换行。 */
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 140px), 1fr));
   column-gap: 28px;
   row-gap: 8px;
   align-items: start;
@@ -1088,9 +1124,16 @@ onUnmounted(() => {
 }
 
 .time-filter-item {
-  /* 单格内简显示月日，实际筛选仍保留完整日期与时分秒。 */
-  grid-column: span 1;
+  /* 时间范围占两格，给开始、结束时间保留足够的输入空间。 */
+  grid-column: span 2;
   min-width: 0;
+}
+
+@container (width < 308px) {
+  .time-filter-item {
+    /* 容器只能容纳一列时占满该列，避免生成隐式列挤压其他筛选项。 */
+    grid-column: 1 / -1;
+  }
 }
 
 .range-input {
