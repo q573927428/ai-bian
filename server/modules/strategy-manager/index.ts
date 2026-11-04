@@ -18,16 +18,26 @@ import { indicatorCombinationRegistry } from '../indicators/IndicatorCombination
 import { IndicatorPrecomputeService } from '../indicators/IndicatorPrecomputeService'
 
 let strategyManager: StrategyManager | null = null
+let initializationPromise: Promise<StrategyManager> | null = null
 
 /**
- * 初始化策略管理系统
+ * 同一进程内的并发初始化共用一个任务，避免重复创建引擎、监控和定时器。
  */
-export async function initStrategyManager(): Promise<StrategyManager> {
-  if (strategyManager) {
-    return strategyManager
-  }
+export function initStrategyManager(): Promise<StrategyManager> {
+  if (initializationPromise) return initializationPromise
+  if (strategyManager) return Promise.resolve(strategyManager)
 
-  // logger.info('StrategyManager', '开始初始化策略管理系统...')
+  // 先登记共享任务再执行初始化；失败后清除任务，允许后续显式重试。
+  initializationPromise = Promise.resolve().then(initializeStrategyManager).finally(() => {
+    initializationPromise = null
+  })
+  return initializationPromise
+}
+
+/** 按既有顺序初始化；仅在指标、持仓监控和扫描调度准备完成后发布实例。 */
+async function initializeStrategyManager(): Promise<StrategyManager> {
+  let manager: StrategyManager | null = null
+  let precompute: IndicatorPrecomputeService | null = null
 
   try {
     // 确保 K 线数据库已初始化（node:sqlite）
@@ -55,6 +65,7 @@ export async function initStrategyManager(): Promise<StrategyManager> {
     // 初始化指标中心
     const indicatorsHub = IndicatorsHub.getInstance(binanceService, config)
     const indicatorPrecompute = new IndicatorPrecomputeService(indicatorCombinationRegistry, indicatorsHub, config)
+    precompute = indicatorPrecompute
 
     // 订阅 K线同步服务的更新事件
     const syncService = getSyncService()
@@ -98,10 +109,10 @@ export async function initStrategyManager(): Promise<StrategyManager> {
     engine.pauseStrategyScans()
 
     // 初始化策略管理器
-    strategyManager = new StrategyManager(store)
-    strategyManager.setEngine(engine)
-    strategyManager.setIndicatorsHub(indicatorsHub)
-    strategyManager.setIndicatorPrecomputeService(indicatorPrecompute)
+    manager = new StrategyManager(store)
+    manager.setEngine(engine)
+    manager.setIndicatorsHub(indicatorsHub)
+    manager.setIndicatorPrecomputeService(indicatorPrecompute)
 
     // logger.success('StrategyManager', '策略管理系统初始化完成')
 
@@ -109,7 +120,7 @@ export async function initStrategyManager(): Promise<StrategyManager> {
     await indicatorsHub.initializeAllData()
 
     logger.info('🟡 启动顺序', '阶段3/6：加载激活策略并完成首轮指标预计算')
-    await strategyManager.loadActiveStrategies()
+    await manager.loadActiveStrategies()
 
     logger.info('🟡 启动顺序', '阶段4/6：启动指标刷新、指标预计算定时器和K线定时同步')
     indicatorsHub.startUpdateLoop(60 * 1000)
@@ -123,8 +134,20 @@ export async function initStrategyManager(): Promise<StrategyManager> {
     logger.info('StrategyManager', `首次策略扫描将在 ${Math.ceil(initialScanDelayMs / 1000)} 秒后执行（对齐到 5 分钟倍数 + 68 秒）`)
     engine.resumeStrategyScans(initialScanDelayMs)
 
-    return strategyManager
+    // 不让列表、配置修改等接口拿到仍在预计算中的半成品实例。
+    strategyManager = manager
+    return manager
   } catch (error: any) {
+    // 失败重试前先停止本次创建的后台资源，防止遗留循环与下一次初始化重复运行。
+    precompute?.stop()
+    if (manager) {
+      try {
+        await manager.getEngine().destroy()
+      } catch (cleanupError: any) {
+        logger.error('StrategyManager', `初始化失败后清理引擎失败: ${cleanupError.message}`)
+      }
+      manager.getIndicatorsHub().shutdown()
+    }
     logger.error('StrategyManager', `策略管理系统初始化失败: ${error.message}`)
     throw error
   }
@@ -149,6 +172,14 @@ export function getStrategyManagerIfAvailable(): StrategyManager | null {
  * 销毁策略管理系统
  */
 export async function destroyStrategyManager(): Promise<void> {
+  // 销毁时等正在运行的初始化结束，避免销毁返回后又发布一个新实例。
+  if (initializationPromise) {
+    try {
+      await initializationPromise
+    } catch {
+      return // 初始化失败已在内部清理资源。
+    }
+  }
   if (strategyManager) {
     logger.info('StrategyManager', '正在销毁策略管理系统...')
 

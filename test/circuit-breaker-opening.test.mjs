@@ -700,7 +700,7 @@ test('策略列表接口同时返回每日开仓次数和各策略的亏损金�
     getEngine() { return f.engine }
   }
   const { default: handler } = loadModule('../server/api/strategies/index.get.ts', {
-    '../../modules/strategy-manager': { getStrategyManager: () => strategyManager },
+    '../../modules/strategy-manager': { getStrategyManagerIfAvailable: () => strategyManager },
     '../../utils/mask-strategy': { maskStrategyData: value => structuredClone(value) }
   }, { ...f.globals, defineEventHandler: handler => handler })
   const originalConfig = JSON.stringify([...f.strategies.values()])
