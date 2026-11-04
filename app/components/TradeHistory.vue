@@ -212,23 +212,56 @@
           <span class="range-unit">%</span>
         </div>
 
+        <div class="filter-item time-filter-item">
+          <span class="filter-label">开仓时间</span>
+          <el-date-picker
+            v-model="openTimeRange"
+            type="datetimerange"
+            placement="bottom-start"
+            :fallback-placements="['bottom-start']"
+            size="small"
+            format="MM-DD"
+            range-separator="—"
+            start-placeholder="开始时间"
+            end-placeholder="结束时间"
+            :default-time="[new Date(2000, 0, 1, 0, 0, 0), new Date(2000, 0, 1, 23, 59, 59)]"
+            style="width: 100%; min-width: 0"
+            @change="handleFilterChange"
+          />
+        </div>
       </div>
 
       <!-- 筛选汇总基于全部匹配订单计算，不受分页影响。 -->
       <div class="history-summary">
         <div class="summary-item">
+          <span class="summary-label">订单数</span>
+          <span class="summary-value">{{ tradeHistoryStore.filteredSummary.orderCount }}</span>
+        </div>
+        <div class="summary-item">
           <span class="summary-label">总盈亏</span>
-          <span :class="tradeHistoryStore.filteredSummary.totalPnl >= 0 ? 'text-success' : 'text-danger'">
+          <span class="summary-value" :class="tradeHistoryStore.filteredSummary.totalPnl >= 0 ? 'text-success' : 'text-danger'">
             ${{ tradeHistoryStore.filteredSummary.totalPnl >= 0 ? '+' : '' }}{{ formatSummaryNumber(tradeHistoryStore.filteredSummary.totalPnl) }}
           </span>
         </div>
-        <div class="summary-divider"></div>
         <div class="summary-item">
           <span class="summary-label">总胜率</span>
           <span class="summary-value">
             {{ tradeHistoryStore.filteredSummary.winRate.toFixed(2) }}%
-            <small>({{ tradeHistoryStore.filteredSummary.winCount }}/{{ tradeHistoryStore.filteredSummary.orderCount }})</small>
           </span>
+        </div>
+        <div class="summary-item">
+          <span class="summary-label">平均盈亏</span>
+          <span class="summary-value" :class="tradeHistoryStore.filteredSummary.averagePnl >= 0 ? 'text-success' : 'text-danger'">
+            ${{ tradeHistoryStore.filteredSummary.averagePnl >= 0 ? '+' : '' }}{{ formatSummaryNumber(tradeHistoryStore.filteredSummary.averagePnl) }}
+          </span>
+        </div>
+        <div class="summary-item" title="平均每笔盈利 ÷ 平均每笔亏损的绝对值；没有亏损订单时不计算">
+          <span class="summary-label">盈亏比</span>
+          <span class="summary-value">{{ tradeHistoryStore.filteredSummary.payoffRatio == null ? '—' : tradeHistoryStore.filteredSummary.payoffRatio.toFixed(2) }}</span>
+        </div>
+        <div class="summary-item">
+          <span class="summary-label">盈利笔数</span>
+          <span class="summary-value">{{ tradeHistoryStore.filteredSummary.winCount }}</span>
         </div>
       </div>
     </div>
@@ -780,6 +813,19 @@ const filter = reactive<FilterConfig>({
   oiMax: undefined,
   estimatedVolumeMin: undefined,
   estimatedVolumeMax: undefined,
+  openTimeMin: undefined,
+  openTimeMax: undefined,
+})
+
+// 使用浏览器本地时间选择日期，传输毫秒时间戳，避免服务端时区影响筛选边界。
+const openTimeRange = computed<[Date, Date] | null>({
+  get: (): [Date, Date] | null => filter.openTimeMin != null && filter.openTimeMax != null
+    ? [new Date(filter.openTimeMin), new Date(filter.openTimeMax)]
+    : null,
+  set: (range) => {
+    filter.openTimeMin = range?.[0].getTime()
+    filter.openTimeMax = range?.[1].getTime()
+  },
 })
 
 // 加载当前页，服务端返回全部筛选结果的汇总。
@@ -835,6 +881,7 @@ const handleResetFilter = () => {
   filter.oiMax = undefined
   filter.estimatedVolumeMin = undefined
   filter.estimatedVolumeMax = undefined
+  openTimeRange.value = null
   tradeHistoryStore.resetFilter()
   currentPage.value = 1
   loadHistory()
@@ -971,8 +1018,7 @@ onUnmounted(() => {
 .is-embedded .pagination-wrapper { scrollbar-width: none; }
 .is-embedded :deep(.el-scrollbar__wrap)::-webkit-scrollbar,
 .is-embedded .pagination-wrapper::-webkit-scrollbar { display: none; width: 0; height: 0; }
-.is-embedded .history-summary { flex-wrap: wrap; gap: 8px; padding: 8px; }
-.is-embedded .summary-divider { display: none; }
+.is-embedded .history-summary { gap: 8px; }
 .is-embedded .pagination-wrapper { overflow-x: auto; justify-content: flex-start; }
 .card-header {
   display: flex;
@@ -994,9 +1040,12 @@ onUnmounted(() => {
 }
 
 .filter-bar {
-  padding-bottom: 12px;
-  border-bottom: 1px solid var(--border-color);
-  margin-bottom: 8px;
+  /* 筛选与汇总共用底色，形成一个完整面板，同时保持紧凑的底部留白。 */
+  padding: 8px 10px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: var(--bg-expand);
+  margin-bottom: 12px;
 }
 
 /* 旧表格通过原因标签展开详情；隐藏箭头的兼容规则不能影响复盘表格。 */
@@ -1009,13 +1058,19 @@ onUnmounted(() => {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr));
   column-gap: 28px;
-  row-gap: 14px;
+  row-gap: 8px;
   align-items: start;
 }
 
 .filter-item.range-filter-item {
   /* 固定分隔符和单位列宽，统一各区间的输入框间距，并为无单位的区间保留相同空间。 */
   grid-template-columns: minmax(0, 78px) 12px minmax(0, 78px) 12px;
+}
+
+.time-filter-item {
+  /* 单格内简显示月日，实际筛选仍保留完整日期与时分秒。 */
+  grid-column: span 1;
+  min-width: 0;
 }
 
 .range-input {
@@ -1040,21 +1095,24 @@ onUnmounted(() => {
 }
 
 .history-summary {
-  display: flex;
-  align-items: center;
-  gap: 18px;
-  min-height: 38px;
-  padding: 0 12px;
-  margin-top: 10px;
-  border: 1px solid var(--border-color);
-  background: var(--table-header-bg);
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr));
+  column-gap: 28px;
+  row-gap: 8px;
+  margin-top: 8px;
   font-size: 14px;
 }
 
 .summary-item {
   display: flex;
-  align-items: baseline;
+  align-items: center;
+  justify-content: space-between;
   gap: 8px;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  background: var(--table-header-bg);
 }
 
 .summary-label {
@@ -1067,23 +1125,12 @@ onUnmounted(() => {
   font-weight: 600;
 }
 
-.summary-value small {
-  color: var(--text-secondary);
-  font-weight: 400;
-}
-
-.summary-divider {
-  width: 1px;
-  height: 18px;
-  background: var(--border-color);
-}
-
 .filter-item {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   align-items: center;
   justify-content: start;
-  gap: 6px;
+  gap: 4px;
   min-height: 28px;
 }
 

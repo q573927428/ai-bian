@@ -42,13 +42,19 @@ function matchesRange(value: number | undefined, min?: number, max?: number): bo
 /** 仅返回当前页完整记录；筛选汇总始终覆盖全部匹配交易。 */
 export function queryTradeHistory(allHistory: TradeHistory[], query: Record<string, any>) {
   const filter: any = { ...query }
-  for (const key of ['pnlMin','pnlMax','scoreMin','scoreMax','confidenceMin','confidenceMax','oiMin','oiMax','estimatedVolumeMin','estimatedVolumeMax']) {
+  for (const key of ['pnlMin','pnlMax','scoreMin','scoreMax','confidenceMin','confidenceMax','oiMin','oiMax','estimatedVolumeMin','estimatedVolumeMax','openTimeMin','openTimeMax']) {
     filter[key] = query[key] === undefined || query[key] === '' ? undefined : Number(query[key])
     if (filter[key] !== undefined && !Number.isFinite(filter[key])) throw new Error(`无效筛选参数: ${key}`)
+  }
+  if (filter.openTimeMin != null && filter.openTimeMax != null && filter.openTimeMin > filter.openTimeMax) {
+    throw new Error('开始时间不能晚于结束时间')
   }
   const sort = { field: (query.sortField || 'closeTime') as SortField, direction: query.sortDirection === 'asc' ? 'asc' : 'desc' }
   if (!SORT_FIELDS.includes(sort.field)) throw new Error('无效排序字段')
   let result = [...allHistory]
+
+  // 按开仓时间筛选全部记录，确保分页与盈亏、胜率汇总采用相同时间范围。
+  result = result.filter(order => matchesRange(order.openTime, filter.openTimeMin, filter.openTimeMax))
 
   // 筛选：交易对
   if (filter.symbol) {
@@ -118,10 +124,23 @@ export function queryTradeHistory(allHistory: TradeHistory[], query: Record<stri
   const totalPages = Math.ceil(result.length / pageSize)
   const page = Math.min(Math.max(1, Math.trunc(Number(query.page)) || 1), Math.max(1, totalPages))
   const winCount = result.filter(record => record.pnl > 0).length
+  const totalPnl = result.reduce((sum, record) => sum + (Number.isFinite(record.pnl) ? record.pnl : 0), 0)
+  // 盈亏比按每笔平均收益计算；保本不计入胜负，没有亏损时用 null 表示无法计算。
+  const wins = result.filter(record => Number.isFinite(record.pnl) && record.pnl > 0)
+  const losses = result.filter(record => Number.isFinite(record.pnl) && record.pnl < 0)
+  const averageWin = wins.length ? wins.reduce((sum, record) => sum + record.pnl, 0) / wins.length : 0
+  const averageLoss = losses.length ? Math.abs(losses.reduce((sum, record) => sum + record.pnl, 0) / losses.length) : 0
   return {
     data: result.slice((page - 1) * pageSize, page * pageSize),
     pagination: { page, pageSize, total: result.length, totalPages },
-    summary: { orderCount: result.length, winCount, totalPnl: result.reduce((sum, record) => sum + (Number.isFinite(record.pnl) ? record.pnl : 0), 0), winRate: result.length ? winCount / result.length * 100 : 0 },
+    summary: {
+      orderCount: result.length,
+      winCount,
+      totalPnl,
+      winRate: result.length ? winCount / result.length * 100 : 0,
+      averagePnl: result.length ? totalPnl / result.length : 0,
+      payoffRatio: averageLoss ? averageWin / averageLoss : null,
+    },
     options: getTradeHistoryOptions(allHistory),
   }
 }

@@ -42,6 +42,9 @@ export interface FilterConfig {
   oiMax?: number
   estimatedVolumeMin?: number
   estimatedVolumeMax?: number
+  /** 开仓时间的起止毫秒时间戳，包含两端边界。 */
+  openTimeMin?: number
+  openTimeMax?: number
 }
 
 // 排序字段标签映射
@@ -63,7 +66,7 @@ export const useTradeHistoryStore = defineStore('tradeHistory', () => {
   const availableSymbols = ref<string[]>([])
   const availableStrategies = ref<string[]>([])
   const availableCloseCategories = ref<string[]>([])
-  const filteredSummary = ref({ orderCount: 0, winCount: 0, totalPnl: 0, winRate: 0 })
+  const filteredSummary = ref({ orderCount: 0, winCount: 0, totalPnl: 0, winRate: 0, averagePnl: 0, payoffRatio: null as number | null })
   // ========== 筛选状态 ==========
   const filter = ref<FilterConfig>({
     symbol: '',
@@ -80,6 +83,8 @@ export const useTradeHistoryStore = defineStore('tradeHistory', () => {
     oiMax: undefined,
     estimatedVolumeMin: undefined,
     estimatedVolumeMax: undefined,
+    openTimeMin: undefined,
+    openTimeMax: undefined,
   })
 
   // ========== 排序状态 ==========
@@ -110,6 +115,8 @@ export const useTradeHistoryStore = defineStore('tradeHistory', () => {
       oiMax: undefined,
       estimatedVolumeMin: undefined,
       estimatedVolumeMax: undefined,
+      openTimeMin: undefined,
+      openTimeMax: undefined,
     }
   }
 

@@ -35,6 +35,41 @@ test('数值筛选包含边界、评分优先采用明细终分，缺指标旧�
   assert.deepEqual(result.options.symbols, ['BTC/USDT', 'ETH/USDT'])
 })
 
+test('开仓时间筛选包含边界，支持单侧限制，并在分页前计算汇总', () => {
+  const result = queryTradeHistory(records, { openTimeMin: '1000', openTimeMax: '1002', pageSize: 1 })
+  assert.equal(result.pagination.total, 3)
+  assert.equal(result.data[0].id, '2')
+  assert.equal(result.summary.totalPnl, 3)
+  assert.equal(result.summary.winRate, 2 / 3 * 100)
+  assert.equal(queryTradeHistory(records, { openTimeMin: 4204 }).pagination.total, 1)
+  assert.equal(queryTradeHistory(records, { openTimeMax: 1000 }).pagination.total, 1)
+  // 没有开仓时间的旧记录只在未启用时间条件时参与结果。
+  const legacy = [{ ...records[0], openTime: undefined }]
+  assert.equal(queryTradeHistory(legacy, {}).pagination.total, 1)
+  assert.equal(queryTradeHistory(legacy, { openTimeMin: 0 }).pagination.total, 0)
+  assert.equal(queryTradeHistory(records, { openTimeMin: '', openTimeMax: '' }).pagination.total, records.length)
+  assert.throws(() => queryTradeHistory(records, { openTimeMin: 'invalid' }))
+  assert.throws(() => queryTradeHistory(records, { openTimeMin: 2, openTimeMax: 1 }))
+})
+
+test('网格汇总按全量筛选结果计算平均盈亏和盈亏比，保本不计入胜负', () => {
+  const trades = [30, 10, -5, 0].map((pnl, index) => ({
+    ...records[index], pnl, openTime: 1000 + index,
+  }))
+  const result = queryTradeHistory(trades, { pageSize: 1 })
+  assert.equal(result.data.length, 1)
+  assert.equal(result.summary.averagePnl, 35 / 4)
+  assert.equal(result.summary.payoffRatio, 4)
+  const filtered = queryTradeHistory(trades, { openTimeMin: 1001 })
+  assert.equal(filtered.summary.averagePnl, 5 / 3)
+  assert.equal(filtered.summary.payoffRatio, 2)
+  assert.equal(queryTradeHistory(trades, { pnlMin: 0 }).summary.payoffRatio, null)
+  assert.equal(queryTradeHistory(trades, { pnlMax: -1 }).summary.payoffRatio, 0)
+  const empty = queryTradeHistory(trades, { symbol: 'NONE' })
+  assert.equal(empty.summary.averagePnl, 0)
+  assert.equal(empty.summary.payoffRatio, null)
+})
+
 test('缺失排序值双向置底，空结果汇总为零，越界分页回落到最后一页', () => {
   for (const sortDirection of ['asc', 'desc']) {
     const result = queryTradeHistory(records.slice(0, 4), { sortField: 'oiChangePercent', sortDirection })
@@ -186,4 +221,13 @@ test('快速切换筛选时迟到的旧请求不会覆盖筛选选项和汇总',
   assert.equal(store.filteredSummary.value.orderCount, 2)
   assert.equal(pending[1].options.params.symbol, 'ETH/USDT')
   assert.equal(pending[1].options.params.pageSize, 16)
+  store.setFilter({ openTimeMin: 1000, openTimeMax: 1002 })
+  const timed = store.fetchPage(1, 16)
+  assert.equal(pending[2].options.params.openTimeMin, 1000)
+  assert.equal(pending[2].options.params.openTimeMax, 1002)
+  pending[2].resolve(response('ETH/USDT'))
+  await timed
+  store.resetFilter()
+  assert.equal(store.filter.value.openTimeMin, undefined)
+  assert.equal(store.filter.value.openTimeMax, undefined)
 })
