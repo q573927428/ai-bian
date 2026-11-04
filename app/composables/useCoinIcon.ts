@@ -12,9 +12,10 @@ let manifest = ref<CoinIconsManifest | null>(null)
 let loaded = false
 const loadState = ref<'idle' | 'loading' | 'ready'>('idle')
 
-/** 从合约 symbol 中提取基础资产（如 "BTCUSDT" -> "BTC"、"1000PEPEUSDT" -> "1000PEPE"）。 */
+/** 兼容行情的 BTCUSDT 和历史订单的 BTC/USDT，提取图标清单使用的基础资产。 */
 function extractBaseAsset(symbol: string): string {
-  return symbol.replace(/(USDT|USDC|FDUSD|BUSD)$/, '').toUpperCase()
+  // 先统一大小写并移除分隔符，避免去掉计价币后残留斜杠导致图标匹配失败。
+  return symbol.trim().toUpperCase().replace(/\//g, '').replace(/(USDT|USDC|FDUSD|BUSD)$/, '')
 }
 
 /**

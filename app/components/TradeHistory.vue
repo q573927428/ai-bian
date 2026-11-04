@@ -295,10 +295,16 @@
       @row-click="(order: TradeHistory) => emit('select-order', order)"
       @sort-change="handleSortChange"
     >
-      <el-table-column type="index" label="" width="30" align="center" :index="(index: number) => (currentPage - 1) * pageSize + index + 1" />
-      <el-table-column label="交易对" prop="symbol" min-width="104" show-overflow-tooltip>
+      <el-table-column type="index" label="" width="35" align="center" :index="(index: number) => (currentPage - 1) * pageSize + index + 1" />
+      <el-table-column label="交易对" prop="symbol" min-width="85" show-overflow-tooltip>
         <template #default="{ row }">
-          <el-button link type="primary" size="small" @click.stop="emit('select-order', row as TradeHistory)">{{ row.symbol }}</el-button>
+          <el-button link type="primary" size="small" @click.stop="emit('select-order', row as TradeHistory)">
+            <span class="symbol-cell">
+              <img v-if="!iconFailed[row.symbol] && getCoinIconUrl(row.symbol)" :src="getCoinIconUrl(row.symbol) || ''" alt="" class="coin-icon" @error="iconFailed[row.symbol] = true">
+              <span v-else class="coin-icon coin-icon-placeholder" aria-hidden="true">{{ baseAsset(row.symbol).slice(0, 1) }}</span>
+              <span>{{ baseAsset(row.symbol) }}</span>
+            </span>
+          </el-button>
         </template>
       </el-table-column>
       <el-table-column label="方向" width="40" align="center">
@@ -375,10 +381,14 @@
         <template #default="{ row }">
           <button
             type="button"
-            class="symbol symbol-link"
+            class="symbol symbol-link symbol-cell"
             :title="`查看 ${row.symbol}${row.mainTimeframe ? ' ' + row.mainTimeframe : ''} 图表`"
             @click.stop="selectChart(row.symbol, row.mainTimeframe)"
-          >{{ row.symbol }}</button>
+          >
+            <img v-if="!iconFailed[row.symbol] && getCoinIconUrl(row.symbol)" :src="getCoinIconUrl(row.symbol) || ''" alt="" class="coin-icon" @error="iconFailed[row.symbol] = true">
+            <span v-else class="coin-icon coin-icon-placeholder" aria-hidden="true">{{ baseAsset(row.symbol).slice(0, 1) }}</span>
+            <span>{{ baseAsset(row.symbol) }}</span>
+          </button>
         </template>
       </el-table-column>
 
@@ -620,6 +630,16 @@ import TradeOrderDetail from './TradeOrderDetail.vue'
 import { useTradeHistoryStore, type FilterConfig } from '../stores/tradeHistory'
 import { useBotStore } from '../stores/bot'
 import { formatTradePrice } from './kline-chart/utils/kline-formatters'
+import { useCoinIcon } from '../composables/useCoinIcon'
+
+const { getCoinIconUrl } = useCoinIcon()
+// 图标缺失或加载失败时显示首字母，避免订单列表出现破图。
+const iconFailed = ref<Record<string, boolean>>({})
+
+/** 交易对列只展示代币名称，保留完整 symbol 用于订单选择和图表跳转。 */
+function baseAsset(symbol: string): string {
+  return symbol.replace(/\/?(USDT|USDC|FDUSD|BUSD)$/i, '')
+}
 
 const tradeHistoryStore = useTradeHistoryStore()
 const botStore = useBotStore()
@@ -654,7 +674,7 @@ function selectChart(symbol: string, mainTimeframe?: string) {
 const orders = ref<TradeHistory[]>([])
 const currentPage = ref(1)
 // 筛选区展开后减少行数，为筛选条件留出显示空间。
-const pageSize = computed(() => showFilter.value ? 14 : 19)
+const pageSize = computed(() => showFilter.value ? 14 : 18)
 const total = ref(0)
 const totalPages = ref(0)
 const loading = ref(false)
@@ -1181,6 +1201,10 @@ onUnmounted(() => {
 .symbol-link { padding: 0; border: 0; background: transparent; font-family: inherit; cursor: pointer; text-align: left; }
 .symbol-link:hover { color: var(--el-color-primary); }
 .symbol-link:focus-visible { outline: 2px solid var(--el-color-primary); outline-offset: 3px; border-radius: 3px; }
+
+.symbol-cell { display: inline-flex; align-items: center; gap: 6px; vertical-align: middle; white-space: nowrap; }
+.coin-icon { width: 18px; height: 18px; flex: 0 0 18px; border-radius: 50%; object-fit: cover; }
+.coin-icon-placeholder { display: inline-flex; align-items: center; justify-content: center; background: var(--el-color-primary-light-3); color: #fff; font-size: 10px; line-height: 1; }
 
 .text-success,
 .text-warning,
