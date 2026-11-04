@@ -5,6 +5,7 @@ import fs from 'node:fs'
 import vm from 'node:vm'
 import ts from 'typescript'
 import { summarizeBreadth, calculateLiveBreadth } from '../app/utils/market-breadth.ts'
+import { relativeStrengthRanking } from '../app/utils/environment-confidence.ts'
 
 /** 隔离行情和数据库依赖，验证业务计算而不访问真实数据库或网络。 */
 function fixture() {
@@ -35,6 +36,7 @@ function fixture() {
     exports: {}, Date: class extends Date { static now() { return time } },
     require(id) {
       if (id === '../../app/utils/market-breadth') return { summarizeBreadth }
+      if (id === '../../app/utils/environment-confidence') return { relativeStrengthRanking }
       if (id === './market-price-hub') return { marketPriceHub: { getSnapshot: () => prices } }
       if (id === './kline-simple-storage') return {
         initKLineDb: async () => {},
@@ -240,4 +242,27 @@ test('要求中心包含当前未收盘K线，无中心的快照不能阻止初�
   assert.equal(stale.periods['1h'].normalizedChanges.BTCUSDT, null)
   assert.equal(stale.periods['1h'].upCount, 1)
   assert.equal(stale.periods['4h'].atrs.BTCUSDT, 2)
+})
+
+test('提示词仅简要展示主周期名次和样本数，同值并列且缺失不兜底', async () => {
+  const f = fixture()
+  const snapshot = await f.api.getMarketBreadth({ symbols: ['BTCUSDT'] })
+  for (const period of ['5m', '15m', '24h']) {
+    Object.assign(snapshot.periods[period], {
+      changes: { BTCUSDT: 1, A: 2, B: 3, C: 4, D: null },
+      normalizedChanges: { BTCUSDT: 3, A: 4, B: 3, C: null, D: 5 }
+    })
+  }
+  const prompt = f.api.formatMarketBreadth(snapshot, 'btc/usdt', '5m')
+  assert.ok(prompt.includes('当前主周期 5m 相对强弱排名：并列第2名 / 3个。'))
+  assert.ok(!prompt.includes('做多排名分') && !prompt.includes('做空排名分') && !prompt.includes('按ATR归一化表现从高到低'))
+  assert.ok(!prompt.includes('normalizedChanges') && !prompt.includes('ATR百分比'))
+  snapshot.periods['15m'].normalizedChanges.BTCUSDT = 5
+  assert.ok(f.api.formatMarketBreadth(snapshot, 'BTCUSDT', '15m').includes('第1名 / 3个。'))
+  assert.ok(f.api.formatMarketBreadth(snapshot, 'BTCUSDT', '1d').includes('当前主周期 1d 相对强弱排名：并列第2名 / 3个。'))
+  delete snapshot.periods['5m'].normalizedChanges
+  assert.ok(f.api.formatMarketBreadth(snapshot, 'BTCUSDT', '5m').includes('暂无可用排名'))
+  assert.ok(!f.api.formatMarketBreadth(snapshot).includes('相对强弱排名'))
+  f.advance(300001)
+  assert.ok(f.api.formatMarketBreadth(snapshot, 'BTCUSDT', '15m').includes('暂无可用排名'))
 })

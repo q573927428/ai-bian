@@ -234,8 +234,17 @@ function marketSupport(stats: MarketBreadthSnapshot['periods']['5m'], side: numb
   return 50
 }
 
+/** 同窗口归一化排名明细，分数与提示词共用；名次按表现从高到低，同值并列。 */
+export interface RelativeStrengthRanking {
+  position: number
+  sampleCount: number
+  tiedCount: number
+  longScore: number
+  shortScore: number
+}
+
 /** 按ATR归一化表现计算中秩百分位；无ATR样本排除，不与原始涨跌幅混排。 */
-function relativeRank(stats: MarketBreadthSnapshot['periods']['5m'], symbol: string, side: number): number | null {
+export function relativeStrengthRanking(stats: MarketBreadthSnapshot['periods']['5m'], symbol: string): RelativeStrengthRanking | null {
   const normalized = stats.normalizedChanges ?? {}
   const own = finite(stats.changes[symbol]) ? normalized[symbol] : null
   const sample = Object.entries(normalized).filter(([key, value]) => finite(stats.changes[key]) && finite(value)).map(([, value]) => value as number)
@@ -244,7 +253,14 @@ function relativeRank(stats: MarketBreadthSnapshot['periods']['5m'], symbol: str
   const less = sample.filter(value => value < own).length
   const equalOthers = sample.filter(value => value === own).length - 1
   const rank = 100 * (less + equalOthers / 2) / others
-  return side > 0 ? rank : 100 - rank
+  return { position: sample.filter(value => value > own).length + 1, sampleCount: sample.length,
+    tiedCount: equalOthers + 1, longScore: rank, shortScore: 100 - rank }
+}
+
+/** 方向分数直接复用排名明细，避免展示与实际置信度使用不同口径。 */
+function relativeRank(stats: MarketBreadthSnapshot['periods']['5m'], symbol: string, side: number): number | null {
+  const ranking = relativeStrengthRanking(stats, symbol)
+  return ranking ? side > 0 ? ranking.longScore : ranking.shortScore : null
 }
 
 /** 统一按五周期方向支持度计算；回调或反转是否可入场由策略规则判断。 */

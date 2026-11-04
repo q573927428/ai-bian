@@ -332,6 +332,7 @@ test('相对强弱只取主周期排名，五主周期独立得分且日线映�
     assert.equal(result.long.market, 100)
     assert.equal(result.long.structure, 100)
     assert.equal((await analyzerFixture().call(result)).confidence, result.long.confidence)
+    assert.ok(analyzerFixture().prompt({ marketBreadth: snapshot }, result).includes(`市场广度主周期：${timeframe}`))
   }
   const defaultResult = buildEnvironmentContext(all('多头双增强'), snapshot, 'BTCUSDT')
   assert.equal(defaultResult.mainTimeframe, '15m')
@@ -399,7 +400,7 @@ function analyzerFixture() {
       if (id.includes('stable-hash')) return { shortHash }
       if (id.includes('ai-analysis-snapshot')) return { createStrategySnapshot: () => ({}), createQuantitativeSnapshot: () => ({}) }
       if (id.includes('candle-volume')) return { getCandleVolume }
-      if (id.includes('market-breadth')) return { formatMarketBreadth: () => '' }
+      if (id.includes('market-breadth')) return { formatMarketBreadth: (snapshot, symbol, timeframe) => snapshot ? `市场广度主周期：${timeframe}` : '' }
       // 分析器已记录决策ID和提示词缓存，补齐隔离依赖，避免测试误走 API 降级分支。
       if (id === 'node:crypto') return { randomUUID }
       if (id.includes('ai-prompt-cache')) return { aiPromptCache: { put() {} } }

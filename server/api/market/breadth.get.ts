@@ -2,6 +2,7 @@
 import { getBotConfig } from '../../utils/storage'
 import { getMarketBreadth, formatMarketBreadth } from '../../utils/market-breadth'
 import { getStrategyManagerIfAvailable } from '../../modules/strategy-manager'
+import { TREND_PERIODS, type TrendPeriod } from '../../../app/utils/environment-confidence'
 
 /** 看板与策略使用同一份聚合快照，不按浏览器重复计算。 */
 export default defineEventHandler(async (event) => {
@@ -11,7 +12,8 @@ export default defineEventHandler(async (event) => {
   const query = getQuery(event)
   if (query.format === 'text') {
     setHeader(event, 'Content-Type', 'text/plain; charset=utf-8')
-    return formatMarketBreadth(snapshot, typeof query.symbol === 'string' ? query.symbol : undefined)
+    const timeframe = TREND_PERIODS.includes(query.timeframe as TrendPeriod) ? query.timeframe as TrendPeriod : '15m'
+    return formatMarketBreadth(snapshot, typeof query.symbol === 'string' ? query.symbol : undefined, timeframe)
   }
   return snapshot
 })

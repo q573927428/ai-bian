@@ -793,7 +793,7 @@ ${data.volumeSection}
 ${data.technicalSections.join('\n\n')}
 
 ### 近30日持续高交易量且稳定交易对市场背景
-${formatMarketBreadth(indicators.marketBreadth, symbol)}
+${formatMarketBreadth(indicators.marketBreadth, symbol, environmentContext?.mainTimeframe)}
 
 --------------------------
 ## 四、策略（唯一规则）

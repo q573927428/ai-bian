@@ -5,6 +5,7 @@ import { summarizeBreadth } from '../../app/utils/market-breadth'
 import { getSimpleKLineData, initKLineDb } from './kline-simple-storage'
 import { marketPriceHub } from './market-price-hub'
 import type { IndicatorsHub } from '../modules/indicators/IndicatorsHub'
+import { relativeStrengthRanking, type TrendPeriod } from '../../app/utils/environment-confidence'
 
 /** 复用调用方已初始化的指标中心，不为市场广度另建指标实例或ATR缓存。 */
 type BreadthIndicatorsHub = Pick<IndicatorsHub, 'getIndicators' | 'getKlines'>
@@ -96,7 +97,7 @@ export async function getMarketBreadth(config: BotConfig, force = false, hub?: B
 }
 
 /** AI 接收市场聚合值及当前交易对涨跌幅，不展开其他交易对明细。 */
-export function formatMarketBreadth(snapshot?: MarketBreadthSnapshot, symbol?: string): string {
+export function formatMarketBreadth(snapshot?: MarketBreadthSnapshot, symbol?: string, mainTimeframe: TrendPeriod = '15m'): string {
   if (!snapshot) return '市场广度：暂无可用快照。'
   const lines = (['5m', '15m', '1h', '4h', '24h'] as const).map(period => {
     const stats = snapshot.periods[period]
@@ -115,10 +116,18 @@ export function formatMarketBreadth(snapshot?: MarketBreadthSnapshot, symbol?: s
       ? `${change >= 0 ? '+' : ''}${change.toFixed(2)}%` : '暂无数据'
     return `${period}涨跌幅${value}`
   }).join('；')}。` : null
+  const relativeWindow = mainTimeframe === '1d' ? '24h' : mainTimeframe
+  // 与评分复用同一排名函数，样本数只包含有涨跌幅及ATR归一化结果的标的。
+  const ranking = normalizedSymbol && Date.now() < snapshot.expiresAt && snapshot.computedAt <= Date.now()
+    ? relativeStrengthRanking(snapshot.periods[relativeWindow], normalizedSymbol) : null
+  const rankingLine = normalizedSymbol ? `当前主周期 ${mainTimeframe} 相对强弱排名：${ranking
+    ? `${ranking.tiedCount > 1 ? '并列' : ''}第${ranking.position}名 / ${ranking.sampleCount}个`
+    : '暂无可用排名'}。` : null
   return [
     `市场广度（已筛选${snapshot.selectedCount}个币安近30日交易量高且稳定交易对，供市场方向参考）：`,
     `更新时间：${updatedAt}${Date.now() >= snapshot.expiresAt ? '（数据已过期）' : ''}。`,
     ...lines,
-    ...(currentSymbolLine ? [currentSymbolLine] : [])
+    ...(currentSymbolLine ? [currentSymbolLine] : []),
+    ...(rankingLine ? [rankingLine] : [])
   ].join('\n')
 }
