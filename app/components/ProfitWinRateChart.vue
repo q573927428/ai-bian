@@ -293,6 +293,10 @@ const renderChart = () => {
     xAxis: {
       type: 'category',
       boundaryGap: false,
+      axisLine: {
+        lineStyle: { color: theme.value === 'dark' ? 'rgba(255, 255, 255, 0.18)' : 'rgba(0, 0, 0, 0.18)' }
+      },
+      axisTick: { show: false },
       data: chartData.value.map(d => d.time),
       axisLabel: {
         rotate: 0,
@@ -312,6 +316,13 @@ const renderChart = () => {
     yAxis: {
       type: 'value',
       position: 'left',
+      // 网格仅用于辅助读数，降低明暗主题下的对比度，避免抢占收益曲线的视觉焦点。
+      splitLine: {
+        lineStyle: {
+          color: theme.value === 'dark' ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.08)',
+          width: 1
+        }
+      },
       min: isPnl ? undefined : 0,
       max: isPnl ? undefined : 100,
       axisLabel: {
