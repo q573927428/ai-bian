@@ -4,21 +4,26 @@ import type { MarketBreadthSnapshot } from '../../types/market-breadth'
 import { summarizeBreadth } from '../../app/utils/market-breadth'
 import { getSimpleKLineData, initKLineDb } from './kline-simple-storage'
 import { marketPriceHub } from './market-price-hub'
+import type { IndicatorsHub } from '../modules/indicators/IndicatorsHub'
+
+/** 复用调用方已初始化的指标中心，不为市场广度另建指标实例或ATR缓存。 */
+type BreadthIndicatorsHub = Pick<IndicatorsHub, 'getIndicators' | 'getKlines'>
 
 let cached: MarketBreadthSnapshot | null = null
-let pending: { key: string; promise: Promise<MarketBreadthSnapshot> } | null = null
+let cachedHub: BreadthIndicatorsHub | undefined
+let pending: { key: string; hub?: BreadthIndicatorsHub; promise: Promise<MarketBreadthSnapshot> } | null = null
 
 // 前端与服务端复用聚合口径，但各自保留实时展示和固定快照的更新节奏。
 export { summarizeBreadth } from '../../app/utils/market-breadth'
 
 /** 每轮预计算刷新一次；未启动预计算时按相同有效期惰性计算，并合并并发请求。 */
-export async function getMarketBreadth(config: BotConfig, force = false): Promise<MarketBreadthSnapshot> {
+export async function getMarketBreadth(config: BotConfig, force = false, hub?: BreadthIndicatorsHub): Promise<MarketBreadthSnapshot> {
   const symbols = [...new Set((config.symbols || []).map(symbol => symbol.replace('/', '').trim().toUpperCase()).filter(Boolean))].sort()
   const intervalMs = config.indicatorPrecompute?.enabled === false ? 60000
     : Math.max(60000, Number(config.indicatorPrecompute?.intervalMs ?? 300000))
   const key = JSON.stringify([symbols, intervalMs])
-  if (pending?.key === key) return pending.promise
-  if (!force && cached && JSON.stringify([cached.symbols, cached.expiresAt - cached.computedAt]) === key && Date.now() < cached.expiresAt) return cached
+  if (pending?.key === key && pending.hub === hub) return pending.promise
+  if (!force && cached && cachedHub === hub && JSON.stringify([cached.symbols, cached.expiresAt - cached.computedAt]) === key && Date.now() < cached.expiresAt) return cached
   const promise = (async (): Promise<MarketBreadthSnapshot> => {
     await initKLineDb()
     const now = Date.now()
@@ -31,9 +36,13 @@ export async function getMarketBreadth(config: BotConfig, force = false): Promis
       const referenceTime = Math.floor(now / 300000) * 300000 - periodMs
       const changes: Record<string, number | null> = {}
       const bases: Record<string, number> = {}
+      const atrs: Record<string, number> = {}
+      const atrPercents: Record<string, number> = {}
+      const normalizedChanges: Record<string, number | null> = {}
       for (const symbol of symbols) {
         const ticker = prices[symbol]
         changes[symbol] = null
+        normalizedChanges[symbol] = null
         // 历史基准独立于当前行情保存，ticker 稍后到达时前端即可计算，无需等待下轮快照。
         const timestamp = referenceTime / 1000
         const historicalBar = getSimpleKLineData(symbol, '5m', { from: timestamp, to: timestamp, limit: 1 })[0]
@@ -50,17 +59,36 @@ export async function getMarketBreadth(config: BotConfig, force = false): Promis
           const change = (price / historicalBar.o - 1) * 100
           if (Number.isFinite(change)) changes[symbol] = change
         }
+        if (!hub || changes[symbol] === null) continue
+        try {
+          // 只复用指标中心ATR(14)；24h映射1d，要求数据已包含当前未收盘K线。
+          const timeframe = period === '24h' ? '1d' : period
+          const klines = hub.getKlines(symbol, timeframe)
+          if (klines?.at(-1)?.timestamp !== Math.floor(now / periodMs) * periodMs) continue
+          // 传入刚核验的中心K线，沿用同一缓存键及内容哈希，避免再次读取期间跨越K线边界。
+          const data = await hub.getIndicators(symbol, timeframe, 'ATR', { atrPeriod: 14 }, klines)
+          const atr = data.values.atr
+          if (typeof atr !== 'number' || !Number.isFinite(atr) || atr <= 0) continue
+          const atrPercent = atr / price * 100
+          const normalizedChange = changes[symbol]! / atrPercent
+          if (!Number.isFinite(atrPercent) || atrPercent <= 0 || !Number.isFinite(normalizedChange)) continue
+          atrs[symbol] = atr
+          atrPercents[symbol] = atrPercent
+          normalizedChanges[symbol] = normalizedChange
+        } catch {
+          // 单标的指标不可用仅排除其排名，不影响原始涨跌家数；不在此兜底计算ATR。
+        }
       }
-      periods[period] = summarizeBreadth(changes, referenceTime, bases)
+      periods[period] = { ...summarizeBreadth(changes, referenceTime, bases), atrs, atrPercents, normalizedChanges }
     }
     const result: MarketBreadthSnapshot = { scope: 'selected_symbols', selectedCount: symbols.length, symbols, computedAt: now, expiresAt: now + intervalMs, periods }
     return result
   })()
-  pending = { key, promise }
+  pending = { key, hub, promise }
   try {
     const result = await promise
     // 配置变更后启动的新计算优先，旧请求不能覆盖新配置的快照。
-    if (pending?.promise === promise) cached = result
+    if (pending?.promise === promise) { cached = result; cachedHub = hub }
     return result
   } finally {
     if (pending?.promise === promise) pending = null

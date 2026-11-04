@@ -121,7 +121,7 @@ export default defineEventHandler(async (event) => {
   // 复用策略分析的服务端评分口径；方向标记请求无需重复计算五周期环境。
   // 环境计算失败仅清空评分，不影响其他指标展示。
   const environmentContext = !signalOnly
-    ? await Promise.resolve().then(async () => getMarketBreadth(botConfig))
+    ? await Promise.resolve().then(async () => getMarketBreadth(botConfig, false, indicatorsHub))
       .then(breadth => loadEnvironmentContext(indicatorsHub, indicatorSymbol, breadth, timeframe))
       .catch(() => undefined)
     : undefined

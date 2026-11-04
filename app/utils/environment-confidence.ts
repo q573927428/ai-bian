@@ -70,7 +70,7 @@ export interface EnvironmentAssessment {
 
 /** 本次请求固定快照，包含双方向评分，防止 AI 自由调整分数。 */
 export interface EnvironmentContext {
-  version: 'environment-v1' | 'environment-v2' | 'environment-v3'
+  version: 'environment-v1' | 'environment-v2' | 'environment-v3' | 'environment-v4'
   /** 计算该置信度时使用的策略或看板主周期；历史档案允许缺失。 */
   mainTimeframe?: TrendPeriod
   periods: PeriodSignals
@@ -234,10 +234,11 @@ function marketSupport(stats: MarketBreadthSnapshot['periods']['5m'], side: numb
   return 50
 }
 
-/** 个币在同窗口有效市场样本中的中秩百分位；全体持平时为50，不假装领先。 */
+/** 按ATR归一化表现计算中秩百分位；无ATR样本排除，不与原始涨跌幅混排。 */
 function relativeRank(stats: MarketBreadthSnapshot['periods']['5m'], symbol: string, side: number): number | null {
-  const own = stats.changes[symbol]
-  const sample = Object.values(stats.changes).filter(finite)
+  const normalized = stats.normalizedChanges ?? {}
+  const own = finite(stats.changes[symbol]) ? normalized[symbol] : null
+  const sample = Object.entries(normalized).filter(([key, value]) => finite(stats.changes[key]) && finite(value)).map(([, value]) => value as number)
   if (!finite(own) || sample.length < 2) return null
   const others = sample.length - 1
   const less = sample.filter(value => value < own).length
@@ -260,18 +261,20 @@ function structureSupport(signals: PeriodSignals, side: number): number | null {
 /** 固定40/30/30权重；任何关键维度缺失均不可用，不靠剩余维度补分。 */
 export function assessEnvironment(
   periods: PeriodSignals, breadth: MarketBreadthSnapshot | undefined, symbol: string,
-  side: number, now = Date.now(), mainTimeframe?: TrendPeriod
+  side: number, now = Date.now(), mainTimeframe: TrendPeriod = '15m'
 ): EnvironmentAssessment {
   const validBreadth = breadth && now < breadth.expiresAt && breadth.computedAt <= now
   const windows = ['5m', '15m', '1h', '4h', '24h'] as const
   // 短中周期为主，滚动24h提供背景；缺失时不重新分配权重。
   const weights = [10, 20, 30, 25, 15] as const
   const marketValues = windows.map(window => validBreadth ? marketSupport(breadth.periods[window], side) : null)
-  const relativeValues = windows.map(window => validBreadth ? relativeRank(breadth.periods[window], symbol.replace('/', '').toUpperCase(), side) : null)
   const average = (values: (number | null)[]) => values.every(finite)
     ? values.reduce<number>((sum, value, index) => sum + value! * weights[index]! / 100, 0) : null
   const market = average(marketValues)
-  const relativeStrength = average(relativeValues)
+  // 相对强弱只取交易主周期；日线对应滚动24h，缺失不借用其他窗口补分。
+  const relativeWindow = mainTimeframe === '1d' ? '24h' : mainTimeframe
+  const relativeStrength = validBreadth
+    ? relativeRank(breadth.periods[relativeWindow], symbol.replace('/', '').toUpperCase(), side) : null
   const structure = structureSupport(periods, side)
   const breadthAdjustment = validBreadth ? marketBreadthAdjustment(breadth.periods['24h'], side) : null
   const available = market !== null && structure !== null && relativeStrength !== null && breadthAdjustment !== null
@@ -285,10 +288,10 @@ export function assessEnvironment(
 }
 
 /** 同一份事实预先计算多空两方向，AI只能选用策略确定方向对应的固定结果。 */
-export function buildEnvironmentContext(periods: PeriodSignals, breadth: MarketBreadthSnapshot | undefined, symbol: string, mainTimeframe?: TrendPeriod): EnvironmentContext {
+export function buildEnvironmentContext(periods: PeriodSignals, breadth: MarketBreadthSnapshot | undefined, symbol: string, mainTimeframe: TrendPeriod = '15m'): EnvironmentContext {
   const now = Date.now()
   return {
-    version: 'environment-v3', mainTimeframe, periods, structure: classifyTrendStructure(periods),
+    version: 'environment-v4', mainTimeframe, periods, structure: classifyTrendStructure(periods),
     long: assessEnvironment(periods, breadth, symbol, 1, now, mainTimeframe),
     short: assessEnvironment(periods, breadth, symbol, -1, now, mainTimeframe)
   }

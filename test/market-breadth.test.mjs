@@ -13,6 +13,23 @@ function fixture() {
   let reads = 0
   const prices = { BTCUSDT: { price: 110, timestamp: now, change24hPercent: 5 } }
   const bars = new Map()
+  const atrReads = []
+  const atrValues = new Map()
+  const stalePeriods = new Set()
+  const hub = {
+    getKlines(symbol, timeframe) {
+      const seconds = { '5m': 300, '15m': 900, '1h': 3600, '4h': 14400, '1d': 86400 }[timeframe]
+      return [{ timestamp: Math.floor(time / 1000 / seconds) * seconds * 1000 - (stalePeriods.has(timeframe) ? seconds * 1000 : 0) }]
+    },
+    async getIndicators(symbol, timeframe, type, options, snapshotKlines) {
+      atrReads.push({ symbol, timeframe, type, options })
+      assert.equal(type, 'ATR')
+      assert.equal(options.atrPeriod, 14)
+      assert.ok(Array.isArray(snapshotKlines) && snapshotKlines.length > 0)
+      if (symbol !== 'BTCUSDT') throw new Error('ATR不可用')
+      return { values: { atr: atrValues.has(timeframe) ? atrValues.get(timeframe) : 2 } }
+    }
+  }
   for (const hours of [1, 4, 24]) bars.set(`BTCUSDT:${now / 1000 - hours * 3600}`, 100)
   const context = {
     exports: {}, Date: class extends Date { static now() { return time } },
@@ -23,6 +40,8 @@ function fixture() {
         initKLineDb: async () => {},
         getSimpleKLineData(symbol, timeframe, options) {
           reads++
+          // 市场广度只允许读取单根原始价格基准，不能再为ATR额外读取历史序列。
+          assert.equal(options.limit, 1)
           assert.equal(timeframe, '5m')
           if (options.from === undefined) return symbol === 'BTCUSDT' ? [{ t: now / 1000, c: 110 }] : []
           assert.equal(options.from, options.to)
@@ -36,7 +55,9 @@ function fixture() {
   vm.createContext(context)
   const source = fs.readFileSync(new URL('../server/utils/market-breadth.ts', import.meta.url), 'utf8')
   vm.runInContext(ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText, context)
-  return { api: context.exports, prices, bars, now, reads: () => reads, advance: ms => { time += ms } }
+  const rawGetMarketBreadth = context.exports.getMarketBreadth
+  const api = { ...context.exports, getMarketBreadth: (config, force = false) => rawGetMarketBreadth(config, force, hub) }
+  return { api, rawGetMarketBreadth, hub, prices, bars, atrReads, atrValues, stalePeriods, now, reads: () => reads, advance: ms => { time += ms } }
 }
 
 test('占比分母含持平、排除缺失，中位数覆盖奇数、偶数及空样本', () => {
@@ -165,4 +186,58 @@ test('24h实时统计统一使用本地基准；忽略ticker涨跌幅，缺失�
   assert.ok(Math.abs(stats.changes.BTCUSDT + 20) < 1e-10)
   assert.equal(calculateLiveBreadth(['BTCUSDT'], prices, '1h', {}, null, now).missingCount, 1)
   assert.equal(calculateLiveBreadth(['BTCUSDT'], prices, '24h', {}, null, now + 120001).missingCount, 1)
+})
+
+test('复用指标中心ATR并保存归一化依据，24h映射日线，缺失ATR不影响广度', async () => {
+  const f = fixture()
+  const snapshot = await f.api.getMarketBreadth({ symbols: ['BTCUSDT', 'ETHUSDT'] })
+  for (const [period, timeframe] of [['1h', '1h'], ['4h', '4h'], ['24h', '1d']]) {
+    const stats = snapshot.periods[period]
+    assert.ok(f.atrReads.some(read => read.symbol === 'BTCUSDT' && read.timeframe === timeframe && read.type === 'ATR'))
+    if (stats.changes.BTCUSDT !== null) {
+      assert.equal(stats.atrs.BTCUSDT, 2)
+      assert.equal(stats.atrPercents.BTCUSDT, 2 / 110 * 100)
+      assert.equal(stats.normalizedChanges.BTCUSDT, stats.changes.BTCUSDT / stats.atrPercents.BTCUSDT)
+    }
+    assert.equal(stats.normalizedChanges.ETHUSDT, null)
+  }
+  f.prices.ETHUSDT = { price: 120, timestamp: f.now }
+  f.bars.set(`ETHUSDT:${f.now / 1000 - 3600}`, 100)
+  const stats = (await f.api.getMarketBreadth({ symbols: ['ETHUSDT'] }, true)).periods['1h']
+  assert.equal(stats.upCount, 1)
+  assert.equal(stats.normalizedChanges.ETHUSDT, null)
+})
+
+test('广度缓存命中不再请求ATR，刷新使用中心更新值且异常ATR不能兜底', async () => {
+  const f = fixture()
+  const config = { symbols: ['BTCUSDT'] }
+  const first = await f.api.getMarketBreadth(config)
+  const calls = f.atrReads.length
+  assert.equal(await f.api.getMarketBreadth(config), first)
+  assert.equal(f.atrReads.length, calls)
+  f.atrValues.set('1h', 4)
+  const updated = await f.api.getMarketBreadth(config, true)
+  assert.equal(updated.periods['1h'].atrs.BTCUSDT, 4)
+  assert.equal(updated.periods['1h'].normalizedChanges.BTCUSDT, first.periods['1h'].normalizedChanges.BTCUSDT / 2)
+  for (const invalid of [0, -1, NaN, Infinity, undefined]) {
+    f.atrValues.set('1h', invalid)
+    const stats = (await f.api.getMarketBreadth(config, true)).periods['1h']
+    assert.equal(stats.normalizedChanges.BTCUSDT, null)
+    assert.equal(stats.upCount, 1)
+  }
+})
+
+test('要求中心包含当前未收盘K线，无中心的快照不能阻止初始化后重新读取ATR', async () => {
+  const f = fixture()
+  const config = { symbols: ['BTCUSDT'] }
+  const unavailable = await f.rawGetMarketBreadth(config)
+  assert.equal(unavailable.periods['1h'].normalizedChanges.BTCUSDT, null)
+  const ready = await f.api.getMarketBreadth(config)
+  assert.notEqual(ready, unavailable)
+  assert.equal(ready.periods['1h'].atrs.BTCUSDT, 2)
+  f.stalePeriods.add('1h')
+  const stale = await f.api.getMarketBreadth(config, true)
+  assert.equal(stale.periods['1h'].normalizedChanges.BTCUSDT, null)
+  assert.equal(stale.periods['1h'].upCount, 1)
+  assert.equal(stale.periods['4h'].atrs.BTCUSDT, 2)
 })

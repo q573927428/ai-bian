@@ -981,7 +981,7 @@ export class StrategyEngine {
             ...structureConfig?.params, currentPrice: price
           }, klines)).values
       // 所有交易对复用本轮缓存，同时把快照加入 AI 缓存键，防止复用旧市场背景的结论。
-      const marketBreadth = await getMarketBreadth(this.config)
+      const marketBreadth = await getMarketBreadth(this.config, false, this.indicatorsHub)
 
       const cacheKey = this.buildAICacheKey(
         symbol,

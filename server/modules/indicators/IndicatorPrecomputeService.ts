@@ -75,7 +75,7 @@ export class IndicatorPrecomputeService {
     if (this.config.indicatorPrecompute?.enabled === false) return
     // 市场广度只读本地数据，即使外部接口降级也可刷新，并与各交易对共享同一快照。
     try {
-      await getMarketBreadth(this.config, true)
+      await getMarketBreadth(this.config, true, this.indicatorsHub)
     } catch (error: any) {
       logger.warn('IndicatorPrecomputeService', `市场广度计算失败: ${error.message}`)
     }

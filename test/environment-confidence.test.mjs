@@ -156,7 +156,8 @@ function breadth() {
     selectedCount: 10, computedAt: Date.now() - 1000, expiresAt: Date.now() + 60000,
     periods: Object.fromEntries(['5m', '15m', '1h', '4h', '24h'].map(period => [period, {
       validCount: 10, upCount: 7, downCount: 2, flatCount: 1, missingCount: 0,
-      medianChangePct: 1, changes: { BTCUSDT: 5, A: 4, B: 3, C: 2, D: 1.5, E: 1, F: 0.5, G: 0, H: -1, I: -2 }
+      medianChangePct: 1, changes: { BTCUSDT: 5, A: 4, B: 3, C: 2, D: 1.5, E: 1, F: 0.5, G: 0, H: -1, I: -2 },
+      normalizedChanges: { BTCUSDT: 5, A: 4, B: 3, C: 2, D: 1.5, E: 1, F: 0.5, G: 0, H: -1, I: -2 }
     }]))
   }
 }
@@ -189,7 +190,7 @@ test('多空九种强弱组合及互补评分完整覆盖，持平不丢失原�
       assert.equal(periodSupport(trend, sign), scores[i][j])
       assert.equal(periodSupport(trend, -sign), 100 - scores[i][j])
       const context = buildEnvironmentContext(all(trend), breadth(), 'BTCUSDT')
-      assert.equal(context.version, 'environment-v3')
+      assert.equal(context.version, 'environment-v4')
       assert.equal(sign > 0 ? context.long.structure : context.short.structure, scores[i][j])
       assert.equal(context.long.confidence, Math.round(70 + context.long.structure * 0.3))
       assert.ok(formatEnvironmentConfidence(context).includes(`5m ${trend}`))
@@ -228,6 +229,7 @@ test('固定权重给出多空分数，持平排名中性且不按K线进度扣�
   const flat = breadth()
   for (const stats of Object.values(flat.periods)) {
     stats.changes = { BTCUSDT: 0, A: 0 }
+    stats.normalizedChanges = { BTCUSDT: 0, A: 0 }
     stats.medianChangePct = 0
     stats.upCount = stats.downCount = 0
     stats.flatCount = 10
@@ -259,16 +261,17 @@ test('旧版档案标签保留历史评分语义，不推断未知的DI/MACD明�
   assert.equal(buildEnvironmentContext(signals, breadth(), 'BTCUSDT').long.structure, 94)
 })
 
-test('市场与排名按五窗口10/20/30/25/15加权，24h反向同时触发独立广度扣分', () => {
+test('市场仍按五窗口加权，日线相对强弱只取24h且反向触发独立广度扣分', () => {
   const snapshot = breadth()
   Object.assign(snapshot.periods['24h'], {
     upCount: 0, downCount: 7, medianChangePct: -1, validCount: 8,
-    changes: { BTCUSDT: -5, A: -4, B: -3, C: -2, D: -1.5, E: -1, F: -0.5, G: 0 }
+    changes: { BTCUSDT: -5, A: -4, B: -3, C: -2, D: -1.5, E: -1, F: -0.5, G: 0 },
+    normalizedChanges: { BTCUSDT: -5, A: -4, B: -3, C: -2, D: -1.5, E: -1, F: -0.5, G: 0 }
   })
-  const result = buildEnvironmentContext(all('多头增强'), snapshot, 'BTCUSDT')
+  const result = buildEnvironmentContext(all('多头增强'), snapshot, 'BTCUSDT', '1d')
   assert.equal(result.long.market, 85)
-  assert.equal(result.long.relativeStrength, 85)
-  assert.equal(result.long.confidence, 82)
+  assert.equal(result.long.relativeStrength, 0)
+  assert.equal(result.long.confidence, 56)
   assert.equal(result.long.coverage, 97)
   for (const [period, weight] of [['5m', 10], ['15m', 20], ['1h', 30], ['4h', 25], ['24h', 15]]) {
     const sample = breadth()
@@ -280,7 +283,7 @@ test('市场与排名按五窗口10/20/30/25/15加权，24h反向同时触发独
 test('24h市场或个币排名缺失时不可用，不重分配其他窗口权重', () => {
   const snapshot = breadth()
   snapshot.periods['24h'].changes.BTCUSDT = null
-  let result = buildEnvironmentContext(all('多头增强'), snapshot, 'BTCUSDT')
+  let result = buildEnvironmentContext(all('多头增强'), snapshot, 'BTCUSDT', '1d')
   assert.equal(result.long.relativeStrength, null)
   assert.equal(result.long.confidence, null)
   snapshot.periods['24h'].validCount = 0
@@ -288,6 +291,59 @@ test('24h市场或个币排名缺失时不可用，不重分配其他窗口权�
   result = buildEnvironmentContext(all('多头增强'), snapshot, 'BTCUSDT')
   assert.equal(result.long.market, null)
   assert.equal(result.long.available, false)
+})
+
+test('相对强弱按ATR调整后的表现排名，低波动标的不再因原始涨幅较小落后', () => {
+  const snapshot = breadth()
+  for (const stats of Object.values(snapshot.periods)) {
+    stats.changes = { BTCUSDT: 0.9, A: 1.5, B: -0.3 }
+    stats.normalizedChanges = { BTCUSDT: 3, A: 0.75, B: -1 }
+  }
+  let result = buildEnvironmentContext(all('多头双增强'), snapshot, 'BTCUSDT')
+  assert.equal(result.long.relativeStrength, 100)
+  assert.equal(result.short.relativeStrength, 0)
+  assert.equal(buildEnvironmentContext(all('多头双增强'), snapshot, 'A').long.relativeStrength, 50)
+  for (const stats of Object.values(snapshot.periods)) {
+    stats.normalizedChanges = { BTCUSDT: 3, A: 3, B: null }
+  }
+  result = buildEnvironmentContext(all('多头双增强'), snapshot, 'BTCUSDT')
+  assert.equal(result.long.relativeStrength, 50)
+  assert.equal(result.short.relativeStrength, 50)
+  assert.equal(buildEnvironmentContext(all('多头双增强'), snapshot, 'B').long.confidence, null)
+  delete snapshot.periods['24h'].normalizedChanges
+  result = buildEnvironmentContext(all('多头双增强'), snapshot, 'BTCUSDT', '1d')
+  assert.equal(result.long.relativeStrength, null)
+  assert.equal(result.long.available, false)
+})
+
+test('相对强弱只取主周期排名，五主周期独立得分且日线映射滚动24h', async () => {
+  const snapshot = breadth()
+  const windows = ['5m', '15m', '1h', '4h', '24h']
+  for (const [i, window] of windows.entries()) {
+    snapshot.periods[window].changes = { BTCUSDT: 1, A: 1, B: 1, C: 1, D: 1 }
+    snapshot.periods[window].normalizedChanges = { BTCUSDT: [0, 1.5, 2.5, 3.5, 5][i], A: 1, B: 2, C: 3, D: 4 }
+  }
+  for (const [i, timeframe] of TREND_PERIODS.entries()) {
+    const result = buildEnvironmentContext(all('多头双增强'), snapshot, 'BTCUSDT', timeframe)
+    assert.equal(result.mainTimeframe, timeframe)
+    assert.equal(result.long.relativeStrength, i * 25)
+    assert.equal(result.short.relativeStrength, 100 - i * 25)
+    assert.equal(result.long.confidence, [70, 78, 85, 93, 100][i])
+    assert.equal(result.long.market, 100)
+    assert.equal(result.long.structure, 100)
+    assert.equal((await analyzerFixture().call(result)).confidence, result.long.confidence)
+  }
+  const defaultResult = buildEnvironmentContext(all('多头双增强'), snapshot, 'BTCUSDT')
+  assert.equal(defaultResult.mainTimeframe, '15m')
+  assert.equal(defaultResult.long.relativeStrength, 25)
+  const before = buildEnvironmentContext(all('多头双增强'), snapshot, 'BTCUSDT', '5m')
+  // 其他周期排名缺失不影响5m排名；市场支持仍需要五窗口聚合数据。
+  for (const window of windows.slice(1)) delete snapshot.periods[window].normalizedChanges
+  const after = buildEnvironmentContext(all('多头双增强'), snapshot, 'BTCUSDT', '5m')
+  assert.equal(after.long.confidence, before.long.confidence)
+  assert.equal(after.long.available, true)
+  assert.equal(buildEnvironmentContext(all('多头双增强'), snapshot, 'BTCUSDT', '15m').long.confidence, null)
+  assert.equal(buildEnvironmentContext(all('多头双增强'), snapshot, 'BTCUSDT', '1d').long.relativeStrength, null)
 })
 
 test('过期、缺周期、缺个币和单样本均不可用，不能填中性或重分配权重', () => {
