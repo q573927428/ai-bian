@@ -13,6 +13,7 @@
       <span>历史订单 ({{ total }})</span>
       <div class="header-actions">
         <el-button size="small" text @click="showFilter = !showFilter">筛选</el-button>
+        <el-button v-if="showFilter" size="small" text @click="handleResetFilter">重置</el-button>
         <el-button size="small" text :loading="loading" @click="refreshHistory">刷新</el-button>
       </div>
     </div>
@@ -24,6 +25,7 @@
             <el-icon><ElIconFilter /></el-icon>
             筛选
           </el-button>
+          <el-button v-if="showFilter" size="small" text @click="handleResetFilter">重置</el-button>
           <el-button type="primary" size="small" text :loading="loading" @click="refreshHistory">
             <el-icon><ElIconRefresh /></el-icon>
             刷新
@@ -42,7 +44,7 @@
             placeholder="全部"
             size="small"
             clearable
-            style="width: 110px"
+            style="width: 100%"
             @change="handleFilterChange"
           >
             <el-option
@@ -60,7 +62,7 @@
             placeholder="全部"
             size="small"
             clearable
-            style="width: 100px"
+            style="width: 100%"
             @change="handleFilterChange"
           >
             <el-option label="做多" value="LONG" />
@@ -74,7 +76,7 @@
             placeholder="全部"
             size="small"
             clearable
-            style="width: 100px"
+            style="width: 100%"
             @change="handleFilterChange"
           >
             <el-option
@@ -92,7 +94,7 @@
             placeholder="全部"
             size="small"
             clearable
-            style="width: 100px"
+            style="width: 100%"
             @change="handleFilterChange"
           >
             <el-option
@@ -103,10 +105,7 @@
             />
           </el-select>
         </div>
-      </div>
-
-      <div class="filter-row range-filter-row">
-        <div class="filter-item">
+        <div class="filter-item range-filter-item">
           <span class="filter-label">盈亏区间</span>
           <el-input-number
             v-model="filter.pnlMin"
@@ -127,7 +126,7 @@
           />
         </div>
 
-        <div class="filter-item">
+        <div class="filter-item range-filter-item">
           <span class="filter-label">评分区间</span>
           <el-input-number
             v-model="filter.scoreMin"
@@ -148,7 +147,7 @@
           />
         </div>
 
-        <div class="filter-item">
+        <div class="filter-item range-filter-item">
           <span class="filter-label">置信度区间</span>
           <el-input-number
             v-model="filter.confidenceMin"
@@ -169,7 +168,7 @@
           />
         </div>
 
-        <div class="filter-item">
+        <div class="filter-item range-filter-item">
           <span class="filter-label">OI区间</span>
           <el-input-number
             v-model="filter.oiMin"
@@ -191,7 +190,7 @@
           <span class="range-unit">%</span>
         </div>
 
-        <div class="filter-item">
+        <div class="filter-item range-filter-item">
           <span class="filter-label">预计量区间</span>
           <el-input-number
             v-model="filter.estimatedVolumeMin"
@@ -213,9 +212,6 @@
           <span class="range-unit">%</span>
         </div>
 
-        <el-button size="small" type="primary" @click="handleResetFilter">
-          重置
-        </el-button>
       </div>
 
       <!-- 筛选汇总基于全部匹配订单计算，不受分页影响。 -->
@@ -975,7 +971,6 @@ onUnmounted(() => {
 .is-embedded .pagination-wrapper { scrollbar-width: none; }
 .is-embedded :deep(.el-scrollbar__wrap)::-webkit-scrollbar,
 .is-embedded .pagination-wrapper::-webkit-scrollbar { display: none; width: 0; height: 0; }
-.history-drawer :deep(.filter-row) { flex-wrap: wrap; }
 .is-embedded .history-summary { flex-wrap: wrap; gap: 8px; padding: 8px; }
 .is-embedded .summary-divider { display: none; }
 .is-embedded .pagination-wrapper { overflow-x: auto; justify-content: flex-start; }
@@ -989,7 +984,13 @@ onUnmounted(() => {
 }
 
 .header-actions {
+  display: flex;
+  align-items: center;
   gap: 8px;
+}
+
+.header-actions .el-button + .el-button {
+  margin-left: 0;
 }
 
 .filter-bar {
@@ -1004,21 +1005,23 @@ onUnmounted(() => {
 }
 
 .filter-row {
-  display: flex;
-  flex-wrap: wrap;
-  column-gap: 16px;
-  row-gap: 10px;
-  align-items: center;
-}
-
-.range-filter-row {
-  margin-top: 10px;
+  /* 下拉和区间共用同一网格，确保所有筛选项按列对齐并随容器宽度换行。 */
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr));
   column-gap: 28px;
   row-gap: 14px;
+  align-items: start;
+}
+
+.filter-item.range-filter-item {
+  /* 标题独占首行，上下限和单位保持在同一行，避免纵向布局拆散区间。 */
+  grid-template-columns: minmax(0, 78px) max-content minmax(0, 78px) max-content;
 }
 
 .range-input {
   width: 78px;
+  min-width: 0;
+  max-width: 100%;
 }
 
 :deep(.range-input .el-input__inner) {
@@ -1072,23 +1075,23 @@ onUnmounted(() => {
 }
 
 .filter-item {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
   align-items: center;
-  justify-content: flex-start;
+  justify-content: start;
   gap: 6px;
   min-height: 28px;
 }
 
 .filter-label {
+  grid-column: 1 / -1;
   display: inline-flex;
   align-items: center;
-  justify-content: flex-end;
-  align-self: stretch;
-  flex: 0 0 auto;
+  justify-content: flex-start;
   font-size: 13px;
   color: var(--text-regular);
-  line-height: 1;
-  text-align: right;
+  line-height: 18px;
+  text-align: left;
   white-space: nowrap;
 }
 
