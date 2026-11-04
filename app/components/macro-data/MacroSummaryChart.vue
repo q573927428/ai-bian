@@ -20,6 +20,7 @@ import { BarChart } from 'echarts/charts'
 import { GridComponent, TooltipComponent } from 'echarts/components'
 import { CanvasRenderer } from 'echarts/renderers'
 import { useTheme } from '../../composables/useTheme'
+import { getChartTooltipTheme } from '../../utils/chart-tooltip-theme'
 import type { MacroPinnedSummary } from './crosshair-sync'
 
 use([BarChart, GridComponent, TooltipComponent, CanvasRenderer])
@@ -73,6 +74,7 @@ function renderChart() {
   const labels = rows.map(valueLabel)
   const categories = rows.map((row, index) => `${row.name}${metricValue(row) == null ? `（${labels[index]}）` : ''}`)
   const styles = getComputedStyle(canvas.value)
+  const tooltipTheme = getChartTooltipTheme(canvas.value)
   const color = styles.getPropertyValue('--el-text-color-regular').trim() || '#909399'
   const border = styles.getPropertyValue('--el-border-color').trim() || '#454545'
   chart.resize()
@@ -87,9 +89,9 @@ function renderChart() {
     animation: false,
     grid: { left: 170, right: 80, top: 16, bottom: 36 },
     tooltip: {
+      ...tooltipTheme,
       trigger: 'axis', axisPointer: { type: 'shadow' }, renderMode: 'richText', confine: true,
-      backgroundColor: styles.getPropertyValue('--el-bg-color-overlay').trim() || '#1d1e1f', borderColor: border,
-      textStyle: { color, fontSize: 12 },
+      textStyle: { ...tooltipTheme.textStyle, fontSize: 12 },
       formatter: params => {
         const entry = Array.isArray(params) ? params[0] : params
         const row = entry ? rows[entry.dataIndex] : undefined

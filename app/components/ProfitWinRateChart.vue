@@ -113,6 +113,7 @@ import { CanvasRenderer } from 'echarts/renderers'
 import { graphic, init, use, type ECharts } from 'echarts/core'
 import { useStrategiesStore } from '../stores/strategies'
 import { useTheme } from '../composables/useTheme'
+import { getChartTooltipTheme } from '../utils/chart-tooltip-theme'
 
 use([LineChart, GridComponent, TooltipComponent, CanvasRenderer])
 
@@ -268,6 +269,7 @@ const renderChart = () => {
 
   const option = {
     tooltip: {
+      ...getChartTooltipTheme(chartRef.value),
       trigger: 'axis',
       axisPointer: {
         type: 'cross'

@@ -10,11 +10,14 @@
 <script setup lang="ts">
 import * as echarts from 'echarts'
 import { useGlobalPolling } from '../composables/useGlobalPolling'
+import { useTheme } from '../composables/useTheme'
+import { getChartTooltipTheme } from '../utils/chart-tooltip-theme'
 import type { KLineApiResponse } from '../../types/kline-simple'
 
 /** 周期随上方主图切换；仅比较本地已有的合约收盘价。 */
 interface Props { symbol: string; timeframe: string }
 const props = defineProps<Props>()
+const { theme } = useTheme()
 const canvas = ref<HTMLDivElement>()
 const loading = ref(false)
 const error = ref('')
@@ -70,13 +73,13 @@ async function load() {
     if (!canvas.value) return
     chart ||= echarts.init(canvas.value, undefined, { renderer: 'svg' })
     const color = getComputedStyle(canvas.value).getPropertyValue('--el-text-color-secondary').trim() || '#909399'
+    const tooltipTheme = getChartTooltipTheme(canvas.value)
     chart.setOption({
       animation: false,
       grid: { left: 43, right: 78, top: 36, bottom: 25 },
       legend: { top: 0, textStyle: { color, fontSize: 10 }, itemWidth: 14, data: returns.map(market => `${market.symbol} ${signed(market.value)}%`) },
-      tooltip: { trigger: 'axis', confine: true, padding: [5, 7], borderWidth: 1,
-        textStyle: { fontSize: 10, lineHeight: 15 },
-        extraCssText: 'background:var(--el-bg-color-overlay)!important;color:var(--el-text-color-primary)!important;border-color:var(--el-border-color)!important;box-shadow:0 2px 8px rgba(0,0,0,.15);line-height:15px;',
+      tooltip: { ...tooltipTheme, trigger: 'axis', confine: true, padding: [5, 7], borderWidth: 1,
+        textStyle: { ...tooltipTheme.textStyle, fontSize: 10, lineHeight: 15 },
         // 仅显示悬停时刻的收益，不重复图例中的区间收益和归一化数值。
         formatter: (params: any) => {
           const entries = Array.isArray(params) ? params : [params]
@@ -103,6 +106,10 @@ async function load() {
   } finally { if (!disposed && request === version) loading.value = false }
 }
 watch(() => [props.symbol, props.timeframe], () => { chart?.clear(); description.value = ''; void load() })
+// 切换主题仅更新提示框样式，无需重新请求行情或改变当前比较区间。
+watch(theme, () => {
+  if (canvas.value) chart?.setOption({ tooltip: getChartTooltipTheme(canvas.value) })
+}, { flush: 'post' })
 useGlobalPolling(() => { if (!loading.value) return load() })
 onMounted(() => {
   observer = new ResizeObserver(() => chart?.resize())

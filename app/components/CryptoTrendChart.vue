@@ -7,6 +7,7 @@ import { LineChart, BarChart } from 'echarts/charts'
 import { GridComponent, TooltipComponent, LegendComponent, DataZoomComponent } from 'echarts/components'
 import { CanvasRenderer } from 'echarts/renderers'
 import { useTheme } from '../composables/useTheme'
+import { getChartTooltipTheme } from '../utils/chart-tooltip-theme'
 import type { TrendPoint } from '../../types/crypto-trends'
 
 /** 每条序列的图形、颜色和左右轴配置，单位由图表指定。 */
@@ -25,7 +26,7 @@ const money = (value: number) => {
 
 /** 所有图使用同一 UTC 日历坐标，缺失点为 null，禁止连线伪造趋势。 */
 function render() {
-  if (!chart) return
+  if (!chart || !element.value) return
   const end = Date.parse(new Date().toISOString().slice(0, 10))
   const dates = Array.from({ length: props.days }, (_, i) => new Date(end - (props.days - 1 - i) * 86400000).toISOString().slice(0, 10))
   const dark = theme.value === 'dark'
@@ -34,7 +35,7 @@ function render() {
   chart.setOption({
     animation: false, color: props.series.map(s => s.color),
     legend: { top: 2, type: 'scroll', textStyle: { color: text, fontSize: 10 } },
-    tooltip: { trigger: 'axis', confine: true, valueFormatter: (value: unknown) => typeof value === 'number' ? label(value) : '--' },
+    tooltip: { ...getChartTooltipTheme(element.value), trigger: 'axis', confine: true, valueFormatter: (value: unknown) => typeof value === 'number' ? label(value) : '--' },
     grid: { top: 38, left: 68, right: props.series.some(s => s.right) ? 68 : 16, bottom: 48 },
     xAxis: { type: 'category', data: dates, axisLabel: { color: text, fontSize: 10, formatter: (value: string) => value.slice(5) }, axisLine: { lineStyle: { color: dark ? '#374151' : '#d1d5db' } } },
     yAxis: [0, 1].map(index => ({ type: 'value', scale: true, position: index ? 'right' : 'left', show: !index || props.series.some(s => s.right), axisLabel: { color: text, fontSize: 10, formatter: label }, splitLine: { show: !index, lineStyle: { color: dark ? '#29313c' : '#edf0f4' } } })),
