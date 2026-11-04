@@ -44,7 +44,7 @@
             placeholder="全部"
             size="small"
             clearable
-            style="width: 100%"
+            style="width: 80%"
             @change="handleFilterChange"
           >
             <el-option
@@ -62,7 +62,7 @@
             placeholder="全部"
             size="small"
             clearable
-            style="width: 100%"
+            style="width: 80%"
             @change="handleFilterChange"
           >
             <el-option label="做多" value="LONG" />
@@ -76,7 +76,7 @@
             placeholder="全部"
             size="small"
             clearable
-            style="width: 100%"
+            style="width: 80%"
             @change="handleFilterChange"
           >
             <el-option
@@ -94,7 +94,7 @@
             placeholder="全部"
             size="small"
             clearable
-            style="width: 100%"
+            style="width: 80%"
             @change="handleFilterChange"
           >
             <el-option
@@ -106,7 +106,7 @@
           </el-select>
         </div>
         <div class="filter-item range-filter-item">
-          <span class="filter-label">盈亏区间</span>
+          <span class="filter-label">盈亏</span>
           <el-input-number
             v-model="filter.pnlMin"
             class="range-input"
@@ -115,7 +115,7 @@
             :controls="false"
             @change="handleFilterChange"
           />
-          <span class="range-separator">至</span>
+          <span class="range-separator">—</span>
           <el-input-number
             v-model="filter.pnlMax"
             class="range-input"
@@ -127,7 +127,7 @@
         </div>
 
         <div class="filter-item range-filter-item">
-          <span class="filter-label">评分区间</span>
+          <span class="filter-label">评分</span>
           <el-input-number
             v-model="filter.scoreMin"
             class="range-input"
@@ -136,7 +136,7 @@
             :controls="false"
             @change="handleFilterChange"
           />
-          <span class="range-separator">至</span>
+          <span class="range-separator">—</span>
           <el-input-number
             v-model="filter.scoreMax"
             class="range-input"
@@ -148,7 +148,7 @@
         </div>
 
         <div class="filter-item range-filter-item">
-          <span class="filter-label">置信度区间</span>
+          <span class="filter-label">置信度</span>
           <el-input-number
             v-model="filter.confidenceMin"
             class="range-input"
@@ -157,7 +157,7 @@
             :controls="false"
             @change="handleFilterChange"
           />
-          <span class="range-separator">至</span>
+          <span class="range-separator">—</span>
           <el-input-number
             v-model="filter.confidenceMax"
             class="range-input"
@@ -169,7 +169,7 @@
         </div>
 
         <div class="filter-item range-filter-item">
-          <span class="filter-label">OI区间</span>
+          <span class="filter-label">OI</span>
           <el-input-number
             v-model="filter.oiMin"
             class="range-input"
@@ -178,7 +178,7 @@
             :controls="false"
             @change="handleFilterChange"
           />
-          <span class="range-separator">至</span>
+          <span class="range-separator">—</span>
           <el-input-number
             v-model="filter.oiMax"
             class="range-input"
@@ -191,7 +191,7 @@
         </div>
 
         <div class="filter-item range-filter-item">
-          <span class="filter-label">预计量区间</span>
+          <span class="filter-label">预计量</span>
           <el-input-number
             v-model="filter.estimatedVolumeMin"
             class="range-input"
@@ -200,7 +200,7 @@
             :controls="false"
             @change="handleFilterChange"
           />
-          <span class="range-separator">至</span>
+          <span class="range-separator">—</span>
           <el-input-number
             v-model="filter.estimatedVolumeMax"
             class="range-input"
@@ -1014,12 +1014,12 @@ onUnmounted(() => {
 }
 
 .filter-item.range-filter-item {
-  /* 标题独占首行，上下限和单位保持在同一行，避免纵向布局拆散区间。 */
-  grid-template-columns: minmax(0, 78px) max-content minmax(0, 78px) max-content;
+  /* 固定分隔符和单位列宽，统一各区间的输入框间距，并为无单位的区间保留相同空间。 */
+  grid-template-columns: minmax(0, 78px) 12px minmax(0, 78px) 12px;
 }
 
 .range-input {
-  width: 78px;
+  width: 100%;
   min-width: 0;
   max-width: 100%;
 }
@@ -1033,6 +1033,10 @@ onUnmounted(() => {
   flex: 0 0 auto;
   font-size: 12px;
   color: var(--text-secondary);
+}
+
+.range-separator {
+  text-align: center;
 }
 
 .history-summary {
