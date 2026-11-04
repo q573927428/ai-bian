@@ -123,7 +123,7 @@ let chartResizeObserver: ResizeObserver | undefined
 const loading = ref(false)
 const selectedStrategy = ref('')
 const selectedSymbol = ref('')
-const selectedPeriod = ref<'all' | 'today' | 'yesterday' | '7days' | '30days' | 'month'>('7days')
+const selectedPeriod = ref<'all' | 'today' | 'yesterday' | '7days' | '30days' | 'month'>('today')
 const chartType = ref<'pnl' | 'winRate'>('pnl')
 const strategies = ref<any[]>([])
 const symbols = ref<string[]>([])
@@ -177,8 +177,8 @@ const getPeriodParams = () => {
   }
 }
 
-/** 加载当前筛选的汇总及下拉选项；盈亏和胜率共用同一份筛选结果。 */
-const loadData = async () => {
+/** 加载当前筛选结果；仅首次加载允许在今日无成交时回退昨日，保留后续手动选择。 */
+const loadData = async ({ fallbackToYesterday = false } = {}) => {
   const requestId = ++summaryRequestId
   loading.value = true
   try {
@@ -191,6 +191,12 @@ const loadData = async () => {
     }) as any
     // 快速切换筛选或刷新时，只允许最新请求更新曲线、统计和选项。
     if (requestId !== summaryRequestId) return
+    // 以有无已平仓交易判断，零收益也属于有数据；请求失败不能误判为今日无成交。
+    if (fallbackToYesterday && selectedPeriod.value === 'today' && response.success && response.data?.length === 0) {
+      selectedPeriod.value = 'yesterday'
+      // 由筛选监听统一加载昨日，避免重复请求；昨日也无数据时显示空状态。
+      return
+    }
     chartData.value = response.success ? response.data || [] : []
     if (response.stats) stats.value = response.stats
 
@@ -315,6 +321,8 @@ const renderChart = () => {
       {
         name: name,
         type: 'line',
+        // 隐藏常驻采样圆点，避免日内数据密集时遮挡走势；悬停仍可查看数值。
+        showSymbol: false,
         smooth: true,
         // 限制平滑曲线沿时间轴单调，避免插值超出数据范围导致零轴分色偏移。
         smoothMonotone: 'x',
@@ -364,7 +372,7 @@ onMounted(async () => {
     chartResizeObserver = new ResizeObserver(handleResize)
     chartResizeObserver.observe(chartRef.value)
   }
-  await loadData()
+  await loadData({ fallbackToYesterday: true })
   
   window.addEventListener('resize', handleResize)
 })
