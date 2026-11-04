@@ -9,6 +9,7 @@
 </template>
 <script setup lang="ts">
 import * as echarts from 'echarts'
+import { useGlobalPolling } from '../composables/useGlobalPolling'
 import type { KLineApiResponse } from '../../types/kline-simple'
 
 /** 周期随上方主图切换；仅比较本地已有的合约收盘价。 */
@@ -20,7 +21,6 @@ const error = ref('')
 const description = ref('')
 let chart: echarts.ECharts | undefined
 let observer: ResizeObserver | undefined
-let timer: ReturnType<typeof setInterval> | undefined
 let version = 0
 let disposed = false
 const normalize = (symbol: string) => symbol.toUpperCase().replace(/[^A-Z0-9]/g, '')
@@ -103,13 +103,13 @@ async function load() {
   } finally { if (!disposed && request === version) loading.value = false }
 }
 watch(() => [props.symbol, props.timeframe], () => { chart?.clear(); description.value = ''; void load() })
+useGlobalPolling(() => { if (!loading.value) return load() })
 onMounted(() => {
   observer = new ResizeObserver(() => chart?.resize())
   if (canvas.value) observer.observe(canvas.value)
   void load()
-  timer = setInterval(() => { if (!loading.value) void load() }, 30_000)
 })
-onBeforeUnmount(() => { disposed = true; version++; if (timer) clearInterval(timer); observer?.disconnect(); chart?.dispose() })
+onBeforeUnmount(() => { disposed = true; version++; observer?.disconnect(); chart?.dispose() })
 </script>
 <style scoped>
 .relative-card { display: flex; flex-direction: column; min-height: 0; box-sizing: border-box; padding: 8px; border: 1px solid var(--el-border-color); border-radius: 6px; background: var(--bg-card, var(--el-bg-color)); }

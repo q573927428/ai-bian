@@ -34,9 +34,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, onMounted } from 'vue'
+import { computed, ref } from 'vue'
 import type { TradeHistory as HistoricalOrder } from '../../types'
-import { useBotStore } from '../stores/bot'
 import TradeHistory from '../components/TradeHistory.vue'
 import TradeOrderDetail from '../components/TradeOrderDetail.vue'
 import KLineChartSimple from '../components/kline-chart/KLineChartSimple.vue'
@@ -45,16 +44,12 @@ import { usePageUnlock } from '../composables/usePageUnlock'
 import { formatTradePrice } from '../components/kline-chart/utils/kline-formatters'
 
 const selectedOrder = ref<HistoricalOrder | null>(null)
-const botStore = useBotStore()
 // 快照周期是旧订单的可靠回退来源，缺失时使用现有图表默认的 1h。
 const orderTimeframe = computed(() => selectedOrder.value?.mainTimeframe || selectedOrder.value?.entrySupportResistance?.timeframe || '1h')
 const { passwordVerified, showPasswordDialog, handleUnlock, handlePasswordSuccess } = usePageUnlock({
   onOpen: () => {},
   onLock: () => { selectedOrder.value = null }
 })
-
-// 直接访问订单页时也加载真实运行状态，供共用头部和图表配置使用。
-onMounted(() => { void botStore.fetchStatus() })
 
 /** 保留整笔订单快照，由现有图表负责入场标记和支撑阻力绘制。 */
 function selectOrder(order: HistoricalOrder) {

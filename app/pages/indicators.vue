@@ -17,11 +17,14 @@
 <script setup lang="ts">
 import IndicatorsList from '../components/IndicatorsList.vue'
 import IndicatorTrendChart from '../components/IndicatorTrendChart.vue'
+import { useBotStore } from '../stores/bot'
+const botStore = useBotStore()
+// 每个页面实例独立取消订阅，避免卸载时影响全局导航或其他订阅者。
+const pollingSubscriberId = `indicators-page-${useId()}`
 const selected = ref('')
 const chartTimeframe = ref('1h')
 const listRef = ref<InstanceType<typeof IndicatorsList>>()
 const chartRef = ref<InstanceType<typeof IndicatorTrendChart>>()
-let refreshTimer: ReturnType<typeof setInterval> | undefined
 let refreshing = false
 
 /** 同一计时器同时发起两侧刷新，整轮结束前不重入；列表刷新全部指标而非仅更新结构。 */
@@ -34,9 +37,9 @@ async function refreshDashboard() {
     refreshing = false
   }
 }
-// 初次加载及切换交易对仍立即请求；后续两侧共用每 60 秒的刷新节拍。
-onMounted(() => { refreshTimer = setInterval(() => { void refreshDashboard() }, 60_000) })
-onBeforeUnmount(() => { if (refreshTimer) clearInterval(refreshTimer) })
+// 初次加载及切换交易对仍立即请求；后续复用全局状态轮询的 60 秒节拍。
+onMounted(() => { botStore.subscribeToPolling(pollingSubscriberId, () => { void refreshDashboard() }) })
+onBeforeUnmount(() => { botStore.unsubscribeFromPolling(pollingSubscriberId) })
 /** 首次取表格第一行；刷新保留用户选择，移除的交易对自动回退。 */
 function initializeSymbol(symbols: string[]) {
   if (!symbols.includes(selected.value)) selected.value = symbols[0] || ''

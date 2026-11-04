@@ -55,7 +55,7 @@ let frame = 0
 let previous = ''
 let pending = false
 
-/** 每15秒读取共享区域缓存；切换交易对时丢弃旧请求结果。 */
+/** 每15秒读取盘中区域距离，避免关键位提示落后一分钟；切换交易对时丢弃旧请求结果。 */
 async function refresh() {
   if (!enabled.value || props.historicalOrder || pending || !props.symbol || !['5m', '15m', '1h', '4h', '1d'].includes(props.timeframe || '')) return
   const current = version
@@ -117,7 +117,7 @@ function draw() {
   if (serialized !== previous) { geometry.value = next; previous = serialized }
   frame = requestAnimationFrame(draw)
 }
-watch(() => [props.symbol, props.timeframe, props.historicalOrder, structurePreview.value.pivotLeft, structurePreview.value.pivotRight], () => {
+watch([() => props.symbol, () => props.timeframe, () => props.historicalOrder, () => structurePreview.value.pivotLeft, () => structurePreview.value.pivotRight], () => {
   version++
   snapshot.value = null
   void refresh()

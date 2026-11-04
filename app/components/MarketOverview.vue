@@ -52,6 +52,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import type { MarketOverview, MarketMetric, MarketAmount } from '../../types/market-overview'
+import { useGlobalPolling } from '../composables/useGlobalPolling'
 
 const overview = ref<MarketOverview | null>(null)
 const failed = ref(false)
@@ -132,16 +133,18 @@ function sourceTitle(source: string, metric?: MarketMetric<unknown>) {
   return `来源：${source}；同步时间：${time}${date}${metric?.stale ? '；暂未更新，保留上次数据' : ''}${failed.value ? '；本站接口连接异常' : ''}`
 }
 
-let timer: ReturnType<typeof setTimeout> | undefined
-let stopped = false
-/** 前端仅读本站缓存，请求完成后再安排下次轮询，避免慢请求重叠。 */
+let refreshing = false
+/** 前端仅读本站缓存，首屏和全局轮询共用并发保护。 */
 async function refresh() {
+  if (refreshing) return
+  refreshing = true
   try {
     overview.value = await $fetch<MarketOverview>('/api/market/overview', { timeout: 10_000, retry: 0 })
     failed.value = false
   } catch { failed.value = true }
-  finally { if (!stopped) timer = setTimeout(refresh, 60_000) }
+  finally { refreshing = false }
 }
+useGlobalPolling(refresh)
 onMounted(() => {
   void refresh()
   resizeObserver = new ResizeObserver(measureTicker)
@@ -149,7 +152,7 @@ onMounted(() => {
   if (track.value?.firstElementChild) resizeObserver.observe(track.value.firstElementChild)
   measureTicker()
 })
-onUnmounted(() => { stopped = true; clearTimeout(timer); resizeObserver?.disconnect() })
+onUnmounted(() => { resizeObserver?.disconnect() })
 </script>
 
 <style scoped>

@@ -154,6 +154,27 @@ test('共享试算参数触发真实图表请求，快速切换时迟到结果�
     assert.equal(requests.at(-1).query.pivotRight, 6)
     requests.at(-1).resolve({ success: true, data: { indicators: {} } })
     await new Promise(setImmediate)
+
+    const requestCount = requests.length
+    const previousPreview = preview.value
+    // 模拟全局每分钟拉回相同配置：不能再触发一轮图表请求。
+    store.botConfig = { supportResistanceConfig: { pivotLeft: 4, pivotRight: 6 } }
+    await vue.nextTick()
+    assert.equal(preview.value, previousPreview, '等值配置轮询应保留共享试算对象')
+    assert.equal(requests.length, requestCount, '等值配置轮询不应重复加载图表')
+    preview.value = { pivotLeft: 4, pivotRight: 6 }
+    await vue.nextTick()
+    assert.equal(requests.length, requestCount, '等值试算对象替换不应重复加载图表')
+
+    preview.value = { pivotLeft: 5, pivotRight: 6 }
+    await vue.nextTick()
+    assert.equal(requests.length, requestCount + 1, '真实参数变化仍应立即加载')
+    requests.at(-1).resolve({ success: true, data: { indicators: {} } })
+    await new Promise(setImmediate)
+    store.botConfig = { supportResistanceConfig: { pivotLeft: 4, pivotRight: 6 } }
+    await vue.nextTick()
+    assert.equal(preview.value.pivotLeft, 5, '等值全局配置轮询不应覆盖页面临时试算')
+    assert.equal(requests.length, requestCount + 1)
   } finally { scope.stop() }
 })
 

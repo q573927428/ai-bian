@@ -8,8 +8,11 @@ import { normalizeSupportResistanceConfig } from '../../types/support-resistance
 export function useSupportResistancePreview() {
   const store = useBotStore()
   const preview = useState('support-resistance-preview', () => normalizeSupportResistanceConfig(store.botConfig?.supportResistanceConfig))
-  // 全局配置加载或保存后刷新默认值；页面临时试算不会反向改写全局配置。
-  watch(() => [store.botConfig?.supportResistanceConfig?.pivotLeft, store.botConfig?.supportResistanceConfig?.pivotRight], () => {
+  // 分别比较参数值，避免每次配置轮询替换对象时重置试算并重复刷新列表、图表。
+  watch([
+    () => store.botConfig?.supportResistanceConfig?.pivotLeft,
+    () => store.botConfig?.supportResistanceConfig?.pivotRight
+  ], () => {
     preview.value = normalizeSupportResistanceConfig(store.botConfig?.supportResistanceConfig)
   })
   return preview

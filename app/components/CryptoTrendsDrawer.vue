@@ -37,6 +37,7 @@ import { ElDrawer } from 'element-plus'
 import type { CryptoTrendsResponse, CryptoTrendKey, TrendPoint } from '../../types/crypto-trends'
 import { rollingDisclosedFlows, changeOver30Days, relativePriceChanges, latestDayChange } from '../utils/crypto-trend-calculations'
 import CryptoTrendChart from './CryptoTrendChart.vue'
+import { useGlobalPolling } from '../composables/useGlobalPolling'
 
 // 页面模式沿用抽屉的数据请求与卸载清理，避免维护两套业务逻辑。
 const props = withDefaults(defineProps<{ modelValue: boolean; embedded?: boolean }>(), { embedded: false })
@@ -48,7 +49,6 @@ const error = ref('')
 const days = ref(90)
 const supplyMode = ref('total')
 const priceMode = ref('change')
-let timer: ReturnType<typeof setInterval> | undefined
 let controller: AbortController | undefined
 const points = (key: CryptoTrendKey) => data.value?.metrics[key]?.points ?? []
 const latest = (rows: TrendPoint[]) => rows.at(-1)?.date
@@ -91,12 +91,12 @@ async function load() {
   catch { if (visible.value) error.value = '历史数据读取失败，请重试；已有图表仍保留。' }
   finally { loading.value = false }
 }
+useGlobalPolling(load, () => visible.value)
 watch(visible, value => {
-  clearInterval(timer)
-  if (value) { void load(); timer = setInterval(() => { void load() }, 60000) }
+  if (value) void load()
   else controller?.abort()
 }, { immediate: true })
-onUnmounted(() => { clearInterval(timer); controller?.abort() })
+onUnmounted(() => { controller?.abort() })
 </script>
 <style scoped>
 .trends-content { padding: 10px; background: var(--bg-main); }

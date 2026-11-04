@@ -97,7 +97,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
+import { useGlobalPolling } from '../composables/useGlobalPolling'
 import { useBotStore } from '../stores/bot'
 import { useStrategiesStore } from '../stores/strategies'
 import HomeStatusPanel from '../components/HomeStatusPanel.vue'
@@ -217,8 +218,7 @@ const loadHistoryOverview = async () => {
     console.error('加载交易汇总失败:', error)
   }
 }
-let overviewTimer: ReturnType<typeof setInterval> | undefined
-onUnmounted(() => { if (overviewTimer) clearInterval(overviewTimer) })
+useGlobalPolling(loadHistoryOverview)
 
 // 从配置中读取初始本金
 const initialCapital = computed(() => {
@@ -267,16 +267,14 @@ const annualizedReturn = computed(() => {
   return (netProfit / initialCapital) * (365 / daysElapsed) * 100
 })
 
-// 首页统计独立刷新，打开订单抽屉不再承担首页数据更新职责。
+// 首页统计首屏立即加载，后续与全局状态共用刷新节拍。
 onMounted(async () => {
   // 从订单页共用导航返回时，恢复用户刚点击的行情面板。
   const panel = route.query.panel
   if (typeof panel === 'string' && ['indicators', 'hot', 'macro', 'trends', 'logs'].includes(panel)) {
     handleNavigate(panel as HomeNavigationTarget)
   }
-  overviewTimer = setInterval(loadHistoryOverview, 30000)
   await Promise.all([
-    botStore.fetchStatus(),
     strategiesStore.loadStrategies(),
     loadHistoryOverview()
   ])

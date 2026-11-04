@@ -137,6 +137,7 @@ import ChartEngineSwitcher from '../components/kline-chart/ChartEngineSwitcher.v
 import { formatPrice } from './kline-chart/utils/kline-formatters'
 import { useBotStore } from '../stores/bot'
 import { useCoinIcon } from '../composables/useCoinIcon'
+import { useGlobalPolling } from '../composables/useGlobalPolling'
 import type { MarketBreadthSnapshot } from '../../types/market-breadth'
 import { calculateLiveBreadth } from '../utils/market-breadth'
 
@@ -191,7 +192,6 @@ const changePeriod = ref<'5m' | '15m' | '1h' | '4h' | '24h'>('1h')
 const breadthSnapshot = ref<MarketBreadthSnapshot | null>(null)
 const breadthClock = ref(Date.now())
 let breadthRequestId = 0
-let breadthTimer: ReturnType<typeof setInterval> | undefined
 
 // 所有周期（含滚动24h）复用服务端本地5m基准，结合实时价格重算。
 const activeBreadth = computed(() => {
@@ -421,10 +421,11 @@ function getRandomColor(symbol: string) {
 }
 
 
+useGlobalPolling(loadMarketBreadth)
+
 // 组件生命周期
 onMounted(() => {
   void loadMarketBreadth()
-  breadthTimer = setInterval(() => { void loadMarketBreadth() }, 10000)
   void loadContractTypes()
   // 订阅 botStore 共享价格更新，自动同步价格
   botStore.subscribeToPrices('crypto-price-cards')
@@ -436,7 +437,6 @@ onMounted(() => {
 
 onUnmounted(() => {
   breadthRequestId++
-  clearInterval(breadthTimer)
   botStore.unsubscribeFromPrices('crypto-price-cards')
   if (import.meta.client) {
     window.removeEventListener('resize', updatePageSize)

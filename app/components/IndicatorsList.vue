@@ -324,6 +324,7 @@ import { ElDrawer, type TableInstance } from 'element-plus'
 import { useBotStore } from '../stores/bot'
 import { useCoinIcon } from '../composables/useCoinIcon'
 import { useSupportResistancePreview } from '../composables/useSupportResistancePreview'
+import { useGlobalPolling } from '../composables/useGlobalPolling'
 import type { SupportResistanceSnapshot } from '../../types/support-resistance'
 import SupportResistanceInfo from './SupportResistanceInfo.vue'
 import { TREND_PERIODS, diTrend, isDoubleStrengthening, type DirectionalTrend, type EnvironmentContext, type PeriodTrend } from '../utils/environment-confidence'
@@ -645,7 +646,6 @@ const breadthPeriod = computed<BreadthPeriod>(() => timeframe.value === '1d' ? '
 const breadthSnapshot = ref<MarketBreadthSnapshot | null>(null)
 const breadthClock = ref(Date.now())
 let breadthRequestId = 0
-let breadthTimer: ReturnType<typeof setInterval> | undefined
 const marketBreadth = computed(() => {
   const snapshot = breadthSnapshot.value
   const valid = snapshot && breadthClock.value < snapshot.expiresAt
@@ -1064,7 +1064,8 @@ function macdResultClass(current?: number, previous?: number) {
 }
 
 // 切换参数立即使旧请求失效，避免快速切换后旧区域覆盖新结果。
-watch(() => [structurePreview.value.pivotLeft, structurePreview.value.pivotRight], () => {
+// 按参数值比较，等值对象替换不应额外发起整表请求。
+watch([() => structurePreview.value.pivotLeft, () => structurePreview.value.pivotRight], () => {
   for (const row of rows.value) row.supportResistance = undefined
   if (visible.value) void fetchData()
   else fetchVersion++
@@ -1082,19 +1083,19 @@ watch(() => emaPeriods.value.join(','), () => {
 watch(() => JSON.stringify(botStore.botConfig?.squareHeatWindows), () => {
   if (visible.value) void fetchData()
 })
+// 市场广度基准来自分钟级缓存，涨跌家数仍随 SSE 实时价格计算。
+useGlobalPolling(loadMarketBreadth, () => visible.value)
 watch(visible, value => {
   breadthRequestId++
-  if (breadthTimer) clearInterval(breadthTimer)
-  breadthTimer = undefined
   if (structureTimer) clearInterval(structureTimer)
   structureTimer = undefined
   if (value) {
     if (import.meta.client) {
       void botStore.subscribeToPrices(priceSubscriberId)
       void loadMarketBreadth()
-      breadthTimer = setInterval(() => { void loadMarketBreadth() }, 10_000)
     }
     void fetchData()
+    // 抽屉需要较及时的盘中区域距离；独立指标页仍由父级统一刷新，避免重复轮询。
     if (!props.coordinatedRefresh) structureTimer = setInterval(() => { void refreshStructure() }, 15_000)
   } else {
     if (import.meta.client) void botStore.unsubscribeFromPrices(priceSubscriberId)
@@ -1105,7 +1106,6 @@ watch(visible, value => {
 onUnmounted(() => {
   if (import.meta.client) void botStore.unsubscribeFromPrices(priceSubscriberId)
   breadthRequestId++
-  if (breadthTimer) clearInterval(breadthTimer)
   fetchVersion++
   if (structureTimer) clearInterval(structureTimer)
 })

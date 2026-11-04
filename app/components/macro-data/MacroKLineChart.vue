@@ -22,6 +22,7 @@ import type { MacroMarket, MacroPeriod, MacroKlineResponse } from '../../../type
 import { macroCrosshairKey, crosshairTimeKey, type MacroCrosshairPosition, type MacroPinnedSummary } from './crosshair-sync'
 import { macroViewportKey, logicalToCalendar, calendarToLogical, type MacroViewport } from './viewport-sync'
 import { useTheme } from '../../composables/useTheme'
+import { useGlobalPolling } from '../../composables/useGlobalPolling'
 import { maxCloseDrawdown, formatMacroDuration } from '../../utils/macro-performance'
 import { resolveMacroComparison } from '../../utils/macro-comparison'
 
@@ -79,7 +80,6 @@ let chart: IChartApi | undefined
 let series: ISeriesApi<'Candlestick'> | undefined
 let endpointMarkers: ReturnType<typeof createSeriesMarkers<Time>> | undefined
 let request: AbortController | undefined
-let timer: ReturnType<typeof setInterval> | undefined
 let disposed = false
 const crosshairChannel = inject(macroCrosshairKey, undefined)
 const viewportChannel = inject(macroViewportKey, undefined)
@@ -352,6 +352,7 @@ async function load() {
   }
 }
 
+useGlobalPolling(() => { if (!document.hidden && !loading.value && chart) return load() })
 onMounted(() => {
   if (!container.value) return
   chart = createChart(container.value, {
@@ -379,7 +380,6 @@ onMounted(() => {
   unsubscribeViewport = viewportChannel?.subscribe(receiveViewport)
   unsubscribeCrosshair = crosshairChannel?.subscribe(receiveCrosshair)
   void load()
-  timer = setInterval(() => { if (!document.hidden && !loading.value) void load() }, 30000)
 })
 
 watch(theme, () => { chart?.applyOptions(chartThemeOptions.value) })
@@ -410,7 +410,6 @@ onBeforeUnmount(() => {
   chart?.timeScale().unsubscribeVisibleLogicalRangeChange(publishViewport)
   chart?.unsubscribeCrosshairMove(onCrosshairMove)
   chart?.unsubscribeClick(onChartClick)
-  if (timer) clearInterval(timer)
   chart?.remove()
 })
 </script>

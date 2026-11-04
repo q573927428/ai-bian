@@ -584,14 +584,18 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted, watch, useId } from 'vue'
 import { ElDrawer } from 'element-plus'
 import type { TradeHistory } from '../../types'
 import TradeOrderDetail from './TradeOrderDetail.vue'
 import { useTradeHistoryStore, type FilterConfig } from '../stores/tradeHistory'
+import { useBotStore } from '../stores/bot'
 import { formatTradePrice } from './kline-chart/utils/kline-formatters'
 
 const tradeHistoryStore = useTradeHistoryStore()
+const botStore = useBotStore()
+// 页面和抽屉实例各自管理订阅，关闭时不会影响全局状态轮询。
+const pollingSubscriberId = `trade-history-${useId()}`
 
 const props = defineProps<{
   modelValue: boolean
@@ -927,8 +931,12 @@ function getCloseCategoryType(category?: string): 'primary' | 'danger' | 'succes
   return category ? types[category] || 'info' : 'info'
 }
 
-// 轮询定时器
-let pollTimer: ReturnType<typeof setInterval> | null = null
+/** 订单自动刷新复用全局 60 秒轮询；慢请求尚未完成时跳过，筛选和手动刷新仍可立即请求。 */
+function subscribeHistoryPolling() {
+  botStore.subscribeToPolling(pollingSubscriberId, () => {
+    if (visible.value && !loading.value) void loadHistory()
+  })
+}
 
 onMounted(() => {
   // 复盘页首次进入按最近平仓排序，保证默认图表对应最新一笔已完成订单。
@@ -936,25 +944,21 @@ onMounted(() => {
   // 抽屉打开后才加载和轮询，避免页面隐藏时持续传输历史数据。
   if (visible.value) {
     loadHistory()
-    pollTimer = setInterval(loadHistory, 30000)
+    subscribeHistoryPolling()
   }
 })
 
 watch(visible, (isVisible) => {
   if (isVisible) {
     void loadHistory()
-    if (!pollTimer) pollTimer = setInterval(loadHistory, 30000)
-  } else if (pollTimer) {
-    clearInterval(pollTimer)
-    pollTimer = null
+    subscribeHistoryPolling()
+  } else {
+    botStore.unsubscribeFromPolling(pollingSubscriberId)
   }
 })
 
 onUnmounted(() => {
-  if (pollTimer) {
-    clearInterval(pollTimer)
-    pollTimer = null
-  }
+  botStore.unsubscribeFromPolling(pollingSubscriberId)
 })
 </script>
 

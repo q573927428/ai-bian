@@ -42,6 +42,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import type { NewsItem, NewsResponse } from '../../types/news'
+import { useGlobalPolling } from '../composables/useGlobalPolling'
 
 const news = ref<NewsResponse>({ items: [], sources: [] })
 const loading = ref(false)
@@ -50,7 +51,7 @@ const selectedNews = ref<NewsItem | null>(null)
 const showNewsDialog = ref(false)
 const degraded = computed(() => news.value.sources.some(source => source.status !== 'ok'))
 const updatedAt = computed(() => news.value.sources.map(source => source.updatedAt).filter((time): time is string => !!time).sort().at(-1))
-let timer: ReturnType<typeof setInterval> | undefined
+let lastNewsAttempt = 0
 let controller: AbortController | undefined
 
 /** 保留点击时的新闻快照，后台刷新不会打断弹窗阅读。 */
@@ -62,6 +63,7 @@ function openNews(item: NewsItem) {
 /** 刷新期间保留列表和滚动位置，网络失败不清空已有快讯。 */
 async function loadNews() {
   if (loading.value) return
+  lastNewsAttempt = Date.now()
   loading.value = true
   controller = new AbortController()
   try {
@@ -81,20 +83,20 @@ function formatTime(value: string) {
 
 /** 隐藏页面停止轮询，恢复可见时立即检查更新。 */
 function handleVisibility() {
-  if (timer) clearInterval(timer)
-  timer = undefined
   if (document.hidden) return
   void loadNews()
-  timer = setInterval(() => void loadNews(), 5 * 60_000)
 }
 
+// 上游快讯缓存有效期为 5 分钟，在全局节拍上到期后再读取；手动刷新不受限制。
+useGlobalPolling(() => {
+  if (!document.hidden && Date.now() - lastNewsAttempt >= 5 * 60_000) return loadNews()
+})
 onMounted(() => {
   document.addEventListener('visibilitychange', handleVisibility)
   handleVisibility()
 })
 onUnmounted(() => {
   document.removeEventListener('visibilitychange', handleVisibility)
-  if (timer) clearInterval(timer)
   controller?.abort()
 })
 </script>

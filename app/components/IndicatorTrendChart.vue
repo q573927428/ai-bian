@@ -423,7 +423,8 @@ watch(() => props.timeframe, value => { selectedTimeframe.value = value })
 watch(selectedTimeframe, value => emit('timeframe-change', value))
 watch(() => [props.symbol, selectedTimeframe.value], resetAndLoad)
 // 试算保留缩放位置，先移除旧关键位，再按新参数加载；版本号拦截迟到响应。
-watch(() => [structurePreview.value.pivotLeft, structurePreview.value.pivotRight], () => {
+// 按参数值比较，避免等值配置同步后再次加载图表。
+watch([() => structurePreview.value.pivotLeft, () => structurePreview.value.pivotRight], () => {
   snapshot = undefined
   draw()
   void load()
