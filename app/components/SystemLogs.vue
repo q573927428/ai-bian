@@ -135,7 +135,7 @@ interface Props {
   modelValue: boolean
 }
 
-/** 向首页同步抽屉状态或请求切换交易对图表。 */
+/** 向全局布局同步抽屉状态或请求定位首页交易对图表。 */
 interface Emits {
   (event: 'update:modelValue', value: boolean): void
   (event: 'select-symbol', symbol: string, mainTimeframe?: string): void

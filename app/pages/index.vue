@@ -49,11 +49,6 @@
               <IndicatorsList v-model="showIndicatorsDrawer" @select-symbol="handlePositionChartSelect" />
             </ClientOnly>
 
-            <!-- 通知持续订阅，日志抽屉和 AI 详情分别在打开时校验解锁状态。 -->
-            <ClientOnly>
-              <SystemLogs v-model="showLogsDrawer" @select-symbol="handlePositionChartSelect" />
-            </ClientOnly>
-
             <ClientOnly>
               <MacroDataDrawer v-model="showMacroDataDrawer" />
               <CryptoTrendsDrawer v-model="showCryptoTrendsDrawer" />
@@ -108,7 +103,6 @@ import type { HomeNavigationTarget, HomeProtectedPanel } from '../../types/home'
 
 // 导入组件
 import PasswordDialog from '../components/PasswordDialog.vue'
-import SystemLogs from '../components/SystemLogs.vue'
 import CryptoPriceCards from '../components/CryptoPriceCards.vue'
 import IndicatorsList from '../components/IndicatorsList.vue'
 import MacroDataDrawer from '../components/MacroDataDrawer.vue'
@@ -138,7 +132,8 @@ const refreshing = ref(false)
 // 配置对话框
 const showConfigDialog = ref(false)
 const showIndicatorsDrawer = ref(false)
-const showLogsDrawer = ref(false)
+// 日志实例位于全局布局，首页仅在通过解锁验证后请求打开抽屉。
+const showLogsDrawer = useState<boolean>('system-logs-visible', () => false)
 const showTopSymbolsDialog = ref(false)
 const showMacroDataDrawer = ref(false)
 const showCryptoTrendsDrawer = ref(false)
@@ -189,9 +184,9 @@ function handleNavigate(target: HomeNavigationTarget) {
   panels[target].value = true
 }
 
-// 首页负责在持仓列表与 K 线区域之间中转交易对和持仓主周期。
-const selectedChartSymbol = ref('')
-const selectedChartTimeframe = ref('')
+// 与全局通知共享图表目标，跨页面返回时仍能定位到通知中的交易对及周期。
+const selectedChartSymbol = useState<string>('home-chart-symbol', () => '')
+const selectedChartTimeframe = useState<string>('home-chart-timeframe', () => '')
 
 /** 点击持仓交易对时，同时定位图表交易对和该持仓的主周期。 */
 function handlePositionChartSelect(symbol: string, mainTimeframe?: string) {
