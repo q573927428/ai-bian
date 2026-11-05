@@ -114,7 +114,8 @@ function createFixture(now = Date.now()) {
       id: 'strategy-a', name: '测试策略', indicators: [], statistics: [],
       marketData: { symbols: ['BTCUSDT', 'ETHUSDT'], timeframes: ['5m'] },
       executionConfig: { leverage: 5, scanInterval: 5 },
-      riskManagement: { maxDailyTrades: 5, maxDailyLoss: 10, maxRiskPercentage: 1, stopLossATRMultiplier: 2, takeProfitRatios: [1, 2] }
+      // 资金基数封顶后，门禁测试仍需满足交易所最小名义价值，才能进入待验证的下单阶段。
+      riskManagement: { maxDailyTrades: 5, maxDailyLoss: 10, maxRiskPercentage: 10, stopLossATRMultiplier: 2, takeProfitRatios: [1, 2] }
     }
   }
   const strategies = new Map([[instance.strategy.id, instance.strategy]])
@@ -191,6 +192,23 @@ test('不需要全局运行字段即可正常开仓，各策略通过自身实�
   assert.equal(f.positions.size, 1)
   assert.equal(f.instance.totalTrades, 1)
   assert.deepEqual(f.calls.released, [])
+})
+
+test('开仓资金基数最多 150 USDT，较低余额按实际值计算，两个仓位约束均受限', async () => {
+  for (const balance of [100, 150, 1000]) {
+    // 小止损距离验证杠杆金额上限，大止损距离验证风险金额上限，避免仅限制其中一处。
+    for (const stopLoss of [98, 50]) {
+      const f = createFixture()
+      f.hooks.accountBalance = balance
+      f.engine.calculateConfiguredStopLoss = () => stopLoss
+      await f.engine.executeSignal(f.instance, f.signal, new Map())
+      const base = Math.min(balance, 150)
+      const expectedNotional = Math.min(base * 0.1 / ((100 - stopLoss) / 100), base * 5 * 0.1)
+      assert.equal(f.calls.orders[0].type, 'market')
+      assert.equal(f.calls.orders[0].amount * 100, expectedNotional)
+      assert.equal(f.calls.committed, 1)
+    }
+  }
 })
 
 test('同策略与跨策略连续亏损超过 5 笔，低于各自 maxDailyLoss 时仍可开仓', async () => {

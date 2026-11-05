@@ -31,6 +31,9 @@ import { getAnalysisMonth, saveTradeDecision } from '../../utils/trade-decision-
 import { normalizeERPeriod, normalizeERTimeframes } from '../../../app/utils/efficiency-ratio'
 import { SnapshotIndicatorCalculator } from './SnapshotIndicatorCalculator'
 
+// 开仓仅以最多 120 USDT 作为资金基数，避免账户余额增长时自动放大仓位。
+const POSITION_SIZING_BALANCE_CAP_USDT = 120
+
 /**
  * 计算首次策略扫描距离当前时间的等待毫秒数。
  * 首次扫描统一对齐到下一个“5 分钟倍数 + 88 秒”，避免启动时刻不一致导致扫描窗口错位。
@@ -1476,15 +1479,17 @@ export class StrategyEngine {
       await this.binance.setMarginMode(signal.symbol, 'cross')
 
       // 5. 计算仓位大小
+      // 风险金额和杠杆金额上限必须使用同一基数；余额不足上限时仍按真实可用余额计算。
+      const sizingBalance = Math.min(account.availableBalance, POSITION_SIZING_BALANCE_CAP_USDT)
       const riskAmount = calculatePositionSize(
-        account.availableBalance,
+        sizingBalance,
         signal.price,
         stopLoss,
         strategy.riskManagement.maxRiskPercentage
       )
 
       const maxUsdtAmount = calculateMaxUsdtAmount(
-        account.availableBalance,
+        sizingBalance,
         finalLeverage,
         strategy.riskManagement.maxRiskPercentage
       )
@@ -1526,6 +1531,9 @@ export class StrategyEngine {
       }
 
       logger.info('开仓', `仓位参数`, {
+        可用余额: account.availableBalance,
+        仓位计算基数: sizingBalance,
+        计算基数上限: POSITION_SIZING_BALANCE_CAP_USDT,
         数量: quantity,
         杠杆: finalLeverage,
         入场价: signal.price,
