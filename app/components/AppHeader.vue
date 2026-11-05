@@ -5,7 +5,7 @@
     <ClientOnly>
       <PasswordDialog v-model="showPasswordDialog" @success="handlePasswordSuccess" />
       <el-dialog v-model="showPerformance" title="系统性能面板" :style="{ width: '90%', maxWidth: '600px' }" draggable destroy-on-close>
-        <PerformancePanel />
+        <PerformancePanel v-if="showPerformance" />
       </el-dialog>
     </ClientOnly>
   </div>

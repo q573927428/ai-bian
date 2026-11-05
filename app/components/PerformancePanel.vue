@@ -1,8 +1,8 @@
 <template>
   <div class="performance-panel">
     <div class="panel-header">
-      <h3>📊 运行状态</h3>
-      <el-button size="small" text @click="refresh">
+      <h3>📊 运行状态 <span class="refresh-hint">每 2 秒刷新</span></h3>
+      <el-button size="small" text :loading="manualRefreshing" @click="refresh(true)">
         <el-icon><ElIconRefresh /></el-icon>
         刷新
       </el-button>
@@ -48,7 +48,7 @@
         <el-icon><ElIconConnection /></el-icon>
         Binance API 限流状态
       </div>
-      <div v-if="botStore.rateLimitLoading" class="loading-text">加载中...</div>
+      <div v-if="botStore.rateLimitLoading && !rateLimitData" class="loading-text">加载中...</div>
       <div v-else-if="botStore.rateLimitError" class="error-text">{{ botStore.rateLimitError }}</div>
       <div v-else-if="rateLimitData" class="rate-limit-detail">
         <div class="info-grid rate-limit-grid">
@@ -100,7 +100,7 @@
         <el-icon><ElIconGrid /></el-icon>
         并发池状态
       </div>
-      <div v-if="botStore.performanceLoading" class="loading-text">加载中...</div>
+      <div v-if="botStore.performanceLoading && !performanceData" class="loading-text">加载中...</div>
       <div v-else-if="botStore.performanceError" class="error-text">{{ botStore.performanceError }}</div>
       <div v-else-if="performanceData?.pools" class="pool-grid">
         <div v-for="(pool, name) in performanceData.pools" :key="name" class="pool-card">
@@ -145,10 +145,13 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useBotStore } from '../stores/bot'
 
 const botStore = useBotStore()
+const refreshing = ref(false)
+const manualRefreshing = ref(false)
+let refreshTimer: ReturnType<typeof setInterval> | undefined
 
 const rateLimitData = computed(() => botStore.rateLimit)
 const performanceData = computed(() => botStore.performance)
@@ -173,15 +176,32 @@ function poolPercent(pool: any): string {
   return Math.min((active / limit) * 100, 100) + '%'
 }
 
-async function refresh() {
-  await Promise.all([
-    botStore.fetchRateLimit(),
-    botStore.fetchPerformance()
-  ])
+/** 同步面板快照；慢请求期间跳过轮询，避免旧响应覆盖新数据。 */
+async function refresh(manual = false) {
+  // Store 的加载状态也覆盖关闭后立即重开的场景，避免重复请求。
+  if (refreshing.value || botStore.rateLimitLoading || botStore.performanceLoading) return
+  refreshing.value = true
+  // 自动轮询保持按钮静止，仅手动刷新显示加载反馈。
+  manualRefreshing.value = manual
+  try {
+    await Promise.all([
+      botStore.fetchRateLimit(),
+      botStore.fetchPerformance()
+    ])
+  } finally {
+    refreshing.value = false
+    manualRefreshing.value = false
+  }
 }
 
 onMounted(() => {
-  refresh()
+  void refresh()
+  refreshTimer = setInterval(() => { void refresh() }, 2000)
+})
+
+onUnmounted(() => {
+  // 父级在关闭弹窗时立即卸载面板，停止后续轮询。
+  if (refreshTimer !== undefined) clearInterval(refreshTimer)
 })
 
 </script>
@@ -201,6 +221,12 @@ onMounted(() => {
   margin: 0;
   font-size: 15px;
   font-weight: 600;
+}
+
+.refresh-hint {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--text-secondary);
 }
 
 .section {
