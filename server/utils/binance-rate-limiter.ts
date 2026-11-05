@@ -388,6 +388,11 @@ export class BinanceRateLimiter {
 
   private recordLocalWeight(group: BinanceRequestGroup, key: string): void {
     let weight = GROUP_ESTIMATED_WEIGHT[group]
+    // 深度初始化/重建按档位计权，1000 档快照不能按普通行情的 2 权重估算。
+    if (key.startsWith('depth:')) {
+      const limit = Number(key.split(':').at(-1))
+      weight = limit <= 50 ? 2 : limit <= 100 ? 5 : limit <= 500 ? 10 : 20
+    }
     // USD-M K线按请求的 limit 档位计权，与实际返回根数无关。
     if (key.startsWith('klines:') || key.startsWith('fetchOHLCV:')) {
       const limit = Number(key.split(':').at(-1))

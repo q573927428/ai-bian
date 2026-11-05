@@ -3,6 +3,7 @@
     <div ref="chartContainer" class="kline-chart" :title="pinnedCrosshair ? '光标已锁定，再次点击图表解除锁定' : '点击图表锁定光标，再次点击解除锁定'"></div>
     <SupportResistanceOverlay :symbol="symbol" :timeframe="timeframe" :klines="klineData" :loading="loading || !!error" :historical-order="historicalOrder" :get-chart="() => chart" :get-series="() => candlestickSeries" />
     <PositionRiskOverlay :symbol="symbol" :historical-order="historicalOrder" :klines="klineData" :loading="loading || !!error" :get-chart="() => chart" :get-series="() => candlestickSeries" />
+    <OrderBookOverlay :symbol="symbol" :historical="!!historicalOrder" :loading="loading || !!error" :get-chart="() => chart" :get-series="() => candlestickSeries" />
 
     <!-- 加载状态 -->
     <div v-if="loading" class="chart-loading">
@@ -30,6 +31,7 @@
 <script setup lang="ts">
 import PositionRiskOverlay from './PositionRiskOverlay.vue'
 import SupportResistanceOverlay from './SupportResistanceOverlay.vue'
+import OrderBookOverlay from './OrderBookOverlay.vue'
 import { useChartPosition } from '../../composables/usePositionChart'
 import { ref, onMounted, onUnmounted, watch, nextTick, computed } from 'vue'
 import { createChart, ColorType, CandlestickSeries, HistogramSeries, LineSeries, createSeriesMarkers } from 'lightweight-charts'

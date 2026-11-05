@@ -380,13 +380,17 @@ const style = computed(() => ({
   top: 80px;
   z-index: 21;
   opacity: 0;
+  /* 透明面板仍会挡住下方盘口重试；隐藏时同时退出鼠标命中和键盘焦点。 */
+  visibility: hidden;
   transform: translateY(-10px);
   transition: opacity 0.3s ease, transform 0.3s ease;
-  pointer-events: auto;
+  pointer-events: none;
 }
 
 .order-tooltip.tooltip-visible {
   opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
   transform: translateY(0);
 }
 

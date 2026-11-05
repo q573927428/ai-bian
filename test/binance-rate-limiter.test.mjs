@@ -78,3 +78,9 @@ test('K线估算根据请求limit计权，429仍暂停账户', () => {
   limiter.reportError({ status: 429 })
   assert.equal(limiter.shouldPauseGroup('account'), true)
 })
+
+test('盘口快照按档数估算权重，避免重建请求低估用量', () => {
+  const limiter = new BinanceRateLimiter()
+  for (const limit of [50, 100, 500, 1000]) limiter.recordLocalWeight('marketData', `depth:BTCUSDT:${limit}`)
+  assert.equal(limiter.getSnapshot().localEstimatedWeight1m, 37)
+})

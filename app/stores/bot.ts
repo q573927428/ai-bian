@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { markRaw } from 'vue'
+import { createPriceStream, type PriceStream } from '../utils/shared-price-stream'
 import type { 
   BotConfig, 
   LogEntry,
@@ -41,7 +42,7 @@ export const useBotStore = defineStore('bot', {
     // 共享价格管理
     prices: {} as Record<string, any>, // 存储所有交易对的价格数据
     priceSubscribers: new Set<string>(), // 价格订阅者
-    priceStream: null as EventSource | null,
+    priceStream: null as PriceStream | null,
     priceFallbackTimer: null as ReturnType<typeof setInterval> | null,
     priceConnectionStatus: 'disconnected' as 'connecting' | 'connected' | 'disconnected',
     priceStreamError: null as string | null,
@@ -137,7 +138,7 @@ export const useBotStore = defineStore('bot', {
 
       this.priceConnectionStatus = 'connecting'
       this.priceStreamError = null
-      const stream = markRaw(new EventSource('/api/market/prices/stream'))
+      const stream = markRaw(createPriceStream())
       this.priceStream = stream
 
       stream.onopen = () => {

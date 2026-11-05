@@ -379,6 +379,7 @@ const selectTimeframe = (timeframe: string) => {
 const loadTradeHistory = async () => {
   const symbolToUse = props.symbol || 'BTCUSDT'
   if (!symbolToUse) return
+  const generation = requestGeneration
   
   loadingHistory.value = true
   
@@ -386,13 +387,15 @@ const loadTradeHistory = async () => {
     const first = klineData.value[0]
     const last = klineData.value[klineData.value.length - 1]
     const response = await $fetch('/api/bot/history-markers', {
+      timeout: 10000,
+      retry: 0,
       params: {
         symbol: symbolToUse,
         from: first ? first.t * 1000 : undefined,
         to: last ? (last.t + getTimeframeSeconds(selectedTimeframe.value)) * 1000 : undefined,
       },
     }) as any
-    tradeHistory.value = response.success ? response.data || [] : []
+    if (generation === requestGeneration) tradeHistory.value = response.success ? response.data || [] : []
   } catch (err: any) {
     console.error('加载交易历史失败:', err)
   } finally {
@@ -407,6 +410,8 @@ const loadTradeHistory = async () => {
  */
 const loadKLineData = async (silent = false) => {
   if (timeline.value) return
+  // 首次加载尚未结束时，后台刷新不能抢走请求代次，导致加载遮罩无法清除。
+  if (silent && loading.value) return
   const symbolToUse = props.symbol || 'BTCUSDT'
   const timeframeToUse = selectedTimeframe.value
 
@@ -435,7 +440,8 @@ const loadKLineData = async (silent = false) => {
       params.set('to', String(open + step * 100))
     }
     
-    const response = await fetch(`/api/kline-simple?${params}`)
+    const response = await fetch(`/api/kline-simple?${params}`, { signal: AbortSignal.timeout(15000) })
+    if (!response.ok) throw new Error(`K线请求失败（HTTP ${response.status}）`)
     const result: KLineApiResponse = await response.json()
     
     // 检查当前请求代次是否已过期（例如symbol/timeframe已切换）
@@ -481,6 +487,7 @@ const loadKLineData = async (silent = false) => {
       
       // 加载历史订单数据（等待完成）
       await loadTradeHistory()
+      if (generation !== requestGeneration) return
 
       // 扫描结果是可选图层，仅在用户开启后随 K 线刷新。
       if (showScanMarkers.value) {
@@ -496,8 +503,10 @@ const loadKLineData = async (silent = false) => {
     }
   } catch (err: any) {
     console.error('加载K线数据失败:', err)
+    // 旧交易对的超时/异常不能反向清空用户刚切换后已加载的新图表。
+    if (generation !== requestGeneration) return
     if (!silent) {
-      error.value = `加载失败: ${err.message}`
+      error.value = err.name === 'TimeoutError' ? 'K线加载超时，请关闭多余页面或检查网络后重试' : `加载失败: ${err.message}`
       klineData.value = []
       hideTooltip()
     }
