@@ -319,7 +319,7 @@
       @sort-change="handleSortChange"
     >
       <el-table-column type="index" label="" width="35" align="center" :index="(index: number) => (currentPage - 1) * pageSize + index + 1" />
-      <el-table-column label="交易对" prop="symbol" min-width="85" show-overflow-tooltip>
+      <el-table-column label="交易对" prop="symbol" min-width="92" show-overflow-tooltip>
         <template #default="{ row }">
           <el-button link type="primary" size="small" @click.stop="emit('select-order', row as TradeHistory)">
             <span class="symbol-cell">

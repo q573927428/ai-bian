@@ -169,14 +169,8 @@ onUnmounted(() => { resizeObserver?.disconnect() })
 .metric-group { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
 .etf-group { gap: 8px; }
 .sentiment-tag.el-tag { height: 16px; padding: 0 4px; font-size: 10px; }
-/* 普通金额用高对比文字色，语义配色在后续规则及内联样式中保留。 */
-strong { font-variant-numeric: tabular-nums; font-weight: 700; color: var(--ticker-number-color, #0369a1); }
-:global(html.dark .market-overview) { --ticker-number-color: #38d5ff; }
-/* 固定币种配色只用于市占率，避免与 ETF 净流入的正负颜色混淆。 */
-.btc-dominance { color: #b85c00; }
-.eth-dominance { color: #6952cc; }
-:global(html.dark .btc-dominance) { color: #f7a644; }
-:global(html.dark .eth-dominance) { color: #a99aff; }
+/* 汇率、规模及市占率不表达涨跌，使用普通数值色；情绪和净流向继续保留原有语义色。 */
+strong { font-variant-numeric: tabular-nums; font-weight: 700; color: var(--text-primary); }
 .flow-positive { color: #14803c; }
 .flow-negative { color: #dc2626; }
 :global(html.dark .market-overview .flow-positive) { color: #39ef7d; }

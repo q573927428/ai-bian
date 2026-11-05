@@ -1,8 +1,10 @@
 <!-- ==================== 合约 K 线、CVD 与 Delta 联动图 ==================== -->
 <template>
-  <section ref="panel" class="trend-card" :class="{ expanded }" v-loading="loading">
+  <!-- 已有行情时刷新仅提示状态，避免周期请求反复用遮罩压暗整张图。 -->
+  <section ref="panel" class="trend-card" :class="{ expanded }" v-loading="loading && !currentBars.length" :aria-busy="loading">
     <header>
       <strong>{{ symbol }}</strong>
+      <span v-if="loading" class="refresh-status" role="status">更新中…</span>
       <div class="period-buttons" role="group" aria-label="图表周期">
         <button v-for="period in timeframes" :key="period" type="button" :class="{ active: selectedTimeframe === period }" :aria-pressed="selectedTimeframe === period" @click="selectedTimeframe = period">{{ period }}</button>
       </div>
@@ -446,6 +448,7 @@ onBeforeUnmount(() => { disposed = true; version++; if (timer) clearInterval(tim
 .trend-card.expanded { position: fixed; top: 50%; left: 50%; width: min(88vw, 1000px); transform: translate(-50%, -50%); z-index: 2000; min-height: 0; height: 92dvh; overflow-y: auto; box-shadow: 0 0 0 100vmax rgba(0,0,0,.5); }
 header { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; font-size: 12px; flex-shrink: 0; }
 header strong { margin-right: auto; }
+.refresh-status { color: var(--text-secondary); font-size: 11px; }
 header button { background: transparent; border: 1px solid var(--el-border-color); border-radius: 3px; color: var(--el-text-color-primary); cursor: pointer; padding: 3px 5px; font-size: 11px; }
 .period-buttons { display: flex; gap: 2px; }
 .period-buttons button.active { background: var(--el-color-primary); color: #fff; }
