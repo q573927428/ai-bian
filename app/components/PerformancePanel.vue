@@ -51,8 +51,8 @@
               <span class="info-label">本地估算</span>
               <strong class="estimate-value">{{ rateLimitData.localEstimatedWeight1m ?? '-' }}</strong>
             </div>
-            <div class="weight-stat order-metric" title="下单次数：左侧为最近10秒，右侧为最近1分钟；Binance 未返回统计时显示 -">
-              <span class="info-label">下单次数</span>
+            <div class="weight-stat order-metric" title="Binance 当前10秒 / 1分钟固定窗口内的订单计数，并非额度上限或成交笔数；统计缺失或跨窗口过期时显示 -">
+              <span class="info-label">下单次数（10秒 / 1分）</span>
               <strong class="estimate-value">{{ rateLimitData.orderCount10s ?? '-' }} / {{ rateLimitData.orderCount1m ?? '-' }}</strong>
             </div>
           </div>

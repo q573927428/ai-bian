@@ -1,3 +1,4 @@
+// ==================== Binance 请求限流、队列调度与用量监控 ====================
 import type { BotBinanceRateLimitConfig } from '../../types'
 import { logger } from './logger'
 import { detectBinanceRateLimitHttpStatus } from './binance-http-status'
@@ -68,6 +69,7 @@ const QUEUE_TIMEOUT_MS = 30000
 const TIMEOUT_DEGRADE_THRESHOLD = 3
 const TIMEOUT_DEGRADE_MS = 60000
 
+/** 调度不同优先级的 Binance 请求，并维护限流保护及有时效的交易所用量观测。 */
 export class BinanceRateLimiter {
   private config = { ...DEFAULT_CONFIG }
   private queues: Record<BinanceRequestGroup, QueueTask<any>[]> = {
@@ -89,6 +91,8 @@ export class BinanceRateLimiter {
   private usedWeight1m = 0
   private orderCount10s: number | undefined
   private orderCount1m: number | undefined
+  private orderCount10sUpdatedAt: number | undefined
+  private orderCount1mUpdatedAt: number | undefined
   private bannedUntil = 0
   private degradedUntil = 0
   private recent429 = 0
@@ -156,6 +160,7 @@ export class BinanceRateLimiter {
   }
 
   updateFromHeaders(headersLike: any): void {
+    const now = Date.now()
     const getHeader = (name: string): string | null => {
       if (!headersLike) return null
       if (typeof headersLike.get === 'function') {
@@ -175,12 +180,14 @@ export class BinanceRateLimiter {
     const order10s = Number(order10sHeader)
     if (order10sHeader !== null && Number.isFinite(order10s)) {
       this.orderCount10s = order10s
+      this.orderCount10sUpdatedAt = now
     }
 
     const order1mHeader = getHeader('x-mbx-order-count-1m')
     const order1m = Number(order1mHeader)
     if (order1mHeader !== null && Number.isFinite(order1m)) {
       this.orderCount1m = order1m
+      this.orderCount1mUpdatedAt = now
     }
   }
 
@@ -248,8 +255,9 @@ export class BinanceRateLimiter {
     return {
       usedWeight1m: this.usedWeight1m,
       localEstimatedWeight1m: this.getLocalEstimatedWeight1m(),
-      orderCount10s: this.orderCount10s,
-      orderCount1m: this.orderCount1m,
+      // Binance 使用固定时间窗口；跨窗口后旧计数失效，缺少新响应头时不能推断为零。
+      orderCount10s: this.getObservedOrderCount(this.orderCount10s, this.orderCount10sUpdatedAt, 10000),
+      orderCount1m: this.getObservedOrderCount(this.orderCount1m, this.orderCount1mUpdatedAt, 60000),
       queues: {
         marketData: this.queues.marketData.length,
         account: this.queues.account.length,
@@ -271,6 +279,13 @@ export class BinanceRateLimiter {
       backgroundPaused: this.shouldPauseBackgroundWork(),
       degradedReason: this.getBackgroundPauseReason()
     }
+  }
+
+  /** 只展示当前交易所时间窗口内的订单计数，不让其他请求的响应延长旧计数寿命。 */
+  private getObservedOrderCount(count: number | undefined, updatedAt: number | undefined, windowMs: number): number | undefined {
+    return updatedAt !== undefined && Math.floor(Date.now() / windowMs) === Math.floor(updatedAt / windowMs)
+      ? count
+      : undefined
   }
 
   private processQueue(): void {

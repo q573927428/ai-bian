@@ -19,6 +19,39 @@ test('缺失响应头不会清空已观测权重及订单数', () => {
   assert.equal(limiter.getSnapshot().orderCount1m, 12)
 })
 
+test('订单计数按各自固定窗口失效，缺失响应头不续期，新统计可恢复', () => {
+  const originalNow = Date.now
+  let now = 125000
+  Date.now = () => now
+  try {
+    const limiter = new BinanceRateLimiter()
+    assert.equal(limiter.getSnapshot().orderCount10s, undefined)
+    assert.equal(limiter.getSnapshot().orderCount1m, undefined)
+    limiter.updateFromHeaders(new Headers({ 'x-mbx-order-count-10s': '2', 'x-mbx-order-count-1m': '2' }))
+    now = 129999
+    assert.equal(limiter.getSnapshot().orderCount10s, 2)
+    now = 130000
+    limiter.updateFromHeaders(new Headers({ 'x-mbx-used-weight-1m': '32' }))
+    assert.equal(limiter.getSnapshot().orderCount10s, undefined)
+    assert.equal(limiter.getSnapshot().orderCount1m, 2)
+    now = 179999
+    assert.equal(limiter.getSnapshot().orderCount1m, 2)
+    now = 180000
+    assert.equal(limiter.getSnapshot().orderCount1m, undefined)
+    now += 3600000
+    assert.equal(limiter.getSnapshot().orderCount10s, undefined)
+    assert.equal(limiter.getSnapshot().orderCount1m, undefined)
+    // 两个响应头可独立返回，刷新其中一个不能使另一个旧窗口的计数复活。
+    limiter.updateFromHeaders(new Headers({ 'x-mbx-order-count-10s': '0' }))
+    assert.equal(limiter.getSnapshot().orderCount10s, 0)
+    assert.equal(limiter.getSnapshot().orderCount1m, undefined)
+    limiter.updateFromHeaders(new Headers({ 'x-mbx-order-count-1m': '1' }))
+    assert.equal(limiter.getSnapshot().orderCount1m, 1)
+  } finally {
+    Date.now = originalNow
+  }
+})
+
 test('后台达到阈值暂停时账户仍有预留额度，跨分钟恢复', () => {
   const originalNow = Date.now
   let now = 120001
