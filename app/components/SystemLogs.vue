@@ -544,18 +544,7 @@ async function showAnalysisNotification({ log, index, total }: PendingAnalysisNo
             event.stopPropagation()
             viewAnalysisChart(log)
           }
-        }, '查看 K 线'),
-        h('a', {
-          class: 'ai-analysis-action',
-          href: getUserPromptUrl(log),
-          target: '_blank',
-          rel: 'noopener noreferrer',
-          title: '查看该策略和交易对最近一次分析的用户提示词（缓存保留 30 分钟）',
-          onClick: (event: MouseEvent) => {
-            // 链接沿用浏览器新标签页行为，阻止通知主体同时跳转 K 线。
-            event.stopPropagation()
-          }
-        }, '查看提示词')
+        }, '查看 K 线')
       ]),
       h('div', { class: 'ai-analysis-progress-track', 'aria-hidden': 'true' }, [
         h('div', { class: 'ai-analysis-progress-bar' })
@@ -563,7 +552,7 @@ async function showAnalysisNotification({ log, index, total }: PendingAnalysisNo
     ]),
     position: 'bottom-right',
     onClick: () => {
-      // 查看图表后保留通知，仍可返回查看详情或提示词，关闭交由倒计时和关闭按钮处理。
+      // 查看图表后保留通知，仍可返回查看详情，关闭交由倒计时和关闭按钮处理。
       viewAnalysisChart(log)
     },
     onClose: () => {

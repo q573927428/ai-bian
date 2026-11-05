@@ -25,7 +25,7 @@
               @unlock="handleUnlock"
               @refresh="refreshPanelData"
               @open="handleOpenProtectedPanel"
-              @logs="showLogsDrawer = true"
+              @logs="handleOpenProtectedPanel('logs')"
               @hot="showTopSymbolsDialog = true"
             />
 
@@ -49,8 +49,8 @@
               <IndicatorsList v-model="showIndicatorsDrawer" @select-symbol="handlePositionChartSelect" />
             </ClientOnly>
 
-            <!-- 系统日志抽屉由状态面板打开 -->
-            <ClientOnly>
+            <!-- 日志与策略共用解锁状态，锁定时不挂载受保护内容。 -->
+            <ClientOnly v-if="passwordVerified">
               <SystemLogs v-model="showLogsDrawer" @select-symbol="handlePositionChartSelect" />
             </ClientOnly>
 
@@ -149,6 +149,7 @@ const { passwordVerified, showPasswordDialog, handleUnlock, handleOpenProtectedP
   onLock: () => {
     showConfigDialog.value = false
     showStrategiesDrawer.value = false
+    showLogsDrawer.value = false
   }
 })
 
@@ -156,11 +157,17 @@ const { passwordVerified, showPasswordDialog, handleUnlock, handleOpenProtectedP
 function openProtectedPanel(panel: HomeProtectedPanel) {
   if (panel === 'config') showConfigDialog.value = true
   else if (panel === 'strategies') showStrategiesDrawer.value = true
+  else if (panel === 'logs') showLogsDrawer.value = true
   else void navigateTo(`/${panel}`)
 }
 
-/** 将导航事件映射到面板开关，指标和订单入口均经过解锁门禁。 */
+/** 将导航事件映射到面板开关，指标、订单和日志入口均经过解锁门禁。 */
 function handleNavigate(target: HomeNavigationTarget) {
+  // 首页参数也能请求打开日志，必须复用按钮的验证流程。
+  if (target === 'logs') {
+    handleOpenProtectedPanel('logs')
+    return
+  }
   if (target === 'indicators') {
     handleOpenProtectedPanel('indicators')
     return
@@ -177,8 +184,7 @@ function handleNavigate(target: HomeNavigationTarget) {
     indicators: showIndicatorsDrawer,
     hot: showTopSymbolsDialog,
     macro: showMacroDataDrawer,
-    trends: showCryptoTrendsDrawer,
-    logs: showLogsDrawer
+    trends: showCryptoTrendsDrawer
   }
   panels[target].value = true
 }

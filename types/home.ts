@@ -4,4 +4,4 @@
 export type HomeNavigationTarget = 'home' | 'indicators' | 'hot' | 'macro' | 'trends' | 'logs' | 'orders'
 
 /** 必须先完成页面解锁才能打开的管理入口。 */
-export type HomeProtectedPanel = 'config' | 'strategies' | 'orders' | 'indicators'
+export type HomeProtectedPanel = 'config' | 'strategies' | 'orders' | 'indicators' | 'logs'
