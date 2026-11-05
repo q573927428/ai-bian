@@ -11,7 +11,7 @@
       @mouseleave="syncAnalysisNotificationTimers"
     />
   </Teleport>
-  <el-drawer v-model="visible" class="logs-drawer" title="运行日志" direction="rtl" size="50%" destroy-on-close>
+  <el-drawer v-if="passwordVerified" v-model="visible" class="logs-drawer" title="运行日志" direction="rtl" size="50%" destroy-on-close>
     <div class="logs-toolbar">
           <div class="header-title-group">
             <el-switch
@@ -87,6 +87,7 @@
     </div>
   </el-drawer>
   <el-dialog
+    v-if="passwordVerified"
     v-model="analysisDetailVisible"
     title="AI 分析详情"
     width="min(860px, calc(100vw - 32px))"
@@ -116,6 +117,7 @@
       </el-button>
     </template>
   </el-dialog>
+  <PasswordDialog v-model="showPasswordDialog" @success="handleDetailPasswordSuccess" />
 </template>
 
 <script setup lang="ts">
@@ -123,6 +125,8 @@ import { computed, h, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { ElMessage, ElNotification } from 'element-plus'
 import type { LogEntry } from '../../types'
 import { useBotStore } from '../stores/bot'
+import { usePageUnlock } from '../composables/usePageUnlock'
+import PasswordDialog from './PasswordDialog.vue'
 import dayjs from 'dayjs'
 
 /** 日志抽屉的显示状态。 */
@@ -149,6 +153,19 @@ const analysisDetailVisible = ref(false)
 // 保存点击时的结果快照，避免轮询清理日志后弹窗内容丢失。
 const selectedAnalysis = ref<LogEntry | null>(null)
 const selectedPromptUrl = ref<string>()
+const pendingAnalysis = ref<LogEntry | null>(null)
+const { passwordVerified, showPasswordDialog, handleUnlock, handlePasswordSuccess } = usePageUnlock({
+  // 本组件只恢复 AI 详情，日志入口的待办仍由首页管理。
+  onOpen: () => {},
+  onLock: () => {
+    visible.value = false
+    analysisDetailVisible.value = false
+    selectedAnalysis.value = null
+    selectedPromptUrl.value = undefined
+    pendingAnalysis.value = null
+    showPasswordDialog.value = false
+  }
+})
 
 // 只查询缓存目录；关闭或切换详情后丢弃旧响应，避免显示上一条日志的入口。
 watch([analysisDetailVisible, selectedAnalysis], async ([isOpen, log], _previous, onCleanup) => {
@@ -197,11 +214,24 @@ function getUserPromptUrl(log: LogEntry): string | undefined {
   return `/api/ai/prompt?${query.toString()}`
 }
 
-/** 展示本次扫描的完整 AI 结果，保持当前图表不变。 */
+/** 通知持续公开展示，完整 AI 结果必须先完成页面密码验证。 */
 function openAnalysisDetail(log: LogEntry): void {
+  if (!passwordVerified.value) {
+    pendingAnalysis.value = { ...log }
+    handleUnlock()
+    return
+  }
   selectedPromptUrl.value = undefined
   selectedAnalysis.value = { ...log }
   analysisDetailVisible.value = true
+}
+
+/** 验证后恢复点击时的结果快照，避免通知过期或轮询替换导致详情丢失。 */
+function handleDetailPasswordSuccess(): void {
+  handlePasswordSuccess()
+  const log = pendingAnalysis.value
+  pendingAnalysis.value = null
+  if (log) openAnalysisDetail(log)
 }
 
 /** 从详情或通知切换到扫描对应的交易对及周期。 */
@@ -379,7 +409,7 @@ let notificationsMounted = false
 let stopNotificationWatch: (() => void) | undefined
 
 // 详情打开时立即暂停，关闭后还需判断鼠标是否仍悬停在通知区域。
-watch(analysisDetailVisible, syncAnalysisNotificationTimers, { flush: 'sync' })
+watch([analysisDetailVisible, showPasswordDialog], syncAnalysisNotificationTimers, { flush: 'sync' })
 
 /** 从剩余时间开始计时；禁用组件内置计时器后，统一控制整个通知区域。 */
 function startAnalysisNotificationTimer(notification: ReturnType<typeof ElNotification>): void {
@@ -422,7 +452,7 @@ function resumeAnalysisNotificationTimers(): void {
 function syncAnalysisNotificationTimers(): void {
   const isPageActive = !document.hidden && document.hasFocus()
   const isHovering = notificationContainer.value?.matches(':hover')
-  if (isPageActive && (analysisDetailVisible.value || isHovering)) {
+  if (isPageActive && (analysisDetailVisible.value || showPasswordDialog.value || isHovering)) {
     pauseAnalysisNotificationTimers()
   } else {
     resumeAnalysisNotificationTimers()

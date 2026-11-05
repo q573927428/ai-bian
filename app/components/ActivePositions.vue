@@ -54,7 +54,7 @@
         <!-- AI推理和评分 - 可折叠 -->
         <div v-if="position.reasoning" class="ai-section">
           <!-- AI 内容区域 -->
-          <div v-show="expandedAISections.includes(position.symbol)" class="ai-content">
+          <div v-if="passwordVerified && expandedAISections.includes(position.symbol)" class="ai-content">
             <div class="reasoning-box">
               <div class="reasoning-label">推理逻辑 <a v-if="position.entryAnalysisId" :href="getPositionPromptUrl(position)" target="_blank" rel="noopener noreferrer">（提示词）</a></div>
               <div class="reasoning-text">{{ position.reasoning }}</div>
@@ -98,7 +98,8 @@
       <el-button size="small" @click="resetFilters">重置筛选</el-button>
     </el-empty>
 
-    <!-- 密码只保护平仓操作，不影响持仓信息的查看。 -->
+    <!-- 基础持仓公开展示，AI 详情使用页面解锁，平仓仍单独验证本次操作。 -->
+    <PasswordDialog v-model="showDetailPasswordDialog" @success="handleDetailPasswordSuccess" />
     <PasswordDialog v-model="showClosePasswordDialog" @success="handlePasswordSuccess" />
   </el-card>
 </template>
@@ -110,6 +111,7 @@ import { useBotStore } from '../stores/bot'
 import { formatPrice } from './kline-chart/utils/kline-formatters'
 import PasswordDialog from './PasswordDialog.vue'
 import { usePositionChart, useChartPositions } from '../composables/usePositionChart'
+import { usePageUnlock } from '../composables/usePageUnlock'
 
 const emit = defineEmits<{
   /** 通知首页将 K 线图切换到当前持仓的交易对及主周期。 */
@@ -151,6 +153,21 @@ const closingSymbols = ref<string[]>([])
 const expandedAISections = ref<string[]>([])
 const showClosePasswordDialog = ref(false)
 const pendingCloseSymbol = ref('')
+const pendingDetailSymbol = ref('')
+const {
+  passwordVerified,
+  showPasswordDialog: showDetailPasswordDialog,
+  handleUnlock,
+  handlePasswordSuccess: verifyDetailPassword
+} = usePageUnlock({
+  // 持仓详情在当前组件内展开，不需要打开页面管理面板。
+  onOpen: () => {},
+  onLock: () => {
+    expandedAISections.value = []
+    pendingDetailSymbol.value = ''
+    showDetailPasswordDialog.value = false
+  }
+})
 
 /**
  * 将持仓交易对转换为 Binance symbol，并携带持仓主周期通知父组件。
@@ -269,12 +286,26 @@ function priceMarkers(position: any) {
   }))
 }
 
-// 切换 AI 折叠区域
+/** 收起详情可直接操作；展开时复用页面解锁状态，未验证先请求密码。 */
 const toggleAISection = (symbol: string) => {
   const index = expandedAISections.value.indexOf(symbol)
   if (index > -1) {
     expandedAISections.value.splice(index, 1)
+  } else if (passwordVerified.value) {
+    expandedAISections.value.push(symbol)
   } else {
+    pendingDetailSymbol.value = symbol
+    handleUnlock()
+  }
+}
+
+/** 验证成功后仅展开本次请求且仍存在的持仓，避免平仓后展示失效详情。 */
+function handleDetailPasswordSuccess() {
+  verifyDetailPassword()
+  const symbol = pendingDetailSymbol.value
+  pendingDetailSymbol.value = ''
+  if (positions.value.some(position => position.symbol === symbol && position.reasoning)
+    && !expandedAISections.value.includes(symbol)) {
     expandedAISections.value.push(symbol)
   }
 }

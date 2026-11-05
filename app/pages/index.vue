@@ -49,8 +49,8 @@
               <IndicatorsList v-model="showIndicatorsDrawer" @select-symbol="handlePositionChartSelect" />
             </ClientOnly>
 
-            <!-- 日志与策略共用解锁状态，锁定时不挂载受保护内容。 -->
-            <ClientOnly v-if="passwordVerified">
+            <!-- 通知持续订阅，日志抽屉和 AI 详情分别在打开时校验解锁状态。 -->
+            <ClientOnly>
               <SystemLogs v-model="showLogsDrawer" @select-symbol="handlePositionChartSelect" />
             </ClientOnly>
 
