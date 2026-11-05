@@ -51,6 +51,10 @@
               <span class="info-label">本地估算</span>
               <strong class="estimate-value">{{ rateLimitData.localEstimatedWeight1m ?? '-' }}</strong>
             </div>
+            <div class="weight-stat order-metric" title="下单次数：左侧为最近10秒，右侧为最近1分钟；Binance 未返回统计时显示 -">
+              <span class="info-label">下单次数</span>
+              <strong class="estimate-value">{{ rateLimitData.orderCount10s ?? '-' }} / {{ rateLimitData.orderCount1m ?? '-' }}</strong>
+            </div>
           </div>
           <!-- 正常状态弱化，出现限流或封禁时仍保留醒目的告警色。 -->
           <div class="api-errors">
@@ -70,10 +74,6 @@
               <span>队列 <b :class="{ 'text-warning': rateLimitData.queues?.[group] > 0 }">{{ rateLimitData.queues?.[group] || 0 }}</b></span>
             </div>
           </div>
-        </div>
-        <div class="secondary-line" title="Binance 最近返回的下单次数统计，未获取到时显示 -">
-          <span>下单次数 <span class="secondary-text">（10秒 / 1分钟）</span></span>
-          <span>{{ rateLimitData.orderCount10s ?? '-' }} / {{ rateLimitData.orderCount1m ?? '-' }}</span>
         </div>
       </div>
       <div v-else class="empty-text">暂无数据</div>
@@ -297,24 +297,18 @@ onUnmounted(() => {
   font-size: 11px;
 }
 
-.secondary-text {
-  font-size: 11px;
-  font-weight: 400;
-  color: var(--text-secondary);
-}
-
-.api-headline, .weight-metric, .api-errors, .ai-summary, .secondary-line {
+.api-headline, .weight-metric, .api-errors, .ai-summary {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
   gap: 6px 12px;
 }
-.api-headline, .secondary-line { justify-content: space-between; }
+.api-headline { justify-content: space-between; }
 .weight-value { font-size: 28px; line-height: 1.15; font-weight: 600; }
 /* 返回权重与本地估算采用对齐的标签和数值，避免说明挤在主数值旁。 */
 .weight-metric { gap: 24px; }
 .weight-stat { display: flex; flex-direction: column; gap: 4px; }
-.weight-estimate { padding-left: 24px; border-left: 1px solid var(--stat-card-border); }
+.weight-estimate, .order-metric { padding-left: 24px; border-left: 1px solid var(--stat-card-border); }
 .estimate-value { font-size: 28px; line-height: 1.15; font-weight: 500; color: var(--text-regular); }
 .api-normal {
   display: inline-flex;
@@ -323,11 +317,6 @@ onUnmounted(() => {
   padding: 5px 9px;
   border-radius: 999px;
   background: var(--bg-main);
-  font-size: 11px;
-  color: var(--text-secondary);
-}
-.secondary-line {
-  margin-top: 10px;
   font-size: 11px;
   color: var(--text-secondary);
 }
