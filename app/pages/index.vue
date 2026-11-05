@@ -11,7 +11,7 @@
           <el-col class="overview-column" :xs="24" :sm="24" :md="6" :lg="6">
             <HomeStatusPanel
               :password-verified="passwordVerified"
-              :has-password="hasPassword"
+              :refreshing="refreshing"
               :total-trades="totalTrades"
               :today-trades="todayTrades"
               :total-pn-l="totalPnL"
@@ -23,7 +23,7 @@
               :initial-capital="initialCapital"
               :usdt-balance="usdtBalance"
               @unlock="handleUnlock"
-              @lock="clearPassword"
+              @refresh="refreshPanelData"
               @open="handleOpenProtectedPanel"
               @logs="showLogsDrawer = true"
               @hot="showTopSymbolsDialog = true"
@@ -98,6 +98,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
+import { ElMessage } from 'element-plus'
 import { useGlobalPolling } from '../composables/useGlobalPolling'
 import { useBotStore } from '../stores/bot'
 import { useStrategiesStore } from '../stores/strategies'
@@ -132,6 +133,7 @@ interface HistoryOverview {
 }
 
 const historyOverview = ref<HistoryOverview>({ totalTrades: 0, totalPnl: 0, winRate: 0, todayTrades: 0, todayPnl: 0, todayWinRate: 0 })
+const refreshing = ref(false)
 
 // 配置对话框
 const showConfigDialog = ref(false)
@@ -142,7 +144,7 @@ const showMacroDataDrawer = ref(false)
 const showCryptoTrendsDrawer = ref(false)
 const showStrategiesDrawer = ref(false)
 
-const { passwordVerified, showPasswordDialog, hasPassword, handleUnlock, handleOpenProtectedPanel, handlePasswordSuccess, clearPassword } = usePageUnlock({
+const { passwordVerified, showPasswordDialog, handleUnlock, handleOpenProtectedPanel, handlePasswordSuccess } = usePageUnlock({
   onOpen: openProtectedPanel,
   onLock: () => {
     showConfigDialog.value = false
@@ -154,13 +156,13 @@ const { passwordVerified, showPasswordDialog, hasPassword, handleUnlock, handleO
 function openProtectedPanel(panel: HomeProtectedPanel) {
   if (panel === 'config') showConfigDialog.value = true
   else if (panel === 'strategies') showStrategiesDrawer.value = true
-  else void navigateTo('/orders')
+  else void navigateTo(`/${panel}`)
 }
 
-/** 将顶部导航事件映射到面板开关，订单入口继续经过解锁门禁。 */
+/** 将导航事件映射到面板开关，指标和订单入口均经过解锁门禁。 */
 function handleNavigate(target: HomeNavigationTarget) {
   if (target === 'indicators') {
-    void navigateTo('/indicators')
+    handleOpenProtectedPanel('indicators')
     return
   }
   if (target === 'home') {
@@ -213,12 +215,37 @@ const loadHistoryOverview = async () => {
   end.setDate(end.getDate() + 1)
   try {
     const response = await $fetch<{ success: boolean; data: HistoryOverview }>('/api/bot/history-overview', { params: { startTime: start.getTime(), endTime: end.getTime() } })
-    if (response.success) historyOverview.value = response.data
+    if (!response.success) return false
+    historyOverview.value = response.data
+    return true
   } catch (error) {
     console.error('加载交易汇总失败:', error)
+    return false
   }
 }
 useGlobalPolling(loadHistoryOverview)
+
+/** 手动同步账户余额和统计依赖，刷新期间阻止重复请求。 */
+async function refreshPanelData() {
+  if (refreshing.value) return
+  refreshing.value = true
+  try {
+    // 状态接口会重新读取交易所余额，历史汇总和策略用于更新盈亏及年化。
+    const [, overviewLoaded] = await Promise.all([
+      botStore.fetchStatus(),
+      loadHistoryOverview(),
+      strategiesStore.loadStrategies()
+    ])
+    if (botStore.error || !overviewLoaded) {
+      ElMessage.error(botStore.error || '交易统计刷新失败，请重试')
+    }
+  } catch (error) {
+    console.error('刷新面板数据失败:', error)
+    ElMessage.error('刷新失败，请重试')
+  } finally {
+    refreshing.value = false
+  }
+}
 
 // 从配置中读取初始本金
 const initialCapital = computed(() => {

@@ -9,9 +9,9 @@
             <el-icon><ElIconUnlock /></el-icon>
             解锁
           </el-button>
-          <el-button v-if="passwordVerified && hasPassword" type="primary" size="small" text @click="emit('lock')">
-            <el-icon><ElIconLock /></el-icon>
-            锁定
+          <el-button type="primary" size="small" text :loading="refreshing" @click="emit('refresh')">
+            <el-icon v-if="!refreshing"><ElIconRefresh /></el-icon>
+            刷新
           </el-button>
         </div>
       </div>
@@ -96,7 +96,7 @@ import type { CryptoBalance } from '../../types'
 /** 状态面板展示数据由首页计算，管理入口通过事件交给首页验证权限。 */
 interface Props {
   passwordVerified: boolean
-  hasPassword: boolean
+  refreshing: boolean
   totalTrades: number
   todayTrades: number
   totalPnL: number
@@ -112,7 +112,7 @@ interface Props {
 const props = defineProps<Props>()
 const emit = defineEmits<{
   unlock: []
-  lock: []
+  refresh: []
   logs: []
   hot: []
   open: [panel: 'config' | 'strategies' | 'orders']

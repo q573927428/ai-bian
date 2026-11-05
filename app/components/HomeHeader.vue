@@ -41,9 +41,39 @@
           <button type="button" class="auth-button auth-login" @click="emit('unlock')">登录</button>
           <button type="button" class="auth-button auth-register" @click="emit('unlock')">注册</button>
         </div>
-        <div v-else class="user-avatar" role="img" aria-label="用户头像（已解锁）" title="已解锁">
-          <el-icon :size="17" aria-hidden="true"><ElIconUserFilled /></el-icon>
-        </div>
+        <el-dropdown v-else trigger="click" placement="bottom-end" popper-class="account-menu-popper" :show-arrow="false" :offset="12" @command="handleAccountCommand">
+          <button type="button" class="user-avatar" aria-label="用户菜单（已解锁）">
+            <el-icon :size="17" aria-hidden="true"><ElIconUserFilled /></el-icon>
+          </button>
+          <template #dropdown>
+            <div class="account-menu">
+              <!-- 当前使用统一操作密码，身份区展示权限状态，不虚构用户名或邮箱。 -->
+              <div class="account-profile">
+                <span class="account-profile-avatar" aria-hidden="true">
+                  <el-icon :size="21"><ElIconUserFilled /></el-icon>
+                </span>
+                <div class="account-profile-info">
+                  <span class="account-profile-name">管理员</span>
+                  <span class="account-profile-status"><span class="account-status-dot" />操作权限已解锁</span>
+                </div>
+              </div>
+              <el-dropdown-menu class="account-menu-actions">
+                <el-dropdown-item command="profile" class="account-menu-item">
+                  <el-icon class="account-menu-icon" :size="18" aria-hidden="true"><ElIconUser /></el-icon>
+                  <span>个人资料</span>
+                </el-dropdown-item>
+                <el-dropdown-item command="invite" class="account-menu-item">
+                  <el-icon class="account-menu-icon" :size="18" aria-hidden="true"><ElIconPresent /></el-icon>
+                  <span>邀请好友</span>
+                </el-dropdown-item>
+                <el-dropdown-item command="logout" divided class="account-menu-item account-logout">
+                  <el-icon class="account-menu-icon" :size="18" aria-hidden="true"><ElIconSwitchButton /></el-icon>
+                  <span>退出登录</span>
+                </el-dropdown-item>
+              </el-dropdown-menu>
+            </div>
+          </template>
+        </el-dropdown>
         <el-button text size="small" class="mobile-nav-toggle" :class="{ 'is-open': mobileNavOpen }" :aria-label="mobileNavOpen ? '收起行情导航' : '展开行情导航'" aria-controls="header-navigation" :aria-expanded="mobileNavOpen" @click="mobileNavOpen = !mobileNavOpen" @keydown.esc="mobileNavOpen = false">
           <el-icon :size="20" aria-hidden="true">
             <ElIconClose v-if="mobileNavOpen" />
@@ -57,6 +87,7 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
+import { ElMessage } from 'element-plus'
 import type { Component } from 'vue'
 import { ElIconHouse, ElIconDataAnalysis, ElIconTickets, ElIconPlatform, ElIconTrendCharts, ElIconUserFilled } from '#components'
 import { useTheme } from '../composables/useTheme'
@@ -82,6 +113,7 @@ const emit = defineEmits<{
   navigate: [target: HomeNavigationTarget]
   performance: []
   unlock: []
+  lock: []
 }>()
 const { theme: currentTheme, toggleTheme } = useTheme()
 const mobileNavOpen = ref(false)
@@ -92,6 +124,17 @@ const navigationItems: NavigationItem[] = [
   { id: 'macro', label: '宏观', description: '全球市场', icon: ElIconPlatform },
   { id: 'trends', label: '趋势', description: '行情脉络', icon: ElIconTrendCharts }
 ]
+
+/** 预设入口先提示待开放，只有退出命令会清除解锁状态。 */
+function handleAccountCommand(command: string) {
+  if (command === 'logout') {
+    emit('lock')
+    return
+  }
+  if (command === 'profile' || command === 'invite') {
+    ElMessage.info(`${command === 'profile' ? '个人资料' : '邀请好友'}功能暂未开放`)
+  }
+}
 
 /** 移动端选择入口后收起菜单，具体面板及权限由首页协调。 */
 function handleNavigate(target: HomeNavigationTarget) {
@@ -168,6 +211,7 @@ function handleNavigate(target: HomeNavigationTarget) {
 .auth-button:focus-visible { outline: 2px solid #fff; outline-offset: 1px; }
 
 .user-avatar {
+  cursor: pointer;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -179,6 +223,71 @@ function handleNavigate(target: HomeNavigationTarget) {
   color: #edf4ff;
   background: linear-gradient(135deg, #568cff, #7959dc);
   box-shadow: 0 0 14px rgb(88 135 255 / 22%);
+}
+
+.user-avatar:focus-visible {
+  outline: 2px solid var(--el-color-primary);
+  outline-offset: 3px;
+}
+
+.account-menu {
+  width: min(252px, calc(100vw - 32px));
+  padding: 8px;
+  color: var(--el-text-color-primary);
+}
+
+.account-profile {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 8px 18px;
+  margin: 0 4px 6px;
+  border-bottom: 1px solid var(--el-border-color-lighter);
+}
+
+.account-profile-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  color: #fff;
+  background: linear-gradient(135deg, #7470ff, #9254e8);
+}
+
+.account-profile-info { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.account-profile-name { font-size: 14px; font-weight: 600; line-height: 20px; }
+.account-profile-status { display: flex; align-items: center; gap: 6px; font-size: 12px; line-height: 16px; color: var(--el-text-color-secondary); }
+.account-status-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--el-color-success); }
+.account-menu-actions { padding: 0; background: transparent; }
+.account-menu-actions :deep(.account-menu-item) {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 42px;
+  padding: 0 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  color: var(--el-text-color-regular);
+  transition: color 0.15s ease, background-color 0.15s ease;
+}
+.account-menu-actions :deep(.account-logout:hover),
+.account-menu-actions :deep(.account-logout:focus) {
+  color: var(--el-color-danger);
+  background: var(--el-color-danger-light-9);
+}
+.account-menu-icon { width: 18px; height: 18px; flex-shrink: 0; margin-right: 0; }
+
+/* 下拉层挂载到 body，使用专属类控制外框，保持其他菜单样式不受影响。 */
+:global(.el-popper.account-menu-popper) {
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--el-border-color), var(--el-text-color-primary) 16%);
+  border-radius: 14px;
+  background: var(--el-bg-color-overlay);
+  box-shadow: 0 12px 36px rgb(0 0 0 / 24%), 0 2px 8px rgb(0 0 0 / 10%);
 }
 
 .navigation-inner {
