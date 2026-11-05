@@ -40,6 +40,7 @@ export interface FilterConfig {
   confidenceMax?: number
   oiMin?: number
   oiMax?: number
+  /** 页面按倍数输入；请求时转为历史快照及接口沿用的百分数。 */
   estimatedVolumeMin?: number
   estimatedVolumeMax?: number
   rsiMin?: number
@@ -71,7 +72,7 @@ export const SORT_FIELDS: { key: SortConfig['field']; label: string }[] = [
   { key: 'quantity', label: '数量' },
   { key: 'leverage', label: '杠杆' },
   { key: 'oiChangePercent', label: 'OI' },
-  { key: 'estimatedVolumeEmaRatioPercent', label: '预计量' },
+  { key: 'estimatedVolumeEmaRatioPercent', label: '预量比' },
 ]
 
 export const useTradeHistoryStore = defineStore('tradeHistory', () => {
@@ -142,7 +143,13 @@ export const useTradeHistoryStore = defineStore('tradeHistory', () => {
   /** 每次仅请求当前页；请求序号避免快速筛选时旧响应覆盖新结果。 */
   const fetchPage = async (page: number, pageSize: number) => {
     const request = ++generation
-    const response = await $fetch('/api/bot/history', { params: { ...filter.value, page, pageSize, sortField: sort.value.field, sortDirection: sort.value.direction } }) as any
+    // 保持历史数据与接口的百分数口径，页面筛选统一使用倍数（1.5x 对应 150）。
+    const response = await $fetch('/api/bot/history', { params: {
+      ...filter.value,
+      estimatedVolumeMin: filter.value.estimatedVolumeMin == null ? undefined : filter.value.estimatedVolumeMin * 100,
+      estimatedVolumeMax: filter.value.estimatedVolumeMax == null ? undefined : filter.value.estimatedVolumeMax * 100,
+      page, pageSize, sortField: sort.value.field, sortDirection: sort.value.direction
+    } }) as any
     if (request !== generation) return null
     if (!response.success) throw new Error(response.message || '加载历史订单失败')
     availableSymbols.value = response.options.symbols

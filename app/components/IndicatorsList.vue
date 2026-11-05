@@ -44,12 +44,12 @@
         <el-option label="多头置信度 ↓" value="longConfidence" />
         <el-option label="空头置信度 ↓" value="shortConfidence" />
       </el-select>
-      <el-button size="small" :type="activeFilters ? 'primary' : 'default'" :plain="!!activeFilters" :aria-expanded="showNumericFilters" @click="showNumericFilters = !showNumericFilters">
-        筛选{{ activeFilters ? ` (${activeFilters})` : '' }} {{ showNumericFilters ? '▴' : '▾' }}
-      </el-button>
-      <el-button v-if="showNumericFilters" size="small" text @click="resetNumericFilters">重置</el-button>
       <el-button class="refresh-button" size="small" :loading="loading" @click="requestRefresh">
         <el-icon><ElIconRefresh /></el-icon>刷新
+      </el-button>
+      <el-button v-if="showNumericFilters" size="small" text @click="resetNumericFilters">重置</el-button>
+      <el-button size="small" :type="activeFilters ? 'primary' : 'default'" :plain="!!activeFilters" :aria-expanded="showNumericFilters" @click="showNumericFilters = !showNumericFilters">
+        筛选{{ activeFilters ? ` (${activeFilters})` : '' }} {{ showNumericFilters ? '▴' : '▾' }}
       </el-button>
     </div>
 
@@ -141,7 +141,7 @@
             <span v-else class="coin-icon-placeholder" :style="{ backgroundColor: placeholderColor(row.symbol) }">
               {{ baseAsset(row.symbol).slice(0, 1) }}
             </span>
-            <span>{{ row.symbol }}</span>
+            <span>{{ baseAsset(row.symbol) }}</span>
           </button>
           <div class="resonance" :class="signalClass(resonanceInfo(row.symbol).tone)" :title="resonanceTitle(row.symbol)" :aria-label="resonanceTitle(row.symbol)">
             <!-- 方向与增强/减弱分开展示，避免把趋势回调误读为没有方向。 -->
@@ -179,7 +179,7 @@
           </div>
         </template>
       </el-table-column>
-      <el-table-column label="趋势" min-width="108" class-name="trend-column">
+      <el-table-column label="趋势" min-width="120" class-name="trend-column">
         <template #default="{ row }">
           <div class="adx-line">
             <span><span class="muted">ADX</span> {{ format(row.adx) }}</span>
@@ -211,7 +211,7 @@
         </template>
       </el-table-column>
       <el-table-column label="RSI" align="center" header-align="center" min-width="60" sortable="custom" prop="rsi">
-        <template #default="{ row }"><span :class="rsiClass(row.rsi)">{{ format(row.rsi) }}</span></template>
+        <template #default="{ row }"><span :class="rsiClass(row.rsi)">{{ row.rsi == null || !Number.isFinite(row.rsi) ? '--' : row.rsi.toFixed(1) }}</span></template>
       </el-table-column>
       <el-table-column label="MACD 实时 · H" min-width="170" sortable="custom" prop="macdHistogram">
         <template #default="{ row }">
@@ -245,29 +245,18 @@
       </el-table-column>
       <el-table-column label="OI" align="center" header-align="center" min-width="60" prop="oiChangePercent" sortable="custom">
         <template #default="{ row }">
-          <el-tooltip placement="top">
-            <template #content>
-              <div v-for="(line, index) in row.oiTooltip.split('\n')" :key="index">{{ line }}</div>
-            </template>
-            <div class="oi-cell">
+            <div class="oi-cell" :title="row.oiTooltip">
               <div :class="directionClass(row.oiChangePercent)">{{ signed(row.oiChangePercent) }}{{ row.oiChangePercent == null ? '' : '%' }}</div>
               <div class="muted">{{ row.oiChangeLabel }}</div>
             </div>
-          </el-tooltip>
         </template>
       </el-table-column>
-      <el-table-column label="预量比" align="center" header-align="center" min-width="78" prop="volumeRatio" sortable="custom">
+      <el-table-column label="预量" align="center" header-align="center" min-width="68" prop="volumeRatio" sortable="custom">
         <template #default="{ row }">{{ format(row.volumeRatio) }}x</template>
       </el-table-column>
-      <el-table-column label="资金流" width="90" prop="netInflowPercent" sortable="custom">
+      <el-table-column label="资金流" width="100" header-align="center" prop="netInflowPercent" sortable="custom">
         <template #default="{ row }">
-          <el-tooltip placement="top">
-            <template #content>
-              <div>本根：{{ formatFlowAmount(row.netInflow) }} / {{ signed(row.netInflowPercent) }}{{ row.netInflowPercent == null ? '' : '%' }}</div>
-              <div>近 {{ row.moneyFlowWindowBars ?? '--' }} 根：{{ formatFlowAmount(row.cumulativeNetInflow) }} / {{ signed(row.cumulativeNetInflowPercent) }}{{ row.cumulativeNetInflowPercent == null ? '' : '%' }}</div>
-              <div v-for="(line, index) in [row.moneyFlowTooltip, row.cumulativeFlowTooltip].join('\n').split('\n')" :key="index">{{ line }}</div>
-            </template>
-            <div class="flow-cell">
+            <div class="flow-cell" :title="[`本根：${formatFlowAmount(row.netInflow)} / ${signed(row.netInflowPercent)}${row.netInflowPercent == null ? '' : '%'}`, `近 ${row.moneyFlowWindowBars ?? '--'} 根：${formatFlowAmount(row.cumulativeNetInflow)} / ${signed(row.cumulativeNetInflowPercent)}${row.cumulativeNetInflowPercent == null ? '' : '%'}`, row.moneyFlowTooltip, row.cumulativeFlowTooltip].join('\n')">
               <div class="flow-row">
                 <span class="muted">本根</span>
                 <span :class="flowDirectionClass(row.netInflow)">{{ formatFlowAmount(row.netInflow, 1) }}</span>
@@ -279,37 +268,26 @@
                 <span :class="flowDirectionClass(row.cumulativeNetInflowPercent)">{{ formatFlowPercent(row.cumulativeNetInflowPercent) }}</span>
               </div>
             </div>
-          </el-tooltip>
         </template>
       </el-table-column>
       <el-table-column label="ATR" align="center" header-align="center" min-width="65" prop="atrPercent" sortable="custom">
         <template #default="{ row }">{{ format(row.atrPercent) }}%</template>
       </el-table-column>
-      <el-table-column label="社区情绪" min-width="90">
+      <el-table-column label="社区情绪" min-width="80">
         <template #default="{ row }">
-          <el-tooltip placement="top">
-            <template #content>
-              <div v-for="(line, index) in row.sentimentTooltip.split('\n')" :key="index">{{ line }}</div>
-            </template>
-            <div class="sentiment-cell">
+            <div class="sentiment-cell" :title="row.sentimentTooltip">
               <div :class="sentimentClass(row.sentiment)">{{ row.sentimentLabel }}<span v-if="row.sentiment != null"> {{ signed(row.sentiment, 1) }}%</span></div>
               <div v-if="row.sentimentStale" class="muted">已过期</div>
               <div class="muted">多 {{ formatOICompact(row.bullishCount) }} / 空 {{ formatOICompact(row.bearishCount) }}</div>
             </div>
-          </el-tooltip>
         </template>
       </el-table-column>
       <el-table-column label="ER" min-width="60" prop="er" sortable="custom">
         <template #default="{ row }">
-          <el-tooltip placement="top">
-            <template #content>
-              <div v-for="(line, index) in row.erTooltip.split('\n')" :key="index">{{ line }}</div>
-            </template>
-            <div>
+            <div :title="row.erTooltip">
               <div>{{ format(row.er) }}</div>
               <span :class="sentimentClass(row.erNetChangePercent)">{{ signed(row.erNetChangePercent) }}{{ row.erNetChangePercent == null ? '' : '%' }}</span>
             </div>
-          </el-tooltip>
         </template>
       </el-table-column>
     </el-table>
@@ -879,7 +857,7 @@ function toRow(data: any): IndicatorRow {
     moneyFlowWindowBars: finiteNumber(flow.windowBars),
     moneyFlowTooltip: `本根成交：${formatFlowAmount(flow.quoteVolume)}\n主动买入：${formatFlowAmount(flow.takerBuyQuoteVolume)}`,
     cumulativeFlowTooltip: `近${flow.windowBars ?? '--'}根：${flowWindow}\n${flow.complete ? '累计比例 = 净流入 / 成交额' : '数据不足，等待补齐'}`,
-    volumeRatio: Number(values('volume').ratio), sentiment,
+    volumeRatio: finiteNumber(values('volume').estimatedRatio), sentiment,
     sentimentLabel: sentiment == null ? '--' : sentiment > 0 ? '偏多' : sentiment < 0 ? '偏空' : '中性',
     bullishCount, bearishCount, sentimentTooltip, sentimentStale: heat.stale === true,
     // dataAgeMs 由服务端按最近一次成功写入时间计算，不再使用 K 线开盘时间。
@@ -1161,7 +1139,7 @@ onUnmounted(() => {
 /* 不沿用相邻按钮的额外左间距，统一由工具栏 gap 控制。 */
 .toolbar > .el-button { margin-left: 0; }
 .adx-line { display: flex; align-items: center; gap: 8px; white-space: nowrap; }
-.di-line { display: flex; flex-direction: column; align-items: flex-start; white-space: nowrap; }
+.di-line { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
 .up { color: var(--el-color-success); }.down { color: var(--el-color-danger); }.muted { color: var(--el-text-color-secondary); }
 .symbol-cell { display: flex; align-items: center; gap: 4px; white-space: nowrap; }
 .symbol-link { padding: 0; border: 0; background: transparent; color: inherit; font: inherit; cursor: pointer; text-align: left; }
@@ -1182,11 +1160,9 @@ onUnmounted(() => {
 .coin-icon { display: block; object-fit: cover; }
 .coin-icon-placeholder { display: inline-flex; align-items: center; justify-content: center; color: #fff; font-size: 10px; font-weight: 600; line-height: 1; }
 .macd-cell { display: flex; flex-direction: column; gap: 5px; min-width: 0; line-height: 1.5; }
-.flow-cell { width: 100%; display: flex; flex-direction: column; gap: 8px; font-weight: 400; }
-/* 两组共享单元格右边缘，标签与金额分列，百分比落在金额下方以便纵向比较。 */
-.flow-row { display: grid; grid-template-columns: minmax(0, 1fr) max-content; column-gap: 6px; white-space: nowrap; font-variant-numeric: tabular-nums; }
-.flow-row > span:not(:first-child) { text-align: right; }
-.flow-row > span:last-child { grid-column: 2; }
+.flow-cell { width: 100%; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1px; font-weight: 400; }
+/* 本根与累计资金流并排，每列依次展示标签、金额和比例，便于横向比较。 */
+.flow-row { display: flex; flex-direction: column; align-items: center; gap: 3px; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .flow-secondary > span { opacity: .7; }
 .sentiment-cell { display: flex; flex-direction: column; gap: 3px; line-height: 1.35; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .oi-cell { display: flex; flex-direction: column; gap: 3px; line-height: 1.35; white-space: nowrap; font-variant-numeric: tabular-nums; }
@@ -1216,7 +1192,7 @@ onUnmounted(() => {
 .indicators-table :deep(.structure-status) { color: var(--el-text-color-secondary); }
 .indicators-table :deep(.structure-info .distance) { font-size: 11px; }
 .indicators-table :deep(.ema-column .cell) { line-height: 1.8; }
-.indicators-table :deep(td.el-table__cell) { padding-top: 12px; padding-bottom: 12px; }
+.indicators-table :deep(td.el-table__cell) { padding-top: 6px; padding-bottom: 6px; }
 .indicators-table :deep(th.el-table__cell) { padding-top: 10px; padding-bottom: 10px; }
 
 /* 表格占用工具栏下方剩余高度，交给组件内部滚动，保持表头与横向滚动同步。 */

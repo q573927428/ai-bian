@@ -5,23 +5,7 @@
     <span class="support">支撑 {{ zone(snapshot.nearestSupport) }}<template v-if="snapshot.nearestSupport"> · {{ number(snapshot.supportDistancePercent) }}% / {{ number(snapshot.supportDistanceATR) }} ATR</template></span>
   </div>
   <div v-else-if="snapshot" class="structure-info" :class="{ 'structure-info-detailed': detailed }">
-    <el-tooltip placement="top">
-      <template #content>
-        <template v-if="'algorithm' in snapshot">
-          <div>{{ snapshot.timeframe }} · {{ snapshot.closedCandles }} 根已收盘K线</div>
-        </template>
-        <div>参考价 {{ price(snapshot.referencePrice) }}</div>
-        <div>阻力距离 {{ number(snapshot.resistanceDistancePercent) }}% / {{ number(snapshot.resistanceDistanceATR) }} ATR</div>
-        <div>支撑距离 {{ number(snapshot.supportDistancePercent) }}% / {{ number(snapshot.supportDistanceATR) }} ATR</div>
-        <template v-if="'algorithm' in snapshot">
-        <div>ATR {{ price(snapshot.atr) }}</div>
-        <div>区域更新 {{ time(snapshot.calculatedAt) }}</div>
-        <div>价格更新 {{ time(snapshot.priceUpdatedAt ?? snapshot.calculatedAt) }}</div>
-        <div v-if="snapshot.brokenSupport">新近跌破 {{ zone(snapshot.brokenSupport) }}</div>
-        <div v-if="snapshot.brokenResistance">新近突破 {{ zone(snapshot.brokenResistance) }}</div>
-        </template>
-      </template>
-      <div class="structure-levels">
+      <div class="structure-levels" :title="structureTitle">
         <div class="level-group">
         <div><span class="resistance">阻力</span> {{ nearestOnly ? nearestPrice(snapshot.nearestResistance) : zone(snapshot.nearestResistance) }}{{ snapshot.nearestResistance ? `（${snapshot.nearestResistance.touches}）` : '' }}<span v-if="nearestOnly && snapshot.nearestResistance" class="distance"> · {{ number(snapshot.resistanceDistanceATR) }}</span></div>
         </div>
@@ -29,7 +13,6 @@
         <div><span class="support">支撑</span> {{ nearestOnly ? nearestPrice(snapshot.nearestSupport) : zone(snapshot.nearestSupport) }}{{ snapshot.nearestSupport ? `（${snapshot.nearestSupport.touches}）` : '' }}<span v-if="nearestOnly && snapshot.nearestSupport" class="distance"> · {{ number(snapshot.supportDistanceATR) }}</span></div>
         </div>
       </div>
-    </el-tooltip>
     <!-- 状态始终放在价位下方，区域之间等常态也能直接查看。 -->
     <div class="structure-status">{{ statusLabel }}</div>
     <div v-if="detailed" class="distance">
@@ -73,6 +56,25 @@ function nearestPrice(value: Pick<PriceZone, 'lower' | 'upper'> | null) {
   return price(Math.abs(reference - value.lower) <= Math.abs(reference - value.upper) ? value.lower : value.upper)
 }
 const time = (value: number | null) => value == null ? '--' : new Date(value).toLocaleString('zh-CN', { hour12: false })
+
+/** 原生 title 使用换行拼接，保留实时结构与历史快照各自的提示内容。 */
+const structureTitle = computed(() => {
+  const snapshot = props.snapshot
+  if (!snapshot) return ''
+  const lines = [
+    ...('algorithm' in snapshot ? [`${snapshot.timeframe} · ${snapshot.closedCandles} 根已收盘K线`] : []),
+    `参考价 ${price(snapshot.referencePrice)}`,
+    `阻力距离 ${number(snapshot.resistanceDistancePercent)}% / ${number(snapshot.resistanceDistanceATR)} ATR`,
+    `支撑距离 ${number(snapshot.supportDistancePercent)}% / ${number(snapshot.supportDistanceATR)} ATR`
+  ]
+  if ('algorithm' in snapshot) {
+    lines.push(`ATR ${price(snapshot.atr)}`, `区域更新 ${time(snapshot.calculatedAt)}`,
+      `价格更新 ${time(snapshot.priceUpdatedAt ?? snapshot.calculatedAt)}`)
+    if (snapshot.brokenSupport) lines.push(`新近跌破 ${zone(snapshot.brokenSupport)}`)
+    if (snapshot.brokenResistance) lines.push(`新近突破 ${zone(snapshot.brokenResistance)}`)
+  }
+  return lines.join('\n')
+})
 </script>
 
 <style scoped>

@@ -8,6 +8,7 @@ import { getCachedSquareHeat } from '../../utils/square-heat'
 import { loadEnvironmentContext } from '../../utils/environment-context'
 import { getMarketBreadth } from '../../utils/market-breadth'
 import { getBotConfig } from '../../utils/storage'
+import { getCandleVolume } from '../../utils/candle-volume'
 import { formatEnvironmentConfidence } from '../../../app/utils/environment-confidence'
 import { normalizeERPeriod } from '../../../app/utils/efficiency-ratio'
 import { normalizeSupportResistanceConfig } from '../../../types/support-resistance'
@@ -193,6 +194,16 @@ export default defineEventHandler(async (event) => {
   const candleProgressPercent = latestKline
     ? Math.min(100, Math.max(0, (requestedAt - latestKline.timestamp) / (TIMEFRAME_MINUTES[timeframe] * 60 * 1000) * 100))
     : undefined
+  // 看板预量比复用交易与 AI 的整根预估公式，原始 ratio 仍保留累计量口径。
+  if (indicators.volume && candleProgressPercent != null) {
+    const volume = indicators.volume.values
+    const { estimatedVolume } = getCandleVolume({ volumeCurrent: volume.current }, volume.current, candleProgressPercent / 100)
+    const estimatedRatio = Number.isFinite(estimatedVolume) && volume.emaAverage > 0
+      ? estimatedVolume / volume.emaAverage
+      : undefined
+    // 请求进度只属于本次响应，不能回写指标中心的共享缓存。
+    indicators.volume.values = { ...volume, estimatedRatio }
+  }
   const rangePercent = latestKline && latestKline.open !== 0
     ? ((latestKline.high - latestKline.low) / latestKline.open) * 100
     : undefined

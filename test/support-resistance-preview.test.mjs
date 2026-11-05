@@ -10,6 +10,7 @@ import { normalizeSupportResistanceConfig } from '../types/support-resistance.ts
 import { normalizeSquareHeatWindows, SQUARE_HEAT_MAX_WINDOW_MINUTES } from '../types/square-heat-config.ts'
 import { latestCvdDivergence } from '../app/utils/cvd-divergence.ts'
 import { diTrend } from '../app/utils/environment-confidence.ts'
+import { getCandleVolume } from '../server/utils/candle-volume.ts'
 
 /** 执行实际源码，仅隔离 Nuxt 上下文、网络和图表挂载。 */
 function evaluate(source, dependencies = {}, globals = {}) {
@@ -21,7 +22,7 @@ function evaluate(source, dependencies = {}, globals = {}) {
 }
 
 /** 不启动交易进程，记录只读接口传给指标中心的实际参数。 */
-function createHandler(config = {}) {
+function createHandler(config = {}, hubOverrides = {}) {
   const calls = []
   const hub = {
     getCacheStatus: () => ({ symbols: ['BTC/USDT'] }),
@@ -29,7 +30,8 @@ function createHandler(config = {}) {
       calls.push({ type, options })
       return { timestamp: Date.now(), values: { ...options } }
     },
-    getKlines: () => [], getOIDiagnostics: () => ({})
+    getKlines: () => [], getOIDiagnostics: () => ({}),
+    ...hubOverrides
   }
   const source = readFileSync(new URL('../server/api/bot/indicators.get.ts', import.meta.url), 'utf8')
   const handler = evaluate(source, {
@@ -38,6 +40,7 @@ function createHandler(config = {}) {
     '../../utils/kline-simple-storage': { getSimpleKLineLastUpdatedAt: () => 0 },
     '../../utils/market-breadth': { getMarketBreadth: async () => ({}) },
     '../../utils/storage': { getBotConfig: async () => config },
+    '../../utils/candle-volume': { getCandleVolume },
     '../../../types/support-resistance': { normalizeSupportResistanceConfig },
     '../../../types/square-heat-config': { normalizeSquareHeatWindows, SQUARE_HEAT_MAX_WINDOW_MINUTES },
     '../../../app/utils/cvd-divergence': { latestCvdDivergence },
@@ -47,6 +50,22 @@ function createHandler(config = {}) {
   }, { defineEventHandler: fn => fn, getQuery: event => event }).default
   return { handler: query => handler({ symbol: 'BTCUSDT', structureOnly: 'true', includeSlowStats: 'false', ...query }), calls }
 }
+
+test('指标接口预量比使用整根预估量除以EMA，保留原始累计量比', async () => {
+  for (const [progress, emaAverage] of [[0.5, 100], [1, 100], [0, 100], [0.5, 0]]) {
+    const timestamp = Date.now() - progress * 3600000
+    const { handler } = createHandler({}, {
+      getIndicators: async () => ({ timestamp, values: { current: 75, emaAverage, ratio: 0.75 } }),
+      getKlines: () => [{ timestamp, open: 100, high: 101, low: 99, close: 100, volume: 75 }]
+    })
+    const result = await handler({ structureOnly: 'false', includeSlowStats: 'true', timeframe: '1h' })
+    const values = result.data.indicators.volume.values
+    const elapsed = result.data.kline.candleProgressPercent / 100
+    const expected = emaAverage > 0 ? (elapsed > 0 ? 75 / elapsed : 75) / emaAverage : undefined
+    assert.equal(values.estimatedRatio, expected)
+    assert.equal(values.ratio, 0.75, '累计量比不应被预估量比覆盖')
+  }
+})
 
 test('试算接口传递左右参数、约束范围，省略参数仍使用3/3', async () => {
   const { handler, calls } = createHandler()

@@ -5,10 +5,10 @@
     <ClientOnly>
       <PasswordDialog v-model="showPasswordDialog" @success="handlePasswordSuccess" />
       <el-row v-if="passwordVerified" :gutter="20" class="orders-layout">
-        <el-col :xs="24" :sm="24" :md="13" class="orders-sidebar">
+        <el-col :xs="24" :sm="24" :md="14" class="orders-sidebar">
           <TradeHistory :model-value="true" embedded :selected-id="selectedOrder?.id" @select-order="selectOrder" />
         </el-col>
-        <el-col :xs="24" :sm="24" :md="11" class="orders-chart">
+        <el-col :xs="24" :sm="24" :md="10" class="orders-chart">
           <template v-if="selectedOrder">
             <div class="order-summary">
               <div class="order-summary-row">

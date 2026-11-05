@@ -22,10 +22,10 @@
                 <span class="detail-label">软条件分</span>
                 <span class="detail-value">{{ formatScore(row.entryScoreBreakdown?.softScore) }}</span>
               </div>
-              <div class="detail-item">
+              <!-- <div class="detail-item">
                 <span class="detail-label">扣分</span>
                 <span class="detail-value">{{ formatScore(row.entryScoreBreakdown?.penaltyScore) }}</span>
-              </div>
+              </div> -->
               <div class="detail-item">
                 <span class="detail-label">风险</span>
                 <span class="detail-value">
@@ -195,6 +195,10 @@ function formatPrice(value: number | undefined | null): string {
 
 // 入场指标中以 Percent 结尾的字段本身已经是百分数值，需要补充百分号避免与普通数值混淆。
 function formatIndicatorValue(key: string, value: unknown): string {
+  // 入场快照沿用百分数存储，预量比统一换算为倍数展示。
+  if (key === 'EstimatedVolumeEmaRatioPercent') {
+    return typeof value === 'number' && Number.isFinite(value) ? `${(value / 100).toFixed(2)}x` : '--'
+  }
   if (typeof value !== 'number') return String(value ?? '--')
   const formatted = formatPrice(value)
   return key.endsWith('Percent') ? `${formatted}%` : formatted
@@ -219,7 +223,7 @@ const INDICATOR_LABELS: Record<string, string> = {
   OIChangePercent: 'OI变化率',
   EstimatedVolume: '预计量',
   VolumeEmaAverage: 'EMA均量',
-  EstimatedVolumeEmaRatioPercent: '预计量/EMA'
+  EstimatedVolumeEmaRatioPercent: '预量比'
 }
 
 function formatIndicatorLabel(key: string): string { return INDICATOR_LABELS[key] || key }

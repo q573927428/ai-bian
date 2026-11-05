@@ -12,23 +12,23 @@
     <div v-if="embedded" class="card-header embedded-header">
       <span>历史订单 ({{ total }})</span>
       <div class="header-actions">
-        <el-button size="small" text @click="showFilter = !showFilter">筛选</el-button>
-        <el-button v-if="showFilter" size="small" text @click="handleResetFilter">重置</el-button>
         <el-button size="small" text :loading="loading" @click="refreshHistory">刷新</el-button>
+        <el-button v-if="showFilter" size="small" text @click="handleResetFilter">重置</el-button>
+        <el-button size="small" text @click="showFilter = !showFilter">筛选</el-button>
       </div>
     </div>
     <template #header>
       <div class="card-header">
         <span>📋 历史订单 ({{ total }})</span>
         <div class="header-actions">
-          <el-button size="small" text @click="showFilter = !showFilter">
-            <el-icon><ElIconFilter /></el-icon>
-            筛选
-          </el-button>
-          <el-button v-if="showFilter" size="small" text @click="handleResetFilter">重置</el-button>
           <el-button type="primary" size="small" text :loading="loading" @click="refreshHistory">
             <el-icon><ElIconRefresh /></el-icon>
             刷新
+          </el-button>
+          <el-button v-if="showFilter" size="small" text @click="handleResetFilter">重置</el-button>
+          <el-button size="small" text @click="showFilter = !showFilter">
+            <el-icon><ElIconFilter /></el-icon>
+            筛选
           </el-button>
         </div>
       </div>
@@ -191,9 +191,10 @@
         </div>
 
         <div class="filter-item range-filter-item">
-          <span class="filter-label">预计量</span>
+          <span class="filter-label">预量比</span>
           <el-input-number
             v-model="filter.estimatedVolumeMin"
+            :step="0.1"
             class="range-input"
             placeholder="最小"
             size="small"
@@ -203,13 +204,14 @@
           <span class="range-separator">—</span>
           <el-input-number
             v-model="filter.estimatedVolumeMax"
+            :step="0.1"
             class="range-input"
             placeholder="最大"
             size="small"
             :controls="false"
             @change="handleFilterChange"
           />
-          <span class="range-unit">%</span>
+          <span class="range-unit">x</span>
         </div>
 
         <div v-for="metric in indicatorRangeFilters" :key="metric.minKey" class="filter-item range-filter-item">
@@ -343,13 +345,13 @@
       <el-table-column label="杠杆" width="38" align="center">
         <template #default="{ row }">{{ row.leverage }}x</template>
       </el-table-column>
-      <el-table-column label="盈亏" prop="pnl" min-width="99" align="right" sortable="custom">
+      <el-table-column label="盈亏" prop="pnl" min-width="90" align="right" sortable="custom">
         <template #default="{ row }"><span :class="row.pnl >= 0 ? 'text-success' : 'text-danger'">{{ row.pnl.toFixed(2) }} ({{ formatPercent2(row.pnlPercentage) }})</span></template>
       </el-table-column>
-      <el-table-column label="评分" prop="entryScore" width="68" align="center" sortable="custom">
+      <el-table-column label="评分" prop="entryScore" width="65" align="center" sortable="custom">
         <template #default="{ row }">{{ formatScore(row.entryScoreBreakdown?.finalScore ?? row.entryScore) }}</template>
       </el-table-column>
-      <el-table-column label="置信" prop="entryConfidence" width="68" align="center" sortable="custom">
+      <el-table-column label="置信" prop="entryConfidence" width="65" align="center" sortable="custom">
         <template #default="{ row }">{{ formatScore(row.entryConfidence) }}</template>
       </el-table-column>
       <el-table-column label="OI" prop="oiChangePercent" width="62" align="right" sortable="custom">
@@ -357,14 +359,17 @@
           <span :class="getOiChangeClass(row.entryIndicators?.OIChangePercent)">{{ formatPercent2(row.entryIndicators?.OIChangePercent) }}</span>
         </template>
       </el-table-column>
-      <el-table-column label="预量" prop="estimatedVolumeEmaRatioPercent" width="72" align="right" sortable="custom">
-        <template #default="{ row }">{{ formatPercent2(row.entryIndicators?.EstimatedVolumeEmaRatioPercent) }}</template>
+      <el-table-column label="预量比" prop="estimatedVolumeEmaRatioPercent" width="78" align="right" sortable="custom">
+        <template #default="{ row }">{{ formatVolumeRatio(row.entryIndicators?.EstimatedVolumeEmaRatioPercent) }}</template>
       </el-table-column>
       <el-table-column label="持仓" prop="holdingMinutes" width="80" align="center" sortable="custom" show-overflow-tooltip>
         <template #default="{ row }">{{ formatHoldingTime(row.openTime, row.closeTime) }}</template>
       </el-table-column>
       <el-table-column label="开仓" prop="openTime" width="80" sortable="custom">
         <template #default="{ row }">{{ formatTime(row.openTime) }}</template>
+      </el-table-column>
+      <el-table-column label="平仓" prop="closeTime" width="80" sortable="custom">
+        <template #default="{ row }">{{ formatTime(row.closeTime) }}</template>
       </el-table-column>
       <el-table-column label="原因" width="64" align="center">
         <template #default="{ row }">
@@ -559,7 +564,7 @@
       </el-table-column>
 
       <el-table-column
-        label="预计量"
+        label="预量比"
         width="80"
         align="center"
         prop="estimatedVolumeEmaRatioPercent"
@@ -567,7 +572,7 @@
       >
         <template #default="{ row }">
           <span v-if="row.entryIndicators?.EstimatedVolumeEmaRatioPercent != null">
-            {{ formatPercent2(row.entryIndicators.EstimatedVolumeEmaRatioPercent) }}
+            {{ formatVolumeRatio(row.entryIndicators.EstimatedVolumeEmaRatioPercent) }}
           </span>
           <span v-else class="text-muted">--</span>
         </template>
@@ -763,6 +768,7 @@ function formatPrice(value: number | undefined | null): string {
 
 // 入场指标中以 Percent 结尾的字段本身已经是百分数值，需要补充百分号避免与普通数值混淆。
 function formatIndicatorValue(key: string, value: unknown): string {
+  if (key === 'EstimatedVolumeEmaRatioPercent') return formatVolumeRatio(value as number | undefined)
   if (typeof value !== 'number') return String(value ?? '--')
   const formatted = formatPrice(value)
   return key.endsWith('Percent') ? `${formatted}%` : formatted
@@ -773,7 +779,13 @@ function getEntryIndicators(indicators: Record<string, number>): Record<string, 
   return { PDI: undefined, MDI: undefined, ADXSlope: undefined, ...indicators }
 }
 
-// 百分比数值只保留两位小数（用于 OI变化率、预计量/EMA 列）
+/** 历史快照存的是百分数，展示时统一转为倍数，不改写入场数据。 */
+function formatVolumeRatio(value: number | undefined | null): string {
+  if (value == null || !Number.isFinite(value)) return '--'
+  return `${(value / 100).toFixed(2)}x`
+}
+
+// 百分比数值只保留两位小数（用于 OI变化率）。
 function formatPercent2(value: number | undefined | null): string {
   if (value == null || isNaN(value) || !isFinite(value)) return '--'
   return `${value.toFixed(2)}%`
@@ -787,7 +799,7 @@ const INDICATOR_LABELS: Record<string, string> = {
   OIChangePercent: 'OI变化率',
   EstimatedVolume: '预计量',
   VolumeEmaAverage: 'EMA均量',
-  EstimatedVolumeEmaRatioPercent: '预计量/EMA'
+  EstimatedVolumeEmaRatioPercent: '预量比'
 }
 
 function formatIndicatorLabel(key: string): string { return INDICATOR_LABELS[key] || key }
