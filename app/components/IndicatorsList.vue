@@ -159,7 +159,7 @@
             <span :class="[row.shortConfidence == null ? 'muted' : 'down', { 'confidence-leading': row.longConfidence != null && row.shortConfidence != null && row.shortConfidence > row.longConfidence }]">空 {{ row.shortConfidence ?? '--' }}</span>
           </div>
           <div v-if="recentDivergence(row.latestDivergence)" :class="row.latestDivergence?.kind === 'bullish' ? 'up' : 'down'" :title="`CVD 背离确认于 ${formatOITime((row.latestDivergence?.confirmedAt ?? 0) * 1000)}；摆动点左右各 3 根收盘确认`">
-            {{ row.latestDivergence?.kind === 'bullish' ? '底背离' : '顶背离' }} · 近{{ divergenceWindow }}根确认
+            {{ row.latestDivergence?.kind === 'bullish' ? '底背离' : '顶背离' }} · {{ divergenceWindow }}
           </div>
         </template>
       </el-table-column>

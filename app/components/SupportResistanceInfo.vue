@@ -7,10 +7,10 @@
   <div v-else-if="snapshot" class="structure-info" :class="{ 'structure-info-detailed': detailed }">
       <div class="structure-levels" :title="structureTitle">
         <div class="level-group">
-        <div><span class="resistance">阻力</span> {{ nearestOnly ? nearestPrice(snapshot.nearestResistance) : zone(snapshot.nearestResistance) }}{{ snapshot.nearestResistance ? `（${snapshot.nearestResistance.touches}）` : '' }}<span v-if="nearestOnly && snapshot.nearestResistance" class="distance"> · {{ number(snapshot.resistanceDistanceATR) }}</span></div>
+        <div><span class="resistance">阻力</span> {{ nearestOnly ? nearestPrice(snapshot.nearestResistance) : zone(snapshot.nearestResistance) }}{{ snapshot.nearestResistance ? `（${snapshot.nearestResistance.touches}）` : '' }}<span v-if="nearestOnly && snapshot.nearestResistance" class="distance">{{ number(snapshot.resistanceDistanceATR) }}</span></div>
         </div>
         <div class="level-group">
-        <div><span class="support">支撑</span> {{ nearestOnly ? nearestPrice(snapshot.nearestSupport) : zone(snapshot.nearestSupport) }}{{ snapshot.nearestSupport ? `（${snapshot.nearestSupport.touches}）` : '' }}<span v-if="nearestOnly && snapshot.nearestSupport" class="distance"> · {{ number(snapshot.supportDistanceATR) }}</span></div>
+        <div><span class="support">支撑</span> {{ nearestOnly ? nearestPrice(snapshot.nearestSupport) : zone(snapshot.nearestSupport) }}{{ snapshot.nearestSupport ? `（${snapshot.nearestSupport.touches}）` : '' }}<span v-if="nearestOnly && snapshot.nearestSupport" class="distance">{{ number(snapshot.supportDistanceATR) }}</span></div>
         </div>
       </div>
     <!-- 状态始终放在价位下方，区域之间等常态也能直接查看。 -->
