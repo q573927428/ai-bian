@@ -221,9 +221,6 @@
           <div class="macd-cell" :title="`当前 M：${formatMacd(row.macd)} / S：${formatMacd(row.macdSignal)}\n上组 M：${formatMacd(row.previousMacd)} / S：${formatMacd(row.previousMacdSignal)}\nH 为柱值，背景柱仅用于同一交易对的当前与上组比较`">
             <div class="macd-state-line">
               <span class="macd-crossover" :class="crossoverClass(row.macdCrossover)">{{ crossoverLabel(row.macdCrossover) }}</span>
-              <span class="macd-trend" :class="directionClass(row.macdHistogram)">
-                柱 {{ histogramTrendIcon(row.macdHistogramTrend) }}
-              </span>
               <span class="macd-result" :class="macdResultClass(row.macdHistogram, row.previousMacdHistogram)">{{ macdResult(row.macdHistogram, row.previousMacdHistogram) }}</span>
             </div>
             <!-- 数值放在柱体相反的一侧，以零轴为边界，避免遮挡柱体。 -->
@@ -1027,10 +1024,6 @@ function crossoverClass(value: IndicatorRow['macdCrossover']) {
   return value === 'golden' ? 'up' : value === 'dead' ? 'down' : 'muted'
 }
 
-function histogramTrendIcon(value: IndicatorRow['macdHistogramTrend']) {
-  return value === 'rising' ? '↗' : value === 'falling' ? '↘' : '→'
-}
-
 /** H 的正负表示当前多空动能方向，与上组比较表示动能增强或减弱。 */
 function macdResult(current?: number, previous?: number) {
   if (current == null || previous == null || !Number.isFinite(current) || !Number.isFinite(previous)) return '--'
@@ -1184,13 +1177,16 @@ onUnmounted(() => {
 .sentiment-cell { display: flex; flex-direction: column; gap: 3px; line-height: 1.35; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .oi-cell { display: flex; flex-direction: column; gap: 3px; line-height: 1.35; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .macd-state-line, .macd-values { display: grid; align-items: center; column-gap: 4px; }
-.macd-state-line { grid-template-columns: 48px 42px minmax(0, 1fr); }
+.macd-state-line { grid-template-columns: 48px minmax(0, 1fr); }
 /* 两组柱共用中央零轴，数值靠近零轴显示在无柱体的一侧。 */
 .macd-bars { display: flex; flex-direction: column; gap: 5px; }
 .macd-values { grid-template-columns: 28px minmax(0, 1fr); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .macd-values > span:not(:first-child) { text-align: right; }
-.macd-crossover { font-weight: 400; color: var(--el-text-color-secondary); }
-.macd-trend { white-space: nowrap; }
+/* 无交叉使用常规文字色；提高状态选择器优先级，确保金叉、死叉颜色不被覆盖。 */
+.macd-crossover { font-weight: 400; }
+.macd-crossover.muted { color: var(--el-text-color-primary); }
+.macd-crossover.up { color: var(--el-color-success); }
+.macd-crossover.down { color: var(--el-color-danger); }
 .macd-result { white-space: nowrap; font-weight: 600; }
 .macd-weakening { opacity: .6; }
 .macd-row-label, .previous-values { color: var(--text-secondary); }
