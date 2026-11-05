@@ -155,7 +155,7 @@
           </div>
           <div class="symbol-confidence" :title="row.environmentDescription || '暂无可用环境置信度'">
             <span :class="[row.longConfidence == null ? 'muted' : 'up', { 'confidence-leading': row.longConfidence != null && row.shortConfidence != null && row.longConfidence > row.shortConfidence }]">多 {{ row.longConfidence ?? '--' }}</span>
-            <span class="muted" aria-hidden="true">·</span>
+            <span class="muted" aria-hidden="true"></span>
             <span :class="[row.shortConfidence == null ? 'muted' : 'down', { 'confidence-leading': row.longConfidence != null && row.shortConfidence != null && row.shortConfidence > row.longConfidence }]">空 {{ row.shortConfidence ?? '--' }}</span>
           </div>
           <div v-if="recentDivergence(row.latestDivergence)" :class="row.latestDivergence?.kind === 'bullish' ? 'up' : 'down'" :title="`CVD 背离确认于 ${formatOITime((row.latestDivergence?.confirmedAt ?? 0) * 1000)}；摆动点左右各 3 根收盘确认`">
@@ -182,17 +182,17 @@
       <el-table-column label="趋势" min-width="120" class-name="trend-column">
         <template #default="{ row }">
           <div class="adx-line">
-            <span><span class="muted">ADX</span> {{ format(row.adx) }}</span>
+            <span><span class="muted">ADX</span> {{ formatTrendValue(row.adx) }}</span>
             <el-tooltip placement="top">
               <template #content>
                 <div v-for="(line, index) in adxSlopeTooltip(row.adxSlope, row.adxSlopePeriod).split('\n')" :key="index">{{ line }}</div>
               </template>
-              <span :class="row.adxSlope == null || row.adxSlope === 0 ? 'muted' : directionClass(row.adxSlope)"> {{ formatAdxSlope(row.adxSlope) }}</span>
+              <span :class="row.adxSlope == null || row.adxSlope === 0 ? 'muted' : directionClass(row.adxSlope)"><span class="muted">斜率</span> {{ formatAdxSlope(row.adxSlope) }}</span>
             </el-tooltip>
           </div>
           <div class="di-line">
-            <span class="up"><span class="muted">PDI</span> {{ format(row.pdi) }}</span>
-            <span class="down"><span class="muted">MDI</span> {{ format(row.mdi) }}</span>
+            <span class="up"><span class="muted">PDI</span> {{ formatTrendValue(row.pdi) }}</span>
+            <span class="down"><span class="muted">MDI</span> {{ formatTrendValue(row.mdi) }}</span>
           </div>
           <span :class="[row.diDirection.startsWith('多头') ? 'up' : row.diDirection.startsWith('空头') ? 'down' : 'muted', { 'macd-weakening': row.diDirection.endsWith('减弱') }]">{{ row.diDirection }}</span>
         </template>
@@ -934,9 +934,13 @@ function finiteNumber(value: unknown): number | undefined {
 function format(value?: number) { return value == null || !Number.isFinite(value) ? '--' : Math.abs(value) >= 1e3 ? formatCompactNumber(value) : value.toFixed(2) }
 /** 带符号数值可指定小数位，未指定时沿用原有格式。 */
 function signed(value?: number, decimalPlaces?: number) { return value == null || !Number.isFinite(value) ? '--' : `${value >= 0 ? '+' : ''}${decimalPlaces == null ? format(value) : value.toFixed(decimalPlaces)}` }
-/** 看板斜率统一保留两位小数，仅调整显示精度。 */
+/** 趋势列数值固定保留一位小数，缺失数据保持占位。 */
+function formatTrendValue(value?: number) {
+  return value == null || !Number.isFinite(value) ? '--' : value.toFixed(1)
+}
+/** ADX 斜率沿用趋势列精度，并保留正向变化的符号。 */
 function formatAdxSlope(value?: number) {
-  return value == null || !Number.isFinite(value) ? '--' : `${value > 0 ? '+' : ''}${value.toFixed(2)}`
+  return value == null || !Number.isFinite(value) ? '--' : `${value > 0 ? '+' : ''}${formatTrendValue(value)}`
 }
 
 /** 解释强度与方向的分工，避免将 ADX 上升直接理解为价格上涨。 */
@@ -1125,7 +1129,7 @@ onUnmounted(() => {
 /* 用次级文字灰作为未完成轨道，避免深色主题下与标签底色混在一起。 */
 .candle-progress-track { display: block; width: 32px; height: 4px; overflow: hidden; border-radius: 2px; background: var(--el-text-color-secondary); }
 .candle-progress-track > span { display: block; height: 100%; border-radius: inherit; background: var(--el-color-primary); transition: width .3s ease; }
-.candle-progress-value { min-width: 43px; text-align: right; color: var(--el-color-primary); font-weight: 600; }
+.candle-progress-value { min-width: 35px; text-align: right; color: var(--el-color-primary); font-weight: 600; }
 @media (prefers-reduced-motion: reduce) { .candle-progress-track > span { transition: none; } }
 .price-candle-cell { display: flex; align-items: center; gap: 8px; }
 .current-candle { width: 24px; height: 48px; flex: 0 0 24px; }
@@ -1162,7 +1166,7 @@ onUnmounted(() => {
 .macd-cell { display: flex; flex-direction: column; gap: 5px; min-width: 0; line-height: 1.5; }
 .flow-cell { width: 100%; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1px; font-weight: 400; }
 /* 本根与累计资金流并排，每列依次展示标签、金额和比例，便于横向比较。 */
-.flow-row { display: flex; flex-direction: column; align-items: center; gap: 3px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.flow-row { display: flex; flex-direction: column; align-items: center; gap: 1px; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .flow-secondary > span { opacity: .7; }
 .sentiment-cell { display: flex; flex-direction: column; gap: 3px; line-height: 1.35; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .oi-cell { display: flex; flex-direction: column; gap: 3px; line-height: 1.35; white-space: nowrap; font-variant-numeric: tabular-nums; }
