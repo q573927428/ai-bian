@@ -28,6 +28,8 @@ export interface BinanceRateLimitSnapshot {
   queues: Record<BinanceRequestGroup, number>
   active: Record<BinanceRequestGroup, number>
   maxConcurrency: Record<BinanceRequestGroup, number>
+  completed: Record<BinanceRequestGroup, number>
+  failed: Record<BinanceRequestGroup, number>
   bannedUntil?: number
   degradedUntil?: number
   recent429: number
@@ -79,6 +81,9 @@ export class BinanceRateLimiter {
     trade: 0
   }
   private processing = false
+  // 按真实网关请求统计，合并的重复调用不重复计数；服务重启后归零。
+  private completed: Record<BinanceRequestGroup, number> = { marketData: 0, account: 0, trade: 0 }
+  private failed: Record<BinanceRequestGroup, number> = { marketData: 0, account: 0, trade: 0 }
   private queueWakeTimer: NodeJS.Timeout | null = null
   private pendingRequests = new Map<string, Promise<any>>()
   private usedWeight1m = 0
@@ -252,6 +257,8 @@ export class BinanceRateLimiter {
       },
       active: { ...this.active },
       maxConcurrency: this.getMaxConcurrencyByGroup(),
+      completed: { ...this.completed },
+      failed: { ...this.failed },
       bannedUntil: this.bannedUntil || undefined,
       degradedUntil: this.degradedUntil || undefined,
       recent429: this.recent429,
@@ -319,10 +326,12 @@ export class BinanceRateLimiter {
     this.active[task.group]++
     try {
       const result = await task.fn()
+      this.completed[task.group]++
       this.retryAttempt = 0
       this.consecutiveTimeouts = 0
       task.resolve(result)
     } catch (error: any) {
+      this.failed[task.group]++
       this.reportError(error)
       task.reject(error)
     } finally {

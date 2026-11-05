@@ -10,12 +10,22 @@ export default defineEventHandler(async () => {
     const positionManager = engine.getPositionManager()
     const memory = process.memoryUsage()
     const toMiB = (bytes: number) => Number((bytes / 1024 / 1024).toFixed(2))
+    const binance = binanceApiGateway.getStatus()
+    const pools = concurrencyPoolManager.getAllStats()
+    // 交易实际经过 Binance 网关，旧 tradeApi 池没有任务，必须使用真实请求统计。
+    pools.tradeApi = {
+      activeCount: binance.active.trade,
+      queueLength: binance.queues.trade,
+      maxConcurrency: binance.maxConcurrency.trade,
+      completedTasks: binance.completed.trade,
+      failedTasks: binance.failed.trade
+    }
 
     return {
       success: true,
       data: {
-        pools: concurrencyPoolManager.getAllStats(),
-        binance: binanceApiGateway.getStatus(),
+        pools,
+        binance,
         memory: {
           ...memory,
           rssMiB: toMiB(memory.rss),

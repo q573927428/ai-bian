@@ -1,7 +1,7 @@
 <template>
   <div class="performance-panel">
     <div class="panel-header">
-      <span class="refresh-hint"><span class="refresh-dot" />每 2 秒自动刷新</span>
+      <span class="refresh-hint"><span class="refresh-dot" />每 1 秒自动刷新</span>
       <el-button size="small" text :loading="manualRefreshing" @click="refresh(true)">
         <el-icon><ElIconRefresh /></el-icon>
         刷新
@@ -193,7 +193,7 @@ async function refresh(manual = false) {
 
 onMounted(() => {
   void refresh()
-  refreshTimer = setInterval(() => { void refresh() }, 2000)
+  refreshTimer = setInterval(() => { void refresh() }, 1000)
 })
 
 onUnmounted(() => {
