@@ -42,7 +42,7 @@
           <button type="button" class="auth-button auth-login" @click="emit('unlock')">登录</button>
           <button type="button" class="auth-button auth-register" @click="emit('unlock')">注册</button>
         </div>
-        <el-dropdown v-else trigger="click" placement="bottom-end" popper-class="account-menu-popper" :show-arrow="false" :offset="12" @command="handleAccountCommand">
+        <el-dropdown v-else class="account-dropdown" trigger="click" placement="bottom-end" popper-class="account-menu-popper" :show-arrow="false" :offset="12" @command="handleAccountCommand">
           <button type="button" class="user-avatar" aria-label="用户菜单（已解锁）">
             <el-icon :size="17" aria-hidden="true"><ElIconUserFilled /></el-icon>
           </button>
@@ -215,13 +215,19 @@ function handleNavigate(target: HomeNavigationTarget) {
 .auth-register:hover { background: #c4deff; }
 .auth-button:focus-visible { outline: 2px solid #fff; outline-offset: 1px; }
 
+/* 分隔主题操作与用户入口，头像距左侧分隔线保留 15px 内边距。 */
+.account-dropdown {
+  padding-left: 15px;
+  border-left: 1px solid var(--el-border-color-lighter);
+}
+
 .user-avatar {
   cursor: pointer;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
+  width: 26px;
+  height: 26px;
   flex-shrink: 0;
   border: 1px solid #8db7ff;
   border-radius: 50%;
