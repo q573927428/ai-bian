@@ -1,18 +1,16 @@
 <template>
   <div class="performance-panel">
     <div class="panel-header">
-      <h3>📊 运行状态 <span class="refresh-hint">每 2 秒刷新</span></h3>
+      <span class="refresh-hint"><span class="refresh-dot" />每 2 秒自动刷新</span>
       <el-button size="small" text :loading="manualRefreshing" @click="refresh(true)">
         <el-icon><ElIconRefresh /></el-icon>
         刷新
       </el-button>
     </div>
 
-    <el-divider style="margin: 8px 0" />
-
     <!-- 运行状态 -->
-    <div class="section">
-      <div class="info-grid">
+    <div class="section overview-section">
+      <div class="info-grid overview-grid">
         <div class="info-item">
           <span class="info-label">运行状态</span>
           <el-tag :type="botStore.state?.isRunning ? 'success' : 'danger'" size="small">
@@ -31,14 +29,6 @@
           <span class="info-label">当前持仓</span>
           <span class="info-value-v">{{ botStore.state?.currentPositions || 0 }}</span>
         </div>
-        <!-- <div class="info-item" v-if="performanceData?.positions">
-          <span class="info-label">多仓</span>
-          <span class="info-value-v" style="color: var(--color-success);">{{ performanceData.positions.longPositions || 0 }}</span>
-        </div>
-        <div class="info-item" v-if="performanceData?.positions">
-          <span class="info-label">空仓</span>
-          <span class="info-value-v" style="color: var(--color-danger);">{{ performanceData.positions.shortPositions || 0 }}</span>
-        </div> -->
       </div>
     </div>
 
@@ -51,45 +41,40 @@
       <div v-if="botStore.rateLimitLoading && !rateLimitData" class="loading-text">加载中...</div>
       <div v-else-if="botStore.rateLimitError" class="error-text">{{ botStore.rateLimitError }}</div>
       <div v-else-if="rateLimitData" class="rate-limit-detail">
-        <div class="info-grid rate-limit-grid">
-          <div class="info-item">
-            <span class="info-label">1分钟权重</span>
-            <span :class="['info-value-v', weightStatus]">
-              {{ rateLimitData.usedWeight1m || 0 }}
-              <span v-if="rateLimitData.localEstimatedWeight1m" class="weight-est">(本地估 {{ rateLimitData.localEstimatedWeight1m }})</span>
-            </span>
+        <div class="api-headline">
+          <div class="weight-metric">
+            <div class="weight-stat">
+              <span class="info-label">1分钟 API 权重</span>
+              <strong :class="['weight-value', weightStatus]">{{ rateLimitData.usedWeight1m || 0 }}</strong>
+            </div>
+            <div class="weight-stat weight-estimate" title="根据本系统最近1分钟请求估算的权重，与 Binance 返回的权重可能不同">
+              <span class="info-label">本地估算</span>
+              <strong class="estimate-value">{{ rateLimitData.localEstimatedWeight1m ?? '-' }}</strong>
+            </div>
           </div>
-          <div class="info-item">
-            <span class="info-label">订单计数(10s/1m)</span>
-            <span class="info-value-v">{{ rateLimitData.orderCount10s ?? '-' }} / {{ rateLimitData.orderCount1m ?? '-' }}</span>
+          <!-- 正常状态弱化，出现限流或封禁时仍保留醒目的告警色。 -->
+          <div class="api-errors">
+            <el-tag size="small" type="warning" v-if="rateLimitData.recent429 > 0">限流 429×{{ rateLimitData.recent429 }}</el-tag>
+            <el-tag size="small" type="danger" v-if="rateLimitData.recent418 > 0">封禁 418×{{ rateLimitData.recent418 }}</el-tag>
+            <span v-if="!rateLimitData.recent429 && !rateLimitData.recent418" class="api-normal"><span class="refresh-dot" />无限流错误</span>
           </div>
-          <div class="info-item">
-            <span class="info-label">错误统计</span>
-            <div class="info-value-v">
-              <el-tag size="small" type="warning" v-if="rateLimitData.recent429 > 0">429×{{ rateLimitData.recent429 }}</el-tag>
-              <el-tag size="small" type="danger" v-if="rateLimitData.recent418 > 0">418×{{ rateLimitData.recent418 }}</el-tag>
-              <span v-if="!rateLimitData.recent429 && !rateLimitData.recent418" style="font-weight: 400;">无</span>
+        </div>
+        <div class="request-pools">
+          <div v-for="group in rateLimitGroups" :key="group" class="request-pool">
+            <div class="request-pool-title">
+              <span>{{ requestPoolLabels[group] }}</span>
+              <span class="request-pool-limit">上限 {{ rateLimitData.maxConcurrency?.[group] || 0 }}</span>
+            </div>
+            <div class="request-pool-counts">
+              <span>活跃 <b :class="{ 'text-primary': rateLimitData.active?.[group] > 0 }">{{ rateLimitData.active?.[group] || 0 }}</b></span>
+              <span>队列 <b :class="{ 'text-warning': rateLimitData.queues?.[group] > 0 }">{{ rateLimitData.queues?.[group] || 0 }}</b></span>
             </div>
           </div>
         </div>
-        <table class="stats-table">
-          <thead>
-            <tr>
-              <th>请求池</th>
-              <th>活跃</th>
-              <th>队列</th>
-              <th>最大并发</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="group in rateLimitGroups" :key="group">
-              <td>{{ group }}</td>
-              <td>{{ (rateLimitData.active || {})[group] || 0 }}</td>
-              <td>{{ (rateLimitData.queues || {})[group] || 0 }}</td>
-              <td>{{ (rateLimitData.maxConcurrency || {})[group] || 0 }}</td>
-            </tr>
-          </tbody>
-        </table>
+        <div class="secondary-line" title="Binance 最近返回的下单次数统计，未获取到时显示 -">
+          <span>下单次数 <span class="secondary-text">（10秒 / 1分钟）</span></span>
+          <span>{{ rateLimitData.orderCount10s ?? '-' }} / {{ rateLimitData.orderCount1m ?? '-' }}</span>
+        </div>
       </div>
       <div v-else class="empty-text">暂无数据</div>
     </div>
@@ -102,20 +87,38 @@
       </div>
       <div v-if="botStore.performanceLoading && !performanceData" class="loading-text">加载中...</div>
       <div v-else-if="botStore.performanceError" class="error-text">{{ botStore.performanceError }}</div>
-      <div v-else-if="performanceData?.pools" class="pool-grid">
-        <div v-for="(pool, name) in performanceData.pools" :key="name" class="pool-card">
-          <div class="pool-name">{{ name }}</div>
-          <div class="pool-stats">
-            <span class="pool-stat">活跃: <b>{{ pool.activeCount || 0 }}</b></span>
-            <span class="pool-stat">队列: <b>{{ pool.queueLength || 0 }}</b></span>
-            <span class="pool-stat">完成: <b>{{ pool.completedTasks || 0 }}</b></span>
-            <span class="pool-stat">失败: <b>{{ pool.failedTasks || 0 }}</b></span>
-          </div>
-          <div class="pool-bar">
-            <div class="pool-bar-fill" :style="{ width: poolPercent(pool) }" />
-          </div>
-        </div>
-      </div>
+      <table v-else-if="performanceData?.pools" class="stats-table pool-table">
+        <colgroup>
+          <col class="pool-name-column" />
+          <col span="4" class="pool-number-column" />
+        </colgroup>
+        <thead>
+          <tr><th>任务池</th><th>活跃</th><th>队列</th><th>累计完成</th><th>累计失败</th></tr>
+        </thead>
+        <tbody v-for="(pool, name) in performanceData.pools" :key="name">
+          <tr class="pool-data-row">
+            <td>
+              <span class="pool-name">{{ taskPoolLabels[String(name)] || name }}</span>
+            </td>
+            <td class="live-count" :class="{ 'text-primary': pool.activeCount > 0 }">{{ pool.activeCount || 0 }}</td>
+            <td class="live-count" :class="{ 'text-warning': pool.queueLength > 0 }">{{ pool.queueLength || 0 }}</td>
+            <td class="live-count">{{ pool.completedTasks || 0 }}</td>
+            <td class="live-count" :class="{ 'text-danger': pool.failedTasks > 0 }">{{ pool.failedTasks || 0 }}</td>
+          </tr>
+          <!-- 跨列展示并发占用，让用量条贯穿整个任务池数据行。 -->
+          <tr class="pool-usage-row">
+            <td colspan="5">
+              <div class="pool-usage" :title="`并发占用：${pool.activeCount || 0} / ${pool.maxConcurrency || 1}，表示活跃任务占并发上限的比例`">
+                <span class="pool-usage-label">并发占用</span>
+                <div class="pool-bar">
+                  <div class="pool-bar-fill" :style="{ width: poolPercent(pool) }" />
+                </div>
+                <span class="pool-usage-ratio">{{ pool.activeCount || 0 }} / {{ pool.maxConcurrency || 1 }}</span>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
       <div v-else class="empty-text">暂无数据</div>
     </div>
 
@@ -125,19 +128,10 @@
         <el-icon><ElIconCpu /></el-icon>
         AI 分析状态
       </div>
-      <div class="info-grid">
-        <div class="info-item">
-          <span class="info-label">总请求数</span>
-          <span class="info-value-v">{{ performanceData.ai.totalRequests || 0 }}</span>
-        </div>
-        <div class="info-item">
-          <span class="info-label">最近1分钟请求</span>
-          <span class="info-value-v">{{ performanceData.ai.recentRequestsInMinute || 0 }}</span>
-        </div>
-        <div class="info-item">
-          <span class="info-label">错误次数</span>
-          <span class="info-value-v">{{ performanceData.ai.errorCount || 0 }}</span>
-        </div>
+      <div class="ai-summary">
+        <span class="ai-metric"><span class="info-label">最近1分钟请求</span><strong class="live-count">{{ performanceData.ai.recentRequestsInMinute || 0 }}</strong></span>
+        <span class="ai-metric"><span class="info-label">累计</span><strong class="live-count">{{ performanceData.ai.totalRequests || 0 }}</strong><span class="info-label">次</span></span>
+        <span class="ai-metric"><span class="info-label">错误</span><strong class="live-count" :class="{ 'text-danger': performanceData.ai.errorCount > 0 }">{{ performanceData.ai.errorCount || 0 }}</strong><span class="info-label">次</span></span>
       </div>
     </div>
 
@@ -157,6 +151,8 @@ const rateLimitData = computed(() => botStore.rateLimit)
 const performanceData = computed(() => botStore.performance)
 
 const rateLimitGroups = ['marketData', 'account', 'trade']
+const requestPoolLabels: Record<string, string> = { marketData: '行情数据', account: '账户查询', trade: '交易请求' }
+const taskPoolLabels: Record<string, string> = { indicator: '指标计算', ai: 'AI 分析', tradeApi: '交易 API' }
 
 const weightStatus = computed(() => {
   if (!rateLimitData.value) return ''
@@ -170,6 +166,7 @@ const weightStatus = computed(() => {
   return 'text-success'
 })
 
+/** 将当前活跃任务换算为并发容量占比，用于任务池用量条。 */
 function poolPercent(pool: any): string {
   const limit = pool.maxConcurrency || 1
   const active = pool.activeCount || 0
@@ -208,7 +205,11 @@ onUnmounted(() => {
 
 <style scoped>
 .performance-panel {
-  padding: 4px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 0 2px 4px;
+  font-variant-numeric: tabular-nums;
 }
 
 .panel-header {
@@ -217,61 +218,78 @@ onUnmounted(() => {
   align-items: center;
 }
 
-.panel-header h3 {
-  margin: 0;
-  font-size: 15px;
-  font-weight: 600;
-}
-
 .refresh-hint {
-  font-size: 11px;
-  font-weight: 400;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
   color: var(--text-secondary);
 }
 
+.refresh-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-success);
+}
+
 .section {
-  margin-bottom: 16px;
+  padding: 12px 14px;
+  border: 1px solid var(--stat-card-border);
+  border-radius: 12px;
+  background: var(--bg-card);
+  min-width: 0;
+}
+
+.overview-section {
+  background: var(--bg-main);
 }
 
 .section-title {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   font-size: 13px;
   font-weight: 600;
   color: var(--text-primary);
-  margin-bottom: 8px;
+  margin-bottom: 10px;
 }
 
-/* 上下布局信息卡片 */
+/* 指标共享一组底色，用分隔线组织信息，减少重复卡片的视觉噪声。 */
 .info-grid {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0;
+}
+
+.overview-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
 .info-item {
-  flex: 1;
-  min-width: 70px;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
   text-align: center;
-  padding: 6px 4px;
-  background: var(--bg-main);
-  border-radius: 6px;
+  padding: 2px 10px;
+  gap: 4px;
+}
+
+.info-item + .info-item {
+  border-left: 1px solid var(--stat-card-border);
 }
 
 .info-label {
   font-size: 11px;
   color: var(--text-secondary);
-  margin-bottom: 4px;
-  white-space: nowrap;
+  line-height: 1.5;
 }
 
 .info-value-v {
-  font-size: 14px;
-  font-weight: 700;
+  font-size: 18px;
+  line-height: 1.25;
+  font-weight: 600;
   color: var(--text-primary);
 }
 
@@ -279,12 +297,52 @@ onUnmounted(() => {
   font-size: 11px;
 }
 
-.weight-est {
-  display: block;
+.secondary-text {
   font-size: 11px;
   font-weight: 400;
-  color: var(--text-placeholder);
-  margin-top: 2px;
+  color: var(--text-secondary);
+}
+
+.api-headline, .weight-metric, .api-errors, .ai-summary, .secondary-line {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+}
+.api-headline, .secondary-line { justify-content: space-between; }
+.weight-value { font-size: 28px; line-height: 1.15; font-weight: 600; }
+/* 返回权重与本地估算采用对齐的标签和数值，避免说明挤在主数值旁。 */
+.weight-metric { gap: 24px; }
+.weight-stat { display: flex; flex-direction: column; gap: 4px; }
+.weight-estimate { padding-left: 24px; border-left: 1px solid var(--stat-card-border); }
+.estimate-value { font-size: 28px; line-height: 1.15; font-weight: 500; color: var(--text-regular); }
+.api-normal {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 9px;
+  border-radius: 999px;
+  background: var(--bg-main);
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+.secondary-line {
+  margin-top: 10px;
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+.ai-summary { justify-content: space-between; }
+.ai-metric { display: inline-flex; align-items: baseline; gap: 8px; color: var(--text-primary); }
+.live-count, .request-pool-counts b { font-size: 20px; font-weight: 600; }
+.stats-table td.live-count { color: var(--text-primary); }
+.text-primary { color: var(--color-primary) !important; }
+
+/* 配置和总体状态保持紧凑，将视觉空间让给实时用量。 */
+.overview-grid .info-item { flex-direction: row; justify-content: center; flex-wrap: wrap; gap: 4px 8px; }
+.overview-grid .info-value-v { font-size: 13px; }
+
+.request-pool-counts b {
+  line-height: 1.15;
 }
 
 .loading-text {
@@ -308,75 +366,142 @@ onUnmounted(() => {
 .stats-table {
   width: 100%;
   border-collapse: collapse;
-  margin-top: 8px;
+  margin-top: 10px;
   font-size: 12px;
+  table-layout: fixed;
 }
 
 .stats-table th {
   background: var(--bg-main);
   color: var(--text-secondary);
-  padding: 4px 8px;
-  text-align: left;
+  padding: 7px 8px;
+  text-align: right;
   font-weight: 500;
 }
 
 .stats-table td {
-  padding: 4px 8px;
+  padding: 8px;
+  text-align: right;
+  color: var(--text-regular);
   border-bottom: 1px solid var(--stat-card-border);
 }
 
-.pool-grid {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+.stats-table th:first-child,
+.stats-table td:first-child {
+  text-align: left;
 }
 
-.pool-card {
-  padding: 8px;
-  background: var(--bg-main);
-  border-radius: 6px;
+.stats-table tbody tr:last-child td {
+  border-bottom: 0;
 }
 
-.pool-name {
-  font-weight: 600;
-  font-size: 13px;
-  margin-bottom: 4px;
-  text-transform: capitalize;
+.stats-table td.text-primary {
+  color: var(--color-primary);
 }
 
-.pool-stats {
+.pool-table {
+  margin-top: 0;
+}
+
+/* 列宽统一由 colgroup 控制，避免名称列挤占数值列或影响跨列占用条。 */
+.pool-name-column { width: 20%; }
+.pool-number-column { width: 20%; }
+.pool-table th:not(:first-child),
+.pool-table .pool-data-row td:not(:first-child) {
+  text-align: center;
+}
+
+.pool-table .pool-data-row td {
+  border-bottom: 0;
+  padding-bottom: 5px;
+}
+
+.pool-table .pool-usage-row td {
+  padding-top: 3px;
+  padding-bottom: 10px;
+}
+
+/* 请求池作为次要状态横向展示，避免三行表格撑高弹窗。 */
+.request-pools {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--stat-card-border);
+}
+
+.request-pool {
+  min-width: 0;
+  padding: 2px 16px;
+}
+.request-pool + .request-pool {
+  border-left: 1px solid var(--stat-card-border);
+}
+.request-pool-title, .request-pool-counts {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
-  font-size: 12px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px 10px;
+  font-size: 11px;
 }
+.request-pool-title { color: var(--text-regular); }
+.request-pool-limit, .request-pool-counts { color: var(--text-secondary); }
+.request-pool-limit { font-size: 10px; }
+.request-pool-counts { margin-top: 8px; }
+.request-pool-counts > span { display: inline-flex; align-items: baseline; gap: 6px; }
+.request-pool-counts b { color: var(--text-primary); font-weight: 600; }
 
-.pool-stat {
-  color: var(--text-secondary);
-}
-
-.pool-stat b {
+.pool-name {
+  font-weight: 500;
   color: var(--text-primary);
 }
 
+/* 用标签、胶囊轨道和容量数字表达用量，避免通栏横线被误认为表格边框。 */
+.pool-usage {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.pool-usage-label, .pool-usage-ratio {
+  flex-shrink: 0;
+  font-size: 10px;
+  line-height: 1.4;
+  color: var(--text-secondary);
+}
+
+.pool-usage-ratio { min-width: 5ch; text-align: right; }
+
 .pool-bar {
-  height: 4px;
-  background: var(--stat-card-border);
-  border-radius: 2px;
-  margin-top: 6px;
+  flex: 1;
+  min-width: 0;
+  height: 8px;
+  background: color-mix(in srgb, var(--color-primary) 16%, var(--bg-main));
+  border-radius: 999px;
   overflow: hidden;
 }
 
 .pool-bar-fill {
   height: 100%;
   background: var(--color-primary);
-  border-radius: 2px;
+  border-radius: 999px;
   transition: width 0.3s ease;
 }
 
-.scan-info {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
+.section-title > .el-icon {
+  color: var(--color-primary);
+}
+
+/* 手机端保持列对齐，同时给较长的指标名称留出换行空间。 */
+@media (max-width: 480px) {
+  .section { padding: 10px; }
+  .info-item { padding: 2px 5px; }
+  .info-value-v { font-size: 18px; }
+  .overview-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); row-gap: 10px; }
+  .overview-grid .info-item:nth-child(3) { border-left: 0; }
+  .stats-table th, .stats-table td { padding: 7px 4px; }
+  .request-pool { padding: 2px 8px; }
 }
 </style>

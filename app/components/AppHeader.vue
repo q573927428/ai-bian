@@ -4,7 +4,7 @@
     <HomeHeader :is-running="!!botStore.state?.isRunning" :password-verified="passwordVerified" :active-panels="activePanels" @navigate="handleNavigate" @performance="showPerformance = true" @unlock="handleUnlock" @lock="clearPassword" />
     <ClientOnly>
       <PasswordDialog v-model="showPasswordDialog" @success="handlePasswordSuccess" />
-      <el-dialog v-model="showPerformance" title="系统性能面板" :style="{ width: '90%', maxWidth: '600px' }" draggable destroy-on-close>
+      <el-dialog v-model="showPerformance" title="系统性能面板" top="6vh" :style="{ width: '94%', maxWidth: '680px', maxHeight: '88vh', overflowY: 'auto' }" draggable destroy-on-close>
         <PerformancePanel v-if="showPerformance" />
       </el-dialog>
     </ClientOnly>
