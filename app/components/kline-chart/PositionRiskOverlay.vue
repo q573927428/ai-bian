@@ -8,10 +8,10 @@
       <text :x="geometry.left + 5" :y="zone.y < geometry.entry ? zone.y + 16 : zone.y - 6" :fill="zone.color">{{ zone.label }}<tspan class="price-value" dx="5">{{ zone.price }}</tspan></text>
     </g>
     <line :x1="geometry.left" :x2="geometry.right" :y1="geometry.entry" :y2="geometry.entry" stroke="#e6a23c" stroke-width="1.5" />
-    <text :x="geometry.left + 5" :y="geometry.entry + 16" fill="#e6a23c">入场<tspan class="price-value" dx="5">{{ geometry.entryPrice }}</tspan></text>
+    <text :x="geometry.left + 5" :y="geometry.entry + (geometry.isLong ? -6 : 16)" fill="#e6a23c">入场<tspan class="price-value" dx="5">{{ geometry.entryPrice }}</tspan></text>
     <g v-if="geometry.tp1">
       <line :x1="geometry.left" :x2="geometry.right" :y1="geometry.tp1.y" :y2="geometry.tp1.y" stroke="#8abd38" stroke-dasharray="5 4" />
-      <text :x="geometry.left + 5" :y="geometry.tp1.y - 6" fill="#8abd38">TP1<tspan class="price-value" dx="5">{{ geometry.tp1.price }}</tspan></text>
+      <text :x="geometry.left + 5" :y="geometry.tp1.y + (geometry.isLong ? 16 : -6)" fill="#8abd38">TP1<tspan class="price-value" dx="5">{{ geometry.tp1.price }}</tspan></text>
     </g>
   </svg>
 </template>
@@ -49,6 +49,7 @@ interface Geometry {
   left: number
   right: number
   entry: number
+  isLong: boolean
   entryPrice: string
   strategyId: string
   strategyY: number
@@ -98,6 +99,9 @@ function updateGeometry() {
       const tp1 = Number(selected.takeProfit1)
       const tp1Y = series.priceToCoordinate(tp1)
       next = { width: scale.width(), height: chart.panes()[0]?.getHeight() ?? 0, left, right, entry,
+        // 多单按指定布局将入场文字放在线上、TP1 放在线下；空单沿用原位置。
+        // 实时持仓可能返回小写方向，历史订单及公共类型使用大写，统一后再判断。
+        isLong: selected.direction.toUpperCase() === 'LONG',
         // 策略名称放在整个风险框上方，靠近顶部时保留可读的文字基线。
         strategyId: selected.strategyId || '', strategyY: Math.max(14, Math.min(entry, ...zones.map(zone => zone.y)) - 8),
         entryPrice: formatPrice(Number(selected.entryPrice)), zones,

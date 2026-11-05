@@ -1,9 +1,11 @@
 // ==================== 当前持仓图表联动状态 ====================
 import type { Position } from '../../types'
+import type { TradeDirection } from '../../types/strategy'
 import { computed } from 'vue'
 
 /** 图表使用的持仓快照，包含仓位所属策略标识。 */
-export type ChartPosition = Pick<Position, 'symbol' | 'entryPrice' | 'openTime'> & Partial<Pick<Position, 'stopLoss' | 'initialStopLoss' | 'takeProfit1' | 'takeProfit2'>> & { strategyId?: string }
+// 实时持仓使用小写方向，公共持仓类型使用大写；图表同时接收两种来源。
+export type ChartPosition = Pick<Position, 'symbol' | 'entryPrice' | 'openTime'> & Partial<Pick<Position, 'stopLoss' | 'initialStopLoss' | 'takeProfit1' | 'takeProfit2'>> & { strategyId?: string; direction: Position['direction'] | TradeDirection }
 
 /** 复用当前持仓面板的轮询结果，所有图表均可按交易对自动匹配。 */
 export function useChartPositions() {
