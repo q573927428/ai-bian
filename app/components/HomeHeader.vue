@@ -5,7 +5,7 @@
       <h1>
         <NuxtLink to="/" class="brand-link" aria-label="返回首页">
         <img :src="currentTheme === 'light' ? '/logo-light.png' : '/logo.png'" alt="Logo" style="width: 1.5em; height: 1.5em; object-fit: contain; vertical-align: middle; margin-right: 8px" />
-        AI自动交易
+        <span class="brand-name">AI自动交易</span>
         </NuxtLink>
       </h1>
       <!-- 桌面直接显示导航，移动端通过右上角菜单展开同一组入口。 -->
@@ -25,10 +25,11 @@
         </div>
       </nav>
       <div class="header-right">
-        <!-- 运行状态 -->
-        <button type="button" class="header-status" :aria-label="`${isRunning ? '运行中' : '已停止'}，查看系统运行状态与性能`" :title="isRunning ? '运行中，点击查看详情' : '已停止，点击查看详情'" @click="emit('performance')">
+      <!-- 状态与权重共享详情入口，与右侧按钮统一使用组内间距。 -->
+        <button type="button" class="header-status" :aria-label="`${isRunning ? '运行中' : '已停止'}，1分钟 API 权重 ${apiWeight ?? '暂无数据'}，本地估算 ${estimatedWeight ?? '暂无数据'}，查看系统性能`" title="1分钟 API 权重 / 本地最近60秒估算，每2秒刷新；点击查看详情" @click="emit('performance')">
           <div :class="['status-dot-sm', isRunning ? 'status-running' : 'status-stopped']" />
-          <span class="header-status-text">{{ isRunning ? '运行中' : '已停止' }}</span>
+          <span class="header-weight"><b>{{ apiWeight ?? '-' }}</b></span>
+          <span class="header-weight"><span aria-hidden="true">/</span><b>{{ estimatedWeight ?? '-' }}</b></span>
         </button>
         <el-button text size="small" @click="toggleTheme" class="theme-toggle-btn" :aria-label="currentTheme === 'light' ? '切换暗色主题' : '切换亮色主题'" :title="currentTheme === 'light' ? '切换暗色主题' : '切换亮色主题'">
           <el-icon :size="18">
@@ -96,6 +97,10 @@ import type { HomeNavigationTarget } from '../../types/home'
 /** 顶部接收运行、解锁和面板激活状态，通过事件请求页面操作。 */
 interface Props {
   isRunning: boolean
+  /** 最近一次 Binance 响应中的分钟权重；未加载时保持缺省。 */
+  apiWeight?: number
+  /** 本系统最近60秒请求的估算权重。 */
+  estimatedWeight?: number
   passwordVerified: boolean
   activePanels: Partial<Record<HomeNavigationTarget, boolean>>
 }
@@ -164,7 +169,7 @@ function handleNavigate(target: HomeNavigationTarget) {
 
 .header-content h1, .header-right { flex-shrink: 0; }
 
-@media (max-width: 768px) {
+@media (max-width: 1024px) {
   .header { height: auto; min-height: 60px; }
   .header-content { flex-wrap: wrap; padding: 10px 0; }
 }
@@ -363,11 +368,12 @@ function handleNavigate(target: HomeNavigationTarget) {
   border-radius: 10px;
 }
 .header-status {
+  margin-left: 0;
   display: flex;
   align-items: center;
   gap: 6px;
   cursor: pointer;
-  padding: 7px 10px;
+  padding: 6px 6px 6px 8px;
   border: 1px solid var(--el-border-color-lighter);
   background: transparent;
   font: inherit;
@@ -375,21 +381,34 @@ function handleNavigate(target: HomeNavigationTarget) {
   transition: background 0.2s ease;
 }
 
+.header-weight {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+.header-weight b { font-size: 14px; font-weight: 500; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+/* 实际权重略带蓝色，估算保留灰色，区分来源同时避免数字过亮。 */
+.status-dot-sm + .header-weight b { color: color-mix(in srgb, var(--text-secondary) 75%, var(--color-primary)); }
+
 .header-status:hover {
   background: var(--stat-card-bg);
 }
 
 .status-dot-sm {
+  position: relative;
   width: 8px;
   height: 8px;
   border-radius: 50%;
   flex-shrink: 0;
+  animation: status-breathe 2s ease-in-out infinite;
 }
 
 .status-running {
   background: var(--color-success);
   box-shadow: 0 0 6px var(--color-success);
-  animation: pulse 2s infinite;
 }
 
 .status-stopped {
@@ -397,24 +416,27 @@ function handleNavigate(target: HomeNavigationTarget) {
   box-shadow: 0 0 6px var(--color-danger);
 }
 
-@keyframes pulse {
+/* 红绿圆点均显示呼吸效果，颜色区分运行状态；缩放不改变布局，避免文字抖动。 */
+@keyframes status-breathe {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.6; }
 }
 
-.header-status-text {
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--text-regular);
-  white-space: nowrap;
-}
 
-@media (max-width: 768px) {
+@media (max-width: 1024px) {
   .header { padding: 0 12px; }
 
   .header-content { gap: 0 8px; padding: 10px 0; }
 
-  .header-right { gap: 4px; }
+  .header-right { gap: 8px; }
+  .header-status {
+    flex-shrink: 0;
+    margin: 0;
+    justify-content: flex-start;
+    padding: 6px 6px 6px 8px;
+    border-radius: 8px;
+    box-sizing: border-box;
+  }
 
   .header-navigation {
     /* 用网格折叠平滑展开，隐藏时不留下可聚焦的导航入口。 */
@@ -502,7 +524,7 @@ function handleNavigate(target: HomeNavigationTarget) {
     font-size: 16px;
   }
 }
-@media (min-width: 769px) and (max-width: 1200px) {
+@media (min-width: 1025px) and (max-width: 1200px) {
   .header { padding: 0 16px; }
   .header-content { column-gap: 8px; }
   .header h1 { font-size: 18px; }
@@ -512,31 +534,31 @@ function handleNavigate(target: HomeNavigationTarget) {
   .navigation-label { font-size: 13px; }
 }
 
-@media (min-width: 769px) and (max-width: 900px) {
-  .navigation-item .navigation-icon { display: none; }
-}
-@media (max-width: 1100px) {
-  .header-status-text { display: none; }
-}
 
 @media (max-width: 480px) {
-  .header h1 { font-size: 14px; }
-  /* 手机保留状态入口，用圆点节省空间，点击后仍可查看完整运行信息。 */
+  .header { padding: 0 8px; }
+  .header-content { column-gap: 4px; }
+  .header h1 { font-size: 12px; }
+  /* 压缩标签与间距，让权重和估算在手机顶部保持单行。 */
   .header-status {
-    justify-content: center;
-    width: 32px;
+    display: inline-flex;
+    flex-wrap: nowrap;
+    gap: 4px;
+    padding: 3px 5px;
     height: 32px;
-    padding: 0;
-    flex-shrink: 0;
   }
-  .auth-button { padding: 0 8px; }
-  .header-right { flex-wrap: wrap; }
+  .header-status .status-dot-sm { width: 6px; height: 6px; }
+  .header-weight { gap: 3px; font-size: 12px; line-height: 16px; }
+  .header-weight b { font-size: 13px; }
+  .auth-button { padding: 0 6px; }
+  .header-right { gap: 8px; flex-wrap: nowrap; }
+  .theme-toggle-btn, .mobile-nav-toggle { width: 28px; }
 }
 @media (max-width: 374px) {
-  .header-status-text { display: none; }
-  /* 窄屏压缩按钮间距，避免新增状态入口将右侧操作挤到下一行。 */
-  .header-status { width: 28px; height: 32px; }
-  .header-right { gap: 2px; }
+  /* 极窄屏保留品牌图标，为权重和操作按钮让出空间。 */
+  .brand-name { display: none; }
+  .header-status { height: 32px; }
+  .header-right { gap: 8px; }
   .theme-toggle-btn { width: 28px; }
   .mobile-nav-toggle { width: 32px; }
   .auth-button { padding: 0 6px; }

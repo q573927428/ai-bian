@@ -1,7 +1,7 @@
 <!-- ==================== 全局导航、登录与公共行情面板 ==================== -->
 <template>
   <div ref="headerRoot" class="app-header">
-    <HomeHeader :is-running="!!botStore.state?.isRunning" :password-verified="passwordVerified" :active-panels="activePanels" @navigate="handleNavigate" @performance="showPerformance = true" @unlock="handleUnlock" @lock="clearPassword" />
+    <HomeHeader :is-running="!!botStore.state?.isRunning" :api-weight="botStore.rateLimit?.usedWeight1m" :estimated-weight="botStore.rateLimit?.localEstimatedWeight1m" :password-verified="passwordVerified" :active-panels="activePanels" @navigate="handleNavigate" @performance="showPerformance = true" @unlock="handleUnlock" @lock="clearPassword" />
     <ClientOnly>
       <PasswordDialog v-model="showPasswordDialog" @success="handlePasswordSuccess" />
       <el-dialog v-model="showPerformance" title="系统性能面板" top="6vh" :style="{ width: '94%', maxWidth: '680px', maxHeight: '88vh', overflowY: 'auto' }" draggable destroy-on-close>
@@ -29,6 +29,12 @@ function handleNavigate(target: HomeNavigationTarget) {
   void navigateTo(target === 'home' ? '/' : `/${target}`)
 }
 let observer: ResizeObserver | undefined
+let rateLimitTimer: ReturnType<typeof setInterval> | undefined
+/** 弹窗关闭时由顶部补充采样；弹窗打开时复用其2秒轮询，避免重复请求。 */
+function refreshHeaderRateLimit() {
+  if (document.hidden || showPerformance.value || botStore.rateLimitLoading) return
+  void botStore.fetchRateLimit()
+}
 onMounted(() => {
   // 移动端菜单会改变头部高度，页面扣除实际高度，保持与全局底部的可视区协调。
   observer = new ResizeObserver(() => {
@@ -36,8 +42,16 @@ onMounted(() => {
   })
   if (headerRoot.value) observer.observe(headerRoot.value)
   botStore.subscribeToPolling('app-header')
+  refreshHeaderRateLimit()
+  rateLimitTimer = setInterval(refreshHeaderRateLimit, 2000)
+  document.addEventListener('visibilitychange', refreshHeaderRateLimit)
 })
-onBeforeUnmount(() => { observer?.disconnect(); botStore.unsubscribeFromPolling('app-header') })
+onBeforeUnmount(() => {
+  observer?.disconnect()
+  if (rateLimitTimer !== undefined) clearInterval(rateLimitTimer)
+  document.removeEventListener('visibilitychange', refreshHeaderRateLimit)
+  botStore.unsubscribeFromPolling('app-header')
+})
 </script>
 <style scoped>
 .app-header { flex-shrink: 0; }
