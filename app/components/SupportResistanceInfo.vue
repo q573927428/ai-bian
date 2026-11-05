@@ -7,10 +7,10 @@
   <div v-else-if="snapshot" class="structure-info" :class="{ 'structure-info-detailed': detailed }">
       <div class="structure-levels" :title="structureTitle">
         <div class="level-group">
-        <div><span class="resistance">阻力</span> {{ nearestOnly ? nearestPrice(snapshot.nearestResistance) : zone(snapshot.nearestResistance) }}{{ snapshot.nearestResistance ? `（${snapshot.nearestResistance.touches}）` : '' }}<span v-if="nearestOnly && snapshot.nearestResistance" class="distance">{{ number(snapshot.resistanceDistanceATR) }}</span></div>
+        <div><span class="resistance">阻力</span> {{ nearestOnly ? nearestPrice(snapshot.nearestResistance) : zone(snapshot.nearestResistance) }}{{ !nearestOnly && snapshot.nearestResistance ? `（${snapshot.nearestResistance.touches}）` : '' }}<span v-if="nearestOnly && snapshot.nearestResistance" class="distance">{{ number(snapshot.resistanceDistanceATR) }}</span></div>
         </div>
         <div class="level-group">
-        <div><span class="support">支撑</span> {{ nearestOnly ? nearestPrice(snapshot.nearestSupport) : zone(snapshot.nearestSupport) }}{{ snapshot.nearestSupport ? `（${snapshot.nearestSupport.touches}）` : '' }}<span v-if="nearestOnly && snapshot.nearestSupport" class="distance">{{ number(snapshot.supportDistanceATR) }}</span></div>
+        <div><span class="support">支撑</span> {{ nearestOnly ? nearestPrice(snapshot.nearestSupport) : zone(snapshot.nearestSupport) }}{{ !nearestOnly && snapshot.nearestSupport ? `（${snapshot.nearestSupport.touches}）` : '' }}<span v-if="nearestOnly && snapshot.nearestSupport" class="distance">{{ number(snapshot.supportDistanceATR) }}</span></div>
         </div>
       </div>
     <!-- 状态始终放在价位下方，区域之间等常态也能直接查看。 -->
@@ -64,6 +64,9 @@ const structureTitle = computed(() => {
   const lines = [
     ...('algorithm' in snapshot ? [`${snapshot.timeframe} · ${snapshot.closedCandles} 根已收盘K线`] : []),
     `参考价 ${price(snapshot.referencePrice)}`,
+    // 看板不再常驻展示触碰次数，保留在价位区域的悬停详情中。
+    `阻力触碰次数 ${snapshot.nearestResistance?.touches ?? '--'}`,
+    `支撑触碰次数 ${snapshot.nearestSupport?.touches ?? '--'}`,
     `阻力距离 ${number(snapshot.resistanceDistancePercent)}% / ${number(snapshot.resistanceDistanceATR)} ATR`,
     `支撑距离 ${number(snapshot.supportDistancePercent)}% / ${number(snapshot.supportDistanceATR)} ATR`
   ]
@@ -83,6 +86,7 @@ const structureTitle = computed(() => {
 .support { color: #67c23a; }
 .resistance { color: #f56c6c; }
 .distance { color: var(--el-text-color-secondary); font-size: 12px; }
+.structure-levels .distance { margin-left: 6px; }
 /* 历史快照利用详情区域横向展示，避免多行信息挤在左侧；看板继续使用紧凑纵排。 */
 .structure-info-detailed {
   font-size: 12px;

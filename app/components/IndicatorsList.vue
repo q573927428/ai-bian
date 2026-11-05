@@ -169,7 +169,7 @@
           <svg v-if="row.candle" class="current-candle" :class="row.candle.tone" viewBox="0 0 24 48" role="img" :aria-label="row.candle.description">
             <title>{{ row.candle.description }}</title>
             <line x1="12" :y1="row.candle.highY" x2="12" :y2="row.candle.lowY" stroke="currentColor" stroke-width="1.5" />
-            <rect x="6" :y="row.candle.bodyY" width="12" :height="row.candle.bodyHeight" fill="currentColor" />
+            <rect x="7" :y="row.candle.bodyY" width="10" :height="row.candle.bodyHeight" fill="currentColor" />
           </svg>
           <span v-else class="candle-unavailable muted" title="当前 K 线数据不足">--</span>
           <div>
@@ -181,6 +181,7 @@
       </el-table-column>
       <el-table-column label="趋势" min-width="120" class-name="trend-column">
         <template #default="{ row }">
+          <div :class="[row.diDirection.startsWith('多头') ? 'up' : row.diDirection.startsWith('空头') ? 'down' : 'muted', { 'macd-weakening': row.diDirection.endsWith('减弱') }]">{{ row.diDirection }}</div>
           <div class="adx-line">
             <span><span class="muted">ADX</span> {{ formatTrendValue(row.adx) }}</span>
             <el-tooltip placement="top">
@@ -194,13 +195,15 @@
             <span class="up"><span class="muted">PDI</span> {{ formatTrendValue(row.pdi) }}</span>
             <span class="down"><span class="muted">MDI</span> {{ formatTrendValue(row.mdi) }}</span>
           </div>
-          <span :class="[row.diDirection.startsWith('多头') ? 'up' : row.diDirection.startsWith('空头') ? 'down' : 'muted', { 'macd-weakening': row.diDirection.endsWith('减弱') }]">{{ row.diDirection }}</span>
         </template>
       </el-table-column>
-      <el-table-column label="实时阻力 / 支撑" min-width="145">
+      <el-table-column label="实时阻力 / 支撑" min-width="120">
         <template #default="{ row }">
           <SupportResistanceInfo :snapshot="row.supportResistance" nearest-only />
         </template>
+      </el-table-column>
+      <el-table-column label="RSI" align="center" header-align="center" min-width="60" sortable="custom" prop="rsi">
+        <template #default="{ row }"><span :class="rsiClass(row.rsi)">{{ row.rsi == null || !Number.isFinite(row.rsi) ? '--' : row.rsi.toFixed(1) }}</span></template>
       </el-table-column>
       <el-table-column label="EMA" min-width="110" class-name="ema-column">
         <template #default="{ row }">
@@ -210,8 +213,8 @@
           <span class="ema-slope" :class="directionClass(row.emaSlope)" :title="`EMA${row.fastEmaPeriod}斜率（回看周期使用机器人配置）`">{{ signed(row.emaSlope) }}{{ row.emaSlope == null ? '' : '%' }}</span>
         </template>
       </el-table-column>
-      <el-table-column label="RSI" align="center" header-align="center" min-width="60" sortable="custom" prop="rsi">
-        <template #default="{ row }"><span :class="rsiClass(row.rsi)">{{ row.rsi == null || !Number.isFinite(row.rsi) ? '--' : row.rsi.toFixed(1) }}</span></template>
+      <el-table-column label="预量" align="center" header-align="center" min-width="65" prop="volumeRatio" sortable="custom">
+        <template #default="{ row }">{{ format(row.volumeRatio) }}x</template>
       </el-table-column>
       <el-table-column label="MACD 实时 · H" min-width="160" sortable="custom" prop="macdHistogram">
         <template #default="{ row }">
@@ -251,8 +254,8 @@
             </div>
         </template>
       </el-table-column>
-      <el-table-column label="预量" align="center" header-align="center" min-width="65" prop="volumeRatio" sortable="custom">
-        <template #default="{ row }">{{ format(row.volumeRatio) }}x</template>
+      <el-table-column label="ATR" align="center" header-align="center" min-width="63" prop="atrPercent" sortable="custom">
+        <template #default="{ row }">{{ format(row.atrPercent) }}%</template>
       </el-table-column>
       <el-table-column label="资金流" width="100" header-align="center" prop="netInflowPercent" sortable="custom">
         <template #default="{ row }">
@@ -270,9 +273,6 @@
               </div>
             </div>
         </template>
-      </el-table-column>
-      <el-table-column label="ATR" align="center" header-align="center" min-width="63" prop="atrPercent" sortable="custom">
-        <template #default="{ row }">{{ format(row.atrPercent) }}%</template>
       </el-table-column>
       <el-table-column label="社区情绪" min-width="80">
         <template #default="{ row }">
@@ -1198,10 +1198,10 @@ onUnmounted(() => {
 .macd-data-row { position: relative; min-height: 20px; }
 .macd-data-row > span:not(.macd-row-chart) { position: relative; z-index: 1; }
 .macd-row-chart { position: absolute; left: 36px; right: 0; top: 1px; bottom: 1px; padding: 0; border: 0; pointer-events: none; }
-.macd-row-chart::before { content: ''; position: absolute; left: 50%; top: 0; bottom: 0; width: 1px; background: var(--text-secondary); opacity: .45; }
+.macd-row-chart::before { content: ''; position: absolute; left: 50%; top: 15%; bottom: 15%; width: 1px; background: var(--text-secondary); opacity: .45; }
 .macd-h-value { position: absolute; right: 50%; top: 0; bottom: 0; display: flex; align-items: center; padding-right: 5px; color: var(--text-secondary); font-variant-numeric: tabular-nums; font-size: 11px; }
 .macd-h-value.value-right { left: 50%; right: auto; padding-right: 0; padding-left: 5px; }
-.macd-chart-bar { position: absolute; top: 0; height: 100%; margin: 0; padding: 0; border: 0; background: currentColor; opacity: .28; }
+.macd-chart-bar { position: absolute; top: 15%; height: 70%; margin: 0; padding: 0; border: 0; background: currentColor; opacity: .28; }
 .previous-values .macd-chart-bar { opacity: .12; }
 
 /* 分组留白优先于缩小文字，当前值与辅助说明保持清晰层级。 */

@@ -301,6 +301,13 @@ function draw() {
     { title: '阻力', zone: snapshot?.nearestResistance, color: '#f56c6c', edge: 'lower' as const,
       detail: `（${snapshot?.nearestResistance?.touches ?? '--'}） ${snapshot?.resistanceDistanceATR != null && Number.isFinite(snapshot.resistanceDistanceATR) ? snapshot.resistanceDistanceATR.toFixed(2) : '--'} ATR` }
   ].flatMap(({ title, zone, color, edge, detail }) => zone ? [{ name: `${title} ${zone.lower === zone.upper ? price(zone.lower) : `${price(zone.lower)}～${price(zone.upper)}`}${detail}`, yAxis: zone[edge], lineStyle: { color }, label: { color, position: edge === 'upper' ? 'insideEndBottom' : 'insideEndTop' } }] : [])
+  // 始终标记最新一根 K 线的收盘价（含未收盘更新），不随鼠标查看历史时刻而改变。
+  const latestPrice = bars[last]!.c
+  const latestPriceLines = Number.isFinite(latestPrice) && latestPrice > 0 ? [{
+    name: '最新价', yAxis: latestPrice,
+    lineStyle: { color: '#409eff', type: 'dashed', width: 1, opacity: .8 },
+    label: { show: true, formatter: price(latestPrice), position: 'end', color: '#409eff', fontSize: 10 }
+  }] : []
   // 每个连续区间单独建线，时间断档后也不会误画跨区连接线。
   const starts = [...new Set(flow.segmentStarts.filter(start => start >= 0))]
   const cvdSeries = starts.map(start => ({
@@ -384,7 +391,7 @@ function draw() {
     series: [
       // 关键位标签移至右端，与左侧成交量刻度错开，仅显示文字。
       // 禁用 markLine 默认的两位小数坐标舍入，避免低价币的支撑、阻力被画到同一价位。
-      { name: 'K线', type: 'candlestick', data: bars.map(bar => [bar.o, bar.c, bar.l, bar.h]), itemStyle: { color: '#67c23a', color0: '#f56c6c', borderColor: '#67c23a', borderColor0: '#f56c6c' }, markLine: { precision: -1, symbol: 'none', label: { formatter: '{b}', position: 'insideEndTop', fontSize: 10 }, data: levels } },
+      { name: 'K线', type: 'candlestick', data: bars.map(bar => [bar.o, bar.c, bar.l, bar.h]), itemStyle: { color: '#67c23a', color0: '#f56c6c', borderColor: '#67c23a', borderColor0: '#f56c6c' }, markLine: { precision: -1, symbol: 'none', label: { formatter: '{b}', position: 'insideEndTop', fontSize: 10 }, data: [...levels, ...latestPriceLines] } },
       ...periods.map((period, i) => ({ name: `EMA${period}`, type: 'line', data: calculateEMA(bars.map(bar => bar.c), period).map((value, index) => index < period - 1 ? null : value), showSymbol: false, lineStyle: { width: 1, color: i ? '#9b8afb' : '#e6a23c' } })),
       ...cvdSeries,
       ...divergenceSeries,
