@@ -12,15 +12,25 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, onUnmounted, provide, ref } from 'vue'
+import { onMounted, onUnmounted, provide, ref, watch } from 'vue'
 import { PAGE_UNLOCK_KEY } from './composables/usePageUnlock'
 import { useBotStore } from './stores/bot'
 import { useTheme } from './composables/useTheme'
 import SystemLogs from './components/SystemLogs.vue'
+import { useStrategiesStore } from './stores/strategies'
 
 const botStore = useBotStore()
 const { initTheme } = useTheme()
-provide(PAGE_UNLOCK_KEY, { passwordVerified: ref(false), hasPassword: ref(false) })
+const passwordVerified = ref(false)
+provide(PAGE_UNLOCK_KEY, { passwordVerified, hasPassword: ref(false), expiresAt: ref<number | null>(null) })
+const strategiesStore = useStrategiesStore()
+// 解锁状态变化后重新获取对应视图；锁定立即清理敏感缓存，不等待下一次轮询。
+watch(passwordVerified, () => {
+  botStore.clearPrivateData()
+  strategiesStore.clearPrivateData()
+  void botStore.fetchStatus()
+  void strategiesStore.loadStrategies().catch(() => {})
+})
 
 const route = useRoute()
 const showLogsDrawer = useState<boolean>('system-logs-visible', () => false)

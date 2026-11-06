@@ -100,6 +100,7 @@
     </div>
 
   </div>
+  <PasswordDialog v-model="showScanPasswordDialog" @success="unlockScanMarkers" />
 </template>
 
 <script setup lang="ts">
@@ -118,6 +119,8 @@ import KLineScanResultDialog from './KLineScanResultDialog.vue'
 // 导入bot store
 import { useBotStore } from '../../stores/bot'
 import { useTheme } from '../../composables/useTheme'
+import PasswordDialog from '../PasswordDialog.vue'
+import { usePageUnlock } from '../../composables/usePageUnlock'
 
 // 图表组件引用
 const chartCanvasRef = ref<InstanceType<typeof KLineChartCanvas> | null>(null)
@@ -255,6 +258,22 @@ const scanRangeBounds = computed<[number, number] | null>(() => {
   ]
 })
 let scanRequestGeneration = 0
+
+const { passwordVerified: scanVerified, showPasswordDialog: showScanPasswordDialog, handleUnlock: requestScanUnlock, handlePasswordSuccess: verifyScanUnlock } = usePageUnlock({
+  onOpen: () => {},
+  onLock: () => {
+    scanRequestGeneration++
+    showScanMarkers.value = false
+    scanResults.value = []
+    scanDialogVisible.value = false
+  },
+})
+
+/** 扫描历史包含策略分析日志，单独解锁而不影响普通行情图表。 */
+async function unlockScanMarkers() {
+  await verifyScanUnlock()
+  if (scanVerified.value) handleScanMarkersChange(true)
+}
 
 // EMA周期选择 - 从botStore.config获取，如果未加载完成则使用默认值
 const selectedEmaPeriods = ref<number[]>(botStore.config?.emaPeriods?.length ? [...botStore.config.emaPeriods] : [20, 200])
@@ -596,6 +615,10 @@ const handleEMALinesChange = (show: boolean) => {
  */
 const handleScanMarkersChange = (show: boolean) => {
   if (show && !scanSupported.value) return
+  if (show && !scanVerified.value) {
+    requestScanUnlock()
+    return
+  }
 
   showScanMarkers.value = show
   scanDialogVisible.value = false
@@ -657,12 +680,11 @@ const loadScanResults = async () => {
       from: String(from),
       to: String(to)
     })
-    const response = await fetch(`/api/scan-results?${params}`)
-    const result: ScanResultApiResponse = await response.json()
+    const result = await $fetch<ScanResultApiResponse>(`/api/scan-results?${params}`)
 
     // 切换交易对、周期或关闭图层后，丢弃旧请求结果。
     if (generation !== scanRequestGeneration || symbol !== displaySymbol.value || timeframe !== selectedTimeframe.value) return
-    if (!response.ok || !result.success || !result.data) {
+    if (!result.success || !result.data) {
       throw new Error(result.message || '获取历史扫描结果失败')
     }
 

@@ -736,7 +736,8 @@ const clearAICache = async () => {
     )
 
     await $fetch('/api/ai/clear-cache', {
-      method: 'POST'
+      method: 'POST',
+      body: {},
     })
 
     ElMessage.success('AI缓存已清理完成')

@@ -52,7 +52,16 @@ cp .env.example .env
 | `DOUBAO_API_KEY` | 豆包 API Key | 否 |
 | `QWEN_API_KEY` | 阿里千问 API Key | 否 |
 | `OPENAI_API_KEY` | OpenAI API Key | 否 |
-| `CONFIG_EDIT_PASSWORD` | 配置编辑密码 | 否（推荐设置） |
+| `CONFIG_EDIT_PASSWORD` | 敏感 API 操作密码，验证一次有效 24 小时 | 是（敏感操作） |
+| `OPERATION_AUTH_ORIGIN` | 网站 HTTPS 来源，例如 `https://trade.example.com`，用于拒绝跨站操作 | 是（生产敏感操作） |
+
+普通页面、行情和首页概况可以直接访问。策略创建/修改/删除/启停、开平仓等写接口，以及完整策略、配置和 AI 档案，由服务端验证 HttpOnly Cookie；密码验证一次后 24 小时内无需重复输入，刷新也保留。主动锁定清除当前浏览器凭证，修改操作密码可使所有旧凭证失效。未配置操作密码时敏感接口拒绝执行。
+
+生产必须使用 HTTPS，并让 Node 进程实际加载 `.env` 或在进程管理器注入环境变量。`OPERATION_AUTH_ORIGIN` 填浏览器访问的来源，不填内部反代地址；开发环境可留空。旧的 `BASIC_AUTH_USERNAME`、`BASIC_AUTH_PASSWORD` 已停用。更新时需部署包含新中间件的新产物，不能只重启旧 `.output`。
+
+本机开发使用 `localhost`、`127.0.0.1` 或 `[::1]` 时，按实际请求的协议、主机和端口校验同源，即使 `.env` 保留线上 `OPERATION_AUTH_ORIGIN` 也可正常解锁。生产模式不适用此兼容；跨站请求、端口不匹配及缺少 Origin 的写请求仍拒绝。
+
+敏感请求限流按服务端连接 IP（登录每分钟 10 次）或凭证（写操作每分钟 120 次）执行；不信任访客伪造的转发头。反代部署下登录限流会共享代理连接 IP；多进程部署各进程独立计数，可在网关补充整体限流。
 
 ### 运行命令
 

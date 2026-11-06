@@ -15,17 +15,15 @@ export function maskStrategyData<T extends Strategy | null>(strategy: T): T {
   // 深拷贝避免污染原始对象
   const cloned = JSON.parse(JSON.stringify(strategy))
   
-  // 脱敏 aiPrompt.apiKey
-  if (cloned.aiPrompt?.apiKey) {
-    cloned.aiPrompt.apiKey = maskApiKey(cloned.aiPrompt.apiKey)
-  }
-  
-  // 脱敏 versionHistory 快照中的 apiKey
-  if (cloned.versionHistory && Array.isArray(cloned.versionHistory)) {
-    for (const version of cloned.versionHistory) {
-      if (version.snapshot?.aiPrompt?.apiKey) {
-        version.snapshot.aiPrompt.apiKey = maskApiKey(version.snapshot.aiPrompt.apiKey)
-      }
+  // 回滚可能产生嵌套历史；遍历全部对象，避免只处理一层快照而泄露密钥。
+  const pending: any[] = [cloned]
+  while (pending.length) {
+    const node = pending.pop()
+    if (!node || typeof node !== 'object') continue
+    for (const [key, value] of Object.entries(node)) {
+      if (/^(?:apiKey|apiSecret|secret|password|token|authorization)$/i.test(key) && typeof value === 'string') {
+        node[key] = maskApiKey(value)
+      } else if (value && typeof value === 'object') pending.push(value)
     }
   }
   

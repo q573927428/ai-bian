@@ -2,10 +2,12 @@
 
 import { getStrategyManagerIfAvailable } from '../../modules/strategy-manager'
 import { StrategyStore } from '../../modules/strategy-store/StrategyStore'
-import { maskStrategyData } from '../../utils/mask-strategy'
+import { operationSession } from '../../utils/operation-auth'
+import { strategyView } from '../../utils/public-view'
 
 export default defineEventHandler(async (event) => {
   try {
+    const verified = !!operationSession(event)
     const strategyManager = getStrategyManagerIfAvailable()
     if (!strategyManager) {
       // 首屏只读本地策略，既不等待 K 线同步，也不从读取接口重新触发初始化。
@@ -13,7 +15,7 @@ export default defineEventHandler(async (event) => {
       return {
         success: true,
         initializing: true,
-        data: strategies.map(s => maskStrategyData(s)),
+        data: strategies.map(s => strategyView(s, verified)),
         statuses: [],
         dailyTradeStatuses: {},
         dailyLossStatuses: {},
@@ -37,15 +39,15 @@ export default defineEventHandler(async (event) => {
     return {
       success: true,
       initializing: false,
-      data: strategies.map(s => maskStrategyData(s)),
-      statuses,
-      dailyTradeStatuses,
-      dailyLossStatuses
+      data: strategies.map(s => strategyView(s, verified)),
+      statuses: verified ? statuses : statuses.map(({ error, ...status }) => status),
+      dailyTradeStatuses: verified ? dailyTradeStatuses : {},
+      dailyLossStatuses: verified ? dailyLossStatuses : {},
     }
   } catch (error: any) {
     throw createError({
       statusCode: 500,
-      message: `获取策略列表失败: ${error.message}`
+      message: '获取策略列表失败'
     })
   }
 })

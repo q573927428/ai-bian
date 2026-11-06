@@ -11,6 +11,7 @@ export interface StrategiesState {
   selectedStrategy: Strategy | null
   showEditor: boolean
   editingStrategy: Strategy | null
+  requestGeneration: number
 }
 
 export const useStrategiesStore = defineStore('strategies', {
@@ -21,7 +22,8 @@ export const useStrategiesStore = defineStore('strategies', {
     error: null,
     selectedStrategy: null,
     showEditor: false,
-    editingStrategy: null
+    editingStrategy: null,
+    requestGeneration: 0,
   }),
 
   getters: {
@@ -44,13 +46,24 @@ export const useStrategiesStore = defineStore('strategies', {
   },
 
   actions: {
+    /** 锁定或重新解锁时清除详情并使旧列表请求失效。 */
+    clearPrivateData() {
+      this.requestGeneration++
+      this.strategies = []
+      this.strategyStatuses = {}
+      this.selectedStrategy = null
+      this.editingStrategy = null
+      this.showEditor = false
+    },
     // 加载策略列表
     async loadStrategies() {
+      const generation = this.requestGeneration
       this.loading = true
       this.error = null
 
       try {
         const res = await $fetch<any>('/api/strategies')
+        if (generation !== this.requestGeneration) return
         this.strategies = res.data || []
         
         // 更新状态

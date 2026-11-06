@@ -1,108 +1,104 @@
-// ==================== 首页解锁门禁与面板恢复回归测试 ====================
+// ==================== 服务端解锁恢复与敏感面板清理回归 ====================
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { createRenderer, ref } from 'vue'
 import { PAGE_UNLOCK_KEY, usePageUnlock } from '../app/composables/usePageUnlock.ts'
 
-const storageKey = 'page_password_verified'
-
-/** 使用无 DOM 渲染器运行真实挂载钩子，验证存储恢复而不启动交易服务。 */
-function mountUnlock(t, stored, shared = false) {
-  const previousStorage = globalThis.localStorage
-  const storage = new Map(stored === undefined ? [] : [[storageKey, stored]])
-  globalThis.localStorage = {
-    getItem: key => storage.get(key) ?? null,
-    setItem: (key, value) => storage.set(key, value),
-    removeItem: key => storage.delete(key)
+/** 运行真实 Vue 钩子，使用模拟服务端状态而非 localStorage 授权。 */
+async function mountUnlock(t, { verified = false, stored, shared = false } = {}) {
+  const oldStorage = globalThis.localStorage
+  const oldFetch = globalThis.$fetch
+  const storage = new Map(stored ? [['page_password_verified', stored]] : [])
+  let serverVerified = verified
+  const calls = []
+  globalThis.localStorage = { removeItem: key => storage.delete(key) }
+  globalThis.$fetch = async (path, options) => {
+    calls.push([path, options])
+    if (path === '/api/bot/lock') serverVerified = false
+    return { success: true, configured: true, verified: serverVerified, expiresAt: serverVerified ? Date.now() + 86400000 : null }
   }
   const renderer = createRenderer({
     createElement: () => ({}), createText: () => ({}), createComment: () => ({}),
     insert() {}, remove() {}, setText() {}, setElementText() {}, patchProp() {},
-    parentNode: () => null, nextSibling: () => null
+    parentNode: () => null, nextSibling: () => null,
   })
   const opened = []
   let lockCount = 0
-  let unlock
-  let peer
   let peerLockCount = 0
+  let unlock, peer
   const app = renderer.createApp({
     setup() {
       unlock = usePageUnlock({ onOpen: panel => opened.push(panel), onLock: () => lockCount++ })
-      if (shared) peer = usePageUnlock({ onOpen: panel => opened.push(`peer:${panel}`), onLock: () => peerLockCount++ })
+      if (shared) peer = usePageUnlock({ onOpen: panel => opened.push('peer:' + panel), onLock: () => peerLockCount++ })
       return () => null
-    }
+    },
   })
-  if (shared) app.provide(PAGE_UNLOCK_KEY, { passwordVerified: ref(false), hasPassword: ref(false) })
+  if (shared) app.provide(PAGE_UNLOCK_KEY, { passwordVerified: ref(false), hasPassword: ref(false), expiresAt: ref(null) })
   app.mount({})
+  await new Promise(resolve => setImmediate(resolve))
   t.after(() => {
     app.unmount()
-    if (previousStorage === undefined) delete globalThis.localStorage
-    else globalThis.localStorage = previousStorage
+    if (oldStorage === undefined) delete globalThis.localStorage
+    else globalThis.localStorage = oldStorage
+    if (oldFetch === undefined) delete globalThis.$fetch
+    else globalThis.$fetch = oldFetch
   })
-  return { unlock, peer, opened, storage, get lockCount() { return lockCount }, get peerLockCount() { return peerLockCount } }
+  return { unlock, peer, opened, storage, calls, authorize: () => { serverVerified = true },
+    get lockCount() { return lockCount }, get peerLockCount() { return peerLockCount } }
 }
 
-test('全局头部与页面共享验证结果，待办独立且锁定会同时关闭受保护面板', t => {
-  const fixture = mountUnlock(t, undefined, true)
-  fixture.unlock.handleOpenProtectedPanel('orders')
-  assert.equal(fixture.peer.showPasswordDialog.value, false)
-  fixture.unlock.handlePasswordSuccess()
+test('伪造 localStorage 不能解锁；服务器 Cookie 才能恢复刷新后的状态', async t => {
+  const fixture = await mountUnlock(t, { stored: JSON.stringify({ verified: true, timestamp: Date.now() }) })
+  assert.equal(fixture.unlock.passwordVerified.value, false)
+  assert.equal(fixture.storage.size, 0)
+  await fixture.unlock.handlePasswordSuccess()
+  assert.equal(fixture.unlock.passwordVerified.value, false)
+})
+
+test('有效 Cookie 在刷新后恢复，不要求重新输入密码', async t => {
+  const { unlock, opened } = await mountUnlock(t, { verified: true })
+  assert.equal(unlock.passwordVerified.value, true)
+  unlock.handleOpenProtectedPanel('config')
+  assert.equal(unlock.showPasswordDialog.value, false)
+  assert.deepEqual(opened, ['config'])
+})
+
+for (const panel of ['config', 'strategies', 'orders']) {
+  test(panel + ' 验证成功后恢复待办，同一次解锁可重复打开', async t => {
+    const fixture = await mountUnlock(t)
+    fixture.unlock.handleOpenProtectedPanel(panel)
+    assert.equal(fixture.unlock.showPasswordDialog.value, true)
+    assert.deepEqual(fixture.opened, [])
+    fixture.authorize()
+    await fixture.unlock.handlePasswordSuccess()
+    fixture.unlock.handleOpenProtectedPanel(panel)
+    assert.deepEqual(fixture.opened, [panel, panel])
+    assert.equal(fixture.storage.size, 0)
+  })
+}
+
+test('共享验证状态且锁定向后端清除 Cookie，关闭所有面板', async t => {
+  const fixture = await mountUnlock(t, { shared: true })
+  assert.equal(fixture.calls.length, 1, '同次挂载合并服务端状态请求')
+  fixture.authorize()
+  await fixture.unlock.handlePasswordSuccess()
   assert.equal(fixture.peer.passwordVerified.value, true)
-  assert.equal(fixture.peer.hasPassword.value, true)
-  fixture.peer.handleOpenProtectedPanel('config')
-  assert.deepEqual(fixture.opened, ['orders', 'peer:config'])
-  fixture.peer.clearPassword()
+  fixture.peer.handleOpenProtectedPanel('orders')
+  assert.deepEqual(fixture.opened, ['peer:orders'])
+  await fixture.peer.clearPassword()
+  assert.equal(fixture.calls.at(-1)[0], '/api/bot/lock')
+  assert.equal(fixture.calls.at(-1)[1].method, 'POST')
   assert.equal(fixture.unlock.passwordVerified.value, false)
   assert.equal(fixture.lockCount, 1)
   assert.equal(fixture.peerLockCount, 1)
 })
 
-for (const panel of ['config', 'strategies', 'orders']) {
-  test(`${panel} 在验证前不打开，验证成功后恢复且已解锁可直接打开`, t => {
-    const { unlock, opened, storage } = mountUnlock(t)
-    unlock.handleOpenProtectedPanel(panel)
-    assert.equal(unlock.showPasswordDialog.value, true)
-    assert.deepEqual(opened, [])
-    unlock.handlePasswordSuccess()
-    assert.equal(unlock.passwordVerified.value, true)
-    assert.deepEqual(opened, [panel])
-    assert.equal(JSON.parse(storage.get(storageKey)).verified, true)
-    unlock.handleOpenProtectedPanel(panel)
-    assert.deepEqual(opened, [panel, panel])
-  })
-}
-
-test('锁定会清理验证状态、存储及待恢复操作，并通知页面关闭管理面板', t => {
-  const fixture = mountUnlock(t)
-  fixture.unlock.handleOpenProtectedPanel('config')
-  fixture.unlock.clearPassword()
-  assert.equal(fixture.lockCount, 1)
-  assert.equal(fixture.unlock.passwordVerified.value, false)
-  assert.equal(fixture.unlock.hasPassword.value, false)
-  assert.equal(fixture.storage.has(storageKey), false)
-  fixture.unlock.handlePasswordSuccess()
+test('取消入口后独立解锁不执行旧操作', async t => {
+  const fixture = await mountUnlock(t)
+  fixture.unlock.handleOpenProtectedPanel('orders')
+  fixture.unlock.showPasswordDialog.value = false
+  fixture.unlock.handleUnlock()
+  fixture.authorize()
+  await fixture.unlock.handlePasswordSuccess()
   assert.deepEqual(fixture.opened, [])
 })
-
-test('取消入口验证后独立解锁，不打开旧入口', t => {
-  const { unlock, opened } = mountUnlock(t)
-  unlock.handleOpenProtectedPanel('orders')
-  unlock.showPasswordDialog.value = false
-  unlock.handleUnlock()
-  unlock.handlePasswordSuccess()
-  assert.deepEqual(opened, [])
-})
-
-test('挂载时恢复 24 小时内的验证记录', t => {
-  const { unlock } = mountUnlock(t, JSON.stringify({ verified: true, timestamp: Date.now() - 1000 }))
-  assert.equal(unlock.passwordVerified.value, true)
-  assert.equal(unlock.hasPassword.value, true)
-})
-
-for (const stored of [JSON.stringify({ verified: true, timestamp: Date.now() - 25 * 60 * 60 * 1000 }), '{broken']) {
-  test(`失效或损坏的验证记录保持锁定并移除：${stored}`, t => {
-    const { unlock, storage } = mountUnlock(t, stored)
-    assert.equal(unlock.passwordVerified.value, false)
-    assert.equal(storage.has(storageKey), false)
-  })
-}

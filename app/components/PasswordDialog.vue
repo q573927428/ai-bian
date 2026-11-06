@@ -4,6 +4,8 @@
     v-model="visible"
     title="请输入密码验证"
     :close-on-click-modal="false"
+    :close-on-press-escape="!loading"
+    :show-close="!loading"
     :style="{ width: '90%', maxWidth: '400px' }"
     append-to-body
     @closed="handleClosed"
@@ -22,7 +24,7 @@
       </el-form-item>
     </el-form>
     <template #footer>
-      <el-button @click="handleCancel">取消</el-button>
+      <el-button @click="handleCancel" :disabled="loading">取消</el-button>
       <el-button type="primary" @click="handleConfirm" :loading="loading">确认</el-button>
     </template>
   </el-dialog>
@@ -36,10 +38,10 @@ interface Props {
   modelValue: boolean
 }
 
-/** 密码验证结果事件；成功时携带本次已验证密码，供高风险接口二次校验。 */
+/** 服务端签发 Cookie 后仅通知验证完成，不向调用方传播明文密码。 */
 interface Emits {
   (e: 'update:modelValue', value: boolean): void
-  (e: 'success', password: string): void
+  (e: 'success'): void
 }
 
 const props = defineProps<Props>()
@@ -58,13 +60,12 @@ const passwordInput = ref()
 
 // 待关闭后触发的成功回调
 let pendingSuccess = false
-let verifiedPassword = ''
 
 // 检查是否需要密码
 const checkRequiresPassword = async (): Promise<boolean> => {
   try {
     const res = await $fetch<any>('/api/bot/check-password')
-    if (res.success && !res.requiresPassword) {
+    if (res.success && res.verified) {
       return false
     }
     return true
@@ -75,6 +76,7 @@ const checkRequiresPassword = async (): Promise<boolean> => {
 }
 
 const handleConfirm = async () => {
+  if (loading.value) return
   if (!form.value.password.trim()) {
     ElMessage.warning('请输入密码')
     return
@@ -90,14 +92,14 @@ const handleConfirm = async () => {
     if (res.success) {
       ElMessage.success('验证成功')
       // 先关闭对话框，emit('success') 延迟到 @closed 中执行
-      verifiedPassword = form.value.password
+      form.value.password = ''
       pendingSuccess = true
       visible.value = false
     } else {
       ElMessage.error(res.message || '密码错误')
     }
   } catch (error: any) {
-    ElMessage.error('验证失败: ' + (error.message || '未知错误'))
+    ElMessage.error(error.data?.message || error.data?.statusMessage || '验证失败，请稍后重试')
   } finally {
     loading.value = false
   }
@@ -112,17 +114,19 @@ const handleClosed = () => {
   // 对话框完全关闭后，再触发 success 事件
   if (pendingSuccess) {
     pendingSuccess = false
-    emit('success', verifiedPassword)
-    verifiedPassword = ''
+    emit('success')
   }
 }
 
-watch(visible, async (newVal) => {
+watch(visible, async (newVal, _previous, onCleanup) => {
+  let cancelled = false
+  onCleanup(() => { cancelled = true })
   if (newVal) {
     const requiresPassword = await checkRequiresPassword()
+    // 取消或锁定后丢弃迟到的查询结果，不能继续执行原先待办。
+    if (cancelled || !visible.value) return
     if (!requiresPassword) {
-      // 不需要密码，直接关闭，成功事件会在 @closed 中触发
-      verifiedPassword = ''
+      // Cookie 仍有效时直接继续操作，不重复弹出密码框。
       pendingSuccess = true
       visible.value = false
       return

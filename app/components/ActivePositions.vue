@@ -107,7 +107,7 @@
 
 <script setup lang="ts">
 // ==================== 当前持仓固定面板 ====================
-import { computed, reactive, ref, onMounted, onUnmounted } from 'vue'
+import { computed, reactive, ref, onMounted, onUnmounted, watch } from 'vue'
 import { useBotStore } from '../stores/bot'
 import { formatPrice } from './kline-chart/utils/kline-formatters'
 import PasswordDialog from './PasswordDialog.vue'
@@ -179,9 +179,12 @@ function selectChartSymbol(symbol: string, mainTimeframe?: string) {
 }
 
 // 加载持仓信息
+let positionRequest = 0
 const loadPositions = async () => {
+  const request = ++positionRequest
   try {
     const response = await $fetch('/api/positions')
+    if (request !== positionRequest) return
     if (response.success) {
       positions.value = response.data
       chartPositions.value = response.data
@@ -194,6 +197,14 @@ const loadPositions = async () => {
     console.error('加载持仓信息失败:', error)
   }
 }
+
+// 解锁立即加载推理详情，锁定立即丢弃旧详情并重新获取公开持仓视图。
+watch(passwordVerified, () => {
+  positions.value = []
+  chartPositions.value = []
+  selectedChartPosition.value = null
+  void loadPositions()
+})
 
 // 获取持仓的当前价格（从 bot store 共享价格中读取）
 function getCurrentPrice(symbol: string): number {
@@ -301,8 +312,10 @@ const toggleAISection = (symbol: string) => {
 }
 
 /** 验证成功后仅展开本次请求且仍存在的持仓，避免平仓后展示失效详情。 */
-function handleDetailPasswordSuccess() {
-  verifyDetailPassword()
+async function handleDetailPasswordSuccess() {
+  await verifyDetailPassword()
+  if (!passwordVerified.value) return
+  await loadPositions()
   const symbol = pendingDetailSymbol.value
   pendingDetailSymbol.value = ''
   if (positions.value.some(position => position.symbol === symbol && position.reasoning)
@@ -312,7 +325,7 @@ function handleDetailPasswordSuccess() {
 }
 
 /**
- * 请求手动平仓；先记录目标交易对，再要求完成本次操作的密码验证。
+ * 请求手动平仓；有效 Cookie 自动复用，无需每次重新输入密码。
  */
 const requestClosePosition = (symbol: string) => {
   pendingCloseSymbol.value = symbol
@@ -320,9 +333,9 @@ const requestClosePosition = (symbol: string) => {
 }
 
 /**
- * 密码验证成功后执行二次确认，并将密码交给服务端再次校验。
+ * 解锁完成后确认交易目标；服务端统一验证 Cookie，不传明文密码。
  */
-const handlePasswordSuccess = async (password: string) => {
+const handlePasswordSuccess = async () => {
   const symbol = pendingCloseSymbol.value
   pendingCloseSymbol.value = ''
   if (!symbol) return
@@ -344,7 +357,7 @@ const handlePasswordSuccess = async (password: string) => {
 
     const response = await $fetch('/api/positions/close', {
       method: 'POST',
-      body: { symbol, password }
+      body: { symbol }
     } as any) as any
 
     if (response.success) {

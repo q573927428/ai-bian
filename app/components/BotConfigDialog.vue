@@ -328,10 +328,13 @@ const availableSymbols = computed(() => {
 })
 
 // 加载配置
+let configRequest = 0
 const loadConfig = async () => {
+  const request = ++configRequest
   loading.value = true
   try {
     const res = await $fetch<any>('/api/bot/config')
+    if (request !== configRequest || !visible.value) return
     if (res.success && res.data) {
       const config = JSON.parse(JSON.stringify(res.data))
       
@@ -477,6 +480,12 @@ watch(visible, (newVal) => {
     // 页面本身已经完成解锁，配置组件不再重复要求密码验证。
     loadConfig()
     showConfigDialog.value = true
+  } else {
+    // 锁定或关闭后清理完整配置，迟到响应不得重新填回敏感表单。
+    configRequest++
+    form.value = null
+    originalSymbols.value = []
+    showConfigDialog.value = false
   }
 })
 

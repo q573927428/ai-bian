@@ -1,6 +1,8 @@
 // GET /api/positions - 获取所有活跃仓位
 
 import { positionManager } from '../../modules/position-manager/PositionManager'
+import { operationSession } from '../../utils/operation-auth'
+import { positionView } from '../../utils/public-view'
 
 export default defineEventHandler(async (event) => {
   try {
@@ -21,7 +23,7 @@ export default defineEventHandler(async (event) => {
 
     return {
       success: true,
-      data: positions,
+      data: positions.map(position => positionView(position, !!operationSession(event))),
       stats
     }
   } catch (error: any) {

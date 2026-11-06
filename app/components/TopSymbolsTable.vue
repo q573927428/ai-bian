@@ -394,7 +394,7 @@ function isConfiguredSymbol(symbol: string): boolean {
 async function fetchConfiguredSymbols() {
   configuredSymbols.value = null
   try {
-    const res = await $fetch<{ success: boolean; data?: { symbols?: string[] } }>('/api/bot/config')
+    const res = await $fetch<{ success: boolean; data?: { symbols?: string[] } }>('/api/market/config')
     if (res.success && Array.isArray(res.data?.symbols)) {
       configuredSymbols.value = new Set(res.data.symbols.map(normalizeSymbol))
     }

@@ -164,6 +164,8 @@ const { passwordVerified, showPasswordDialog, handleUnlock, handlePasswordSucces
     selectedPromptUrl.value = undefined
     pendingAnalysis.value = null
     showPasswordDialog.value = false
+    closeAnalysisNotifications()
+    closeDesktopNotifications()
   }
 })
 
@@ -227,8 +229,9 @@ function openAnalysisDetail(log: LogEntry): void {
 }
 
 /** 验证后恢复点击时的结果快照，避免通知过期或轮询替换导致详情丢失。 */
-function handleDetailPasswordSuccess(): void {
-  handlePasswordSuccess()
+async function handleDetailPasswordSuccess(): Promise<void> {
+  await handlePasswordSuccess()
+  if (!passwordVerified.value) return
   const log = pendingAnalysis.value
   pendingAnalysis.value = null
   if (log) openAnalysisDetail(log)

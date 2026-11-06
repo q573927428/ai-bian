@@ -1,9 +1,12 @@
 import { getStrategyManager } from '../../modules/strategy-manager'
 import { logger } from '../../utils/logger'
 import type { CryptoBalance } from '../../../types'
+import { operationSession } from '../../utils/operation-auth'
+import { positionView, strategyView } from '../../utils/public-view'
 
 export default defineEventHandler(async (event) => {
   try {
+    const verified = !!operationSession(event)
     const manager = getStrategyManager()
     const engine = manager.getEngine()
     const positionManager = engine.getPositionManager()
@@ -11,7 +14,7 @@ export default defineEventHandler(async (event) => {
 
     const allStrategies = await manager.getAllStrategies()
     // 状态页需要展示较长的运行记录，但仍受内存日志上限约束，避免响应无限增长。
-    const logs = logger.getRecentLogs(1000)
+    const logs = verified ? logger.getRecentLogs(1000) : []
 
     let cryptoBalances: CryptoBalance[] = []
     try {
@@ -59,17 +62,17 @@ export default defineEventHandler(async (event) => {
           currentPositions: positions.length,
         },
         config: {
-          strategies: allStrategies,
+          strategies: allStrategies.map(strategy => strategyView(strategy, verified)),
         },
         logs,
         cryptoBalances,
-        positions,
+        positions: positions.map(position => positionView(position, verified)),
       },
     }
   } catch (error: any) {
     return {
       success: false,
-      message: error.message || '获取状态失败',
+      message: '获取状态失败',
     }
   }
 })

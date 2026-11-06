@@ -20,10 +20,12 @@ export const useBotStore = defineStore('bot', {
     statusConfig: null as {
       strategies: any[]
     } | null,
-    botConfig: null as BotConfig | null,
+    // 行情消费者只接收展示配置；完整配置仅由受保护的配置面板读取。
+    botConfig: null as Pick<BotConfig, 'symbols' | 'initialCapital' | 'emaPeriods' | 'defaultTimeframe' | 'chartMarkerConfig' | 'supportResistanceConfig' | 'squareHeatWindows'> | null,
     logs: [] as LogEntry[],
     cryptoBalances: [] as CryptoBalance[],
     isLoading: false,
+    statusGeneration: 0,
     error: null as string | null,
 
     // 性能与限流状态
@@ -65,6 +67,12 @@ export const useBotStore = defineStore('bot', {
   },
 
   actions: {
+    /** 锁定时作废已发出的敏感状态查询，避免迟到响应重新填回日志。 */
+    clearPrivateData() {
+      this.statusGeneration++
+      this.logs = []
+      this.statusConfig = null
+    },
     // ========== 共享价格管理 ==========
 
     // 获取需要订阅的所有交易对
@@ -277,6 +285,7 @@ export const useBotStore = defineStore('bot', {
     // ========== 状态管理 ==========
 
     async fetchStatus() {
+      const generation = this.statusGeneration
       try {
         this.isLoading = true
         this.error = null
@@ -285,6 +294,7 @@ export const useBotStore = defineStore('bot', {
         this.fetchBotConfig()
 
         const response = await $fetch<StatusResponse>('/api/bot/status')
+        if (generation !== this.statusGeneration) return
         
         if (response.success) {
           this.state = response.data!.state
@@ -306,7 +316,7 @@ export const useBotStore = defineStore('bot', {
 
     async fetchBotConfig() {
       try {
-        const response = await $fetch<{ success: boolean, data: BotConfig }>('/api/bot/config')
+        const response = await $fetch<{ success: boolean, data: BotConfig }>('/api/market/config')
         if (response.success) {
           this.botConfig = response.data
         }

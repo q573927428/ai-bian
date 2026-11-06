@@ -1,41 +1,13 @@
-export default defineEventHandler(async (event) => {
-  try {
-    const body = await readBody(event)
-    const config = useRuntimeConfig()
-    const { password } = body
-    const configPassword = config.configEditPassword
-    
-    if (!password) {
-      return {
-        success: false,
-        message: '密码不能为空'
-      }
-    }
-    
-    // 如果设置了密码，需要验证
-    if (configPassword && configPassword.length > 0) {
-      if (password === configPassword) {
-        return {
-          success: true,
-          message: '密码验证通过'
-        }
-      } else {
-        return {
-          success: false,
-          message: '密码错误'
-        }
-      }
-    } else {
-      // 没有设置密码，直接通过
-      return {
-        success: true,
-        message: '密码验证通过（未设置密码）'
-      }
-    }
-  } catch (error: any) {
-    return {
-      success: false,
-      message: error.message || '验证失败'
-    }
+// ==================== 操作密码验证与浏览器凭证签发 ====================
+import { createError, defineEventHandler, readBody } from 'h3'
+import { issueOperationSession, matchesOperationPassword, operationPassword } from '../../utils/operation-auth'
+
+export default defineEventHandler(async event => {
+  const expected = operationPassword(event)
+  if (!expected) throw createError({ statusCode: 503, message: '请先配置 CONFIG_EDIT_PASSWORD，敏感操作暂不可用' })
+  const body = await readBody(event)
+  if (typeof body?.password !== 'string' || !matchesOperationPassword(body.password, expected)) {
+    throw createError({ statusCode: 401, message: '操作密码错误' })
   }
+  return { success: true, verified: true, expiresAt: issueOperationSession(event), message: '已解锁，24 小时内无需重复输入' }
 })

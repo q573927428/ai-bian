@@ -5,22 +5,13 @@ import { positionManager } from '../../modules/position-manager/PositionManager'
 export default defineEventHandler(async (event) => {
   try {
     const body = await readBody(event)
-    const { symbol, password } = body
-    const config = useRuntimeConfig()
-    const configPassword = config.configEditPassword
+    // 统一中间件已验证 24 小时 Cookie；平仓无需再次传送明文密码。
+    const { symbol } = body
 
     if (!symbol) {
       throw createError({
         statusCode: 400,
         message: '交易对不能为空'
-      })
-    }
-
-    // 平仓属于资金风险操作：配置了操作密码时，服务端必须再次校验，避免绕过前端弹窗直接调用接口。
-    if (configPassword && password !== configPassword) {
-      throw createError({
-        statusCode: 401,
-        message: password ? '密码错误' : '请输入操作密码'
       })
     }
 
