@@ -420,8 +420,9 @@ export class BinanceRateLimiter {
     }
   }
 
+  /** 本地估算与交易所观测使用相同的整分钟窗口，避免旧请求拖延新窗口的限流恢复。 */
   private pruneLocalWeightEvents(): void {
-    const cutoff = Date.now() - 60000
+    const cutoff = Math.floor(Date.now() / 60000) * 60000
     this.localWeightEvents = this.localWeightEvents.filter(event => event.timestamp >= cutoff)
   }
 

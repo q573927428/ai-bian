@@ -70,6 +70,34 @@ test('后台达到阈值暂停时账户仍有预留额度，跨分钟恢复', ()
   }
 })
 
+test('本地权重在整分钟边界归零并重新累计，旧窗口不会继续暂停后台', () => {
+  const originalNow = Date.now
+  let now = 179998
+  Date.now = () => now
+  try {
+    const limiter = new BinanceRateLimiter()
+    // 上一分钟临近结束时达到默认暂停阈值，跨分钟后应立即恢复额度。
+    for (let i = 0; i < 90; i++) limiter.recordLocalWeight('marketData', 'depth:BTCUSDT:1000')
+    assert.equal(limiter.getSnapshot().localEstimatedWeight1m, 1800)
+    assert.equal(limiter.shouldPauseBackgroundWork(), true)
+    now = 179999
+    assert.equal(limiter.getSnapshot().localEstimatedWeight1m, 1800)
+    now = 180000
+    assert.equal(limiter.getSnapshot().localEstimatedWeight1m, 0)
+    assert.equal(limiter.shouldPauseBackgroundWork(), false)
+    limiter.recordLocalWeight('marketData', 'depth:BTCUSDT:1000')
+    assert.equal(limiter.getSnapshot().localEstimatedWeight1m, 20)
+    now = 239999
+    assert.equal(limiter.getSnapshot().localEstimatedWeight1m, 20)
+    // 空闲跨过多个窗口后，新请求也只能累计当前窗口的权重。
+    now = 360000
+    limiter.recordLocalWeight('marketData', 'klines:BTCUSDT:5m:0:0:3')
+    assert.equal(limiter.getSnapshot().localEstimatedWeight1m, 1)
+  } finally {
+    Date.now = originalNow
+  }
+})
+
 test('K线估算根据请求limit计权，429仍暂停账户', () => {
   const limiter = new BinanceRateLimiter()
   limiter.recordLocalWeight('marketData', 'klines:BTCUSDT:5m:0:0:1000')

@@ -47,7 +47,7 @@
               <span class="info-label">1分钟 API 权重</span>
               <strong :class="['weight-value', weightStatus]">{{ rateLimitData.usedWeight1m || 0 }}</strong>
             </div>
-            <div class="weight-stat weight-estimate" title="根据本系统最近1分钟请求估算的权重，与 Binance 返回的权重可能不同">
+            <div class="weight-stat weight-estimate" title="根据本系统当前整分钟内发起的请求估算权重，每逢整分钟重置；接口权重估算与 Binance 返回值可能不同">
               <span class="info-label">本地估算</span>
               <strong class="estimate-value">{{ rateLimitData.localEstimatedWeight1m ?? '-' }}</strong>
             </div>

@@ -26,7 +26,7 @@
       </nav>
       <div class="header-right">
       <!-- 状态与权重共享详情入口，与右侧按钮统一使用组内间距。 -->
-        <button type="button" class="header-status" :aria-label="`${isRunning ? '运行中' : '已停止'}，1分钟 API 权重 ${apiWeight ?? '暂无数据'}，本地估算 ${estimatedWeight ?? '暂无数据'}，查看系统性能`" title="1分钟 API 权重 / 本地最近60秒估算，每2秒刷新；点击查看详情" @click="emit('performance')">
+        <button type="button" class="header-status" :aria-label="`${isRunning ? '运行中' : '已停止'}，1分钟 API 权重 ${apiWeight ?? '暂无数据'}，本地估算 ${estimatedWeight ?? '暂无数据'}，查看系统性能`" title="1分钟 API 权重 / 本地当前整分钟估算，整分钟重置，每2秒刷新；点击查看详情" @click="emit('performance')">
           <div :class="['status-dot-sm', isRunning ? 'status-running' : 'status-stopped']" />
           <span class="header-weight"><b>{{ apiWeight ?? '-' }}</b></span>
           <span class="header-weight"><span aria-hidden="true">/</span><b>{{ estimatedWeight ?? '-' }}</b></span>
