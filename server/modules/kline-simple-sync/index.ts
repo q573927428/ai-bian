@@ -56,7 +56,6 @@ export class KLineSimpleSyncService {
   private initialSyncQueue: string[] = []
   private initialSyncSymbols: Set<string> = new Set()
   private isInitialSyncRunning = false
-  private initialSyncTimeframes: Set<KLineTimeframe> = new Set()
 
   constructor(config?: Partial<KLineSyncConfig>) {
     this.config = { ...DEFAULT_CONFIG, ...config }
@@ -146,10 +145,6 @@ export class KLineSimpleSyncService {
   // 获取时间间隔秒数
   private sleep(ms: number): Promise<void> {
     return new Promise(resolve => nodeSetTimeout(resolve, ms))
-  }
-
-  private hasInitialBackfillWork(): boolean {
-    return this.isInitialSyncRunning || this.initialSyncQueue.length > 0 || this.initialSyncTimeframes.size > 0
   }
 
   private getIntervalSeconds(timeframe: KLineTimeframe): number {
@@ -761,10 +756,6 @@ export class KLineSimpleSyncService {
       return
     }
 
-    if (this.hasInitialBackfillWork()) {
-      return
-    }
-
     if (this.isHighFrequencySyncing) {
       return
     }
@@ -784,6 +775,8 @@ export class KLineSimpleSyncService {
         processedTimeframes += 1
         
         for (const symbol of this.config.symbols) {
+          // 仅跳过排队或正在初始化的交易对，已有交易对继续更新。
+          if (this.initialSyncSymbols.has(symbol)) continue
           if (binanceApiGateway.shouldPauseBackgroundWork()) {
             return
           }
@@ -975,10 +968,6 @@ export class KLineSimpleSyncService {
       return
     }
 
-    if (this.hasInitialBackfillWork()) {
-      return
-    }
-
     if (binanceApiGateway.shouldPauseBackgroundWork()) {
       console.warn(`⏸️  ${timeframe} 周期同步已暂停: ${binanceApiGateway.getBackgroundPauseReason()}`)
       return
@@ -1023,6 +1012,8 @@ export class KLineSimpleSyncService {
     
     const results = []
     for (const symbol of this.config.symbols) {
+      // 新交易对由初始化队列补齐历史，避免自动同步重复回填同一份数据。
+      if (this.initialSyncSymbols.has(symbol)) continue
       if (binanceApiGateway.shouldPauseBackgroundWork()) {
         console.warn(`⏸️  ${timeframe} 周期同步中止: ${binanceApiGateway.getBackgroundPauseReason()}`)
         break
@@ -1227,13 +1218,9 @@ export class KLineSimpleSyncService {
     this.processInitialSyncQueue()
   }
 
-  private async waitForTimeframeIdle(timeframe: KLineTimeframe): Promise<void> {
-    const start = Date.now()
-    while (this.isSyncing.get(timeframe)) {
-      if (Date.now() - start > 2 * 60 * 1000) {
-        console.warn(`[KLineSync] 等待 ${timeframe} 周期同步空闲超时，继续执行初始化同步`)
-        return
-      }
+  /** 只等待同一交易对、同一周期的已有写入，不让其他交易对的整轮同步阻塞初始化。 */
+  private async waitForSymbolIdle(symbol: string, timeframe: KLineTimeframe): Promise<void> {
+    while (this.syncStatus.get(this.getStatusKey(symbol, timeframe))?.status === 'syncing') {
       await this.sleep(1000)
     }
   }
@@ -1264,14 +1251,13 @@ export class KLineSimpleSyncService {
             continue
           }
 
-          this.initialSyncTimeframes.add(timeframe)
           try {
-            await this.waitForTimeframeIdle(timeframe)
+            await this.waitForSymbolIdle(symbol, timeframe)
+            // 等待期间可能热移除了交易对，不能再次回填已经删除的数据。
+            if (!this.config.symbols.includes(symbol)) break
             await this.syncSymbolKLine(symbol, timeframe, { force: true })
           } catch (error: any) {
             console.error(`[KLineSync] 初始化同步失败: ${symbol}/${timeframe}`, error.message)
-          } finally {
-            this.initialSyncTimeframes.delete(timeframe)
           }
 
           await this.sleep(1000)
@@ -1283,7 +1269,6 @@ export class KLineSimpleSyncService {
       }
     } finally {
       this.isInitialSyncRunning = false
-      this.initialSyncTimeframes.clear()
 
       if (this.initialSyncQueue.length > 0) {
         this.processInitialSyncQueue()
