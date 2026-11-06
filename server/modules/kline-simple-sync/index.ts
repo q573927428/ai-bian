@@ -1,4 +1,4 @@
-import { appendSimpleKLineData, getSimpleLastKLineTimestamp, updateLastKLine, deleteKLineFile, hasMissingMoneyFlow } from '../../utils/kline-simple-storage'
+import { appendSimpleKLineData, getSimpleLastKLineTimestamp, deleteKLineFile, hasMissingMoneyFlow } from '../../utils/kline-simple-storage'
 import type { KLineData, KLineTimeframe, KLineSyncConfig, TimeframeSyncConfig } from '../../../types/kline-simple'
 import { DEFAULT_CONFIG } from '../../../types/kline-simple'
 import {
@@ -46,6 +46,9 @@ export class KLineSimpleSyncService {
   private readonly HIGH_FREQUENCY_INTERVAL = 120 * 1000
   // 高频同步状态锁
   private isHighFrequencySyncing = false
+  // 仅记录成功保存且覆盖最近9根的请求起始时间，避免慢请求完成后延长数据有效期。
+  private recentKLineSyncs = new Map<string, number>()
+  private readonly SYNC_DEDUP_WINDOW_MS = 15_000
   // 所有定时K线轮次共用串行队列，避免整点多周期与高频任务互相挤压。
   private scheduledSyncTail: Promise<void> = Promise.resolve()
   private autoSyncGeneration = 0
@@ -326,6 +329,8 @@ export class KLineSimpleSyncService {
       
       // 旧库缺少资金字段时，复用历史同步与限流，不在看板读取时发起外部请求。
       if (!lastTimestamp || force || hasMissingMoneyFlow(symbol, timeframe)) {
+        // 历史重建或字段修复可能替换已有数据，不能继续复用重建前的成功记录。
+        this.recentKLineSyncs.delete(key)
         // 首次同步或强制同步，使用manualSyncHistory获取maxBars条数据
         console.log(`[首次同步] 开始获取历史数据: ${symbol}/${timeframe}`)
         const historyResult = await this.manualSyncHistory(symbol, timeframe, {
@@ -358,10 +363,15 @@ export class KLineSimpleSyncService {
           throw new Error(`首次同步失败: ${historyResult.message}`)
         }
       } else {
+        if (this.hasRecentKLineSync(symbol, timeframe)) {
+          this.updateStatus(symbol, timeframe, { status: 'idle' })
+          return { success: true, message: '15秒内已成功同步，跳过重复请求', symbol, timeframe, count: 0, newBars: 0 }
+        }
         // 已经有数据，进行增量更新
-        // 修复：不要使用 lastTimestamp + 1，直接使用 lastTimestamp
-        // 这样可以确保获取到最后一根未收盘K线
-        const startTime = lastTimestamp * 1000 // 转换为毫秒
+        // 同一次请求兼顾近期修正和缺失补齐，固定同步后无需再单独请求最近9根。
+        const startTime = Math.max(0, lastTimestamp - 8 * this.getIntervalSeconds(timeframe)) * 1000
+        const requestedAt = Date.now()
+        this.recentKLineSyncs.delete(key)
         
         // 获取数据
         const klineData = await this.fetchKLineFromBinance(
@@ -370,7 +380,7 @@ export class KLineSimpleSyncService {
           startTime, 
           undefined, // endTime
           // 增量只请求缺失区间；长时间离线仍保留原有单批上限。
-          Math.min(initialBars, Math.max(2, Math.ceil((Date.now() - startTime) / (this.getIntervalSeconds(timeframe) * 1000)) + 1))
+          Math.min(initialBars, Math.max(9, Math.ceil((Date.now() - startTime) / (this.getIntervalSeconds(timeframe) * 1000)) + 1))
         )
         
         if (klineData.length === 0) {
@@ -390,38 +400,13 @@ export class KLineSimpleSyncService {
           }
         }
         
-        // 分离数据：新K线和需要更新的最后一根K线
-        let newBars: KLineData[] = []
-        let updateBar: KLineData | null = null
-        
-        for (const item of klineData) {
-          if (item.timestamp > lastTimestamp) {
-            newBars.push(item) // 新K线
-          } else if (item.timestamp === lastTimestamp) {
-            updateBar = item // 未收盘K线（需要更新）
-          }
+        // 事务内覆盖整个回看范围，历史修正也必须保存成功才能参与去重。
+        if (!appendSimpleKLineData(symbol, timeframe, klineData)) {
+          throw new Error('保存K线数据失败')
         }
-        
-        let updatedCount = 0
-        let appendedCount = 0
-        
-        // 1. 更新最后一根K线（如果存在未收盘K线）
-        if (updateBar) {
-          const updateSuccess = updateLastKLine(symbol, timeframe, updateBar)
-          if (updateSuccess) {
-            updatedCount = 1
-            // console.log(`已更新最后一根未收盘K线: ${symbol}/${timeframe} 时间戳: ${updateBar.timestamp}`)
-          }
-        }
-        
-        // 2. 追加新K线
-        if (newBars.length > 0) {
-          const appendSuccess = appendSimpleKLineData(symbol, timeframe, newBars)
-          if (!appendSuccess) {
-            throw new Error('保存新K线数据失败')
-          }
-          appendedCount = newBars.length
-        }
+        const appendedCount = klineData.filter(item => item.timestamp > lastTimestamp).length
+        const updatedCount = klineData.length - appendedCount
+        this.recordRecentKLineSync(symbol, timeframe, requestedAt, klineData)
         
         const totalCount = updatedCount + appendedCount
         
@@ -435,9 +420,9 @@ export class KLineSimpleSyncService {
         
         let message = ''
         if (updatedCount > 0 && appendedCount > 0) {
-          message = `增量同步成功，更新 ${updatedCount} 条未收盘K线，追加 ${appendedCount} 条新K线`
+          message = `增量同步成功，更新 ${updatedCount} 条近期K线，追加 ${appendedCount} 条新K线`
         } else if (updatedCount > 0) {
-          message = `增量同步成功，更新 ${updatedCount} 条未收盘K线`
+          message = `增量同步成功，更新 ${updatedCount} 条近期K线`
         } else if (appendedCount > 0) {
           message = `增量同步成功，追加 ${appendedCount} 条新K线`
         } else {
@@ -823,12 +808,39 @@ export class KLineSimpleSyncService {
     }
   }
   
+  /** 只复用收盘保护期之后发起的成功请求，防止收盘前或收盘初期的数据挡住固定同步。 */
+  private hasRecentKLineSync(symbol: string, timeframe: KLineTimeframe): boolean {
+    const requestedAt = this.recentKLineSyncs.get(this.getStatusKey(symbol, timeframe))
+    if (requestedAt === undefined) return false
+    const now = Date.now()
+    const intervalMs = this.getIntervalSeconds(timeframe) * 1000
+    // Binance 周线从周一开始；其他周期以UTC时间戳对齐。
+    const offset = timeframe === '1w' ? 4 * 24 * 60 * 60 * 1000 : 0
+    const boundary = Math.floor((now - offset) / intervalMs) * intervalMs + offset
+    return now >= requestedAt && now - requestedAt < this.SYNC_DEDUP_WINDOW_MS && requestedAt >= boundary + 8000
+  }
+
+  /** 必须连续覆盖当前最新9根才记录；离线补齐未追上当前周期时仍允许下一次请求。 */
+  private recordRecentKLineSync(symbol: string, timeframe: KLineTimeframe, requestedAt: number, data: KLineData[]): void {
+    const interval = this.getIntervalSeconds(timeframe)
+    const offset = timeframe === '1w' ? 4 * 24 * 60 * 60 : 0
+    const latest = Math.floor((requestedAt / 1000 - offset) / interval) * interval + offset
+    const timestamps = new Set(data.map(item => item.timestamp))
+    for (let i = 0; i < 9; i++) {
+      if (!timestamps.has(latest - i * interval)) return
+    }
+    this.recentKLineSyncs.set(this.getStatusKey(symbol, timeframe), requestedAt)
+  }
+
   /** 高频同步最近9根K线，覆盖历史记录以接收上游对近期数据的修订。 */
   private async syncLastBarOnly(symbol: string, timeframe: KLineTimeframe): Promise<void> {
     const lastTimestamp = getSimpleLastKLineTimestamp(symbol, timeframe)
     if (!lastTimestamp) {
       return // 没有数据，跳过
     }
+    if (this.hasRecentKLineSync(symbol, timeframe)) return
+    const requestedAt = Date.now()
+    this.recentKLineSyncs.delete(this.getStatusKey(symbol, timeframe))
     
     // 不传开始时间，始终获取最新9根，避免滞后的本地时间戳限制回看窗口。
     const klineData = await this.fetchKLineFromBinance(
@@ -848,6 +860,7 @@ export class KLineSimpleSyncService {
     const saved = appendSimpleKLineData(symbol, timeframe, klineData)
 
     if (saved) {
+      this.recordRecentKLineSync(symbol, timeframe, requestedAt, klineData)
       this.eventEmitter.emit('klineUpdated', {
         symbol,
         timeframe,
