@@ -194,15 +194,15 @@ test('不需要全局运行字段即可正常开仓，各策略通过自身实�
   assert.deepEqual(f.calls.released, [])
 })
 
-test('开仓资金基数最多 150 USDT，较低余额按实际值计算，两个仓位约束均受限', async () => {
-  for (const balance of [100, 150, 1000]) {
+test('开仓资金基数最多 120 USDT，较低余额按实际值计算，两个仓位约束均受限', async () => {
+  for (const balance of [100, 120, 150, 1000]) {
     // 小止损距离验证杠杆金额上限，大止损距离验证风险金额上限，避免仅限制其中一处。
     for (const stopLoss of [98, 50]) {
       const f = createFixture()
       f.hooks.accountBalance = balance
       f.engine.calculateConfiguredStopLoss = () => stopLoss
       await f.engine.executeSignal(f.instance, f.signal, new Map())
-      const base = Math.min(balance, 150)
+      const base = Math.min(balance, 120)
       const expectedNotional = Math.min(base * 0.1 / ((100 - stopLoss) / 100), base * 5 * 0.1)
       assert.equal(f.calls.orders[0].type, 'market')
       assert.equal(f.calls.orders[0].amount * 100, expectedNotional)

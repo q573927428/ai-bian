@@ -275,13 +275,14 @@ export class BinanceService {
   }
 
   /**
-   * 市价下单（使用私有实例）；开仓可传入提交前门禁，平仓无需受开仓门禁限制。
+   * 市价下单（使用私有实例）；开仓可传入提交前门禁，平仓通过 reduceOnly 防止反向开仓。
    */
   async marketOrder(
     symbol: string,
     side: 'buy' | 'sell',
     amount: number,
     beforeSubmit?: () => void,
+    params?: { reduceOnly: boolean },
   ): Promise<Order> {
     try {
       const order = await binanceApiGateway.trade(`marketOrder:${symbol}:${side}`, () => {
@@ -293,6 +294,7 @@ export class BinanceService {
           side, 
           amount,
           undefined, // price
+          params,
         )
       })
       

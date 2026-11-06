@@ -196,7 +196,8 @@ export class StrategyPositionCloser {
       const side = position.direction === 'long' ? 'sell' : 'buy'
       const quantity = Math.abs(position.quantity)
 
-      const order = await this.binance.marketOrder(symbol, side, quantity)
+      // 交易所止损可能先于本地平仓成交，只减仓可防止重复成交造成反向开仓。
+      const order = await this.binance.marketOrder(symbol, side, quantity, undefined, { reduceOnly: true })
       logger.success('平仓', `平仓订单已提交`, order)
 
       // 3. 以币安成交明细作为最终收益来源，行情价只用于接口暂时不可用时兼容回退。

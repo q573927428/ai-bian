@@ -427,11 +427,29 @@ export class StrategyPositionMonitor {
           newStopLoss = lowestPrice + trailingDistance
         }
 
+        // 移动止损只能收紧，不能因极值快照或配置变化放宽已有保护。
+        newStopLoss = position.direction === 'long'
+          ? Math.max(stopLoss, newStopLoss)
+          : Math.min(stopLoss, newStopLoss)
+
+        // 已越过止损价时直接平仓，避免先撤单再提交必然被 -2021 拒绝的条件单。
+        const stopHit = position.direction === 'long'
+          ? currentPrice <= newStopLoss
+          : currentPrice >= newStopLoss
+
+        if (stopHit) {
+          logger.info('移动止损', `${position.symbol} 触发移动止损，价格: ${currentPrice}`)
+          await this.positionCloser.closePosition(position.symbol, '移动止损', currentPrice)
+          this.trailingStopActivated.delete(positionKey)
+          return true
+        }
+
         // 检查是否需要更新止损单（至少移动minMoveDistance）
         const minMove = entryPrice * trailingStopConfig.minMoveDistance / 100
         const stopLossDiff = Math.abs(newStopLoss - stopLoss)
 
-        if (stopLossDiff >= minMove) {
+        if (stopLossDiff > 0 && stopLossDiff >= minMove) {
+          let needsProtection = false
           try {
             // 获取止损订单ID，优先从 position.position 获取，否则从 position 获取
             const stopLossOrderId = position.position?.stopLossOrderId ?? position.stopLossOrderId
@@ -445,6 +463,13 @@ export class StrategyPositionMonitor {
               )
             }
 
+            // 旧单撤销后同步清理两处 ID，防止补偿平仓重复撤销已不存在的订单。
+            needsProtection = true
+            this.positionManager.updatePosition(position.symbol, {
+              stopLossOrderId: undefined,
+              ...(position.position ? { position: { ...position.position, stopLossOrderId: undefined } } : {})
+            })
+
             // 设置新止损单
             const side = position.direction === 'long' ? 'sell' : 'buy'
             const stopOrder = await this.binance.stopLossOrder(
@@ -453,6 +478,7 @@ export class StrategyPositionMonitor {
               position.quantity,
               newStopLoss
             )
+            needsProtection = false
 
             // 获取当前移动止损次数
             const currentCount = position.position?.trailingStopData?.trailingStopCount ?? 0
@@ -506,19 +532,18 @@ export class StrategyPositionMonitor {
             logger.info('移动止损', `${position.symbol} 止损已更新到: ${newStopLoss} (第${newCount}次移动)`)
           } catch (error: any) {
             logger.error('移动止损', `${position.symbol} 更新止损失败: ${error.message}`)
+            if (needsProtection) {
+              // 标记价格差异、排队期间价格变化或网络异常均可能让新单失败；
+              // 旧单已撤，不能继续等待下一轮监控，让仓位裸露于市场风险。
+              const reason = /"code"\s*:\s*-2021\b|Order would immediately trigger/i.test(error.message)
+                ? '移动止损'
+                : '移动止损更新失败，保护性平仓'
+              logger.warn('移动止损', `${position.symbol} 新止损未确认生效，立即尝试保护性平仓`)
+              await this.positionCloser.closePosition(position.symbol, reason, currentPrice)
+              this.trailingStopActivated.delete(positionKey)
+              return true
+            }
           }
-        }
-
-        // 检查是否触发止损
-        const stopHit = position.direction === 'long'
-          ? currentPrice <= newStopLoss
-          : currentPrice >= newStopLoss
-
-        if (stopHit) {
-          logger.info('移动止损', `${position.symbol} 触发移动止损，价格: ${currentPrice}`)
-          await this.positionCloser.closePosition(position.symbol, '移动止损', currentPrice)
-          this.trailingStopActivated.delete(positionKey)
-          return true
         }
       }
 
