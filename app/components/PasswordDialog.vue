@@ -47,8 +47,10 @@ interface Emits {
 const props = defineProps<Props>()
 const emit = defineEmits<Emits>()
 
+// 先确认 Cookie 状态，再显示输入框，避免已解锁操作仍闪现密码弹窗。
+const needsPassword = ref(false)
 const visible = computed({
-  get: () => props.modelValue,
+  get: () => props.modelValue && needsPassword.value,
   set: (val) => emit('update:modelValue', val)
 })
 
@@ -118,24 +120,26 @@ const handleClosed = () => {
   }
 }
 
-watch(visible, async (newVal, _previous, onCleanup) => {
+watch(() => props.modelValue, async (newVal, _previous, onCleanup) => {
   let cancelled = false
   onCleanup(() => { cancelled = true })
+  needsPassword.value = false
   if (newVal) {
     const requiresPassword = await checkRequiresPassword()
     // 取消或锁定后丢弃迟到的查询结果，不能继续执行原先待办。
-    if (cancelled || !visible.value) return
+    if (cancelled || !props.modelValue) return
     if (!requiresPassword) {
-      // Cookie 仍有效时直接继续操作，不重复弹出密码框。
-      pendingSuccess = true
-      visible.value = false
+      // 未展示对话框就没有 closed 事件，直接通知调用方继续操作。
+      emit('update:modelValue', false)
+      emit('success')
       return
     }
+    needsPassword.value = true
     nextTick(() => {
       passwordInput.value?.focus()
     })
   }
-})
+}, { immediate: true })
 </script>
 
 
