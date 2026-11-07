@@ -54,6 +54,12 @@ export function queryTradeHistory(allHistory: TradeHistory[], query: Record<stri
     ['atrPercent', (order: TradeHistory) => order.entryIndicators?.ATRVolatilityPercent],
     ['resistanceDistanceATR', (order: TradeHistory) => order.entrySupportResistance?.resistanceDistanceATR],
     ['supportDistanceATR', (order: TradeHistory) => order.entrySupportResistance?.supportDistanceATR],
+    // 默认只匹配订单主周期，不能取任意一个满足范围的周期冒充主周期 ER。
+    ['er', (order: TradeHistory) => {
+      const timeframe = filter.erTimeframe || order.mainTimeframe || order.entrySupportResistance?.timeframe
+      const snapshot = order.entryER?.find(item => item.timeframe === timeframe)
+      return snapshot?.status === 'ready' ? snapshot.er : undefined
+    }],
   ] as const
   for (const [name] of indicatorRanges) {
     for (const key of [`${name}Min`, `${name}Max`]) {
@@ -63,6 +69,13 @@ export function queryTradeHistory(allHistory: TradeHistory[], query: Record<stri
     if (filter[`${name}Min`] != null && filter[`${name}Max`] != null && filter[`${name}Min`] > filter[`${name}Max`]) {
       throw new Error(`筛选最小值不能大于最大值: ${name}`)
     }
+  }
+  if (filter.erTimeframe && !['5m', '15m', '1h', '4h', '1d'].includes(filter.erTimeframe)) {
+    throw new Error('无效 ER 周期')
+  }
+  if ((filter.erMin != null && (filter.erMin < 0 || filter.erMin > 1))
+    || (filter.erMax != null && (filter.erMax < 0 || filter.erMax > 1))) {
+    throw new Error('ER 筛选范围必须在 0～1 之间')
   }
   if (filter.openTimeMin != null && filter.openTimeMax != null && filter.openTimeMin > filter.openTimeMax) {
     throw new Error('开始时间不能晚于结束时间')

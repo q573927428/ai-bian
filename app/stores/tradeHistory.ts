@@ -55,6 +55,10 @@ export interface FilterConfig {
   resistanceDistanceATRMax?: number
   supportDistanceATRMin?: number
   supportDistanceATRMax?: number
+  /** ER 使用入场快照的 0～1 原值；未指定周期时读取订单主周期。 */
+  erTimeframe?: '5m' | '15m' | '1h' | '4h' | '1d'
+  erMin?: number
+  erMax?: number
   /** 开仓时间的起止毫秒时间戳，包含两端边界。 */
   openTimeMin?: number
   openTimeMax?: number
