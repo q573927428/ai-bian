@@ -66,10 +66,12 @@ export function installPriceHeatmapLabels() {
       const fontFamily = ecModel.option.textStyle?.fontFamily || 'sans-serif'
       data.each(index => {
         const item = data.getRawDataItem(index) as HeatmapLabelItem | undefined
-        const layout = data.getItemLayout(index) as { width: number; height: number } | undefined
+        const layout = data.getItemLayout(index) as { width: number; height: number; borderWidth?: number } | undefined
         if (!item?.heatmapLabel || !item.label || !layout) return
         // 每次 resize 和行情更新都使用本轮真实尺寸，不能沿用上轮被删减的 formatter。
-        item.label.formatter = fitHeatmapLabel(item.heatmapLabel, layout.width, layout.height, fontFamily)
+        // 树图绘制内容前还会扣掉两侧边框，不能用含边框的面积判断文字是否放得下。
+        const border = Math.max(0, layout.borderWidth ?? 0) * 2
+        item.label.formatter = fitHeatmapLabel(item.heatmapLabel, Math.max(0, layout.width - border), Math.max(0, layout.height - border), fontFamily)
         const rich = item.label.rich
         if (!rich) return
         for (const token of item.label.formatter.matchAll(/\{(iconLarge|iconMedium|nameLarge|nameMedium|change)(\d+)\|/g)) {
