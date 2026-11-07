@@ -12,19 +12,23 @@ type BreadthIndicatorsHub = Pick<IndicatorsHub, 'getIndicators' | 'getKlines'>
 
 let cached: MarketBreadthSnapshot | null = null
 let cachedHub: BreadthIndicatorsHub | undefined
+// 提前重试不缩短快照有效期，已有分析仍可使用其固定事实，直到原有效期结束。
+let cachedRetryAt = Infinity
+const INCOMPLETE_RETRY_MS = 30000
 let pending: { key: string; hub?: BreadthIndicatorsHub; promise: Promise<MarketBreadthSnapshot> } | null = null
 
 // 前端与服务端复用聚合口径，但各自保留实时展示和固定快照的更新节奏。
 export { summarizeBreadth } from '../../app/utils/market-breadth'
 
-/** 每轮预计算刷新一次；未启动预计算时按相同有效期惰性计算，并合并并发请求。 */
+/** 完整快照沿用预计算有效期，缺失排名每30秒允许惰性重试，并合并并发请求。 */
 export async function getMarketBreadth(config: BotConfig, force = false, hub?: BreadthIndicatorsHub): Promise<MarketBreadthSnapshot> {
   const symbols = [...new Set((config.symbols || []).map(symbol => symbol.replace('/', '').trim().toUpperCase()).filter(Boolean))].sort()
   const intervalMs = config.indicatorPrecompute?.enabled === false ? 60000
     : Math.max(60000, Number(config.indicatorPrecompute?.intervalMs ?? 300000))
   const key = JSON.stringify([symbols, intervalMs])
   if (pending?.key === key && pending.hub === hub) return pending.promise
-  if (!force && cached && cachedHub === hub && JSON.stringify([cached.symbols, cached.expiresAt - cached.computedAt]) === key && Date.now() < cached.expiresAt) return cached
+  if (!force && cached && cachedHub === hub && JSON.stringify([cached.symbols, cached.expiresAt - cached.computedAt]) === key
+    && Date.now() < Math.min(cached.expiresAt, cachedRetryAt)) return cached
   const promise = (async (): Promise<MarketBreadthSnapshot> => {
     await initKLineDb()
     const now = Date.now()
@@ -40,6 +44,7 @@ export async function getMarketBreadth(config: BotConfig, force = false, hub?: B
       const atrs: Record<string, number> = {}
       const atrPercents: Record<string, number> = {}
       const normalizedChanges: Record<string, number | null> = {}
+      const rankingUnavailableReasons: Record<string, string> = {}
       for (const symbol of symbols) {
         const ticker = prices[symbol]
         changes[symbol] = null
@@ -54,33 +59,57 @@ export async function getMarketBreadth(config: BotConfig, force = false, hub?: B
         const latest = freshTicker ? undefined : getSimpleKLineData(symbol, '5m', { limit: 1, to: Math.floor(now / 1000) })[0]
         const price = freshTicker ? ticker.price
           : latest && now - latest.t * 1000 <= 600000 && Number.isFinite(latest.c) && latest.c > 0 ? latest.c : null
-        if (price === null) continue
+        if (price === null) {
+          rankingUnavailableReasons[symbol] = '缺少新鲜价格'
+          continue
+        }
         // 缺基准时保留未知，不能退回ticker的24h统计造成前后端口径不同。
         if (historicalBar && Number.isFinite(historicalBar.o) && historicalBar.o > 0) {
           const change = (price / historicalBar.o - 1) * 100
           if (Number.isFinite(change)) changes[symbol] = change
         }
-        if (!hub || changes[symbol] === null) continue
+        if (changes[symbol] === null) {
+          rankingUnavailableReasons[symbol] = '缺少有效涨跌幅基准'
+          continue
+        }
+        if (!hub) {
+          rankingUnavailableReasons[symbol] = '指标中心不可用'
+          continue
+        }
         try {
           // 只复用指标中心ATR(14)；24h映射1d，要求数据已包含当前未收盘K线。
           const timeframe = period === '24h' ? '1d' : period
           const klines = hub.getKlines(symbol, timeframe)
-          if (klines?.at(-1)?.timestamp !== Math.floor(now / periodMs) * periodMs) continue
+          if (klines?.at(-1)?.timestamp !== Math.floor(now / periodMs) * periodMs) {
+            rankingUnavailableReasons[symbol] = '等待当前周期K线'
+            continue
+          }
           // 传入刚核验的中心K线，沿用同一缓存键及内容哈希，避免再次读取期间跨越K线边界。
           const data = await hub.getIndicators(symbol, timeframe, 'ATR', { atrPeriod: 14 }, klines)
           const atr = data.values.atr
-          if (typeof atr !== 'number' || !Number.isFinite(atr) || atr <= 0) continue
+          if (typeof atr !== 'number' || !Number.isFinite(atr) || atr <= 0) {
+            rankingUnavailableReasons[symbol] = 'ATR不可用'
+            continue
+          }
           const atrPercent = atr / price * 100
           const normalizedChange = changes[symbol]! / atrPercent
-          if (!Number.isFinite(atrPercent) || atrPercent <= 0 || !Number.isFinite(normalizedChange)) continue
+          if (!Number.isFinite(atrPercent) || atrPercent <= 0 || !Number.isFinite(normalizedChange)) {
+            rankingUnavailableReasons[symbol] = 'ATR归一化结果无效'
+            continue
+          }
           atrs[symbol] = atr
           atrPercents[symbol] = atrPercent
           normalizedChanges[symbol] = normalizedChange
         } catch {
+          rankingUnavailableReasons[symbol] = 'ATR计算失败'
           // 单标的指标不可用仅排除其排名，不影响原始涨跌家数；不在此兜底计算ATR。
         }
       }
-      periods[period] = { ...summarizeBreadth(changes, referenceTime, bases), atrs, atrPercents, normalizedChanges }
+      // 有自身归一化结果但没有比较对象时，仍不能给出相对强弱分数。
+      if (Object.values(normalizedChanges).filter(value => value !== null).length < 2) {
+        for (const symbol of symbols) rankingUnavailableReasons[symbol] ??= '有效排名样本不足2个'
+      }
+      periods[period] = { ...summarizeBreadth(changes, referenceTime, bases), atrs, atrPercents, normalizedChanges, rankingUnavailableReasons }
     }
     const result: MarketBreadthSnapshot = { scope: 'selected_symbols', selectedCount: symbols.length, symbols, computedAt: now, expiresAt: now + intervalMs, periods }
     return result
@@ -89,7 +118,15 @@ export async function getMarketBreadth(config: BotConfig, force = false, hub?: B
   try {
     const result = await promise
     // 配置变更后启动的新计算优先，旧请求不能覆盖新配置的快照。
-    if (pending?.promise === promise) { cached = result; cachedHub = hub }
+    if (pending?.promise === promise) {
+      cached = result
+      cachedHub = hub
+      // 单标的配置不具备排名条件，无中心也无法恢复ATR，避免无意义的短周期重算。
+      const incomplete = hub && symbols.length >= 2 && Object.values(result.periods)
+        .some(stats => Object.keys(stats.rankingUnavailableReasons ?? {}).length > 0)
+      // 从计算完成后计时，避免计算较慢时下一次请求立即触发重试。
+      cachedRetryAt = incomplete ? Date.now() + INCOMPLETE_RETRY_MS : Infinity
+    }
     return result
   } finally {
     if (pending?.promise === promise) pending = null

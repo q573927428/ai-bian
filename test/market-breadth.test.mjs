@@ -5,7 +5,7 @@ import fs from 'node:fs'
 import vm from 'node:vm'
 import ts from 'typescript'
 import { summarizeBreadth, calculateLiveBreadth } from '../app/utils/market-breadth.ts'
-import { relativeStrengthRanking } from '../app/utils/environment-confidence.ts'
+import { assessEnvironment, relativeStrengthRanking } from '../app/utils/environment-confidence.ts'
 
 /** 隔离行情和数据库依赖，验证业务计算而不访问真实数据库或网络。 */
 function fixture() {
@@ -61,6 +61,72 @@ function fixture() {
   const api = { ...context.exports, getMarketBreadth: (config, force = false) => rawGetMarketBreadth(config, force, hub) }
   return { api, rawGetMarketBreadth, hub, prices, bars, atrReads, atrValues, stalePeriods, now, reads: () => reads, advance: ms => { time += ms } }
 }
+
+/** 为恢复测试提供两个完整排名样本，避免将单样本配置误当成可恢复缺失。 */
+function completeRankingFixture() {
+  const f = fixture()
+  f.prices.ETHUSDT = { price: 90, timestamp: f.now }
+  for (const symbol of ['BTCUSDT', 'ETHUSDT']) {
+    for (const minutes of [5, 15, 60, 240, 1440]) {
+      f.bars.set(`${symbol}:${f.now / 1000 - minutes * 60}`, 100)
+    }
+  }
+  const original = f.hub.getIndicators
+  f.hub.getIndicators = (symbol, ...args) => original('BTCUSDT', ...args)
+  return f
+}
+
+for (const timeframe of ['5m', '15m', '1h', '4h', '1d']) {
+  test(`${timeframe}整批排名缺失后，K线补齐经30秒重试恢复双向分数且并发共享快照`, async () => {
+    const f = completeRankingFixture()
+    const config = { symbols: ['BTCUSDT', 'ETHUSDT'] }
+    const period = timeframe === '1d' ? '24h' : timeframe
+    const signals = Object.fromEntries(['5m', '15m', '1h', '4h', '1d'].map(key => [key, '空头双减弱']))
+    f.stalePeriods.add(timeframe)
+    const missing = await f.api.getMarketBreadth(config)
+    assert.equal(missing.periods[period].rankingUnavailableReasons.BTCUSDT, '等待当前周期K线')
+    assert.equal(assessEnvironment(signals, missing, 'BTCUSDT', 1, f.now, timeframe).confidence, null)
+    f.stalePeriods.delete(timeframe)
+    f.advance(29999)
+    const reads = f.reads()
+    assert.equal(await f.api.getMarketBreadth(config), missing)
+    assert.equal(f.reads(), reads)
+    f.advance(1)
+    const [restored, concurrent] = await Promise.all([f.api.getMarketBreadth(config), f.api.getMarketBreadth(config)])
+    assert.equal(restored, concurrent)
+    assert.notEqual(restored, missing)
+    assert.deepEqual(Object.keys(restored.periods[period].rankingUnavailableReasons), [])
+    for (const side of [1, -1]) {
+      const assessment = assessEnvironment(signals, restored, 'BTCUSDT', side, f.now + 30000, timeframe)
+      assert.equal(assessment.available, true)
+      assert.ok(Number.isFinite(assessment.confidence))
+    }
+    assert.equal(missing.expiresAt, f.now + 300000)
+    assert.equal(missing.periods[period].normalizedChanges.BTCUSDT, null)
+    // 恢复完整后不再以30秒刷新，也不改写已经交给分析使用的旧快照。
+    f.advance(30000)
+    assert.equal(await f.api.getMarketBreadth(config), restored)
+  })
+}
+
+test('持续缺失每30秒最多惰性重试一次，仍不补造分数并记录ATR与样本不足原因', async () => {
+  const f = completeRankingFixture()
+  const config = { symbols: ['BTCUSDT', 'ETHUSDT'] }
+  f.atrValues.set('15m', 0)
+  const first = await f.api.getMarketBreadth(config)
+  assert.equal(first.periods['15m'].rankingUnavailableReasons.BTCUSDT, 'ATR不可用')
+  f.advance(30000)
+  const retried = await f.api.getMarketBreadth(config)
+  assert.notEqual(retried, first)
+  assert.equal(retried.periods['15m'].normalizedChanges.BTCUSDT, null)
+  const reads = f.reads()
+  assert.equal(await f.api.getMarketBreadth(config), retried)
+  assert.equal(f.reads(), reads)
+  const single = await f.api.getMarketBreadth({ symbols: ['BTCUSDT'] })
+  assert.equal(single.periods['1h'].rankingUnavailableReasons.BTCUSDT, '有效排名样本不足2个')
+  f.advance(30000)
+  assert.equal(await f.api.getMarketBreadth({ symbols: ['BTCUSDT'] }), single)
+})
 
 test('占比分母含持平、排除缺失，中位数覆盖奇数、偶数及空样本', () => {
   const { api } = fixture()

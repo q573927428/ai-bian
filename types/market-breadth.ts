@@ -20,6 +20,8 @@ export interface BreadthStatistics {
   atrPercents?: Record<string, number>
   /** 原始窗口涨跌幅除以ATR百分比；缺失样本不参与相对强弱排名。 */
   normalizedChanges?: Record<string, number | null>
+  /** 个币无法排名的原因，仅供快照诊断，不传入 AI 提示词；旧快照允许缺失。 */
+  rankingUnavailableReasons?: Record<string, string>
 }
 
 /** 同一计算时刻的多周期市场背景，时间字段均为毫秒，范围仅限全局已选交易对。 */
