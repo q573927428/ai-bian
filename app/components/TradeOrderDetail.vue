@@ -88,11 +88,11 @@
                 <span class="detail-value">{{ formatPrice(row.candleProgressPercent) }}%</span>
               </div>
             </div>
-            <details v-if="row.entryIndicators" :key="`indicators-${row.id}`" class="detail-section collapsible-section">
+            <details v-if="row.entryIndicators || row.entryER?.length" :key="`indicators-${row.id}`" class="detail-section collapsible-section">
               <summary class="detail-label">入场指标</summary>
               <div class="indicators-tags">
                 <el-tag
-                  v-for="(val, key) in getEntryIndicators(row.entryIndicators)"
+                  v-for="(val, key) in getEntryIndicators(row)"
                   :key="key"
                   size="small"
                   effect="plain"
@@ -195,6 +195,9 @@ function formatPrice(value: number | undefined | null): string {
 
 // 入场指标中以 Percent 结尾的字段本身已经是百分数值，需要补充百分号避免与普通数值混淆。
 function formatIndicatorValue(key: string, value: unknown): string {
+  if (key === 'ER') {
+    return typeof value === 'number' && Number.isFinite(value) ? value.toFixed(2) : '--'
+  }
   // 入场快照沿用百分数存储，预量比统一换算为倍数展示。
   if (key === 'EstimatedVolumeEmaRatioPercent') {
     return typeof value === 'number' && Number.isFinite(value) ? `${(value / 100).toFixed(2)}x` : '--'
@@ -204,9 +207,15 @@ function formatIndicatorValue(key: string, value: unknown): string {
   return key.endsWith('Percent') ? `${formatted}%` : formatted
 }
 
-/** 补齐旧订单缺失的趋势指标展示项；不修改或推算原始入场快照。 */
-function getEntryIndicators(indicators: Record<string, number>): Record<string, number | undefined> {
-  return { PDI: undefined, MDI: undefined, ADXSlope: undefined, ...indicators }
+/** 展示固化的入场指标；ER 仅取订单主周期，缺失或不可用时不补算、不替换为其他周期。 */
+function getEntryIndicators(row: TradeHistory): Record<string, number | undefined> {
+  // 与历史筛选使用同一主周期回退口径，兼容保存过支撑阻力周期的旧订单。
+  const timeframe = row.mainTimeframe || row.entrySupportResistance?.timeframe
+  const snapshot = row.entryER?.find(item => item.timeframe === timeframe)
+  const er = snapshot?.status === 'ready' && snapshot.er != null && Number.isFinite(snapshot.er)
+    ? snapshot.er
+    : undefined
+  return { PDI: undefined, MDI: undefined, ADXSlope: undefined, ...row.entryIndicators, ER: er }
 }
 
 // 百分比数值只保留两位小数（用于 OI变化率、预计量/EMA 列）
@@ -216,6 +225,7 @@ function formatPercent2(value: number | undefined | null): string {
 }
 
 const INDICATOR_LABELS: Record<string, string> = {
+  ER: 'ER',
   PDI: 'PDI',
   MDI: 'MDI',
   ADXSlope: 'ADX斜率',

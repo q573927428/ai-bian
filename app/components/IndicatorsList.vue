@@ -126,7 +126,7 @@
     </div>
 
     <el-alert v-if="errorMessage" type="warning" :closable="false" show-icon>{{ errorMessage }}</el-alert>
-    <el-table ref="tableRef" v-loading="loading" class="indicators-table" height="100%" :data="filteredRows" row-key="symbol" :current-row-key="selectedSymbol" :row-class-name="selectedRowClass" :highlight-current-row="embedded" :empty-text="rows.length ? '当前筛选下暂无交易对' : '暂无已配置交易对或指标数据'" stripe size="small" style="width: 100%" @sort-change="handleSortChange" @row-click="handleRowClick">
+    <el-table ref="tableRef" v-loading="loading" class="indicators-table" :height="autoHeight ? undefined : '100%'" :data="filteredRows" row-key="symbol" :current-row-key="selectedSymbol" :row-class-name="selectedRowClass" :highlight-current-row="embedded" :empty-text="rows.length ? '当前筛选下暂无交易对' : '暂无已配置交易对或指标数据'" stripe size="small" style="width: 100%" @sort-change="handleSortChange" @row-click="handleRowClick">
       <el-table-column label="" type="index" align="center" header-align="center" width="35" fixed="left" />
       <el-table-column prop="symbol" label="交易对" fixed min-width="110">
         <template #default="{ row }">
@@ -349,6 +349,8 @@ interface Props {
   modelValue: boolean
   embedded?: boolean
   selectedSymbol?: string
+  /** 移动端独立看板按全部行自然展开，使用页面滚动。 */
+  autoHeight?: boolean
   /** 独立指标页由父组件统一调度列表和图表。 */
   coordinatedRefresh?: boolean
 }

@@ -10,7 +10,7 @@
       </div>
       <label class="ema-toggle" title="价格摆动点左右各3根收盘确认；比较对应CVD，非反转信号"><input v-model="showDivergence" type="checkbox">背离</label>
       <button type="button" @click="requestRefresh">刷新</button>
-      <button type="button" :aria-pressed="expanded" @click="expanded = !expanded">{{ expanded ? '收起' : '放大' }}</button>
+      <button v-if="expandable !== false" type="button" :aria-pressed="expanded" @click="expanded = !expanded">{{ expanded ? '收起' : '放大' }}</button>
     </header>
     <div v-if="error" class="error" role="status">{{ error }}</div>
     <div ref="canvas" class="chart" :aria-label="`${symbol} ${selectedTimeframe} K线、成交量、合约CVD、Delta及趋势效率ER联动图`" />
@@ -32,7 +32,7 @@ import { useBotStore } from '../stores/bot'
 import { useSupportResistancePreview } from '../composables/useSupportResistancePreview'
 
 /** 主表选择交易对时传入其周期；图表仍允许独立切换周期。 */
-interface Props { symbol: string; timeframe: string; coordinatedRefresh?: boolean }
+interface Props { symbol: string; timeframe: string; coordinatedRefresh?: boolean; expandable?: boolean }
 const props = defineProps<Props>()
 const structurePreview = useSupportResistancePreview()
 const emit = defineEmits<{ 'timeframe-change': [timeframe: string]; 'refresh-request': [] }>()
@@ -138,28 +138,30 @@ function visiblePriceRange() {
   return { min: low - padding, max: high + padding }
 }
 
-/** 累计值保留原始起点，仅按可见 CVD 的波动定纵轴，避免远处历史压扁曲线。 */
+/** CVD 保留累计起点，仅按可见窗口的波动定轴，避免累计量级压缩曲线。 */
 function visibleCvdRange() {
   const cvd = calculateContractFlow(currentBars, interval()).cvd
   const lastAxisIndex = currentBars.length + rightPaddingBars - 1
   const zoom = viewport || defaultViewport()
   const start = Math.max(0, Math.ceil((zoom.start ?? 0) / 100 * lastAxisIndex))
   const end = Math.min(currentBars.length - 1, Math.floor((zoom.end ?? 100) / 100 * lastAxisIndex))
-  const values = cvd.slice(start, end + 1).filter((value): value is number => value !== null && Number.isFinite(value))
+  const values = cvd.slice(start, end + 1)
+    .filter((value): value is number => value !== null && Number.isFinite(value))
   if (!values.length) return { min: 'dataMin' as const, max: 'dataMax' as const }
   const low = Math.min(...values), high = Math.max(...values)
   const padding = Math.max((high - low) * .12, Math.abs(high) * 1e-6, 1e-6)
   return { min: low - padding, max: high + padding }
 }
 
-/** Delta 按可见柱体绝对峰值对称缩放，保留零轴，正负柱使用相同刻度。 */
+/** Delta 使用隐藏的独立轴，按可见柱体峰值对称缩放，正负柱共用居中的零基线。 */
 function visibleDeltaRange() {
   const delta = calculateContractFlow(currentBars, interval()).delta
   const lastAxisIndex = currentBars.length + rightPaddingBars - 1
   const zoom = viewport || defaultViewport()
   const start = Math.max(0, Math.ceil((zoom.start ?? 0) / 100 * lastAxisIndex))
   const end = Math.min(currentBars.length - 1, Math.floor((zoom.end ?? 100) / 100 * lastAxisIndex))
-  const values = delta.slice(start, end + 1).filter((value): value is number => value !== null && Number.isFinite(value))
+  const values = delta.slice(start, end + 1)
+    .filter((value): value is number => value !== null && Number.isFinite(value))
   const bound = Math.max(1e-6, ...values.map(value => Math.abs(value))) * 1.12
   return { min: -bound, max: bound }
 }
@@ -195,7 +197,7 @@ function visibleMacdRange(values = calculateMacdChartSeries(currentBars, interva
   return { min: -bound, max: bound }
 }
 
-/** 主图与成交副图共享时间轴；副图左右独立刻度，累计值与单根值不混用。 */
+/** 主图与成交副图共享时间轴；CVD 与 Delta 独立缩放，只显示 CVD 刻度。 */
 function draw() {
   if (!canvas.value || !currentBars.length) return
   if (!chart) {
@@ -218,7 +220,7 @@ function draw() {
         chart?.setOption({ yAxis: [
           { id: 'price-axis', ...visiblePriceRange() },
           { id: 'flow-axis-1', ...visibleCvdRange() },
-          { id: 'flow-axis-2', ...visibleDeltaRange() },
+          { id: 'delta-axis', ...visibleDeltaRange() },
           { id: 'adx-axis', ...visibleAdxRange() },
           { id: 'macd-axis', ...visibleMacdRange() }
         ] })
@@ -260,7 +262,7 @@ function draw() {
   const updateTitles = (index: number) => {
     const bar = bars[index]
     if (!bar) return
-    const amount = (value: number | null | undefined) => value == null ? '--' : `${compact(value)} USDT`
+    const amount = (value: number | null | undefined) => value == null ? '--' : compact(value)
     const ratio = volumeRatios[index]
     const adx = adxValues[index]
     const macd = macdValues[index]
@@ -365,7 +367,9 @@ function draw() {
     // 十字线时间提示只显示在主图下方，底部副图仍保留常规时间刻度。
     xAxis: [0, 1, 2, 3, 4].map(index => ({ type: 'category', gridIndex: index, data: axis, boundaryGap: true, axisPointer: { label: { show: index === 0, margin: 3 } }, axisLabel: { show: index === 4, color, fontSize: 9, hideOverlap: true }, axisTick: { show: false }, axisLine: { lineStyle: { color, opacity: .4 } } })),
     yAxis: [
-      ...[0, 1, 2].map(index => ({ id: index === 0 ? 'price-axis' : `flow-axis-${index}`, ...(index === 0 ? visiblePriceRange() : index === 1 ? visibleCvdRange() : visibleDeltaRange()), type: 'value', gridIndex: index === 0 ? 0 : 1, scale: index !== 2, position: index === 1 ? 'left' : 'right', axisLabel: { inside: index === 1, margin: index === 1 ? 4 : 8, color: index === 1 ? '#409eff' : color, fontSize: 9, formatter: index === 0 ? price : compact }, splitNumber: index === 0 ? 5 : 2, splitLine: { show: index !== 1, lineStyle: { color, opacity: .12 } } })),
+      ...[0, 1].map(index => ({ id: index === 0 ? 'price-axis' : 'flow-axis-1', ...(index === 0 ? visiblePriceRange() : visibleCvdRange()), type: 'value', gridIndex: index, scale: true, position: 'right', axisLabel: { margin: 8, color, fontSize: 9, formatter: index === 0 ? price : compact }, splitNumber: index === 0 ? 5 : 2, splitLine: { lineStyle: { color, opacity: .12 } } })),
+      // 隐藏 Delta 刻度、网格和十字线数值，副图只保留右侧 CVD 的一套可见刻度。
+      { id: 'delta-axis', type: 'value', gridIndex: 1, ...visibleDeltaRange(), show: false, axisPointer: { show: false }, splitLine: { show: false } },
       // 成交量使用左侧独立量轴，仅在底部柱体区域显示刻度，避免与右侧价格刻度混淆。
       { id: 'volume-axis', type: 'value', gridIndex: 0, min: 0,
         max: (range: { max: number }) => Math.max(1, range.max * 4),
@@ -395,25 +399,25 @@ function draw() {
       ...periods.map((period, i) => ({ name: `EMA${period}`, type: 'line', data: calculateEMA(bars.map(bar => bar.c), period).map((value, index) => index < period - 1 ? null : value), showSymbol: false, lineStyle: { width: 1, color: i ? '#9b8afb' : '#e6a23c' } })),
       ...cvdSeries,
       ...divergenceSeries,
-      { name: 'RSI(14)', type: 'line', xAxisIndex: 3, yAxisIndex: 5, data: rsiValues,
+      { name: 'RSI(14)', type: 'line', xAxisIndex: 3, yAxisId: 'rsi-axis', data: rsiValues,
         showSymbol: false, connectNulls: false, lineStyle: { width: 1.5 },
         // 超买超卖和中线仅供观察动能，不等同于反转或开仓信号。
         // 保留 RSI 参考线标签；纵轴仅隐藏重复的50，仍展示0和100。
         markLine: { silent: true, symbol: 'none', label: { show: true, position: 'end', fontSize: 9, color, formatter: '{b}' },
           lineStyle: { color, opacity: .45, type: 'dashed' }, data: [{ name: 'RSI 30', yAxis: 30 }, { name: 'RSI 50', yAxis: 50 }, { name: 'RSI 70', yAxis: 70 }] } },
-      { name: '趋势效率 ER20×100', type: 'line', xAxisIndex: 3, yAxisIndex: 5, data: erDisplayValues, showSymbol: false, connectNulls: false, lineStyle: { width: 1.5, type: 'dashed', color: '#36cfc9' } },
-      ...(['dif', 'dea'] as const).map((key, index) => ({ name: key.toUpperCase(), type: 'line', xAxisIndex: 4, yAxisIndex: 6, data: macdValues.map(value => value?.[key] ?? null), showSymbol: false, connectNulls: false, lineStyle: { width: 1.2, color: index === 0 ? '#e6a23c' : '#9b8afb' } })),
-      { name: 'MACD柱', type: 'bar', xAxisIndex: 4, yAxisIndex: 6, barMaxWidth: 10, data: macdValues.map(value => value?.histogram == null ? null : { value: value.histogram, itemStyle: { color: value.histogram >= 0 ? '#67c23a' : '#f56c6c', opacity: .65 } }) },
+      { name: '趋势效率 ER20×100', type: 'line', xAxisIndex: 3, yAxisId: 'rsi-axis', data: erDisplayValues, showSymbol: false, connectNulls: false, lineStyle: { width: 1.5, type: 'dashed', color: '#36cfc9' } },
+      ...(['dif', 'dea'] as const).map((key, index) => ({ name: key.toUpperCase(), type: 'line', xAxisIndex: 4, yAxisId: 'macd-axis', data: macdValues.map(value => value?.[key] ?? null), showSymbol: false, connectNulls: false, lineStyle: { width: 1.2, color: index === 0 ? '#e6a23c' : '#9b8afb' } })),
+      { name: 'MACD柱', type: 'bar', xAxisIndex: 4, yAxisId: 'macd-axis', barMaxWidth: 10, data: macdValues.map(value => value?.histogram == null ? null : { value: value.histogram, itemStyle: { color: value.histogram >= 0 ? '#67c23a' : '#f56c6c', opacity: .65 } }) },
       ...(['adx', 'pdi', 'mdi'] as const).map((key, index) => ({
-        name: ['ADX(14)', '+DI', '−DI'][index], type: 'line', xAxisIndex: 2, yAxisIndex: 4,
+        name: ['ADX(14)', '+DI', '−DI'][index], type: 'line', xAxisIndex: 2, yAxisId: 'adx-axis',
         data: adxValues.map(value => [showAdx.value, showPdi.value, showMdi.value][index] ? value?.[key] ?? null : null), showSymbol: false, connectNulls: false,
         lineStyle: { width: index === 0 ? 1.8 : 1.2, opacity: index === 0 ? 1 : .55, color: ['#f4d35e', '#95d475', '#ff8a80'][index] },
         // 20 / 25 只是强度参考，不作为自动买卖信号。
         ...(index === 0 && showAdx.value ? { markLine: { silent: true, symbol: 'none', label: { show: false }, lineStyle: { color, opacity: .4, type: 'dashed' }, data: [{ yAxis: 20 }, { yAxis: 25 }] } } : {})
       })),
-      { name: '成交量', type: 'bar', xAxisIndex: 0, yAxisIndex: 3, z: 0, data: bars.map(bar => ({ value: validVolume(bar.v) ? bar.v : null, itemStyle: { color: bar.c >= bar.o ? '#67c23a' : '#f56c6c', opacity: .25 } })), barMaxWidth: 10 },
-      { name: '前12根均量', type: 'line', xAxisIndex: 0, yAxisIndex: 3, z: 1, data: volumeAverages, showSymbol: false, connectNulls: false, lineStyle: { color: '#e6a23c', width: 1, opacity: .4 } },
-      { name: 'Delta', type: 'bar', xAxisIndex: 1, yAxisIndex: 2, z: 1, data: flow.delta.map(value => value == null ? null : { value, itemStyle: { color: value >= 0 ? '#67c23a' : '#f56c6c', opacity: .55 } }), barMaxWidth: 10 }
+      { name: '成交量', type: 'bar', xAxisIndex: 0, yAxisId: 'volume-axis', z: 0, data: bars.map(bar => ({ value: validVolume(bar.v) ? bar.v : null, itemStyle: { color: bar.c >= bar.o ? '#67c23a' : '#f56c6c', opacity: .25 } })), barMaxWidth: 10 },
+      { name: '前12根均量', type: 'line', xAxisIndex: 0, yAxisId: 'volume-axis', z: 1, data: volumeAverages, showSymbol: false, connectNulls: false, lineStyle: { color: '#e6a23c', width: 1, opacity: .4 } },
+      { name: 'Delta', type: 'bar', xAxisIndex: 1, yAxisId: 'delta-axis', z: 1, data: flow.delta.map(value => value == null ? null : { value, itemStyle: { color: value >= 0 ? '#67c23a' : '#f56c6c', opacity: .55 } }), barMaxWidth: 10 }
     ]
   } as echarts.EChartsOption, true)
   resetInspect()

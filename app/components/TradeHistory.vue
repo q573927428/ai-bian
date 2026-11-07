@@ -235,51 +235,49 @@
           />
         </div>
 
-        <div class="er-time-filters">
-          <div class="filter-item range-filter-item">
-            <span class="filter-label">ER（主周期）</span>
-            <el-input-number
-              v-model="filter.erMin"
-              class="range-input"
-              placeholder="最小"
-              size="small"
-              :min="0"
-              :max="1"
-              :step="0.01"
-              :controls="false"
-              @change="handleFilterChange"
-            />
-            <span class="range-separator">—</span>
-            <el-input-number
-              v-model="filter.erMax"
-              class="range-input"
-              placeholder="最大"
-              size="small"
-              :min="0"
-              :max="1"
-              :step="0.01"
-              :controls="false"
-              @change="handleFilterChange"
-            />
-          </div>
+        <div class="filter-item range-filter-item">
+          <span class="filter-label">ER（20）</span>
+          <el-input-number
+            v-model="filter.erMin"
+            class="range-input"
+            placeholder="最小"
+            size="small"
+            :min="0"
+            :max="1"
+            :step="0.01"
+            :controls="false"
+            @change="handleFilterChange"
+          />
+          <span class="range-separator">—</span>
+          <el-input-number
+            v-model="filter.erMax"
+            class="range-input"
+            placeholder="最大"
+            size="small"
+            :min="0"
+            :max="1"
+            :step="0.01"
+            :controls="false"
+            @change="handleFilterChange"
+          />
+        </div>
 
-          <div class="filter-item time-filter-item">
-            <span class="filter-label">开仓时间</span>
-            <el-date-picker
-              v-model="openTimeRange"
-              type="datetimerange"
-              placement="bottom-start"
-              :fallback-placements="['bottom-start']"
-              size="small"
-              format="MM-DD"
-              range-separator="—"
-              start-placeholder="开始时间"
-              end-placeholder="结束时间"
-              :default-time="[new Date(2000, 0, 1, 0, 0, 0), new Date(2000, 0, 1, 23, 59, 59)]"
-              style="width: 100%; min-width: 0"
-              @change="handleFilterChange"
-            />
-          </div>
+        <div class="filter-item time-filter-item">
+          <span class="filter-label">开仓时间</span>
+          <el-date-picker
+            v-model="openTimeRange"
+            type="datetimerange"
+            placement="bottom-start"
+            :fallback-placements="['bottom-start']"
+            size="small"
+            format="MM-DD"
+            range-separator="—"
+            start-placeholder="开始时间"
+            end-placeholder="结束时间"
+            :default-time="[new Date(2000, 0, 1, 0, 0, 0), new Date(2000, 0, 1, 23, 59, 59)]"
+            style="width: 100%; min-width: 0"
+            @change="handleFilterChange"
+          />
         </div>
       </div>
 
@@ -1172,22 +1170,7 @@ onUnmounted(() => {
   min-width: 0;
 }
 
-.er-time-filters {
-  /* ER 与时间保持在同一行，避免网格换行后 ER 落到开仓时间的上一行末尾。 */
-  grid-column: 1 / -1;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
-  gap: 8px 28px;
-}
-
-.er-time-filters .time-filter-item {
-  grid-column: auto;
-}
-
 @container (width < 308px) {
-  .er-time-filters {
-    grid-template-columns: minmax(0, 1fr);
-  }
   .time-filter-item {
     /* 容器只能容纳一列时占满该列，避免生成隐式列挤压其他筛选项。 */
     grid-column: 1 / -1;
@@ -1392,6 +1375,11 @@ onUnmounted(() => {
   display: inline-flex;
   align-items: center;
   margin-left: 1px;
+}
+
+@media (max-width: 991px) {
+  /* 手机通过触摸左右滑动查看表格列，无需显示常驻的横向滚动条。 */
+  .compact-orders-table :deep(.el-scrollbar__bar.is-horizontal) { display: none; }
 }
 
 @media (max-width: 768px) {

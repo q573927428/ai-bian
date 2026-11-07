@@ -74,6 +74,7 @@ function selectOrder(order: HistoricalOrder) {
 .order-trade-times { display: inline-flex; flex-wrap: nowrap; gap: 20px; max-width: 100%; overflow-x: auto; white-space: nowrap; }
 @media (max-width: 991px) {
   .orders-main { padding: 12px; }
-  .orders-sidebar { max-height: 35dvh; margin-bottom: 20px; }
+  /* 移动端列表随页面展开，避免高度限制产生嵌套的纵向滚动区域。 */
+  .orders-sidebar { max-height: none; overflow-y: visible; margin-bottom: 20px; }
 }
 </style>
