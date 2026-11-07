@@ -77,7 +77,7 @@ test('六项入场指标支持闭区间、单侧与组合筛选，缺失值不�
   assert.equal(combined.summary.orderCount, 2)
 })
 
-test('ER 按入场主周期或指定周期筛选，保留零值并排除缺失和不可用快照', () => {
+test('ER 固定按入场主周期筛选，保留零值并排除缺失和不可用快照', () => {
   const snapshot = (timeframe, er, status = 'ready') => ({ timeframe, er, status })
   const trades = [
     { ...records[0], id: 'zero', mainTimeframe: '5m', pnl: 10, entryER: [snapshot('1h', 0.8), snapshot('5m', 0)] },
@@ -95,13 +95,14 @@ test('ER 按入场主周期或指定周期筛选，保留零值并排除缺失�
   assert.equal(combined.data.length, 1)
   assert.equal(combined.summary.totalPnl, 5)
   assert.equal(combined.summary.winRate, 50)
-  assert.deepEqual(queryTradeHistory(trades, { erTimeframe: '1h', erMin: 0.8 }).data.map(r => r.id), ['zero'])
+  // 即使旧客户端传入周期，也不能覆盖订单的主周期。
+  assert.equal(queryTradeHistory(trades, { erTimeframe: '1h', erMin: 0.8 }).pagination.total, 0)
   assert.deepEqual(queryTradeHistory(trades, { erMax: 0.1 }).data.map(r => r.id), ['zero'])
-  assert.equal(queryTradeHistory(trades, { erTimeframe: '1h', erMin: '', erMax: '' }).pagination.total, 7)
+  assert.equal(queryTradeHistory(trades, { erMin: '', erMax: '' }).pagination.total, 7)
   const fallback = [{ ...trades[0], mainTimeframe: undefined, entrySupportResistance: { timeframe: '5m' } }]
   assert.equal(queryTradeHistory(fallback, { erMax: 0 }).pagination.total, 1)
   assert.equal(queryTradeHistory([{ ...fallback[0], entrySupportResistance: undefined }], { erMax: 0 }).pagination.total, 0)
-  for (const query of [{ erMin: 'invalid' }, { erMax: 'Infinity' }, { erMin: 0.8, erMax: 0.2 }, { erMin: -0.1 }, { erMax: 1.1 }, { erTimeframe: '1m' }]) {
+  for (const query of [{ erMin: 'invalid' }, { erMax: 'Infinity' }, { erMin: 0.8, erMax: 0.2 }, { erMin: -0.1 }, { erMax: 1.1 }]) {
     assert.throws(() => queryTradeHistory(trades, query))
   }
 })
@@ -292,11 +293,11 @@ test('快速切换筛选时迟到的旧请求不会覆盖筛选选项和汇总',
   assert.equal(store.filteredSummary.value.orderCount, 2)
   assert.equal(pending[1].options.params.symbol, 'ETH/USDT')
   assert.equal(pending[1].options.params.pageSize, 16)
-  store.setFilter({ openTimeMin: 1000, openTimeMax: 1002, estimatedVolumeMin: 1.5, estimatedVolumeMax: 2, erTimeframe: '15m', erMin: 0, erMax: 0.6 })
+  store.setFilter({ openTimeMin: 1000, openTimeMax: 1002, estimatedVolumeMin: 1.5, estimatedVolumeMax: 2, erMin: 0, erMax: 0.6 })
   const timed = store.fetchPage(1, 16)
   assert.equal(pending[2].options.params.openTimeMin, 1000)
   assert.equal(pending[2].options.params.openTimeMax, 1002)
-  assert.equal(pending[2].options.params.erTimeframe, '15m')
+  assert.equal(pending[2].options.params.erTimeframe, undefined)
   assert.equal(pending[2].options.params.erMin, 0)
   assert.equal(pending[2].options.params.erMax, 0.6)
   // 页面倍数转换为接口百分数后，仍可准确筛选原有入场快照。
@@ -310,7 +311,6 @@ test('快速切换筛选时迟到的旧请求不会覆盖筛选选项和汇总',
   assert.equal(store.filter.value.openTimeMin, undefined)
   assert.equal(store.filter.value.openTimeMax, undefined)
   assert.equal(store.filter.value.estimatedVolumeMin, undefined)
-  assert.equal(store.filter.value.erTimeframe, undefined)
   assert.equal(store.filter.value.erMin, undefined)
   assert.equal(store.filter.value.erMax, undefined)
 })

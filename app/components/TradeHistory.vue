@@ -237,12 +237,7 @@
 
         <div class="er-time-filters">
           <div class="filter-item range-filter-item">
-            <span class="filter-label er-filter-label">
-              ER
-              <el-select v-model="filter.erTimeframe" placeholder="主周期" size="small" clearable @change="handleFilterChange">
-                <el-option v-for="timeframe in erTimeframes" :key="timeframe" :label="timeframe" :value="timeframe" />
-              </el-select>
-            </span>
+            <span class="filter-label">ER（主周期）</span>
             <el-input-number
               v-model="filter.erMin"
               class="range-input"
@@ -894,7 +889,6 @@ const indicatorRangeFilters = [
 ] as const satisfies ReadonlyArray<{ label: string; minKey: keyof FilterConfig; maxKey: keyof FilterConfig }>
 
 // 本地筛选条件（与 store 同步）
-const erTimeframes = ['5m', '15m', '1h', '4h', '1d'] as const
 
 const filter = reactive<FilterConfig>({
   symbol: '',
@@ -979,7 +973,6 @@ const handleResetFilter = () => {
   filter.oiMax = undefined
   filter.estimatedVolumeMin = undefined
   filter.estimatedVolumeMax = undefined
-  filter.erTimeframe = undefined
   filter.erMin = undefined
   filter.erMax = undefined
   for (const metric of indicatorRangeFilters) {
@@ -1179,10 +1172,6 @@ onUnmounted(() => {
   min-width: 0;
 }
 
-.er-filter-label {
-  gap: 8px;
-}
-
 .er-time-filters {
   /* ER 与时间保持在同一行，避免网格换行后 ER 落到开仓时间的上一行末尾。 */
   grid-column: 1 / -1;
@@ -1193,11 +1182,6 @@ onUnmounted(() => {
 
 .er-time-filters .time-filter-item {
   grid-column: auto;
-}
-
-.er-filter-label :deep(.el-select) {
-  width: 100px;
-  min-width: 0;
 }
 
 @container (width < 308px) {
