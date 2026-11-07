@@ -11,7 +11,7 @@
       <!-- 桌面直接显示导航，移动端通过右上角菜单展开同一组入口。 -->
       <nav id="header-navigation" class="header-navigation" :class="{ 'is-open': mobileNavOpen }" aria-label="行情导航">
         <div class="navigation-inner">
-          <button v-for="item in navigationItems" :key="item.label" type="button" class="navigation-item" :class="{ 'is-active': activePanels[item.id] }" :aria-current="activePanels[item.id] ? 'page' : undefined" @click="handleNavigate(item.id)">
+          <button v-for="item in visibleNavigationItems" :key="item.label" type="button" class="navigation-item" :class="{ 'is-active': activePanels[item.id] }" :aria-current="activePanels[item.id] ? 'page' : undefined" @click="handleNavigate(item.id)">
             <span class="navigation-icon">
               <el-icon :size="18" aria-hidden="true">
                 <component :is="item.icon" />
@@ -37,10 +37,9 @@
             <ElIconSunny v-else />
           </el-icon>
         </el-button>
-        <!-- 登录、注册暂时共用页面密码验证，成功后由统一解锁状态切换头像。 -->
-        <div v-if="!passwordVerified" class="auth-actions" role="group" aria-label="登录与注册">
+        <!-- 使用配置的管理员账号登录，成功后由统一登录状态切换头像。 -->
+        <div v-if="!passwordVerified" class="auth-actions" role="group" aria-label="账号登录">
           <button type="button" class="auth-button auth-login" @click="emit('unlock')">登录</button>
-          <button type="button" class="auth-button auth-register" @click="emit('unlock')">注册</button>
         </div>
         <el-dropdown v-else class="account-dropdown" trigger="click" placement="bottom-end" popper-class="account-menu-popper" :show-arrow="false" :offset="12" @command="handleAccountCommand">
           <button type="button" class="user-avatar" aria-label="用户菜单（已解锁）">
@@ -48,14 +47,14 @@
           </button>
           <template #dropdown>
             <div class="account-menu">
-              <!-- 当前使用统一操作密码，身份区展示权限状态，不虚构用户名或邮箱。 -->
+              <!-- 当前为单管理员账号，身份区展示角色和登录状态。 -->
               <div class="account-profile">
                 <span class="account-profile-avatar" aria-hidden="true">
                   <el-icon :size="21"><ElIconUserFilled /></el-icon>
                 </span>
                 <div class="account-profile-info">
                   <span class="account-profile-name">管理员</span>
-                  <span class="account-profile-status"><span class="account-status-dot" />操作权限已解锁</span>
+                  <span class="account-profile-status"><span class="account-status-dot" />已登录</span>
                 </div>
               </div>
               <el-dropdown-menu class="account-menu-actions">
@@ -87,7 +86,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import type { Component } from 'vue'
 import { ElIconHouse, ElIconDataAnalysis, ElIconTickets, ElIconPlatform, ElIconTrendCharts, ElIconUserFilled } from '#components'
@@ -113,7 +112,7 @@ interface NavigationItem {
   icon: Component
 }
 
-defineProps<Props>()
+const props = defineProps<Props>()
 const emit = defineEmits<{
   navigate: [target: HomeNavigationTarget]
   performance: []
@@ -129,6 +128,11 @@ const navigationItems: NavigationItem[] = [
   { id: 'macro', label: '宏观', description: '全球市场', icon: ElIconPlatform },
   { id: 'trends', label: '趋势', description: '行情脉络', icon: ElIconTrendCharts }
 ]
+
+// 桌面与移动端共用登录状态过滤，退出或凭证到期后同步隐藏受保护入口。
+const visibleNavigationItems = computed(() => navigationItems.filter(item =>
+  props.passwordVerified || (item.id !== 'indicators' && item.id !== 'orders')
+))
 
 /** 预设入口先提示待开放，只有退出命令会清除解锁状态。 */
 function handleAccountCommand(command: string) {

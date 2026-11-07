@@ -1,6 +1,6 @@
 // ==================== 普通浏览放行与敏感 API 统一门禁 ====================
 import { createError, defineEventHandler, getRequestURL } from 'h3'
-import { assertOperationOrigin, limitOperationRequests, operationPassword, operationSession, privateOperationResponse, readOperationBody } from '../utils/operation-auth'
+import { assertOperationOrigin, limitOperationRequests, operationPassword, operationSession, operationUsername, privateOperationResponse, readOperationBody } from '../utils/operation-auth'
 
 /** 同时保护 GET 和 HEAD；详情、日志、档案不能从替代只读入口泄露。 */
 const sensitiveReads = [
@@ -40,8 +40,8 @@ export default defineEventHandler(async event => {
       return
     }
   }
-  if (!operationPassword(event)) throw createError({ statusCode: 503, message: '请先配置 CONFIG_EDIT_PASSWORD，敏感操作暂不可用' })
-  if (!operationSession(event)) throw createError({ statusCode: 401, message: '请先输入操作密码解锁，验证结果保留 24 小时' })
+  if (!operationUsername() || !operationPassword(event)) throw createError({ statusCode: 503, message: '请先配置 CONFIG_EDIT_USERNAME 和 CONFIG_EDIT_PASSWORD，敏感操作暂不可用' })
+  if (!operationSession(event)) throw createError({ statusCode: 401, message: '请先使用账号和密码登录，登录状态保留 24 小时' })
   if (!read) {
     limitOperationRequests(event, 'write')
     await readOperationBody(event, 1024 * 1024)

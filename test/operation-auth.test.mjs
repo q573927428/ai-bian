@@ -76,9 +76,10 @@ function writeRoutes(dir = new URL('../server/api/', import.meta.url), prefix = 
 }
 
 test('公开浏览、密码 Cookie、敏感路由与副作用边界', async t => {
-  const envKeys = ['NODE_ENV', 'CONFIG_EDIT_PASSWORD', 'OPERATION_AUTH_ORIGIN', 'BASIC_AUTH_USERNAME', 'BASIC_AUTH_PASSWORD']
+  const envKeys = ['NODE_ENV', 'CONFIG_EDIT_USERNAME', 'CONFIG_EDIT_PASSWORD', 'OPERATION_AUTH_ORIGIN', 'BASIC_AUTH_USERNAME', 'BASIC_AUTH_PASSWORD']
   const previousEnv = Object.fromEntries(envKeys.map(key => [key, process.env[key]]))
   process.env.NODE_ENV = 'production'
+  process.env.CONFIG_EDIT_USERNAME = 'admin'
   process.env.CONFIG_EDIT_PASSWORD = 'test-operation-password'
   process.env.OPERATION_AUTH_ORIGIN = 'https://trade.example.com'
   process.env.BASIC_AUTH_USERNAME = 'legacy'
@@ -128,6 +129,23 @@ test('公开浏览、密码 Cookie、敏感路由与副作用边界', async t =>
 
   await t.test('错误密码和空配置失败关闭；普通页面继续可用', async () => {
     assert.equal((await write('/api/bot/check-password', null, { password: 'wrong' })).status, 401)
+    const credentials = { username: 'admin', password: process.env.CONFIG_EDIT_PASSWORD }
+    for (const invalid of [
+      { password: credentials.password },
+      { ...credentials, username: 'wrong' },
+      { ...credentials, password: 'wrong' },
+      { ...credentials, username: {} },
+      { ...credentials, password: [] },
+    ]) {
+      const response = await write('/api/bot/check-password', null, invalid)
+      assert.equal(response.status, 401)
+      assert.equal((await response.json()).data.message, '账号或密码错误')
+    }
+    process.env.CONFIG_EDIT_USERNAME = ''
+    assert.equal((await write('/api/bot/check-password', null, credentials)).status, 503)
+    assert.equal((await write('/api/strategies')).status, 503)
+    assert.equal((await (await fetch(base + '/api/bot/check-password')).json()).configured, false)
+    process.env.CONFIG_EDIT_USERNAME = 'admin'
     process.env.CONFIG_EDIT_PASSWORD = ''
     assert.equal((await write('/api/bot/check-password', null, { password: 'anything' })).status, 503)
     assert.equal((await write('/api/strategies')).status, 503)
@@ -136,7 +154,7 @@ test('公开浏览、密码 Cookie、敏感路由与副作用边界', async t =>
   })
 
   await t.test('一次密码签发安全 Cookie，刷新状态并复用真实操作路由', async () => {
-    const response = await write('/api/bot/check-password', null, { password: process.env.CONFIG_EDIT_PASSWORD })
+    const response = await write('/api/bot/check-password', null, { username: ' admin ', password: process.env.CONFIG_EDIT_PASSWORD })
     assert.equal(response.status, 200)
     const header = response.headers.get('set-cookie')
     assert.match(header, /^__Host-operation_auth=/)
@@ -174,6 +192,10 @@ test('公开浏览、密码 Cookie、敏感路由与副作用边界', async t =>
   })
 
   await t.test('密码修改、过期、篡改时间及主动锁定', async () => {
+    process.env.CONFIG_EDIT_USERNAME = 'rotated-admin'
+    assert.equal((await write('/api/strategies', cookie)).status, 401)
+    assert.equal((await (await fetch(base + '/api/bot/check-password', { headers: { cookie } })).json()).verified, false)
+    process.env.CONFIG_EDIT_USERNAME = 'admin'
     process.env.CONFIG_EDIT_PASSWORD = 'rotated-password'
     assert.equal((await write('/api/strategies', cookie)).status, 401)
     process.env.CONFIG_EDIT_PASSWORD = 'test-operation-password'
@@ -193,7 +215,7 @@ test('公开浏览、密码 Cookie、敏感路由与副作用边界', async t =>
     process.env.NODE_ENV = 'development'
     try {
       const origin = base
-      const localLogin = await write('/api/bot/check-password', null, { password: process.env.CONFIG_EDIT_PASSWORD }, 'POST', { origin })
+      const localLogin = await write('/api/bot/check-password', null, { username: 'admin', password: process.env.CONFIG_EDIT_PASSWORD }, 'POST', { origin })
       assert.equal(localLogin.status, 200)
       const localCookie = localLogin.headers.get('set-cookie').split(';')[0]
       assert.match(localCookie, /^operation_auth_dev=/)

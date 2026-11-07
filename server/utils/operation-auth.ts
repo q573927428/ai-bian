@@ -1,4 +1,4 @@
-// ==================== 敏感操作密码与 24 小时签名凭证 ====================
+// ==================== 管理员账号密码与 24 小时签名凭证 ====================
 import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto'
 import { createError, deleteCookie, getCookie, getRequestHeader, getRequestURL, setCookie, setResponseHeader } from 'h3'
 import type { H3Event } from 'h3'
@@ -6,6 +6,11 @@ import { useRuntimeConfig } from '#imports'
 
 const TTL = 24 * 60 * 60
 const buckets = new Map<string, { count: number; until: number }>()
+
+/** 账号仅从服务端运行环境读取，不将管理员配置暴露给匿名客户端。 */
+export function operationUsername(): string {
+  return process.env.CONFIG_EDIT_USERNAME?.trim() ?? ''
+}
 
 /** 优先读取运行时密码；显式空值也必须覆盖旧构建配置，确保清空密码不会意外放行。 */
 export function operationPassword(event: H3Event): string {
@@ -27,9 +32,9 @@ export function matchesOperationPassword(actual: string, expected: string): bool
   return timingSafeEqual(digest(actual), digest(expected))
 }
 
-/** 专用用途派生，修改操作密码即撤销所有旧 Cookie，不额外存储会话。 */
+/** 将账号与密码共同绑定到签名，任一配置变更即撤销旧 Cookie。 */
 function signature(payload: string, password: string): string {
-  const key = createHmac('sha256', password).update('ai-bian/operation-auth/key/v1').digest()
+  const key = createHmac('sha256', password).update(JSON.stringify(['ai-bian/operation-auth/key/v2', operationUsername()])).digest()
   return createHmac('sha256', key).update(payload).digest('base64url')
 }
 
@@ -37,7 +42,7 @@ function signature(payload: string, password: string): string {
 export function operationSession(event: H3Event): { expiresAt: number } | null {
   const password = operationPassword(event)
   const token = getCookie(event, cookieName()) || ''
-  if (!password || token.length > 256) return null
+  if (!operationUsername() || !password || token.length > 256) return null
   const match = /^v1\.(\d{13})\.(\d{13})\.([A-Za-z0-9_-]{32})\.([A-Za-z0-9_-]{43})$/.exec(token)
   if (!match) return null
   const [, issued, expires, , signed] = match
@@ -50,7 +55,7 @@ export function operationSession(event: H3Event): { expiresAt: number } | null {
 /** 设置固定 24 小时期限，普通请求不续期；返回时间仅用于界面清理。 */
 export function issueOperationSession(event: H3Event): number {
   const password = operationPassword(event)
-  if (!password) throw createError({ statusCode: 503, message: '请先配置 CONFIG_EDIT_PASSWORD，敏感操作暂不可用' })
+  if (!operationUsername() || !password) throw createError({ statusCode: 503, message: '请先配置 CONFIG_EDIT_USERNAME 和 CONFIG_EDIT_PASSWORD，登录暂不可用' })
   const now = Date.now()
   const expiresAt = now + TTL * 1000
   const payload = `v1.${now}.${expiresAt}.${randomBytes(24).toString('base64url')}`

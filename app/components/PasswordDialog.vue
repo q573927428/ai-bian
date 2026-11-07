@@ -1,8 +1,8 @@
-<!-- 密码验证对话框 -->
+<!-- ==================== 管理员账号密码登录弹窗 ==================== -->
 <template>
   <el-dialog
     v-model="visible"
-    title="请输入密码验证"
+    title="账号登录"
     :close-on-click-modal="false"
     :close-on-press-escape="!loading"
     :show-close="!loading"
@@ -11,29 +11,43 @@
     @closed="handleClosed"
     draggable
   >
-    <el-form :model="form" label-width="0">
-      <el-form-item>
+    <p class="login-description">登录后即可管理策略与交易，登录状态保留 24 小时。</p>
+    <el-form :model="form" label-position="top" @submit.prevent="handleConfirm">
+      <el-form-item label="账号">
         <el-input
-          v-model="form.password"
-          type="password"
-          placeholder="请输入操作密码"
-          show-password
-          @keyup.enter="handleConfirm"
-          ref="passwordInput"
+          v-model="form.username"
+          name="username"
+          autocomplete="username"
+          placeholder="请输入账号"
+          size="large"
+          :disabled="loading"
+          ref="usernameInput"
         />
       </el-form-item>
+      <el-form-item label="密码">
+        <el-input
+          v-model="form.password"
+          name="password"
+          autocomplete="current-password"
+          type="password"
+          placeholder="请输入密码"
+          size="large"
+          :disabled="loading"
+          show-password
+        />
+      </el-form-item>
+      <div class="login-actions">
+        <el-button @click="handleCancel" :disabled="loading">取消</el-button>
+        <el-button type="primary" native-type="submit" :loading="loading">登录</el-button>
+      </div>
     </el-form>
-    <template #footer>
-      <el-button @click="handleCancel" :disabled="loading">取消</el-button>
-      <el-button type="primary" @click="handleConfirm" :loading="loading">确认</el-button>
-    </template>
   </el-dialog>
 </template>
 
 <script setup lang="ts">
 import { ref, watch, nextTick, computed } from 'vue'
 
-/** 密码验证对话框的外部控制参数。 */
+/** 登录弹窗的外部控制参数，沿用现有入口与成功事件。 */
 interface Props {
   modelValue: boolean
 }
@@ -55,10 +69,11 @@ const visible = computed({
 })
 
 const form = ref({
+  username: '',
   password: ''
 })
 const loading = ref(false)
-const passwordInput = ref()
+const usernameInput = ref()
 
 // 待关闭后触发的成功回调
 let pendingSuccess = false
@@ -72,13 +87,18 @@ const checkRequiresPassword = async (): Promise<boolean> => {
     }
     return true
   } catch (error: any) {
-    ElMessage.error('检查密码配置失败: ' + (error.message || '未知错误'))
+    ElMessage.error('检查登录状态失败: ' + (error.message || '未知错误'))
     return true
   }
 }
 
+/** 账号去除首尾空格，密码保留原值，由服务端签发 HttpOnly 登录凭证。 */
 const handleConfirm = async () => {
   if (loading.value) return
+  if (!form.value.username.trim()) {
+    ElMessage.warning('请输入账号')
+    return
+  }
   if (!form.value.password.trim()) {
     ElMessage.warning('请输入密码')
     return
@@ -88,20 +108,20 @@ const handleConfirm = async () => {
   try {
     const res = await $fetch<any>('/api/bot/check-password', {
       method: 'POST',
-      body: { password: form.value.password }
+      body: { username: form.value.username.trim(), password: form.value.password }
     })
 
     if (res.success) {
-      ElMessage.success('验证成功')
+      ElMessage.success('登录成功')
       // 先关闭对话框，emit('success') 延迟到 @closed 中执行
       form.value.password = ''
       pendingSuccess = true
       visible.value = false
     } else {
-      ElMessage.error(res.message || '密码错误')
+      ElMessage.error(res.message || '账号或密码错误')
     }
   } catch (error: any) {
-    ElMessage.error(error.data?.message || error.data?.statusMessage || '验证失败，请稍后重试')
+    ElMessage.error(error.data?.data?.message || error.data?.message || error.data?.statusMessage || '登录失败，请稍后重试')
   } finally {
     loading.value = false
   }
@@ -112,6 +132,7 @@ const handleCancel = () => {
 }
 
 const handleClosed = () => {
+  form.value.username = ''
   form.value.password = ''
   // 对话框完全关闭后，再触发 success 事件
   if (pendingSuccess) {
@@ -136,11 +157,26 @@ watch(() => props.modelValue, async (newVal, _previous, onCleanup) => {
     }
     needsPassword.value = true
     nextTick(() => {
-      passwordInput.value?.focus()
+      usernameInput.value?.focus()
     })
   }
 }, { immediate: true })
 </script>
+
+<style scoped>
+.login-description {
+  margin: 0 0 24px;
+  color: var(--el-text-color-secondary);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.login-actions {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 8px;
+}
+</style>
 
 
 

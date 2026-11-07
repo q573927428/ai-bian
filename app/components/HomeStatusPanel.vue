@@ -5,10 +5,6 @@
       <div class="card-header">
         <span>🎛️ 状态面板</span>
         <div class="card-header-actions">
-          <el-button v-if="!passwordVerified" type="primary" size="small" text @click="emit('unlock')">
-            <el-icon><ElIconUnlock /></el-icon>
-            解锁
-          </el-button>
           <el-button type="primary" size="small" text :loading="refreshing" @click="emit('refresh')">
             <el-icon v-if="!refreshing"><ElIconRefresh /></el-icon>
             刷新
@@ -20,15 +16,16 @@
     <div class="control-panel">
       <!-- 将常用入口放在控制面板正文内，避免标题栏操作过于拥挤。 -->
       <div class="control-panel-actions">
-        <el-button class="control-panel-action" type="primary" size="small" text @click="emit('open', 'config')">
+        <!-- 管理入口随服务端登录状态显示，退出或到期后自动隐藏。 -->
+        <el-button v-if="passwordVerified" class="control-panel-action" type="primary" size="small" text @click="emit('open', 'config')">
           <el-icon><ElIconSetting /></el-icon>
           配置
         </el-button>
-        <el-button class="control-panel-action" type="primary" size="small" text @click="emit('open', 'strategies')">
+        <el-button v-if="passwordVerified" class="control-panel-action" type="primary" size="small" text @click="emit('open', 'strategies')">
           <el-icon><ElIconOperation /></el-icon>
           策略
         </el-button>
-        <el-button class="control-panel-action" type="primary" size="small" text @click="emit('logs')">
+        <el-button v-if="passwordVerified" class="control-panel-action" type="primary" size="small" text @click="emit('logs')">
           <el-icon><ElIconDocument /></el-icon>
           日志
         </el-button>
@@ -111,7 +108,6 @@ interface Props {
 
 const props = defineProps<Props>()
 const emit = defineEmits<{
-  unlock: []
   refresh: []
   logs: []
   hot: []

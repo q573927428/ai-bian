@@ -52,10 +52,11 @@ cp .env.example .env
 | `DOUBAO_API_KEY` | 豆包 API Key | 否 |
 | `QWEN_API_KEY` | 阿里千问 API Key | 否 |
 | `OPENAI_API_KEY` | OpenAI API Key | 否 |
-| `CONFIG_EDIT_PASSWORD` | 敏感 API 操作密码，验证一次有效 24 小时 | 是（敏感操作） |
+| `CONFIG_EDIT_USERNAME` | 管理员登录账号，例如 `admin` | 是（敏感操作） |
+| `CONFIG_EDIT_PASSWORD` | 管理员登录密码，登录一次有效 24 小时 | 是（敏感操作） |
 | `OPERATION_AUTH_ORIGIN` | 网站 HTTPS 来源，例如 `https://trade.example.com`，用于拒绝跨站操作 | 是（生产敏感操作） |
 
-普通页面、行情和首页概况可以直接访问。策略创建/修改/删除/启停、开平仓等写接口，以及完整策略、配置和 AI 档案，由服务端验证 HttpOnly Cookie；密码验证一次后 24 小时内无需重复输入，刷新也保留。主动锁定清除当前浏览器凭证，修改操作密码可使所有旧凭证失效。未配置操作密码时敏感接口拒绝执行。
+普通页面、行情和首页概况可以直接访问。策略创建/修改/删除/启停、开平仓等写接口，以及完整策略、配置和 AI 档案，由服务端验证 HttpOnly Cookie；使用 `.env` 中的账号和密码登录后 24 小时内无需重复输入，刷新也保留。主动退出清除当前浏览器凭证，修改账号或密码可使所有旧凭证失效。任一配置为空时敏感接口拒绝执行。当前为单管理员登录，不提供自助注册。
 
 生产必须使用 HTTPS，并让 Node 进程实际加载 `.env` 或在进程管理器注入环境变量。`OPERATION_AUTH_ORIGIN` 填浏览器访问的来源，不填内部反代地址；开发环境可留空。旧的 `BASIC_AUTH_USERNAME`、`BASIC_AUTH_PASSWORD` 已停用。更新时需部署包含新中间件的新产物，不能只重启旧 `.output`。
 

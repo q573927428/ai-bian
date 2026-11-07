@@ -22,7 +22,6 @@
               :daily-return="dailyReturn"
               :initial-capital="initialCapital"
               :usdt-balance="usdtBalance"
-              @unlock="handleUnlock"
               @refresh="refreshPanelData"
               @open="handleOpenProtectedPanel"
               @logs="handleOpenProtectedPanel('logs')"
@@ -139,7 +138,7 @@ const showMacroDataDrawer = ref(false)
 const showCryptoTrendsDrawer = ref(false)
 const showStrategiesDrawer = ref(false)
 
-const { passwordVerified, showPasswordDialog, handleUnlock, handleOpenProtectedPanel, handlePasswordSuccess } = usePageUnlock({
+const { passwordVerified, showPasswordDialog, handleOpenProtectedPanel, handlePasswordSuccess } = usePageUnlock({
   onOpen: openProtectedPanel,
   onLock: () => {
     showConfigDialog.value = false
