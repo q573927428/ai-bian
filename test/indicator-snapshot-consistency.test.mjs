@@ -493,6 +493,57 @@ function createERFixture() {
   return f
 }
 
+test('ER 预筛使用闭区间，拒绝缺失、过期和异常值，关闭后保持兼容', () => {
+  const screener = new AIPreScreener()
+  const config = { ...volumeOnly, enableVolume: false, enableEr: true, minEr: 0.2, maxEr: 0.8 }
+  const input = { symbol: 'BTCUSDT', strategyId: 's', erTimeframe: '5m' }
+  const screen = (er, overrides = {}) => screener.screen({ ...input, er }, { ...config, ...overrides })
+  const ready = er => ({ timeframe: '5m', status: 'ready', er })
+  for (const value of [0.2, 0.5, 0.8]) assert.equal(screen(ready(value)).passed, true)
+  for (const value of [0, 0.19, 0.81, 1]) assert.equal(screen(ready(value)).passed, false)
+  assert.equal(screen(ready(0), { minEr: 0 }).passed, true)
+  assert.equal(screen(ready(1), { maxEr: 1 }).passed, true)
+  for (const er of [undefined, ready(null), ready(NaN), ready(Infinity), ready(-0.1), ready(1.1),
+    { ...ready(0.5), timeframe: '1h' },
+    ...['insufficient_data', 'stale_data', 'invalid_data'].map(status => ({ ...ready(0.5), status }))]) {
+    const result = screen(er)
+    assert.equal(result.passed, false)
+    assert.match(result.reason, /ER数据不可用/)
+    assert.equal(result.checks.er.value, undefined)
+  }
+  for (const overrides of [{ minEr: -1 }, { maxEr: 2 }, { minEr: 0.9 }, { minEr: NaN }, { maxEr: null }]) {
+    assert.match(screen(ready(0.5), overrides).reason, /ER阈值无效/)
+  }
+  assert.equal(screen(undefined, { enableEr: false }).passed, true)
+  assert.equal(screener.screen(input, { ...volumeOnly, enableVolume: false }).passed, true)
+})
+
+test('ER 预筛仅使用主周期，AI 关闭 ER 时仍筛选，缓存命中也必须重新达标', async () => {
+  const f = createERFixture()
+  f.strategy.indicators.find(i => i.type === 'ER').enabled = false
+  Object.assign(f.strategy.preScreenConfig, { enableEr: true, minEr: 0.2, maxEr: 1 })
+  const snapshot = await f.scheduler.buildMarketSnapshot('BTCUSDT')
+  const data = new Map()
+  await f.engine.hydrateIndicatorsForStrategy(f.strategy, 'BTCUSDT', '5m', data, snapshot)
+  // 其他周期均为 1，仅将主周期改成震荡窗口，验证不能借其他周期通过。
+  const main = data.get('5m_ER').values
+  main.er = 0.1
+  f.engine.buildAICacheKey = () => 'er-cached'
+  f.engine.aiCache.set('er-cached', { signal: { direction: 'long' }, timestamp: f.clock.now })
+  const analyze = () => f.engine.callAI(f.instance, f.strategy.id, 'BTCUSDT', f.strategy.aiPrompt, data, snapshot)
+  assert.equal(await analyze(), null)
+  assert.equal(f.calls.length, 0)
+  main.er = 0.5
+  assert.equal((await analyze()).direction, 'long')
+  f.engine.aiCache.clear()
+  await analyze()
+  assert.equal(f.calls.length, 1)
+  assert.equal(f.calls[0][3].enabledIndicators.er, false)
+  main.status = 'stale_data'
+  await analyze()
+  assert.equal(f.calls.length, 1)
+})
+
 test('ER 只计算策略勾选周期，忽略旧独立配置，将全部周期及相反方向送入 AI', async () => {
   const f = createERFixture()
   const calculated = []

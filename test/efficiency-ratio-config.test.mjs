@@ -101,6 +101,42 @@ test('加载未配置 ER 的旧策略不隐式启用，主动勾选后才加入�
   } finally { f.stop() }
 })
 
+test('ER 预筛默认关闭，启用后保存阈值并在重新编辑时恢复，独立于 AI 指标开关', async () => {
+  const f = await createEditor()
+  try {
+    assert.equal(f.editor.form.value.preScreenConfig.enableEr, false)
+    f.editor.preScreenEnabledFlags.value.push('enableEr')
+    f.editor.form.value.preScreenConfig.minEr = 0.25
+    f.editor.form.value.preScreenConfig.maxEr = 0.8
+    f.editor.selectedIndicators.value = []
+    await vue.nextTick()
+    await f.editor.handleSave()
+    const saved = f.events.find(([event]) => event === 'save')[1]
+    assert.equal(saved.preScreenConfig.enableEr, true)
+    const reloaded = await createEditor(saved)
+    try {
+      assert.ok(reloaded.editor.preScreenEnabledFlags.value.includes('enableEr'))
+      assert.equal(reloaded.editor.form.value.preScreenConfig.minEr, 0.25)
+      assert.equal(reloaded.editor.form.value.preScreenConfig.maxEr, 0.8)
+      reloaded.editor.preScreenEnabledFlags.value = []
+      await vue.nextTick()
+      assert.equal(reloaded.editor.form.value.preScreenConfig.enableEr, false)
+    } finally { reloaded.stop() }
+  } finally { f.stop() }
+
+  const oldStrategy = await strategyFixture([])
+  delete oldStrategy.preScreenConfig.enableEr
+  delete oldStrategy.preScreenConfig.minEr
+  delete oldStrategy.preScreenConfig.maxEr
+  const legacy = await createEditor(oldStrategy)
+  try {
+    assert.equal(legacy.editor.form.value.preScreenConfig.enableEr, false)
+    assert.equal(legacy.editor.form.value.preScreenConfig.minEr, 0)
+    assert.equal(legacy.editor.form.value.preScreenConfig.maxEr, 1)
+    assert.ok(!legacy.editor.preScreenEnabledFlags.value.includes('enableEr'))
+  } finally { legacy.stop() }
+})
+
 test('服务端按策略周期覆盖旧 ER 独立配置，保持窗口边界及启用开关', () => {
   const source = readFileSync(new URL('../server/utils/strategy-indicators-normalizer.ts', import.meta.url), 'utf8')
   const { normalizeStrategyIndicatorConfig } = loadSource(source, { '../../app/utils/efficiency-ratio': er })

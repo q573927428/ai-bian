@@ -1,6 +1,7 @@
 // ==================== AI预筛短路机制 ====================
 
 import { logger } from './logger'
+import type { EfficiencyRatioSnapshot } from '../../types/efficiency-ratio'
 
 /**
  * 预筛配置
@@ -12,6 +13,12 @@ export interface PreScreenConfig {
 
   // ADX斜率阈值（趋势方向）
   minAdxSlope?: number // 默认 0 (ADX斜率 > 0)
+
+  /** 主周期 ER 闭区间阈值，包含未收盘 K 线，默认 [0, 1]。 */
+  minEr?: number
+  maxEr?: number
+  /** 默认关闭，启用后要求有效 ER；独立于 AI 指标开关。 */
+  enableEr?: boolean
 
   // ATR阈值（波动率）
   minAtrPercent?: number // 默认 0.0038 (0.38%)
@@ -49,6 +56,10 @@ export interface PreScreenInput {
   adxPeriod?: number // ADX计算周期，默认14
   adxTimeframe?: string // ADX的K线周期，如 "15m"、"1h"
 
+  /** 本轮主周期 ER 快照，必须保留状态，避免缺失或过期数据参与筛选。 */
+  er?: EfficiencyRatioSnapshot
+  erTimeframe?: string
+
   // ATR相关
   atr?: number
   currentPrice?: number
@@ -71,6 +82,7 @@ export interface PreScreenResult {
   checks: {
     adx?: { passed: boolean; value?: number; threshold?: string }
     adxSlope?: { passed: boolean; value?: number; threshold?: string }
+    er?: { passed: boolean; value?: number; threshold?: string }
     atr?: { passed: boolean; value?: number; threshold?: string }
     oi?: { passed: boolean; value?: number; threshold?: string }
     volume?: { passed: boolean; value?: number; threshold?: string }
@@ -84,6 +96,9 @@ export const PRESCREEN_DEFAULTS: Required<PreScreenConfig> = {
   minAdx: 15,
   maxAdx: 60,
   minAdxSlope: 0,
+  minEr: 0,
+  maxEr: 1,
+  enableEr: false,
   minAtrPercent: 0.002,
   maxAtrPercent: 0.05,
   minOiChangePercent: 0.2,
@@ -172,6 +187,32 @@ export class AIPreScreener {
         const adxTimeframe = input.adxTimeframe ?? '15m'
         passed = false
         failReason = `ADX斜率不满足(${adxTimeframe}) : ${input.adxSlope.toFixed(4)} <= ${cfg.minAdxSlope}`
+      }
+    }
+
+    // ER 使用本轮主周期快照；启用时数据不可用必须拦截，不能悄悄跳过预筛。
+    if (passed && cfg.enableEr) {
+      const snapshot = input.er
+      const value = snapshot?.er
+      const timeframe = input.erTimeframe ?? snapshot?.timeframe ?? '主周期'
+      const validRange = Number.isFinite(cfg.minEr) && Number.isFinite(cfg.maxEr)
+        && cfg.minEr >= 0 && cfg.maxEr <= 1 && cfg.minEr <= cfg.maxEr
+      const validValue = snapshot?.status === 'ready' && typeof value === 'number'
+        && Number.isFinite(value) && value >= 0 && value <= 1
+        && (!input.erTimeframe || snapshot.timeframe === input.erTimeframe)
+      const erPassed = validRange && validValue && value >= cfg.minEr && value <= cfg.maxEr
+      checks.er = {
+        passed: erPassed,
+        value: validValue ? value : undefined,
+        threshold: `[${cfg.minEr}, ${cfg.maxEr}]`
+      }
+      if (!erPassed) {
+        passed = false
+        failReason = !validRange
+          ? 'ER阈值无效: 需满足 0 ≤ 最小ER ≤ 最大ER ≤ 1'
+          : !validValue
+            ? `ER数据不可用(${timeframe}): ${snapshot?.reason ?? snapshot?.status ?? '数据缺失'}`
+            : `ER不满足(${timeframe}): ${value.toFixed(4)} 不在 [${cfg.minEr}, ${cfg.maxEr}] 范围内`
       }
     }
 

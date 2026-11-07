@@ -1038,6 +1038,9 @@ export class StrategyEngine {
         adxSlope: enabledADX ? adxData.adxSlope : undefined,
         adxPeriod: enabledADX ? adxPeriod : undefined,
         adxTimeframe: enabledADX ? mainTimeframe : undefined,
+        // ER 始终留存，预筛独立于 AI 指标开关；仅使用主周期，不能借其他周期放行。
+        er: indicatorsData.get(`${mainTimeframe}_ER`)?.values,
+        erTimeframe: mainTimeframe,
         atr: enabledATR ? indicatorsData.get(`${mainTimeframe}_ATR`)?.values?.atr : undefined,
         currentPrice: price,
         oiChangePercent: enabledOI ? indicatorsData.get(`${oiTimeframe}_OI`)?.values?.changePercent : undefined,

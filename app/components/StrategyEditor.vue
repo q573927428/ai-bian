@@ -182,6 +182,7 @@
               <el-checkbox-group v-model="preScreenEnabledFlags">
                 <el-checkbox value="enableAdx" label="ADX" />
                 <el-checkbox value="enableAdxSlope" label="ADX斜率" />
+                <el-checkbox value="enableEr" label="ER" />
                 <el-checkbox value="enableAtr" label="ATR" />
                 <el-checkbox v-if="selectedStatistics.includes('OI')" value="enableOi" label="OI" />
                 <el-checkbox value="enableVolume" label="成交量" />
@@ -206,6 +207,22 @@
                 <el-col :xs="24" :span="12">
                   <el-form-item label="最小ADX斜率">
                     <el-input-number v-model="form.preScreenConfig.minAdxSlope" :min="-50" :max="50" :step="0.1" :precision="1" placeholder="0" />
+                  </el-form-item>
+                </el-col>
+              </el-row>
+            </template>
+
+            <!-- ER 预筛独立于 AI 指标开关，始终使用策略主周期的实时快照。 -->
+            <template v-if="preScreenEnabledFlags.includes('enableEr')">
+              <el-row :gutter="12">
+                <el-col :xs="24" :span="12">
+                  <el-form-item label="最小ER">
+                    <el-input-number v-model="form.preScreenConfig.minEr" :min="0" :max="form.preScreenConfig.maxEr ?? 1" :step="0.01" :precision="2" />
+                  </el-form-item>
+                </el-col>
+                <el-col :xs="24" :span="12">
+                  <el-form-item label="最大ER">
+                    <el-input-number v-model="form.preScreenConfig.maxEr" :min="form.preScreenConfig.minEr ?? 0" :max="1" :step="0.01" :precision="2" />
                   </el-form-item>
                 </el-col>
               </el-row>
@@ -701,6 +718,9 @@ const form = ref<CreateStrategyInput>({
     minAdx: 10,
     maxAdx: 60,
     minAdxSlope: 0,
+    minEr: 0,
+    maxEr: 1,
+    enableEr: false,
     minAtrPercent: 0.001,
     maxAtrPercent: 0.05,
     minOiChangePercent: 0.2,
@@ -743,6 +763,7 @@ const preScreenEnabledFlags = ref<string[]>(['enableAdx', 'enableAdxSlope', 'ena
 watch(preScreenEnabledFlags, (flags) => {
   form.value.preScreenConfig.enableAdx = flags.includes('enableAdx')
   form.value.preScreenConfig.enableAdxSlope = flags.includes('enableAdxSlope')
+  form.value.preScreenConfig.enableEr = flags.includes('enableEr')
   form.value.preScreenConfig.enableAtr = flags.includes('enableAtr')
   form.value.preScreenConfig.enableOi = flags.includes('enableOi')
   form.value.preScreenConfig.enableVolume = flags.includes('enableVolume')
@@ -893,6 +914,9 @@ watch(() => props.strategy, (newVal) => {
         minAdx: 10,
         maxAdx: 60,
         minAdxSlope: 0,
+        minEr: 0,
+        maxEr: 1,
+        enableEr: false,
         minAtrPercent: 0.001,
         maxAtrPercent: 0.05,
         minOiChangePercent: 0.2,
@@ -913,6 +937,8 @@ watch(() => props.strategy, (newVal) => {
     const flags: string[] = []
     if (psc?.enableAdx !== false) flags.push('enableAdx')
     if (psc?.enableAdxSlope !== false) flags.push('enableAdxSlope')
+    // 旧策略缺失 ER 预筛开关时保持关闭，避免编辑保存后改变交易行为。
+    if (psc?.enableEr === true) flags.push('enableEr')
     if (psc?.enableAtr !== false) flags.push('enableAtr')
     if (psc?.enableOi !== false) flags.push('enableOi')
     if (psc?.enableVolume !== false) flags.push('enableVolume')

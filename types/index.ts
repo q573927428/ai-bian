@@ -261,6 +261,12 @@ export interface PreScreenConfig {
   // ADX斜率阈值（趋势方向）
   minAdxSlope?: number // 默认 0 (ADX斜率 > 0)
 
+  /** 主周期 ER 的闭区间阈值，使用 0～1 原值，包含未收盘 K 线。 */
+  minEr?: number // 默认 0
+  maxEr?: number // 默认 1
+  /** 默认关闭；独立于 AI 提示词中的 ER 指标开关。 */
+  enableEr?: boolean
+
   // ATR阈值（波动率）
   minAtrPercent?: number // 默认 0.002 (0.2%)
   maxAtrPercent?: number // 默认 0.05 (5%)
