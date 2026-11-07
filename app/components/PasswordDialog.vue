@@ -11,7 +11,6 @@
     @closed="handleClosed"
     draggable
   >
-    <p class="login-description">登录后即可管理策略与交易，登录状态保留 24 小时。</p>
     <el-form :model="form" label-position="top" @submit.prevent="handleConfirm">
       <el-form-item label="账号">
         <el-input
@@ -164,13 +163,6 @@ watch(() => props.modelValue, async (newVal, _previous, onCleanup) => {
 </script>
 
 <style scoped>
-.login-description {
-  margin: 0 0 24px;
-  color: var(--el-text-color-secondary);
-  font-size: 14px;
-  line-height: 1.6;
-}
-
 .login-actions {
   display: flex;
   justify-content: flex-end;
