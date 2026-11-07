@@ -52,6 +52,11 @@
             <span class="param-desc">拉取最近 N 天日线分析成交量</span>
           </div>
           <div class="param-item">
+            <label>最低数据覆盖比例 (%)</label>
+            <el-input-number v-model="dataCoveragePercent" :min="0" :max="100" :precision="0" :step="5" size="small" controls-position="right" />
+            <span class="param-desc">至少 {{ Math.ceil(filterParams.days * filterParams.minDataRatio) }} 根日线（向上取整）</span>
+          </div>
+          <div class="param-item">
             <label>候选池数量</label>
             <el-input-number v-model="filterParams.pool" :min="5" :max="200" size="small" controls-position="right" />
             <span class="param-desc">24h 成交额前 N 名进入分析</span>
@@ -326,6 +331,7 @@ interface TopSymbol {
 /** 持续放量筛选参数 */
 interface FilterParams {
   days: number
+  minDataRatio: number // 最低日线根数占统计窗口的比例（0–1）
   pool: number
   top: number
   minDaily: number
@@ -338,7 +344,8 @@ interface FilterParams {
 /** 与服务端 FILTER_DEFAULTS 保持一致的默认值 */
 const DEFAULT_FILTER_PARAMS: FilterParams = {
   days: 30,
-  pool: 100,
+  minDataRatio: 0.8,
+  pool: 150,
   top: 50,
   minDaily: 50_000_000,
   activeDaysRatio: 0.8,
@@ -427,6 +434,12 @@ const minDailyWan = computed({
   set: (val: number) => { filterParams.value.minDaily = Number(val) * 10000 }
 })
 
+// 数据覆盖比例独立于活跃天数比例，允许调整上市时长要求。
+const dataCoveragePercent = computed({
+  get: () => Math.round(filterParams.value.minDataRatio * 100),
+  set: (val: number) => { filterParams.value.minDataRatio = (val ?? 80) / 100 }
+})
+
 // 前端以百分数输入，接口统一使用 0–1 的比例。
 const activeDaysPercent = computed({
   get: () => Math.round(filterParams.value.activeDaysRatio * 100),
@@ -437,7 +450,7 @@ const isMobile = computed(() => windowWidth.value < 768)
 
 const dialogTitle = computed(() =>
   mode.value === 'configured' ? `📋 配置列表（${data.value.length}）`
-    : mode.value === 'stable' ? '📈 持续放量交易对 Top' + filterParams.value.top : '🔥 热门交易对 Top 100'
+    : mode.value === 'stable' ? '📈 持续放量交易对 Top' + filterParams.value.top : '🔥 热门交易对 Top 200'
 )
 
 const defaultSort = computed<{ prop: string; order: 'ascending' | 'descending' }>(() =>
@@ -519,6 +532,7 @@ const fetchData = async () => {
       ? {
           mode: 'stable',
           days: filterParams.value.days,
+          minDataRatio: filterParams.value.minDataRatio,
           pool: filterParams.value.pool,
           top: filterParams.value.top,
           minDaily: filterParams.value.minDaily,

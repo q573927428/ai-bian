@@ -1,10 +1,10 @@
 // ==================== 热门、持续放量及已配置交易对 API ====================
 //
 // 查询参数：
-//   mode=hot（默认）：按 24h 成交额排序取前 100
+//   mode=hot（默认）：按 24h 成交额排序取前 200
 //   mode=configured：展示配置文件中的全部交易对，不限制数量和上线时长
 //   mode=stable：按"最近 N 天持续稳定放量"筛选（排除短期热点）
-//     附加参数：days / pool / top / minDaily / activeDaysRatio / minRatio / cvMax / segmentRatio
+//     附加参数：days / minDataRatio / pool / top / minDaily / activeDaysRatio / minRatio / cvMax / segmentRatio
 //
 // 持续放量判定：
 //   1. 24h 成交额前 pool 名作为候选池
@@ -41,6 +41,7 @@ interface TopSymbol {
 /** 持续放量筛选参数（与脚本 scripts/find-stable-volume-symbols.mjs 保持一致） */
 interface StableFilterOptions {
   days: number      // 统计窗口天数
+  minDataRatio: number // 最低日线根数占统计窗口的比例（0–1）
   pool: number      // 候选池数量（24h 成交额前 N 名）
   top: number       // 最终输出数量
   minDaily: number  // 日均成交额及单日活跃判定下限 (USDT)
@@ -53,7 +54,8 @@ interface StableFilterOptions {
 /** 持续放量筛选参数默认值 */
 const FILTER_DEFAULTS: StableFilterOptions = {
   days: 30,
-  pool: 100,
+  minDataRatio: 0.8,
+  pool: 150,
   top: 50,
   minDaily: 50_000_000,
   activeDaysRatio: 0.8,
@@ -65,7 +67,7 @@ const FILTER_DEFAULTS: StableFilterOptions = {
 /** 4H K线的毫秒数 */
 const KLINE_4H_MS = 4 * 60 * 60 * 1000
 /** 返回的热门交易对数量上限 */
-const TOP_SYMBOLS_LIMIT = 100
+const TOP_SYMBOLS_LIMIT = 200
 /** 24h 热门、持续放量榜单及日线共用的缓存时长（30 分钟） */
 const TOP_SYMBOLS_CACHE_TTL = 30 * 60 * 1000
 // 按参数缓存榜单，按交易对和统计窗口缓存日线。
@@ -134,7 +136,7 @@ async function fetchDailyVolumes(symbol: string, days: number): Promise<DailyWin
  * 分析单个交易对的"持续放量"指标。
  *
  * 核心逻辑：
- * 1. 数据根数校验：klines 返回根数不足 days×80% 视为上市时间过短，标记无效。
+ * 1. 数据根数校验：klines 返回根数不足 days×minDataRatio 视为上市时间过短，标记无效。
  * 2. 基础统计：avgDaily / cv / minRatio / activeDays。
  * 3. 分段稳定性：时间三等分，每段平均成交额须 ≥ 全期均值的 segmentRatio 倍，
  *    从根源上排除"某段时期没量、突然几天爆发"的短期热点。
@@ -145,14 +147,20 @@ function analyzeSymbol(
   days: number,
   segmentRatio: number,
   contractType: string,
-  activeVolumeThreshold: number
+  activeVolumeThreshold: number,
+  minDataRatio: number
 ): { valid: boolean; reason?: string; analysis?: any } {
   const valid = dailyVolumes.filter(v => v > 0)
   const total = dailyVolumes.length
 
-  // 数据根数不足（如上市不足 days 天）时标记无效
-  if (total < Math.ceil(days * 0.8)) {
+  // 按用户设置判断数据覆盖程度，向上取整以确保达到最低比例。
+  if (total < Math.ceil(days * minDataRatio)) {
     return { valid: false, reason: '上市时间不足，数据根数不够' }
+  }
+
+  // 即使覆盖比例设为 0，也必须有有效成交数据才能计算统计指标。
+  if (valid.length === 0) {
+    return { valid: false, reason: '无有效成交数据' }
   }
 
   const avgDaily = mean(valid)
@@ -301,7 +309,7 @@ async function fetchStableTopSymbols(options: StableFilterOptions): Promise<TopS
   const analysisResults = await runPool(candidatePool, 5, async (ticker) => {
     const dailyWindow = await fetchDailyVolumes(ticker.symbol, options.days)
     const dailyVolumes = dailyWindow.volumes
-    const result = analyzeSymbol(ticker.symbol, dailyVolumes, options.days, options.segmentRatio, ticker.contractType, options.minDaily)
+    const result = analyzeSymbol(ticker.symbol, dailyVolumes, options.days, options.segmentRatio, ticker.contractType, options.minDaily, options.minDataRatio)
     if (!result.valid) {
       return { symbol: ticker.symbol, error: result.reason || 'invalid' }
     }
@@ -405,6 +413,7 @@ export default defineEventHandler(async (event) => {
   if (mode === 'stable') {
     const options: StableFilterOptions = {
       days: Math.max(5, Math.min(90, parseNumber(query.days, FILTER_DEFAULTS.days))),
+      minDataRatio: Math.max(0, Math.min(1, parseNumber(query.minDataRatio, FILTER_DEFAULTS.minDataRatio))),
       pool: Math.max(30, Math.min(500, parseNumber(query.pool, FILTER_DEFAULTS.pool))),
       top: Math.max(5, Math.min(100, parseNumber(query.top, FILTER_DEFAULTS.top))),
       minDaily: parseNumber(query.minDaily, FILTER_DEFAULTS.minDaily),
@@ -484,7 +493,7 @@ async function fallbackHotMode(configuredOnly = false) {
     : tickers
   const symbols = sourceTickers
     .filter((t: any) => configuredOnly || onboardMap.has(t.symbol)) // 配置列表不受市场筛选限制
-    // 先排除上线时间不足的交易对，避免截取后榜单数量不足 100
+    // 先排除上线时间不足的交易对，避免截取后榜单数量不足上限
     .filter((t: any) => {
       if (configuredOnly) return true
       const onboardDate = onboardMap.get(t.symbol)?.onboardDate || 0
