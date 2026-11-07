@@ -14,6 +14,22 @@
       <div class="price-cards-header">
         <div class="price-cards-heading">
           <h3 class="price-cards-title">📊 价格看板</h3>
+          <el-tooltip v-if="viewMode === 'heatmap'" placement="bottom" effect="dark">
+            <template #content>
+              <div class="heatmap-help">
+                <div>颜色 = {{ changePeriod }} 涨跌幅</div>
+                <div class="heatmap-help-legend">
+                  <span v-for="entry in heatmapLegend" :key="entry.label" :style="{ backgroundColor: entry.color }">{{ entry.label }}</span>
+                </div>
+                <div>灰色：持平 / 待更新 · 点击查看 K 线</div>
+              </div>
+            </template>
+            <button type="button" class="heatmap-help-button" aria-label="热力图颜色说明">?</button>
+          </el-tooltip>
+          <el-radio-group v-model="viewMode" size="small" aria-label="价格看板显示方式">
+            <el-radio-button value="cards" title="卡片视图">卡</el-radio-button>
+            <el-radio-button value="heatmap" title="热力图视图">图</el-radio-button>
+          </el-radio-group>
           <el-radio-group v-model="changePeriod" size="small" aria-label="涨跌幅周期">
             <el-radio-button value="5m">5m</el-radio-button>
             <el-radio-button value="15m">15m</el-radio-button>
@@ -25,14 +41,25 @@
             <button type="button" class="count-filter" :class="{ 'is-active': priceFilter === 'all' }" :aria-pressed="priceFilter === 'all'" title="显示全部交易对" @click="priceFilter = 'all'">总 {{ DEFAULT_CRYPTOS.length }}</button>
             <button type="button" class="count-filter count-up" :class="{ 'is-active': priceFilter === 'up' }" :aria-pressed="priceFilter === 'up'" title="仅显示上涨交易对" @click="priceFilter = 'up'">涨 {{ priceCounts.up }}</button>
             <button type="button" class="count-filter count-down" :class="{ 'is-active': priceFilter === 'down' }" :aria-pressed="priceFilter === 'down'" title="仅显示下跌交易对" @click="priceFilter = 'down'">跌 {{ priceCounts.down }}</button>
-            <span>上涨占比 {{ priceCounts.upRatio === null ? '—' : `${priceCounts.upRatio.toFixed(0)}%` }}</span>
-            <span :class="{ 'count-up': (priceCounts.median ?? 0) > 0, 'count-down': (priceCounts.median ?? 0) < 0 }">
-              中位数 {{ priceCounts.median === null ? '—' : formatPercent(priceCounts.median) }}
+            <span title="上涨交易对占有效行情的比例（含持平）">涨比 {{ priceCounts.upRatio === null ? '—' : `${priceCounts.upRatio.toFixed(0)}%` }}</span>
+            <span title="当前周期有效行情的涨跌幅中位数" :class="{ 'count-up': (priceCounts.median ?? 0) > 0, 'count-down': (priceCounts.median ?? 0) < 0 }">
+              中位 {{ priceCounts.median === null ? '—' : formatPercent(priceCounts.median) }}
             </span>
-            <span v-if="priceCounts.pending">待更新 {{ priceCounts.pending }}</span>
+            <span v-if="priceCounts.pending" title="当前周期尚无有效行情的交易对数量">待更 {{ priceCounts.pending }}</span>
           </div>
         </div>
-        <div class="pagination-actions" v-if="totalPages > 1">
+        <el-select
+          v-if="viewMode === 'heatmap'"
+          v-model="heatmapSizeMode"
+          class="heatmap-size-select"
+          size="small"
+          aria-label="热力图区块大小"
+        >
+          <el-option label="涨跌幅" value="change" />
+          <el-option label="成交额" value="volume" />
+          <el-option label="等面积" value="equal" />
+        </el-select>
+        <div class="pagination-actions" v-if="viewMode === 'cards' && totalPages > 1">
           <el-button
             circle
             size="small"
@@ -60,7 +87,19 @@
     <template #default>
     <!-- 显式声明正文插槽，让交易对网格与标题插槽保持独立。 -->
     <!-- 价格卡片网格 -->
-    <div class="cards-grid">
+    <div class="price-board-content">
+    <PriceHeatmap
+      v-if="viewMode === 'heatmap' && filteredCryptoPrices.length"
+      :items="heatmapItems"
+      :period="changePeriod"
+      :selected-symbol="selectedSymbol"
+      :height="cardGridHeight"
+      :size-mode="heatmapSizeMode"
+      :volume-window-end="periodVolumes?.windowEnd"
+      @select="selectHeatmapSymbol"
+    />
+    <!-- 热力图模式保留不可见的卡片布局，用实际高度适配窗口宽度与分页数量。 -->
+    <div ref="cardGridElement" class="cards-grid" :class="{ 'cards-grid-measure': viewMode === 'heatmap' }" :aria-hidden="viewMode === 'heatmap'">
       <div 
         v-for="crypto in visibleCryptoPrices"
         :key="crypto.symbol"
@@ -114,6 +153,7 @@
 
       </div>
     </div>
+    </div>
 
     <!-- 加载状态 -->
     <div v-if="isLoading && cryptoPrices.length === 0" class="loading-state">
@@ -134,11 +174,14 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import ChartEngineSwitcher from '../components/kline-chart/ChartEngineSwitcher.vue'
+import PriceHeatmap from './PriceHeatmap.vue'
+import { getHeatmapLegend } from '../utils/price-heatmap-colors'
 import { formatPrice } from './kline-chart/utils/kline-formatters'
 import { useBotStore } from '../stores/bot'
 import { useCoinIcon } from '../composables/useCoinIcon'
 import { useGlobalPolling } from '../composables/useGlobalPolling'
 import type { MarketBreadthSnapshot } from '../../types/market-breadth'
+import type { MarketPeriodVolumes } from '../../types/market-period-volumes'
 import { calculateLiveBreadth } from '../utils/market-breadth'
 
 const props = defineProps<{
@@ -187,9 +230,19 @@ const isLoading = ref(false)
 const showChartModal = ref(false)
 const selectedSymbol = ref('')
 const currentPage = ref(0)
+const cardGridElement = ref<HTMLElement | null>(null)
+const cardGridHeight = ref(128)
+let cardGridResizeObserver: ResizeObserver | undefined
+const viewMode = ref<'cards' | 'heatmap'>('cards')
+// 大小模式由标题栏控制，切换卡片视图后仍保留当前选择。
+const heatmapSizeMode = ref<'change' | 'volume' | 'equal'>('change')
+const VIEW_MODE_KEY = 'price-board-view-mode'
 const priceFilter = ref<'all' | 'up' | 'down'>('all')
 const changePeriod = ref<'5m' | '15m' | '1h' | '4h' | '24h'>('1h')
+const heatmapLegend = computed(() => getHeatmapLegend(changePeriod.value))
 const breadthSnapshot = ref<MarketBreadthSnapshot | null>(null)
+const periodVolumes = ref<MarketPeriodVolumes | null>(null)
+let volumeRequestId = 0
 const breadthClock = ref(Date.now())
 let breadthRequestId = 0
 
@@ -223,11 +276,30 @@ async function loadMarketBreadth() {
   }
 }
 
+/** 仅在成交额热力图可见时读取多周期本地快照，丢弃配置变化或卸载前的请求。 */
+async function loadPeriodVolumes() {
+  if (viewMode.value !== 'heatmap' || heatmapSizeMode.value !== 'volume') return
+  const requestId = ++volumeRequestId
+  try {
+    const result = await $fetch<MarketPeriodVolumes>('/api/market/period-volumes')
+    if (requestId === volumeRequestId) periodVolumes.value = result
+  } catch (error) {
+    console.warn('[Price] 获取周期成交额失败:', error)
+  }
+}
+
+watch([viewMode, heatmapSizeMode], () => {
+  if (import.meta.client) void loadPeriodVolumes()
+})
+
 watch(DEFAULT_CRYPTOS, () => {
   breadthRequestId++
   breadthSnapshot.value = null
+  volumeRequestId++
+  periodVolumes.value = null
   syncPricesFromStore()
   if (import.meta.client) void loadMarketBreadth()
+  if (import.meta.client) void loadPeriodVolumes()
 })
 const pageSize = ref(18)
 // 价格变动动画状态
@@ -248,6 +320,29 @@ const filteredCryptoPrices = computed(() => cryptoPrices.value.filter((crypto) =
   const change = getChangePercent(crypto.symbol)
   return change !== null && (priceFilter.value === 'up' ? change > 0 : change < 0)
 }))
+// 热力图复用筛选后的完整行情，不受卡片分页限制；无基准行情保持 null，避免误报持平。
+const heatmapItems = computed(() => filteredCryptoPrices.value.map((crypto) => ({
+  symbol: crypto.symbol,
+  name: getSymbolDisplay(crypto.symbol),
+  price: crypto.price,
+  // 热力图成交额跟随当前周期；缺失本地成交额时不退回 24h ticker。
+  volume: periodVolumes.value && Date.now() < periodVolumes.value.expiresAt
+    ? periodVolumes.value.periods[changePeriod.value][crypto.symbol] ?? null : null,
+  change: getChangePercent(crypto.symbol),
+  group: isTradFi(crypto.symbol) ? '传统金融' : '加密资产',
+  icon: cryptoIconUrl(crypto.symbol)
+})))
+
+/** 热力图区块与卡片共用图表选择入口。 */
+function selectHeatmapSymbol(symbol: string) {
+  const crypto = cryptoPrices.value.find((item) => item.symbol === symbol)
+  if (crypto) openChartModal(crypto)
+}
+
+watch(viewMode, (mode) => {
+  // 浏览器禁用存储时仍允许正常切换视图。
+  try { localStorage.setItem(VIEW_MODE_KEY, mode) } catch { /* 忽略存储不可用。 */ }
+})
 const totalPages = computed(() => Math.max(1, Math.ceil(filteredCryptoPrices.value.length / pageSize.value)))
 const visibleCryptoPrices = computed(() => {
   const start = currentPage.value * pageSize.value
@@ -422,9 +517,21 @@ function getRandomColor(symbol: string) {
 
 
 useGlobalPolling(loadMarketBreadth)
+useGlobalPolling(loadPeriodVolumes, () => viewMode.value === 'heatmap' && heatmapSizeMode.value === 'volume')
 
 // 组件生命周期
 onMounted(() => {
+  // 测量原卡片区域，而非按屏幕高度估算，确保切换视图不撑高看板。
+  if (cardGridElement.value) {
+    cardGridResizeObserver = new ResizeObserver(() => {
+      const height = cardGridElement.value?.getBoundingClientRect().height ?? 0
+      if (height > 0) cardGridHeight.value = height
+    })
+    cardGridResizeObserver.observe(cardGridElement.value)
+  }
+  try {
+    if (localStorage.getItem(VIEW_MODE_KEY) === 'heatmap') viewMode.value = 'heatmap'
+  } catch { /* 存储不可用时使用默认卡片视图。 */ }
   void loadMarketBreadth()
   void loadContractTypes()
   // 订阅 botStore 共享价格更新，自动同步价格
@@ -436,6 +543,8 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  volumeRequestId++
+  cardGridResizeObserver?.disconnect()
   breadthRequestId++
   botStore.unsubscribeFromPrices('crypto-price-cards')
   if (import.meta.client) {
@@ -524,10 +633,51 @@ interface CryptoPrice {
   line-height: 1.5;
 }
 
+.heatmap-help-button {
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: 1px solid var(--text-secondary);
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 11px;
+  line-height: 14px;
+  cursor: help;
+}
+
+.heatmap-help-button:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+.heatmap-help {
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.heatmap-help-legend {
+  display: flex;
+  gap: 2px;
+  margin: 6px 0;
+}
+
+.heatmap-help-legend span {
+  padding: 1px 4px;
+  color: #fff;
+  text-align: center;
+}
+
 .pagination-actions {
   display: flex;
   align-items: center;
   gap: 4px;
+}
+
+.heatmap-size-select {
+  width: 80px;
+  flex-shrink: 0;
+  margin-left: auto;
 }
 
 .page-indicator {
@@ -542,6 +692,19 @@ interface CryptoPrice {
   flex-wrap: wrap;
   gap: 8px;
   margin: -10px;
+}
+.price-board-content {
+  position: relative;
+}
+
+/* 隐藏卡片只承担测量职责，不占布局高度，也不接收交互。 */
+.cards-grid-measure {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  visibility: hidden;
+  pointer-events: none;
 }
 .horizontal-line{
   margin-bottom: 30px;
