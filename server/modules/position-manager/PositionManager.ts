@@ -53,7 +53,7 @@ export interface PositionInfo {
   
   // 入场指标（新增）
   entryIndicators?: Record<string, number>;  // 入场时的技术指标
-  /** AI 入场时的 ER 快照，包含策略所选周期与当时的盘中价格窗口。 */
+  /** 入场 ER 快照，不受指标开关影响，包含策略所选周期与当时的盘中价格窗口。 */
   entryER?: EfficiencyRatioSnapshot[];
   /** 冻结 AI 决策时的支撑阻力，持仓监控不得覆盖该快照。 */
   entrySupportResistance?: EntrySupportResistance;

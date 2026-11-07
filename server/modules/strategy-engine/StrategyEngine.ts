@@ -772,14 +772,7 @@ export class StrategyEngine {
         () => this.indicatorsHub.getEMAByPeriods(symbol, mainTimeframe, periods, klines)))
     }
 
-    // ER 使用扫描快照中的盘中价，不读取排队期间的新行情；缺历史仍保留不可用状态。
-    for (const indicator of strategy.indicators.filter(i => i.enabled && i.type === 'ER')) {
-      for (const timeframe of normalizeERTimeframes(strategy.marketData.timeframes, mainTimeframe)) {
-        const options = { erPeriod: normalizeERPeriod(indicator.params?.period), snapshotTimestamp: snapshot.timestamp }
-        indicatorsData.set(`${timeframe}_ER`, await calculator.get(snapshot, timeframe, 'ER', options,
-          () => this.indicatorsHub.getIndicators(symbol, timeframe, 'ER', options, snapshot.klinesByTimeframe.get(timeframe) ?? [])))
-      }
-    }
+    await this.hydrateEntryER(strategy, symbol, mainTimeframe, indicatorsData, snapshot)
 
     for (const indicator of strategy.indicators.filter(i => i.enabled && ['RSI', 'ADX', 'MACD', 'ATR'].includes(i.type))) {
       const klines = requireKlines(mainTimeframe)
@@ -825,6 +818,24 @@ export class StrategyEngine {
       } catch (error: any) {
         logger.warn('StrategyEngine', `获取SquareHeat失败 ${symbol}: ${error.message}`)
       }
+    }
+  }
+
+  /** 无论 ER 是否启用都留存入场窗口；未配置窗口时使用默认 ER(20)。 */
+  private async hydrateEntryER(
+    strategy: Strategy,
+    symbol: string,
+    mainTimeframe: Timeframe,
+    indicatorsData: Map<string, any>,
+    snapshot: MarketSnapshot
+  ): Promise<void> {
+    const erConfig = strategy.indicators.find(i => i.type === 'ER' && i.enabled)
+      ?? strategy.indicators.find(i => i.type === 'ER')
+    // 使用固定扫描时点的盘中价，避免 AI 等待期间的新行情污染回测样本；缺历史保留不可用状态。
+    for (const timeframe of normalizeERTimeframes(strategy.marketData.timeframes, mainTimeframe)) {
+      const options = { erPeriod: normalizeERPeriod(erConfig?.params?.period), snapshotTimestamp: snapshot.timestamp }
+      indicatorsData.set(`${timeframe}_ER`, await this.snapshotIndicatorCalculator.get(snapshot, timeframe, 'ER', options,
+        () => this.indicatorsHub.getIndicators(symbol, timeframe, 'ER', options, snapshot.klinesByTimeframe.get(timeframe) ?? [])))
     }
   }
 
@@ -942,9 +953,9 @@ export class StrategyEngine {
       const enabledATR = instance.strategy.indicators.some((i: any) => i.type === 'ATR' && i.enabled)
       const erConfig = instance.strategy.indicators.find(i => i.type === 'ER' && i.enabled)
       const enabledER = !!erConfig
-      const erData = erConfig
-        ? normalizeERTimeframes(instance.strategy.marketData.timeframes, mainTimeframe).map(tf => indicatorsData.get(`${tf}_ER`)?.values)
-        : undefined
+      // 留存 ER 与 AI 是否使用 ER 分开控制，关闭指标仍需向开仓信号传递回测样本。
+      const erData = normalizeERTimeframes(instance.strategy.marketData.timeframes, mainTimeframe)
+        .map(tf => indicatorsData.get(`${tf}_ER`)?.values)
       const enabledOI = instance.strategy.statistics.some((s: any) => s.type === 'OI' && s.enabled)
       const enabledVolume = instance.strategy.statistics.some((s: any) => s.type === 'Volume' && s.enabled)
       const enabledSquareHeat = instance.strategy.statistics.some((s: any) => s.type === 'SquareHeat' && s.enabled)
@@ -1735,7 +1746,7 @@ export class StrategyEngine {
         scoreBreakdown: signal.scoreBreakdown,
         riskLevel: signal.riskLevel,
         entryIndicators,
-        // ER 与 AI 请求的来源周期、收盘时刻一起冻结，不能在实际成交后重新取数。
+        // 无论 AI 是否启用 ER，都固化入场扫描的窗口与时间，供平仓后回测。
         entryER: signal.indicators.er?.map(snapshot => ({ ...snapshot })),
         // 固化 AI 决策时的 K 线进度，不能在平仓时用另一根 K 线重新计算。
         candleProgressPercent: signal.indicators.candleProgressPercent,
@@ -1908,6 +1919,8 @@ export class StrategyEngine {
     // 3. 从快照中提取指标数据（用于 executeSignal 内部计算止盈止损）
     const mainTimeframe = instance.strategy.marketData.timeframes[0] || '15m'
     const indicatorsData = this.extractIndicatorsFromSnapshot(snapshot, mainTimeframe)
+    // 强制开仓绕过 AI 分析，也必须保存与自动开仓相同口径的 ER。
+    await this.hydrateEntryER(instance.strategy, symbol, mainTimeframe, indicatorsData, snapshot)
     
     // 提取 ATR 数据供 executeSignal 计算止损
     const atrData = indicatorsData.get(`${mainTimeframe}_ATR`)
@@ -1924,7 +1937,11 @@ export class StrategyEngine {
       takeProfit: [], // 由 executeSignal 根据策略配置重新计算
       confidence: 100,
       reasoning: `手动强制开仓 - ${symbol} ${direction}`,
-      indicators: { atr: atrValue },
+      indicators: {
+        atr: atrValue,
+        er: normalizeERTimeframes(instance.strategy.marketData.timeframes, mainTimeframe)
+          .map(tf => ({ ...indicatorsData.get(`${tf}_ER`)!.values }))
+      },
       timestamp: new Date().toISOString(),
       scoreBreakdown: {
         baseScore: 30,

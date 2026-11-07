@@ -574,7 +574,7 @@ export interface TradeHistory {
   
   // 入场技术指标（动态）
   entryIndicators?: Record<string, number>
-  /** 固化 AI 入场时使用的 ER 窗口，供平仓后复盘。 */
+  /** 固化入场扫描时的 ER 窗口，无论策略是否启用 ER，供平仓后回测。 */
   entryER?: EfficiencyRatioSnapshot[]
   /** AI 决策时的完整结构快照，开仓后冻结，供历史复盘。 */
   entrySupportResistance?: EntrySupportResistance

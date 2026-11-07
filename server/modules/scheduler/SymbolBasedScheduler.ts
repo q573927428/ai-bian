@@ -111,10 +111,8 @@ export class SymbolBasedScheduler {
     const mainTimeframe = strategy.marketData.timeframes[0] || '15m'
     const requiredTimeframes = new Set<Timeframe>([mainTimeframe])
 
-    // ER 仅观察策略勾选的周期，不再按旧版 ER 独立周期额外取数。
-    if (strategy.indicators.some(i => i.enabled && i.type === 'ER')) {
-      normalizeERTimeframes(strategy.marketData.timeframes, mainTimeframe).forEach(tf => requiredTimeframes.add(tf))
-    }
+    // 所有开仓都需留存 ER，未启用该指标也必须固定策略所选周期的行情。
+    normalizeERTimeframes(strategy.marketData.timeframes, mainTimeframe).forEach(tf => requiredTimeframes.add(tf))
 
     // 添加统计数据配置的时间周期
     strategy.statistics

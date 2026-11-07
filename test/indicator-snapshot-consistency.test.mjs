@@ -207,7 +207,7 @@ test('策略共享快照结果，即使后台覆盖指标中心缓存也不重�
   const second = new Map()
   await f.engine.hydrateIndicatorsForStrategy(f.strategy, 'BTCUSDT', '15m', second, snapshot)
   for (const [key, value] of first) assert.equal(second.get(key), value)
-  assert.equal(f.engine.snapshotIndicatorCalculator.getStats().reused, 4)
+  assert.equal(f.engine.snapshotIndicatorCalculator.getStats().reused, 5)
   f.hub.getIndicators = getIndicators
   f.hub.getEMAByPeriods = getEMA
   const changed = structuredClone(f.strategy)
@@ -607,6 +607,10 @@ test('ER 提示词、信号和分析快照保留相同窗口，缺数据不显�
   const disabled = { ...indicators, enabledIndicators: { ...indicators.enabledIndicators, er: false } }
   assert.doesNotMatch(analyzer.buildFullPrompt(promptConfig, 'BTCUSDT', price, disabled, volume, progress), /趋势效率|ER\(/)
   assert.equal(snapshots.createQuantitativeSnapshot(disabled, volume, progress).er, undefined)
+  const disabledSignal = await analyzer.analyze(f.strategy.id, 'BTCUSDT', promptConfig, disabled, price, volume, progress)
+  assert.deepEqual(structuredClone(disabledSignal.indicators.er), structuredClone(indicators.er))
+  assert.notEqual(disabledSignal.indicators.er[0], indicators.er[0])
+  assert.doesNotMatch(requests.at(-1)[0], /趋势效率|ER\(/)
   analyzer.clearCache()
 })
 
@@ -629,5 +633,41 @@ test('ER 窗口互不串用，旧独立配置为空仍计算全部策略周期�
   config.enabled = false
   await f.engine.callAI(f.instance, f.strategy.id, 'BTCUSDT', f.strategy.aiPrompt, data, snapshot)
   assert.equal(f.calls[0][3].enabledIndicators.er, false)
-  assert.equal(f.calls[0][3].er, undefined)
+  assert.deepEqual(Array.from(f.calls[0][3].er, e => e.period), [30, 30, 30])
+})
+
+test('未配置或关闭 ER 也保存全部策略周期，零值和缺失状态可供回测区分', async () => {
+  for (const configured of [false, true]) {
+    const f = createERFixture()
+    if (configured) f.strategy.indicators.find(i => i.type === 'ER').enabled = false
+    else f.strategy.indicators = f.strategy.indicators.filter(i => i.type !== 'ER')
+    f.scheduler.updateStrategySubscription(f.strategy)
+    f.source.set('5m', f.source.get('5m').map(c => ({ ...c, close: 100 })))
+    f.source.set('1h', f.source.get('1h').slice(-20))
+    const snapshot = await f.scheduler.buildMarketSnapshot('BTCUSDT')
+    assert.deepEqual(Array.from(snapshot.klinesByTimeframe.keys()), ['5m', '15m', '1h'])
+    await f.engine.analyzeSymbol(f.instance, 'BTCUSDT', snapshot)
+    const indicators = f.calls[0][3]
+    assert.equal(indicators.enabledIndicators.er, false)
+    assert.deepEqual(Array.from(indicators.er, e => e.timeframe), ['5m', '15m', '1h'])
+    assert.deepEqual(Array.from(indicators.er, e => e.er), [0, 1, null])
+    assert.deepEqual(Array.from(indicators.er, e => e.status), ['ready', 'ready', 'insufficient_data'])
+    assert.ok(indicators.er.every(e => e.period === 20 && e.calculatedAt === snapshot.timestamp))
+  }
+})
+
+test('手动强制开仓未配置 ER 时也携带全部策略周期的固定快照', async () => {
+  const f = createERFixture()
+  f.strategy.indicators = f.strategy.indicators.filter(i => i.type !== 'ER')
+  f.scheduler.updateStrategySubscription(f.strategy)
+  f.engine.runningStrategies = new Map([[f.strategy.id, f.instance]])
+  f.engine.scheduler = f.scheduler
+  f.engine.assertOpeningAllowed = () => {}
+  f.engine.concurrencyPoolManager = { getIndicatorPool: () => ({ submit: task => task() }) }
+  let captured
+  f.engine.executeSignal = async (_instance, signal) => { captured = signal }
+  await f.engine.forceOpenPosition(f.strategy.id, 'BTCUSDT', 'long')
+  assert.deepEqual(Array.from(captured.indicators.er, e => e.timeframe), ['5m', '15m', '1h'])
+  assert.deepEqual(Array.from(captured.indicators.er, e => e.er), [1, 1, 1])
+  assert.ok(captured.indicators.er.every(e => e.calculatedAt === f.clock.now))
 })

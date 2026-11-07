@@ -40,7 +40,7 @@ export interface TradeSignal {
 export interface IndicatorValues {
   /** AI 实际使用的实时支撑阻力，必须随开仓信号保留。 */
   supportResistance?: SupportResistanceSnapshot;
-  /** AI 输入时的 ER 多周期快照，开仓时直接固化。 */
+  /** 入场扫描时的 ER 多周期快照，无论策略是否启用 ER 都在开仓时固化。 */
   er?: EfficiencyRatioSnapshot[];
   ema?: EMAValues;
   rsi?: number;

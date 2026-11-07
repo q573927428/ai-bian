@@ -6,6 +6,7 @@ import { createRequire } from 'node:module'
 import test from 'node:test'
 import vm from 'node:vm'
 import ts from 'typescript'
+import * as efficiencyRatio from '../app/utils/efficiency-ratio.ts'
 
 const logger = { info() {}, warn() {}, error() {}, success() {} }
 const require = createRequire(import.meta.url)
@@ -95,6 +96,7 @@ function createFixture(now = Date.now()) {
     clearPosition(symbol) { positions.delete(symbol) }
   }
   const { StrategyEngine } = loadModule('../server/modules/strategy-engine/StrategyEngine.ts', {
+    '../../../app/utils/efficiency-ratio': efficiencyRatio,
     './SnapshotIndicatorCalculator': { SnapshotIndicatorCalculator },
     '../../utils/logger': { logger },
     '../../utils/storage': storage,
@@ -120,8 +122,14 @@ function createFixture(now = Date.now()) {
   }
   const strategies = new Map([[instance.strategy.id, instance.strategy]])
   const store = { async getStrategy(id) { await hooks.onGetStrategy?.(id); return strategies.get(id) ?? null } }
-  const snapshot = { price: 100, indicatorsByTimeframe: new Map() }
+  const snapshot = { symbol: 'BTCUSDT', timestamp: now, price: 100, indicatorsByTimeframe: new Map(), klinesByTimeframe: new Map() }
   const engine = Object.assign(Object.create(StrategyEngine.prototype), {
+    snapshotIndicatorCalculator: new SnapshotIndicatorCalculator(),
+    indicatorsHub: {
+      async getIndicators(_symbol, timeframe, _type, options, klines) {
+        return { values: efficiencyRatio.calculateEfficiencyRatio(klines, timeframe, { period: options.erPeriod, now: options.snapshotTimestamp }) }
+      }
+    },
     state, binance, positionManager, store, config: { strategyScheduler: { symbolBatchSize: 1, symbolBatchDelayMs: 0 } },
     runningStrategies: new Map([[instance.strategy.id, instance]]),
     scansPaused: false, isGlobalLoopRunning: false, globalScanInterval: 300000,
@@ -247,6 +255,18 @@ test('平仓持久化仅保留各策略每日风控，不生成全局状态或�
   const persisted = f.calls.persisted.at(-1)
   assert.equal(Object.keys(persisted).sort().join(','), 'riskDayKey,strategyDailyRisk')
   assert.equal(Object.keys(persisted.strategyDailyRisk['strategy-a'].circuitBreaker).sort().join(','), 'dailyLoss,isTriggered,reason,timestamp')
+})
+
+test('未配置 ER 的策略开仓仍将信号中的 ER 独立固化到仓位', async () => {
+  const f = createFixture()
+  const er = efficiencyRatio.calculateEfficiencyRatio([], '5m', { now: f.clock.now })
+  f.signal.indicators.er = [er]
+  await f.engine.executeSignal(f.instance, f.signal, new Map())
+  const stored = f.positions.get('BTCUSDT').entryER
+  assert.deepEqual(structuredClone(stored), [er])
+  assert.notEqual(stored[0], er)
+  er.reason = '后续修改不应改变已记录的入场窗口'
+  assert.notEqual(stored[0].reason, er.reason)
 })
 
 test('未熔断仍需遵守每日开仓次数上限', async () => {
@@ -719,7 +739,8 @@ test('策略列表接口同时返回每日开仓次数和各策略的亏损金�
   }
   const { default: handler } = loadModule('../server/api/strategies/index.get.ts', {
     '../../modules/strategy-manager': { getStrategyManagerIfAvailable: () => strategyManager },
-    '../../utils/mask-strategy': { maskStrategyData: value => structuredClone(value) }
+    '../../utils/operation-auth': { operationSession: () => ({}) },
+    '../../utils/public-view': { strategyView: value => structuredClone(value) }
   }, { ...f.globals, defineEventHandler: handler => handler })
   const originalConfig = JSON.stringify([...f.strategies.values()])
   const result = await handler({})

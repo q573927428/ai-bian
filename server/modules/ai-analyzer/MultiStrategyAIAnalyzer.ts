@@ -315,7 +315,8 @@ export class MultiStrategyAIAnalyzer {
         reasoning: aiResult.reasoning,
         indicators: {
           supportResistance: indicators.supportResistance,
-          er: indicators.enabledIndicators?.er ? indicators.er?.map((snapshot: EfficiencyRatioSnapshot) => ({ ...snapshot })) : undefined,
+          // 开关仅影响 AI 提示词，交易信号始终携带 ER，供开仓和平仓记录留存。
+          er: indicators.er?.map((snapshot: EfficiencyRatioSnapshot) => ({ ...snapshot })),
           ema: {
             fast: indicators.emaList[0]?.value ?? 0,
             slow: indicators.emaList[indicators.emaList.length - 1]?.value ?? 0
