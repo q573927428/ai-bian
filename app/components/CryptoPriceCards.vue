@@ -22,6 +22,7 @@
                   <span v-for="entry in heatmapLegend" :key="entry.label" :style="{ backgroundColor: entry.color }">{{ entry.label }}</span>
                 </div>
                 <div>灰色：持平 / 待更新 · 点击查看 K 线</div>
+                <div>点击分组放大 · 滚轮缩放 · 拖动平移 · 右下角复位</div>
               </div>
             </template>
             <button type="button" class="heatmap-help-button" aria-label="热力图颜色说明">?</button>

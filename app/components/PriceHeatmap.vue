@@ -1,8 +1,12 @@
 <!-- ==================== 实时价格矩形树状热力图 ==================== -->
 <template>
   <div class="price-heatmap" :style="{ height: `${height}px` }">
-    <div ref="chartElement" class="heatmap-chart" role="img" :aria-label="`${period}价格热力图，绿色上涨，红色下跌，可点击交易对切换K线`" />
-
+    <div ref="chartElement" class="heatmap-chart" role="img" :aria-label="`${period}价格热力图，绿色上涨，红色下跌，可点击分组放大、滚轮缩放、点击交易对切换K线`" />
+    <div class="heatmap-zoom">
+      <button type="button" title="放大" aria-label="放大热力图" @click="zoomChart(1.25)">+</button>
+      <button type="button" title="缩小" aria-label="缩小热力图" @click="zoomChart(0.8)">−</button>
+      <button type="button" title="恢复视图" aria-label="恢复热力图视图" @click="resetZoom">↺</button>
+    </div>
   </div>
 </template>
 
@@ -48,6 +52,33 @@ const chartElement = ref<HTMLElement | null>(null)
 const { theme } = useTheme()
 let chart: ECharts | undefined
 let resizeObserver: ResizeObserver | undefined
+const focusedGroup = ref('')
+let viewRect: { x: number; y: number; width: number; height: number } | undefined
+
+/** 再次点击当前分组标题返回全部资产，不额外占用顶部按钮空间。 */
+function focusGroup(group: string) {
+  focusedGroup.value = focusedGroup.value === group ? '' : group
+  viewRect = undefined
+}
+
+/** 按当前视口中心缩放，沿用滚轮/拖动产生的矩形，避免按钮与滚轮缩放互相跳变。 */
+function zoomChart(factor: number) {
+  if (!chart) return
+  const width = chart.getWidth()
+  const height = chart.getHeight()
+  const rect = viewRect ?? { x: 0, y: 0, width, height }
+  const nextWidth = Math.max(width, Math.min(width * 8, rect.width * factor))
+  const ratio = nextWidth / rect.width
+  viewRect = { x: width / 2 - (width / 2 - rect.x) * ratio, y: height / 2 - (height / 2 - rect.y) * ratio, width: nextWidth, height: rect.height * ratio }
+  chart.dispatchAction({ type: 'treemapRender', seriesId: 'price-heatmap', rootRect: viewRect })
+}
+
+/** 恢复缩放和平移，保留当前选中的资产组。 */
+function resetZoom() {
+  if (!chart) return
+  viewRect = { x: 0, y: 0, width: chart.getWidth(), height: chart.getHeight() }
+  chart.dispatchAction({ type: 'treemapRender', seriesId: 'price-heatmap', rootRect: viewRect })
+}
 const roundedIcons = shallowRef<Record<string, string>>({})
 const loadedIcons: Record<string, string> = {}
 const pendingIcons = new Map<string, HTMLImageElement>()
@@ -69,8 +100,8 @@ function loadRoundedIcons() {
       if (!iconsActive) return
       try {
         const canvas = document.createElement('canvas')
-        // 以最大一档的双倍分辨率绘制，20px 图标在高分屏上仍保持清晰。
-        const size = 40
+        // 缩放后最大 40px 图标仍使用双倍分辨率，避免出现模糊边缘。
+        const size = 80
         canvas.width = canvas.height = size
         const context = canvas.getContext('2d')
         if (!context || !image.naturalWidth || !image.naturalHeight) throw new Error('图标不可绘制')
@@ -196,12 +227,20 @@ const chartData = computed(() => {
       }
     })
   }
-  return [...groups].map(([name, children]) => ({ id: name, name, children }))
+  return [...groups].filter(([name]) => !focusedGroup.value || name === focusedGroup.value)
+    .map(([name, children]) => ({ id: name, name, children }))
+})
+
+watch(focusedGroup, () => { resetZoom() }, { flush: 'post' })
+watch(() => props.items.map(item => item.group).join(','), () => {
+  if (focusedGroup.value && !props.items.some(item => item.group === focusedGroup.value)) focusGroup('')
 })
 
 /** 面积随全局轮询刷新时使用短过渡，让区块大小和位置变化更容易跟随。 */
 function renderChart() {
   if (!chart) return
+  const savedViewRect = viewRect && { ...viewRect }
+  const zoomed = savedViewRect && (savedViewRect.width !== chart.getWidth() || savedViewRect.x !== 0 || savedViewRect.y !== 0)
   const dark = theme.value === 'dark'
   const option: EChartsCoreOption = {
     animation: true,
@@ -225,13 +264,18 @@ function renderChart() {
     series: [{
       id: 'price-heatmap',
       type: 'treemap',
-      animation: true,
+      // 放大状态下不能先播放恢复默认布局的动画，否则实时更新会把视图拉回原位。
+      animation: !zoomed,
       animationDurationUpdate: 300,
       animationEasingUpdate: 'cubicOut',
       stateAnimation: { duration: 0 },
       data: chartData.value,
       top: 0, left: 0, right: 0, bottom: 0,
-      roam: false,
+      roam: true,
+      scaleLimit: { min: 1, max: 8 },
+      // 缩放仅改变视口，不因放大而重新增删小格，保持整体布局一致。
+      visibleMin: 0,
+      childrenVisibleMin: 0,
       nodeClick: false,
       breadcrumb: { show: false },
       // 默认每侧 5px 留白会让 20px 左右的小格连图标都放不下，缩至 2px 后优先显示图标。
@@ -248,13 +292,22 @@ function renderChart() {
       levels: [
         // 根节点只负责排列资产分组，不展示无名称的父级标题栏。
         { itemStyle: { gapWidth: 4 }, upperLabel: { show: false } },
-        { itemStyle: { color: dark ? '#1c2026' : '#f2f3f5', gapWidth: 1 }, upperLabel: { show: true } },
+        {
+          itemStyle: { color: dark ? '#1c2026' : '#f2f3f5', gapWidth: 1 },
+          upperLabel: { show: true },
+          emphasis: { itemStyle: { color: dark ? '#123c76' : '#245bb4' }, upperLabel: { color: '#fff' } }
+        },
         { upperLabel: { show: false } }
       ]
     }]
   }
   // 合并更新以复用系列、区块和 TooltipView；全量重建会在每次行情推送时清除悬停提示。
   chart.setOption(option, { notMerge: false })
+  // ECharts 的 setOption 会按初始容器重算树图；在同一帧恢复视口，保留缩放和平移。
+  // 此动作只改变显示范围，不清空已锁定的面积权重。
+  if (savedViewRect) {
+    chart.dispatchAction({ type: 'treemapRender', seriesId: 'price-heatmap', rootRect: savedViewRect })
+  }
 }
 
 watch([chartData, () => props.period, theme], renderChart)
@@ -265,10 +318,32 @@ onMounted(() => {
   if (!chartElement.value) return
   chart = init(chartElement.value)
   chart.on('click', (params) => {
-    const data = params.data as { symbol?: string } | undefined
+    const data = params.data as { symbol?: string; name?: string; children?: unknown[] } | undefined
     if (data?.symbol) emit('select', data.symbol)
+    else if (data?.children && data.name) focusGroup(data.name)
   })
-  resizeObserver = new ResizeObserver(() => chart?.resize())
+  chart.on('treemaprender', (params: unknown) => {
+    const event = params as { rootRect?: typeof viewRect }
+    if (event.rootRect) viewRect = event.rootRect
+  })
+  chart.on('treemapmove', (params: unknown) => {
+    const event = params as { rootRect?: typeof viewRect }
+    if (event.rootRect) viewRect = event.rootRect
+  })
+  resizeObserver = new ResizeObserver(() => {
+    if (!chart || !chartElement.value) return
+    const width = chartElement.value.clientWidth
+    const height = chartElement.value.clientHeight
+    if (width === chart.getWidth() && height === chart.getHeight()) return
+    // 容器真正变化才调整视口；普通行情重绘不能清空缩放状态。
+    if (viewRect && chart.getWidth() && chart.getHeight()) {
+      const scaleX = width / chart.getWidth()
+      const scaleY = height / chart.getHeight()
+      viewRect = { x: viewRect.x * scaleX, y: viewRect.y * scaleY, width: viewRect.width * scaleX, height: viewRect.height * scaleY }
+    }
+    chart.resize()
+    if (viewRect) chart.dispatchAction({ type: 'treemapRender', seriesId: 'price-heatmap', rootRect: viewRect })
+  })
   resizeObserver.observe(chartElement.value)
   renderChart()
 })
@@ -289,10 +364,28 @@ onUnmounted(() => {
 
 <style scoped>
 .price-heatmap {
+  position: relative;
   display: flex;
   flex-direction: column;
   margin: -10px;
 }
+.heatmap-zoom {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.heatmap-zoom button {
+  border: 1px solid var(--el-border-color);
+  border-radius: 4px;
+  background: var(--el-bg-color-overlay);
+  color: var(--text-primary);
+  cursor: pointer;
+}
+.heatmap-zoom button { width: 25px; height: 25px; font-size: 17px; padding: 0; }
+.heatmap-zoom button:hover { background: var(--el-fill-color-dark); }
 .heatmap-chart {
   width: 100%;
   flex: 1;
