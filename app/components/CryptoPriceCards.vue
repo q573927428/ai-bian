@@ -302,7 +302,7 @@ watch(DEFAULT_CRYPTOS, () => {
   if (import.meta.client) void loadMarketBreadth()
   if (import.meta.client) void loadPeriodVolumes()
 })
-const pageSize = ref(18)
+const pageSize = ref(21)
 // 价格变动动画状态
 const priceChangeAnimations = ref<Record<string, 'up' | 'down' | null>>({})
 
@@ -721,7 +721,7 @@ interface CryptoPrice {
   position: relative;
   overflow: visible;
   min-height: 60px;
-  min-width: 126px;
+  min-width: 116px;
   flex-shrink: 0;
   flex: 1 0 calc(12% - 8px);
 }

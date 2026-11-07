@@ -91,6 +91,7 @@
     v-model="analysisDetailVisible"
     title="AI 分析详情"
     width="min(860px, calc(100vw - 32px))"
+    draggable
     append-to-body
   >
     <template v-if="selectedAnalysis">
