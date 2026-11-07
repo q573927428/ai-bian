@@ -55,6 +55,29 @@ let resizeObserver: ResizeObserver | undefined
 const focusedGroup = ref('')
 let viewRect: { x: number; y: number; width: number; height: number } | undefined
 
+/** 限制热力图外框覆盖整个显示区域，防止平移或缩小时露出空白。 */
+function clampViewRect(rect: NonNullable<typeof viewRect>): NonNullable<typeof viewRect> {
+  if (!chart) return rect
+  const width = Math.max(chart.getWidth(), rect.width)
+  const height = Math.max(chart.getHeight(), rect.height)
+  return {
+    width, height,
+    x: Math.max(chart.getWidth() - width, Math.min(0, rect.x)),
+    y: Math.max(chart.getHeight() - height, Math.min(0, rect.y))
+  }
+}
+
+/** 滚轮和拖动共用边界校正；仅越界时补发位置更新，避免事件循环。 */
+function constrainRoam(params: unknown) {
+  const event = params as { rootRect?: typeof viewRect }
+  const rect = event.rootRect
+  if (!rect || !chart) return
+  viewRect = clampViewRect(rect)
+  if (rect.x !== viewRect.x || rect.y !== viewRect.y || rect.width !== viewRect.width || rect.height !== viewRect.height) {
+    chart.dispatchAction({ type: 'treemapMove', seriesId: 'price-heatmap', rootRect: viewRect })
+  }
+}
+
 /** 再次点击当前分组标题返回全部资产，不额外占用顶部按钮空间。 */
 function focusGroup(group: string) {
   focusedGroup.value = focusedGroup.value === group ? '' : group
@@ -69,7 +92,7 @@ function zoomChart(factor: number) {
   const rect = viewRect ?? { x: 0, y: 0, width, height }
   const nextWidth = Math.max(width, Math.min(width * 8, rect.width * factor))
   const ratio = nextWidth / rect.width
-  viewRect = { x: width / 2 - (width / 2 - rect.x) * ratio, y: height / 2 - (height / 2 - rect.y) * ratio, width: nextWidth, height: rect.height * ratio }
+  viewRect = clampViewRect({ x: width / 2 - (width / 2 - rect.x) * ratio, y: height / 2 - (height / 2 - rect.y) * ratio, width: nextWidth, height: rect.height * ratio })
   chart.dispatchAction({ type: 'treemapRender', seriesId: 'price-heatmap', rootRect: viewRect })
 }
 
@@ -322,14 +345,8 @@ onMounted(() => {
     if (data?.symbol) emit('select', data.symbol)
     else if (data?.children && data.name) focusGroup(data.name)
   })
-  chart.on('treemaprender', (params: unknown) => {
-    const event = params as { rootRect?: typeof viewRect }
-    if (event.rootRect) viewRect = event.rootRect
-  })
-  chart.on('treemapmove', (params: unknown) => {
-    const event = params as { rootRect?: typeof viewRect }
-    if (event.rootRect) viewRect = event.rootRect
-  })
+  chart.on('treemaprender', constrainRoam)
+  chart.on('treemapmove', constrainRoam)
   resizeObserver = new ResizeObserver(() => {
     if (!chart || !chartElement.value) return
     const width = chartElement.value.clientWidth
@@ -365,6 +382,7 @@ onUnmounted(() => {
 <style scoped>
 .price-heatmap {
   position: relative;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   margin: -10px;
