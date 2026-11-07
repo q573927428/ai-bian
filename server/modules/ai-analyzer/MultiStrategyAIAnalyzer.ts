@@ -1,6 +1,6 @@
 // ==================== 多策略 AI 分析器 ====================
 
-import type { StrategyId, AIPromptConfig, AIProvider } from '../../../types/strategy'
+import type { StrategyId, AIPromptConfig, AIProvider, RiskConfig } from '../../../types/strategy'
 import type { AIAnalysis, RiskLevel, TechnicalIndicators, BotConfig, Direction, ScoreBreakdown, EntryCommunitySentiment } from '../../../types'
 import type { TradeSignal } from '../../../types/signal'
 import { BinanceService } from '../../utils/binance'
@@ -23,6 +23,7 @@ import { saveAIRules } from '../../utils/ai-rules-store'
 import { randomUUID } from 'node:crypto'
 import type { TradeDecision } from '../../../types/trade-decision'
 import type { EfficiencyRatioSnapshot } from '../../../types/efficiency-ratio'
+import { calculateStopLoss, calculateTakeProfit } from '../../utils/indicators-risk'
 
 /** AI 只接收入场位置摘要；完整区域及时间信息仍由信号和交易记录保存。 */
 function formatSupportResistance(snapshot?: SupportResistanceSnapshot): string {
@@ -225,7 +226,7 @@ export class MultiStrategyAIAnalyzer {
         }
       }
       // 环境版本与五周期变化都必须参与缓存，不能复用旧口径的置信度。
-      const cacheKey = this.buildCacheKey(strategyId, symbol, { ...indicators, environmentContext }, price, volume, candleProgress, promptConfig, structuredRules)
+      const cacheKey = this.buildCacheKey(strategyId, symbol, { ...indicators, environmentContext }, price, volume, candleProgress, promptConfig, structuredRules, strategy?.riskManagement)
       const cached = aiCache.get(cacheKey)
       if (cached && (Date.now() - cached.timestamp < this.getAiCacheTtl())) {
         logger.info('MultiStrategyAIAnalyzer', `AI缓存命中: ${symbol} [策略 ${strategyId}]`)
@@ -242,7 +243,8 @@ export class MultiStrategyAIAnalyzer {
         volume,
         candleProgress,
         structuredRules,
-        environmentContext
+        environmentContext,
+        strategy?.riskManagement
       )
 
       // 3. 调用原有的 AI 分析函数
@@ -744,6 +746,26 @@ export class MultiStrategyAIAnalyzer {
   }
 
   /**
+   * 按正式开仓的风险计算口径预估两个方向的价格，供用户规则引用。
+   * AI 尚未确定方向，且市价单尚未成交，因此必须分别列出两套预估值。
+   */
+  private formatTradePricePlan(price: number, indicators: TechnicalIndicators, risk?: RiskConfig): string {
+    if (!risk || !Number.isFinite(price) || price <= 0) {
+      return ''
+    }
+    const formatPrice = (value: number) => Number.isFinite(value) ? String(value) : '不可用'
+    // 与 StrategyEngine.calculateConfiguredStopLoss 保持一致：ATR 缺失或为 0 时回退至价格的 1%。
+    const atr = indicators.atr || price * 0.01
+    const lines = (['LONG', 'SHORT'] as const).map(direction => {
+      const stopLoss = calculateStopLoss(price, direction, atr, risk.stopLossATRMultiplier)
+      const tp1 = calculateTakeProfit(price, stopLoss, direction, risk.takeProfitRatios?.[0])
+      const tp2 = calculateTakeProfit(price, stopLoss, direction, risk.takeProfitRatios?.[1])
+      return `- ${direction}（${direction === 'LONG' ? '做多' : '做空'}）：止损价=${formatPrice(stopLoss)} USDT；止盈TP1价格=${formatPrice(tp1)} USDT；止盈TP2价格=${formatPrice(tp2)} USDT`
+    })
+    return `### 止盈止损预估价格\n${lines.join('\n')}`
+  }
+
+  /**
    * 构建完整提示词
    */
   private buildFullPrompt(
@@ -754,7 +776,8 @@ export class MultiStrategyAIAnalyzer {
     volume: number,
     candleProgress: number = 0.1,
     structuredRules?: StructuredRules,
-    environmentContext?: EnvironmentContext
+    environmentContext?: EnvironmentContext,
+    riskManagement?: RiskConfig
   ): string {
     const data = this.preparePromptData(symbol, price, indicators, volume, candleProgress)
     const structuredRulesDslText = (() => {
@@ -792,6 +815,8 @@ ${data.volumeSection}
 
 ## 三、技术指标
 ${data.technicalSections.join('\n\n')}
+
+${this.formatTradePricePlan(price, indicators, riskManagement)}
 
 ### 近30日持续高交易量且稳定交易对市场背景
 ${formatMarketBreadth(indicators.marketBreadth, symbol, environmentContext?.mainTimeframe)}
@@ -1126,12 +1151,19 @@ ${historySection}
     volume: number = 0,
     candleProgress: number = 0.1,
     promptConfig?: AIPromptConfig,
-    structuredRules?: StructuredRules
+    structuredRules?: StructuredRules,
+    riskManagement?: RiskConfig
   ): string {
     const hash = shortHash({
       symbol,
       indicators,
-      price: Number(price.toFixed(2)),
+      // 价格计划直接参与规则比较，缓存必须区分原始价格及风险参数变更。
+      price,
+      pricePlanVersion: 3,
+      riskManagement: riskManagement && {
+        stopLossATRMultiplier: riskManagement.stopLossATRMultiplier,
+        takeProfitRatios: riskManagement.takeProfitRatios
+      },
       volume: Number(volume.toFixed(2)),
       candleProgress: Number(candleProgress.toFixed(4)),
       userPrompt: promptConfig?.userPrompt,

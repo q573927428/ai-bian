@@ -9,6 +9,7 @@ import ts from 'typescript'
 import * as technicalIndicators from 'technicalindicators'
 import * as efficiencyRatio from '../app/utils/efficiency-ratio.ts'
 import { diTrend, applyCommunityConfidence } from '../app/utils/environment-confidence.ts'
+import { calculateStopLoss, calculateTakeProfit } from '../server/utils/indicators-risk.ts'
 
 const require = createRequire(import.meta.url)
 const logger = { info() {}, warn() {}, error() {}, success() {} }
@@ -411,6 +412,7 @@ test('AI提示词、信号与复算快照使用同一成交量周期和EMA比值
     '../../utils/stable-hash': hashes,
     '../../utils/candle-volume': candleVolume,
     '../../utils/ai-analysis-snapshot': { ...snapshots, createStrategySnapshot: () => ({}) },
+    '../../utils/indicators-risk': { calculateStopLoss, calculateTakeProfit },
     '../../utils/environment-context': { loadEnvironmentContext: async () => undefined },
     '../../utils/market-breadth': { formatMarketBreadth: () => '' },
     '../../../app/utils/environment-confidence': { diTrend, applyCommunityConfidence, formatEnvironmentConfidence: () => '' },
@@ -628,6 +630,7 @@ test('ER 提示词、信号和分析快照保留相同窗口，缺数据不显�
     '../../utils/logger': { logger }, '../../utils/stable-hash': hashes,
     '../../utils/candle-volume': candleVolume,
     '../../utils/ai-analysis-snapshot': { ...snapshots, createStrategySnapshot: () => ({}) },
+    '../../utils/indicators-risk': { calculateStopLoss, calculateTakeProfit },
     '../../utils/environment-context': { loadEnvironmentContext: async () => undefined },
     '../../utils/market-breadth': { formatMarketBreadth: () => '' },
     '../../../app/utils/environment-confidence': { diTrend, applyCommunityConfidence, formatEnvironmentConfidence: () => '' },
