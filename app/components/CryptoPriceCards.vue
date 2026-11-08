@@ -641,9 +641,11 @@ interface CryptoPrice {
 /* 整个组件占满浏览器页面；工具栏保留高度，正文使用剩余空间。 */
 .price-grid-card-expanded {
   position: fixed;
-  inset: 0;
+  /* 公共行情栏固定在底部，展开区域需扣除其高度及移动端安全区。 */
+  inset: 0 0 var(--app-footer-height, 0px);
   z-index: 2000;
-  height: 100dvh;
+  box-sizing: border-box;
+  height: calc(100dvh - var(--app-footer-height, 0px));
   margin: 0;
   border-radius: 0;
   display: flex;

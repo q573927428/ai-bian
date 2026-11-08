@@ -1225,11 +1225,13 @@ onUnmounted(() => {
 
 .kline-chart-simple-container.chart-expanded {
   position: fixed;
-  inset: 0;
+  /* 与价格看板共用底栏预留高度，避免成交量和时间轴被公共行情栏遮挡。 */
+  inset: 0 0 var(--app-footer-height, 0px);
   z-index: 2000;
   display: flex;
   flex-direction: column;
-  height: 100dvh;
+  box-sizing: border-box;
+  height: calc(100dvh - var(--app-footer-height, 0px));
   margin: 0;
   padding: 0;
   transition: none;
