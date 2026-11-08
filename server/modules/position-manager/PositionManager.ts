@@ -33,6 +33,10 @@ export interface PositionInfo {
   mainTimeframe?: string;              // 入场指标使用的主时间周期
   stopLoss?: number;                   // 止损价格
   initialStopLoss?: number;            // 初始止损价格
+  /** 移动止损一旦激活便持续有效，持久化后重启无需重新满足激活门槛。 */
+  trailingStopActivated?: boolean;
+  /** 已决定退出但尚未完成的平仓原因，供失败或重启后继续执行。 */
+  pendingCloseReason?: string;
   takeProfit1?: number;                // 止盈1价格
   takeProfit2?: number;                // 止盈2价格
   openTime: number;                    // 开仓时间

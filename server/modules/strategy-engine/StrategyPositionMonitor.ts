@@ -243,6 +243,16 @@ export class StrategyPositionMonitor {
       return
     }
 
+    // 已决定退出的仓位优先重试，不再等待止盈指标或移动止损重新触发。
+    if (position.pendingCloseReason) {
+      // 上次请求可能部分成交，使用本轮交易所剩余数量，避免重复提交过时的平仓数量。
+      const remaining = exchangePositions.find(p => p.symbol.split(':')[0] === symbol.split(':')[0] &&
+        p.direction === (position.direction === 'long' ? 'LONG' : 'SHORT') && Math.abs(p.quantity) > 0)
+      if (remaining) this.positionManager.updatePosition(symbol, { quantity: Math.abs(remaining.quantity) })
+      await this.positionCloser.closePosition(symbol, position.pendingCloseReason, currentPrice)
+      return
+    }
+
     if (currentPrice === undefined) {
       logger.warn('💹持仓监控', `${symbol} 缺少本轮价格，跳过价格风控检查`)
       return
@@ -262,12 +272,15 @@ export class StrategyPositionMonitor {
     if (await this.checkTakeProfit(position, strategy, currentPrice)) {
       return
     }
+    // 止盈内部会捕获平仓异常；已有退出意图时停止本轮，不再换单或重复提交平仓。
+    if (position.pendingCloseReason) return
 
     // 2. 检查移动止损
     if (strategy.riskManagement.trailingStop.enabled) {
       if (await this.checkTrailingStop(position, strategy, currentPrice)) {
         return
       }
+      if (position.pendingCloseReason) return
     }
 
     // 3. 检查超时平仓
@@ -390,19 +403,35 @@ export class StrategyPositionMonitor {
       }
 
       // 计算盈亏比
-      const risk = Math.abs(entryPrice - stopLoss)
+      // 激活的1R固定取入场初始风险；移动后的止损不能改变激活标准。
+      const initialStopLoss = position.initialStopLoss ?? position.position?.initialStopLoss
+      const risk = typeof initialStopLoss === 'number' && Number.isFinite(initialStopLoss) && initialStopLoss > 0
+        ? Math.abs(entryPrice - initialStopLoss)
+        : 0
       const currentProfit = position.direction === 'long'
         ? currentPrice - entryPrice
         : entryPrice - currentPrice
 
-      const profitRatio = currentProfit / risk
+      const profitRatio = risk > 0 ? currentProfit / risk : 0
 
       // 检查是否激活移动止损
-      const isActivated = this.trailingStopActivated.get(positionKey) || false
-      if (!isActivated && profitRatio >= trailingStopConfig.activationRatio) {
-        this.trailingStopActivated.set(positionKey, true)
-        logger.info('移动止损', `${position.symbol} 移动止损已激活，盈亏比: ${profitRatio.toFixed(2)} [${position.strategyId}]`)
+      // 兼容旧仓位：已成功移动过止损即可证明此前已经激活。
+      let isActivated = position.trailingStopActivated === true ||
+        (position.position?.trailingStopData?.trailingStopCount ?? 0) > 0 ||
+        this.trailingStopActivated.get(positionKey) === true
+      if (!isActivated && risk === 0) {
+        logger.warn('移动止损', `${position.symbol} 缺少有效初始风险，保留当前止损且不重新计算激活门槛`)
         return false
+      }
+      if (!isActivated && profitRatio >= trailingStopConfig.activationRatio) {
+        isActivated = true
+        logger.info('移动止损', `${position.symbol} 移动止损已激活，盈亏比: ${profitRatio.toFixed(2)} [${position.strategyId}]`)
+      }
+      if (isActivated) {
+        this.trailingStopActivated.set(positionKey, true)
+        if (position.trailingStopActivated !== true) {
+          this.positionManager.updatePosition(position.symbol, { trailingStopActivated: true })
+        }
       }
 
       // 已激活，检查是否需要移动止损
@@ -432,10 +461,20 @@ export class StrategyPositionMonitor {
           ? Math.max(stopLoss, newStopLoss)
           : Math.min(stopLoss, newStopLoss)
 
-        // 已越过止损价时直接平仓，避免先撤单再提交必然被 -2021 拒绝的条件单。
+        const minMove = entryPrice * trailingStopConfig.minMoveDistance / 100
+        const stopLossDiff = Math.abs(newStopLoss - stopLoss)
+        // 百分比换算和价格相减存在浮点误差，恰好达到门槛时也应允许更新。
+        const moveTolerance = Number.EPSILON * Math.max(entryPrice, stopLoss, newStopLoss, minMove) * 4
+        const shouldMove = stopLossDiff > 0 && stopLossDiff + moveTolerance >= minMove
+
+        // 最小移动门槛同时约束本地平仓和交易所换单；不足门槛时继续守住已确认的止损，
+        // 避免挂单未移动，程序却按更紧的理论止损提前平仓。
+        const effectiveStopLoss = shouldMove ? newStopLoss : stopLoss
+
+        // 已越过生效止损时直接平仓；达到移动门槛的新线也先检查，避免撤单后新单被 -2021 拒绝。
         const stopHit = position.direction === 'long'
-          ? currentPrice <= newStopLoss
-          : currentPrice >= newStopLoss
+          ? currentPrice <= effectiveStopLoss
+          : currentPrice >= effectiveStopLoss
 
         if (stopHit) {
           logger.info('移动止损', `${position.symbol} 触发移动止损，价格: ${currentPrice}`)
@@ -444,11 +483,8 @@ export class StrategyPositionMonitor {
           return true
         }
 
-        // 检查是否需要更新止损单（至少移动minMoveDistance）
-        const minMove = entryPrice * trailingStopConfig.minMoveDistance / 100
-        const stopLossDiff = Math.abs(newStopLoss - stopLoss)
-
-        if (stopLossDiff > 0 && stopLossDiff >= minMove) {
+        // 只有达到门槛才换单；成功后再保存新止损，失败时保留原有补偿平仓流程。
+        if (shouldMove) {
           let needsProtection = false
           try {
             // 获取止损订单ID，优先从 position.position 获取，否则从 position 获取

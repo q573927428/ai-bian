@@ -1,6 +1,6 @@
 // ==================== 多策略平仓模块 ====================
 
-import { PositionManager } from '../position-manager/PositionManager'
+import { PositionManager, type PositionInfo } from '../position-manager/PositionManager'
 import { BinanceService } from '../../utils/binance'
 import { logger } from '../../utils/logger'
 import { saveBotState } from '../../utils/storage'
@@ -177,8 +177,25 @@ export class StrategyPositionCloser {
 
       logger.info('平仓', `开始平仓 ${symbol}, 原因: ${reason}`)
 
-      // 1. 取消止损订单
+      // 先持久化退出意图；网络失败或进程重启后仍应继续平仓，而不是重新等待触发条件。
+      this.positionManager.updatePosition(symbol, { pendingCloseReason: reason })
+
+      // 1. 保留原止损提交只减仓市价单，避免先撤保护后遇到市价请求失败。
       const stopLossOrderId = position.stopLossOrderId || position.position?.stopLossOrderId
+      const side = position.direction === 'long' ? 'sell' : 'buy'
+      const quantity = Math.abs(position.quantity)
+      let order
+      try {
+        // 原止损可能同时成交，只减仓可防止重复成交造成反向开仓。
+        order = await this.binance.marketOrder(symbol, side, quantity, undefined, { reduceOnly: true })
+      } catch (error: any) {
+        // 请求超时不能视为未成交；仅核对剩余仓位并补保护，不立即盲目重复下市价单。
+        await this.restoreCloseProtection(position)
+        throw error
+      }
+      logger.success('平仓', `平仓订单已提交`, order)
+
+      // 2. 市价请求成功后清理旧止损；撤单失败也不能阻断已成交仓位的结算。
       if (stopLossOrderId) {
         try {
           await this.binance.cancelOrder(
@@ -191,14 +208,6 @@ export class StrategyPositionCloser {
           logger.warn('平仓', `取消止损订单失败: ${error.message}`)
         }
       }
-
-      // 2. 市价平仓
-      const side = position.direction === 'long' ? 'sell' : 'buy'
-      const quantity = Math.abs(position.quantity)
-
-      // 交易所止损可能先于本地平仓成交，只减仓可防止重复成交造成反向开仓。
-      const order = await this.binance.marketOrder(symbol, side, quantity, undefined, { reduceOnly: true })
-      logger.success('平仓', `平仓订单已提交`, order)
 
       // 3. 以币安成交明细作为最终收益来源，行情价只用于接口暂时不可用时兼容回退。
       const fallbackExitPrice = order.average || exitPrice || await this.binance.fetchPrice(symbol)
@@ -245,6 +254,35 @@ export class StrategyPositionCloser {
     } catch (error: any) {
       logger.error('平仓', `平仓失败 ${symbol}: ${error.message}`)
       throw error
+    }
+  }
+
+  /** 市价平仓失败后核对剩余仓位；已有保护不撤销，无保护时按原止损补挂。 */
+  private async restoreCloseProtection(position: PositionInfo): Promise<void> {
+    try {
+      const positions = await this.binance.fetchPositions(position.symbol)
+      const remaining = positions.find(p => p.symbol.split(':')[0] === position.symbol.split(':')[0] &&
+        p.direction === (position.direction === 'long' ? 'LONG' : 'SHORT') && Math.abs(p.quantity) > 0)
+      if (!remaining) return
+
+      const quantity = Math.abs(remaining.quantity)
+      this.positionManager.updatePosition(position.symbol, { quantity })
+      if (position.stopLossOrderId || position.position?.stopLossOrderId) return
+
+      const stopLoss = position.position?.stopLoss ?? position.stopLoss
+      if (typeof stopLoss !== 'number' || !Number.isFinite(stopLoss) || stopLoss <= 0) {
+        throw new Error('缺少有效止损价，无法恢复止损保护')
+      }
+      const side = position.direction === 'long' ? 'sell' : 'buy'
+      const stopOrder = await this.binance.stopLossOrder(position.symbol, side, quantity, stopLoss)
+      this.positionManager.updatePosition(position.symbol, {
+        stopLossOrderId: stopOrder.orderId,
+        ...(position.position ? { position: { ...position.position, quantity, stopLossOrderId: stopOrder.orderId } } : {})
+      })
+      logger.warn('平仓', `${position.symbol} 平仓未完成，已恢复止损保护，下一轮继续平仓`)
+    } catch (error: any) {
+      // 价格已越过止损或交易所不可用时，补挂也可能失败；保留退出意图供下一轮优先重试。
+      logger.error('平仓', `${position.symbol} 恢复止损保护失败，将保留平仓重试: ${error.message}`)
     }
   }
 
