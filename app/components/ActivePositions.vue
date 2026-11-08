@@ -399,12 +399,17 @@ onUnmounted(() => {
 
 <style scoped>
 .positions-list {
-  display: flex;
-  flex-direction: column;
+  /* 按容器宽度排布，宽屏并排展示；窄列仍保持单列，避免价格轨道被过度拉长。 */
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 400px), 1fr));
+  align-items: start;
   gap: 16px;
 }
 
 .position-item {
+  width: 100%;
+  max-width: 560px;
+  min-width: 0;
   border: 1px solid var(--border-color);
   border-radius: 12px;
   padding: 12px;
