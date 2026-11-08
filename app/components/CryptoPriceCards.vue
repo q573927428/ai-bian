@@ -127,8 +127,13 @@
       <div 
         v-for="crypto in grid.items"
         :key="crypto.symbol"
+        :data-symbol="crypto.symbol"
         class="price-card"
-        :class="{ 'price-up': (getChangePercent(crypto.symbol) ?? 0) > 0, 'price-down': (getChangePercent(crypto.symbol) ?? 0) < 0 }"
+        :class="{
+          'price-up': (getChangePercent(crypto.symbol) ?? 0) > 0,
+          'price-down': (getChangePercent(crypto.symbol) ?? 0) < 0,
+          'is-selected': crypto.symbol === selectedSymbol
+        }"
         @click="openChartModal(crypto)"
       >
         <el-badge
@@ -410,6 +415,28 @@ const cardGrids = computed(() => [
   { kind: 'display' as const, items: viewMode.value === 'cards' ? filteredCryptoPrices.value : [] },
   { kind: 'baseline' as const, items: cryptoPrices.value.slice(0, heatmapMeasureCount.value) }
 ])
+
+/** 仅滚动卡片容器，避免 scrollIntoView 连带移动页面和上方 K 线。 */
+async function locateSelectedCard() {
+  await nextTick()
+  if (viewMode.value !== 'cards' || !selectedSymbol.value) return
+  const scroller = boardContentElement.value?.querySelector<HTMLElement>('.cards-scroll')
+  const card = Array.from(scroller?.querySelectorAll<HTMLElement>('.price-card') ?? [])
+    .find(element => element.dataset.symbol === selectedSymbol.value)
+  if (!scroller || !card) return
+  const viewport = scroller.getBoundingClientRect()
+  const rect = card.getBoundingClientRect()
+  // 已完整可见时不移动，便于连续点击；超出视口时将选中卡片放到中间。
+  if (rect.top >= viewport.top + 8 && rect.bottom <= viewport.bottom - 8) return
+  scroller.scrollTo({
+    top: scroller.scrollTop + rect.top - viewport.top - (scroller.clientHeight - rect.height) / 2,
+    behavior: 'smooth'
+  })
+}
+
+// 只监听选择、模式及结果成员变化，实时价格刷新不能反复拉回用户的滚动位置。
+watch([selectedSymbol, viewMode, () => filteredCryptoPrices.value.map(item => item.symbol).join(',')],
+  () => { void locateSelectedCard() }, { flush: 'post' })
 
 /** 仅保存独立基准网格的节点，展示网格的增删不会影响高度测量。 */
 function setBaselineGridElement(kind: 'display' | 'baseline', element: Element | ComponentPublicInstance | null) {
@@ -910,6 +937,13 @@ interface CryptoPrice {
 .price-card.price-down:hover {
   border-color: var(--price-down-hover-border);
   box-shadow: 0 4px 12px var(--price-down-hover-shadow);
+}
+
+/* 用内描边补足 3px 选中框，保持卡片尺寸和高度测量不变；悬停也保留蓝框。 */
+.price-card.is-selected,
+.price-card.is-selected:hover {
+  border-color: #66b1ff;
+  box-shadow: inset 0 0 0 2px #66b1ff;
 }
 
 .price-card-header {

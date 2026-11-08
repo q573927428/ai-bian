@@ -82,14 +82,19 @@ function stepSearch(direction: number) {
 
 /** 使用树图原生缩放定位，保留其他方块，并记录视口以抵御实时行情重绘。 */
 async function locateSearchMatch() {
+  await locateSymbol(activeSearchSymbol.value)
+}
+
+/** 搜索与选中共用原生定位，跨分组定位后仍保留实时更新时的缩放位置。 */
+async function locateSymbol(symbol: string) {
   if (!chart) return
   // 搜索可跨资产组，先退出手动分组放大，确保目标节点存在。
   focusedGroup.value = ''
   await nextTick()
   if (!chart) return
   resetZoom()
-  if (!activeSearchSymbol.value) return
-  chart.dispatchAction({ type: 'treemapZoomToNode', seriesId: 'price-heatmap', targetNodeId: activeSearchSymbol.value })
+  if (!symbol) return
+  chart.dispatchAction({ type: 'treemapZoomToNode', seriesId: 'price-heatmap', targetNodeId: symbol })
   // 原生定位事件不带 rootRect，从布局中保存最终矩形，供后续重绘恢复。
   const data = chart.getModel().getSeriesByIndex(0)?.getData() as unknown as {
     tree?: { root: { getLayout: () => NonNullable<typeof viewRect> } }
@@ -100,6 +105,12 @@ async function locateSearchMatch() {
     chart.dispatchAction({ type: 'treemapRender', seriesId: 'price-heatmap', rootRect: viewRect })
   }
 }
+
+// 仅选择或目标重新进入结果集时定位，避免价格刷新打断用户的拖动和缩放。
+watch([() => props.selectedSymbol, () => props.items.some(item => item.symbol === props.selectedSymbol)],
+  ([symbol, available]) => {
+    if (symbol && available) void locateSymbol(symbol)
+  }, { flush: 'post' })
 
 watch(() => props.searchQuery, () => { searchIndex.value = 0 }, { flush: 'sync' })
 watch([() => props.searchQuery, () => searchMatches.value.map(item => item.symbol).join(','), searchIndex], () => {
@@ -271,6 +282,10 @@ const chartData = computed(() => {
       // 三档尺寸共用同一张圆形图片，加载中或失败时也保留圆形占位。
       backgroundColor: roundedIcons.value[item.icon] ? { image: roundedIcons.value[item.icon] } : '#515761'
     }
+    const isSelected = item.symbol === props.selectedSymbol
+    const isSearchMatch = Boolean(props.searchQuery && item.symbol.includes(props.searchQuery))
+    const borderColor = item.symbol === activeSearchSymbol.value ? '#ffd666'
+      : isSearchMatch ? '#ffffff' : isSelected ? '#66b1ff' : '#050505'
     if (!groups.has(item.group)) groups.set(item.group, [])
     groups.get(item.group)!.push({
       id: item.symbol,
@@ -285,11 +300,16 @@ const chartData = computed(() => {
       },
       itemStyle: {
         color: changeColor(item.change),
-        borderColor: item.symbol === activeSearchSymbol.value ? '#ffd666'
-          : props.searchQuery && item.symbol.includes(props.searchQuery) ? '#ffffff'
-            : item.symbol === props.selectedSymbol ? '#66b1ff' : '#050505',
-        // 搜索命中加粗边框便于寻找，同时保留涨跌底色；普通小格沿用细分隔线。
-        borderWidth: props.searchQuery && item.symbol.includes(props.searchQuery) ? 2 : 0.5
+        borderColor,
+        // 当前交易对用持续的粗蓝框标记，保留涨跌底色；搜索命中仍沿用黄/白色。
+        borderWidth: isSelected ? 3 : isSearchMatch ? 2 : 0.5
+      },
+      // 悬停不能把选中交易对的粗边框覆盖为全局的细边框。
+      emphasis: {
+        itemStyle: {
+          borderColor: isSelected || isSearchMatch ? borderColor : '#a3d0ff',
+          borderWidth: isSelected ? 3 : isSearchMatch ? 2 : 1
+        }
       },
       label: {
         // 实际文本由布局阶段填入，避免图表自动生成省略号或不完整的百分比。
@@ -422,6 +442,7 @@ onMounted(() => {
   resizeObserver.observe(chartElement.value)
   renderChart()
   if (props.searchQuery) void locateSearchMatch()
+  else if (props.items.some(item => item.symbol === props.selectedSymbol)) void locateSymbol(props.selectedSymbol)
 })
 
 onUnmounted(() => {
