@@ -216,13 +216,19 @@ function isTradFi(symbol: string): boolean {
   return contractTypes.value[symbol.replace('/', '').trim().toUpperCase()] === 'TRADIFI_PERPETUAL'
 }
 
-// 从配置文件获取加密货币列表，处理去掉/
-const DEFAULT_CRYPTOS = computed<string[]>(() => {
-  if (botStore.config?.symbols && Array.isArray(botStore.config.symbols)) {
-    return [...new Set<string>(botStore.config.symbols.map((symbol: string) => symbol.replace('/', '').trim().toUpperCase()).filter(Boolean))]
+// 从配置文件获取加密货币列表，处理去掉/。
+const DEFAULT_CRYPTOS = computed<string[]>((previousSymbols) => {
+  const configuredSymbols = botStore.config?.symbols
+  const symbols = Array.isArray(configuredSymbols)
+    ? [...new Set<string>(configuredSymbols.map((symbol: string) => symbol.replace('/', '').trim().toUpperCase()).filter(Boolean))]
+    : []
+  // 状态刷新会替换整个配置对象；列表内容和顺序未变时复用旧引用，
+  // 避免误触发下方配置变更监听，清空快照后让统计、热力图和图表布局短暂跳动。
+  if (previousSymbols && symbols.length === previousSymbols.length
+    && symbols.every((symbol, index) => symbol === previousSymbols[index])) {
+    return previousSymbols
   }
-  // 配置加载失败时返回空数组
-  return []
+  return symbols
 })
 
 // 响应式数据
