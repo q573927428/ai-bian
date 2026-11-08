@@ -36,7 +36,7 @@
         </span>
         <span v-if="marketBreadth.missingCount" class="muted">待更新 {{ marketBreadth.missingCount }}</span>
       </div>
-      <el-input v-model="symbolSearch" class="symbol-search" size="small" placeholder="搜索交易对" aria-label="搜索交易对" clearable>
+      <el-input v-model="symbolSearch" class="symbol-search" size="small" placeholder="交易对" aria-label="交易对" clearable>
         <template #prefix><el-icon><ElIconSearch /></el-icon></template>
       </el-input>
       <el-select :model-value="confidenceSort" class="confidence-sort" size="small" placeholder="当前按列排序" aria-label="交易对置信度排序" @change="handleConfidenceSortChange">
@@ -1142,7 +1142,7 @@ onUnmounted(() => {
 /* 标签保持次级灰且不随优势数字加粗，只给数字保留轻微的亮度及方向差异。 */
 .symbol-confidence .confidence-label { color: var(--text-secondary); font-weight: 400; }
 .symbol-confidence > span.muted { color: var(--text-secondary); }
-.symbol-search { flex: 1; min-width: 110px; max-width: 190px; margin-left: auto; }
+.symbol-search { flex: 1; min-width: 100px; max-width: 120px; margin-left: auto; }
 .confidence-sort { width: 100px; flex-shrink: 0; }
 /* 不沿用相邻按钮的额外左间距，统一由工具栏 gap 控制。 */
 .toolbar > .el-button { margin-left: 0; }
@@ -1275,7 +1275,7 @@ onUnmounted(() => {
   .toolbar :deep(.el-radio-button__inner) { padding-left: 8px; padding-right: 8px; }
   .candle-progress { gap: 5px; padding: 0 6px; }
   .candle-progress-track { width: 24px; }
-  .symbol-search { flex: 1; width: auto; min-width: 110px; margin-left: 0; }
+  .symbol-search { flex: 1; width: auto; min-width: 100px; margin-left: 0; }
   /* Element Plus 相邻按钮默认有左边距；换行间距统一由工具栏 gap 控制。 */
   .toolbar > .el-button { margin-left: 0; }
 
