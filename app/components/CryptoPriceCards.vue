@@ -9,7 +9,8 @@
     <div class="horizontal-line"></div>
   </el-card>
 
-  <el-card class="price-grid-card" shadow="hover">
+  <Teleport to="body" :disabled="!isBoardExpanded">
+  <el-card class="price-grid-card" :class="{ 'price-grid-card-expanded': isBoardExpanded }" shadow="hover">
     <template #header>
       <div class="price-cards-header">
         <div class="price-cards-heading">
@@ -45,6 +46,7 @@
             <span v-if="priceCounts.pending" title="当前周期尚无有效行情的交易对数量">待更 {{ priceCounts.pending }}</span>
           </div>
         </div>
+        <div class="price-board-actions">
         <div v-if="viewMode === 'heatmap'" class="heatmap-header-actions">
           <el-tooltip placement="bottom" effect="dark">
             <template #content>
@@ -92,6 +94,21 @@
           >
             <el-icon><ElIconArrowRight /></el-icon>
           </el-button>
+        </div>
+        <button
+          ref="boardExpandButton"
+          type="button"
+          class="board-expand-button"
+          :title="isBoardExpanded ? '还原看板（Esc）' : '放大看板至整个页面'"
+          :aria-label="isBoardExpanded ? '还原价格看板' : '放大价格看板至整个页面'"
+          :aria-pressed="isBoardExpanded"
+          @click="toggleBoardExpanded"
+        >
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+            <path v-if="isBoardExpanded" d="M3 9h6V3m6 0v6h6M3 15h6v6m6 0v-6h6" />
+            <path v-else d="M9 3H3v6m12-6h6v6M3 15v6h6m6 0h6v-6" />
+          </svg>
+        </button>
         </div>
       </div>
     </template>
@@ -181,10 +198,11 @@
     </div>
     </template>
   </el-card>
+  </Teleport>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { ref, computed, nextTick, onMounted, onUnmounted, watch } from 'vue'
 import ChartEngineSwitcher from '../components/kline-chart/ChartEngineSwitcher.vue'
 import PriceHeatmap from './PriceHeatmap.vue'
 import { getHeatmapLegend } from '../utils/price-heatmap-colors'
@@ -209,6 +227,30 @@ const emit = defineEmits<{
 }>()
 
 const botStore = useBotStore()
+const isBoardExpanded = ref(false)
+const boardExpandButton = ref<HTMLButtonElement | null>(null)
+let previousBodyOverflow = ''
+
+/** 整个看板移至页面顶层并铺满视口，保留组件实例和当前筛选、缩放状态。 */
+function toggleBoardExpanded() {
+  if (!isBoardExpanded.value) {
+    previousBodyOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+  } else {
+    document.body.style.overflow = previousBodyOverflow
+  }
+  isBoardExpanded.value = !isBoardExpanded.value
+  // Teleport 移动节点后恢复按钮焦点，方便继续使用键盘切换。
+  void nextTick(() => boardExpandButton.value?.focus({ preventScroll: true }))
+}
+
+/** 支持通过 Esc 返回原布局；已由下拉框等控件处理的按键不再重复处理。 */
+function handleBoardEscape(event: KeyboardEvent) {
+  if (event.key === 'Escape' && !event.defaultPrevented && isBoardExpanded.value) {
+    toggleBoardExpanded()
+  }
+}
+
 const { getCoinIconUrl } = useCoinIcon()
 const contractTypes = ref<Record<string, string>>({})
 
@@ -544,6 +586,7 @@ useGlobalPolling(loadPeriodVolumes, () => viewMode.value === 'heatmap' && heatma
 
 // 组件生命周期
 onMounted(() => {
+  window.addEventListener('keydown', handleBoardEscape)
   // 测量原卡片区域，而非按屏幕高度估算，确保切换视图不撑高看板。
   if (cardGridElement.value) {
     cardGridResizeObserver = new ResizeObserver(() => {
@@ -571,6 +614,9 @@ onUnmounted(() => {
   breadthRequestId++
   botStore.unsubscribeFromPrices('crypto-price-cards')
   if (import.meta.client) {
+    window.removeEventListener('keydown', handleBoardEscape)
+    // 离开页面时也必须释放滚动锁，避免影响其他页面。
+    if (isBoardExpanded.value) document.body.style.overflow = previousBodyOverflow
     window.removeEventListener('resize', updatePageSize)
   }
 })
@@ -590,6 +636,79 @@ interface CryptoPrice {
 .chart-card,
 .price-grid-card {
   margin-bottom: 20px;
+}
+
+/* 整个组件占满浏览器页面；工具栏保留高度，正文使用剩余空间。 */
+.price-grid-card-expanded {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  height: 100dvh;
+  margin: 0;
+  border-radius: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.price-grid-card-expanded :deep(.el-card__header) {
+  flex-shrink: 0;
+}
+
+.price-grid-card-expanded :deep(.el-card__body) {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: auto;
+}
+
+.price-grid-card-expanded .price-board-content {
+  flex: 1;
+  min-height: 0;
+}
+
+.price-grid-card-expanded :deep(.price-heatmap) {
+  /* 覆盖普通布局按卡片测得的固定高度，让热力图随正文一起展开。 */
+  height: 100% !important;
+  margin: 0;
+}
+
+.price-board-actions {
+  /* 统一吸收头部剩余空间，避免多个 auto 外边距把右侧控件分散。 */
+  position: sticky;
+  right: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  margin-left: auto;
+  /* 跟随卡片实际背景；项目深色主题未覆盖通用 --el-bg-color。 */
+  background: var(--el-card-bg-color);
+}
+
+.board-expand-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 26px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid var(--el-border-color);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.board-expand-button:hover {
+  background: var(--el-fill-color-light);
+  color: var(--el-color-primary);
+}
+
+.board-expand-button:focus-visible {
+  outline: 2px solid var(--el-color-primary);
+  outline-offset: -2px;
 }
 
 .price-cards-header {
@@ -657,7 +776,7 @@ interface CryptoPrice {
 }
 
 .price-symbol-search {
-  width: 120px;
+  width: 80px;
 }
 
 .heatmap-help-button {
@@ -707,7 +826,6 @@ interface CryptoPrice {
   align-items: center;
   gap: 8px;
   flex-shrink: 0;
-  margin-left: auto;
 }
 
 .heatmap-size-select {
