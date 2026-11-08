@@ -1,5 +1,6 @@
 <template>
-  <div ref="simpleContainerRef" class="kline-chart-simple-container" :class="{ 'timeline-active': timeline }">
+  <Teleport to="body" :disabled="!isExpanded">
+  <div ref="simpleContainerRef" class="kline-chart-simple-container" :class="{ 'timeline-active': timeline, 'chart-expanded': isExpanded }">
     <!-- 图表控制栏 -->
     <div ref="controlsWrapperRef" class="chart-controls-wrapper">
       <KLineChartControls
@@ -21,6 +22,7 @@
         :scan-range-bounds="scanRangeBounds"
         :ema-periods="selectedEmaPeriods"
         :active-engine="activeEngine"
+        :expanded="isExpanded"
         @timeframe-change="selectTimeframe"
         @refresh="refreshChart"
         @toggle-theme="toggleTheme"
@@ -100,11 +102,12 @@
     </div>
 
   </div>
+  </Teleport>
   <PasswordDialog v-model="showScanPasswordDialog" @success="unlockScanMarkers" />
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch, computed, onBeforeUnmount, getCurrentInstance } from 'vue'
+import { ref, nextTick, onMounted, onUnmounted, watch, computed, onBeforeUnmount, getCurrentInstance } from 'vue'
 import type { SimpleKLineData, KLineApiResponse } from '../../../types/kline-simple'
 import type { TradeHistory } from '../../../types'
 import type { ScanResultApiResponse, StrategyScanResult } from '../../../types/scan-result'
@@ -316,7 +319,8 @@ const loading = ref(false)
 const error = ref('')
 const theme = ref<'light' | 'dark'>(globalTheme.value)
 const chartHeight = ref(props.height)
-const isFullscreen = ref(false)
+const isExpanded = ref(false)
+let previousBodyOverflow = ''
 let layoutObserver: ResizeObserver | undefined
 
 // 监听全局主题变化，同步本地 ref
@@ -542,24 +546,27 @@ const toggleTheme = () => {
   globalToggleTheme()
 }
 
-// 全屏切换
+/** 在浏览器页面内展开整个图表，保留实例、当前周期和图表视图。 */
 const toggleFullscreen = () => {
-  const container = simpleContainerRef.value
-  if (!container) return
-
-  if (!document.fullscreenElement) {
-    container.requestFullscreen().catch((err) => {
-      console.error('全屏请求失败:', err)
-    })
+  if (!isExpanded.value) {
+    previousBodyOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
   } else {
-    document.exitFullscreen().catch((err) => {
-      console.error('退出全屏失败:', err)
-    })
+    document.body.style.overflow = previousBodyOverflow
   }
+  isExpanded.value = !isExpanded.value
+  // 等待节点移动和布局完成，再按工具栏实际高度调整画布。
+  void nextTick(updateChartHeight)
 }
 
+/** 按 Esc 还原布局，优先尊重弹窗、下拉框对按键的处理。 */
+const handleExpandedEscape = (event: KeyboardEvent) => {
+  if (event.key === 'Escape' && !event.defaultPrevented && isExpanded.value) toggleFullscreen()
+}
+
+/** 普通模式沿用父级分配高度，展开时画布填满工具栏下方剩余空间。 */
 const updateChartHeight = () => {
-  if (!isFullscreen.value) {
+  if (!isExpanded.value) {
     const container = simpleContainerRef.value
     if (window.innerWidth >= 992 && container?.closest('.market-column')) {
       // 直接读取 flex 布局分配后的空间，不用旧画布高度反推，避免更新时序造成误差。
@@ -571,16 +578,10 @@ const updateChartHeight = () => {
   }
 
   const controlsHeight = controlsWrapperRef.value?.offsetHeight || 0
-  const reservedGap = 16
-  chartHeight.value = Math.max(300, window.innerHeight - controlsHeight - reservedGap)
+  chartHeight.value = Math.max(1, (simpleContainerRef.value?.clientHeight || window.innerHeight) - controlsHeight)
 }
 
-const handleFullscreenChange = () => {
-  isFullscreen.value = document.fullscreenElement === simpleContainerRef.value
-  updateChartHeight()
-}
-
-// 页面调整高度参数时同步画布；全屏仍由视口高度决定。
+// 页面调整高度参数时同步画布；展开状态仍由视口高度决定。
 watch(() => props.height, updateChartHeight)
 
 const handleWindowResize = () => {
@@ -1186,22 +1187,22 @@ onMounted(() => {
   botStore.subscribeToPrices(priceSubscriberId)
   // 启动新K线检测
   startNewKlineCheck()
-  document.addEventListener('fullscreenchange', handleFullscreenChange)
+  window.addEventListener('keydown', handleExpandedEscape)
   window.addEventListener('resize', handleWindowResize)
   const column = simpleContainerRef.value?.closest('.chart-card')?.parentElement
-  if (column) {
-    layoutObserver = new ResizeObserver(updateChartHeight)
-    if (simpleContainerRef.value) layoutObserver.observe(simpleContainerRef.value)
-    const prices = column.querySelector('.price-grid-card')
-    if (prices) layoutObserver.observe(prices)
-    if (controlsWrapperRef.value) layoutObserver.observe(controlsWrapperRef.value)
-  }
+  layoutObserver = new ResizeObserver(updateChartHeight)
+  if (simpleContainerRef.value) layoutObserver.observe(simpleContainerRef.value)
+  const prices = column?.querySelector('.price-grid-card')
+  if (prices) layoutObserver.observe(prices)
+  if (controlsWrapperRef.value) layoutObserver.observe(controlsWrapperRef.value)
 })
 
 // 组件卸载前同步清理
 onBeforeUnmount(() => {
   stopNewKlineCheck()
-  document.removeEventListener('fullscreenchange', handleFullscreenChange)
+  window.removeEventListener('keydown', handleExpandedEscape)
+  // 切换引擎或离开页面时释放滚动锁。
+  if (isExpanded.value) document.body.style.overflow = previousBodyOverflow
   window.removeEventListener('resize', handleWindowResize)
   layoutObserver?.disconnect()
 })
@@ -1222,20 +1223,27 @@ onUnmounted(() => {
   transition: all 0.3s ease;
 }
 
-.kline-chart-simple-container:fullscreen {
+.kline-chart-simple-container.chart-expanded {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
   display: flex;
   flex-direction: column;
-  width: 100vw;
-  height: 100vh;
+  height: 100dvh;
   margin: 0;
   padding: 0;
+  transition: none;
+}
+
+.chart-expanded .chart-controls-wrapper {
+  flex-shrink: 0;
 }
 
 .chart-container {
   position: relative;
 }
 
-.kline-chart-simple-container:fullscreen .chart-container {
+.chart-expanded .chart-container {
   flex: 1;
   min-height: 0;
 }

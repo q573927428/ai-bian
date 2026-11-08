@@ -186,11 +186,16 @@
           type="warning"
           size="small"
           @click="$emit('toggle-fullscreen')"
-          title="全屏"
+          :title="expanded ? '还原图表（Esc）' : '放大图表至整个页面'"
+          :aria-label="expanded ? '还原K线图表' : '放大K线图表至整个页面'"
+          :aria-pressed="expanded"
           class="action-btn"
         >
           <el-icon>
-            <ElIconFullScreen />
+            <svg v-if="expanded" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+              <path d="M3 9h6V3m6 0v6h6M3 15h6v6m6 0v-6h6" />
+            </svg>
+            <ElIconFullScreen v-else />
           </el-icon>
         </el-button>
       </el-button-group>
@@ -205,6 +210,8 @@ import { ref, watch, computed } from 'vue'
  * K线控制栏属性，包含图表状态、标记开关和周期过滤配置。
  */
 interface Props {
+  /** 是否已在浏览器页面内展开，用于切换按钮提示和还原图标。 */
+  expanded?: boolean
   timeline?: boolean
   symbol?: string
   timeframe?: string
