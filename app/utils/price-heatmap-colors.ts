@@ -12,17 +12,17 @@ export function getHeatmapColorThresholds(period: string) {
   return PERIOD_COLOR_THRESHOLDS[period] ?? PERIOD_COLOR_THRESHOLDS['24h']!
 }
 
-/** 图表配色与标题栏说明共享同一份七档色阶。 */
+/** 图表配色与标题栏说明共享参考图的七档色阶，增强红绿饱和度且保留周期阈值。 */
 export function getHeatmapLegend(period: string) {
   const [low, middle, high] = getHeatmapColorThresholds(period)
   return [
-    { label: `≤−${high}%`, color: '#b91c32', title: `涨跌幅 ≤ −${high}%` },
-    { label: `−${middle}%`, color: '#874047', title: `−${middle}% 的颜色，区间内逐渐过渡` },
-    { label: `−${low}%`, color: '#633e44', title: `−${low}% 的颜色，小幅下跌仍保留浅红色` },
-    { label: '0%', color: '#41464d', title: '持平或缺失行情；小幅上涨为浅绿，小幅下跌为浅红' },
-    { label: `+${low}%`, color: '#344b3a', title: `+${low}% 的颜色，小幅上涨仍保留浅绿色` },
-    { label: `+${middle}%`, color: '#2e6844', title: `+${middle}% 的颜色，区间内逐渐过渡` },
-    { label: `≥+${high}%`, color: '#10863f', title: `涨跌幅 ≥ +${high}%` }
+    { label: `≤−${high}%`, color: '#c91927', title: `涨跌幅 ≤ −${high}%` },
+    { label: `−${middle}%`, color: '#9c2e32', title: `−${middle}% 的颜色，区间内逐渐过渡` },
+    { label: `−${low}%`, color: '#6a3637', title: `−${low}% 的颜色，小幅下跌仍保留浅红色` },
+    { label: '0%', color: '#303030', title: '持平或缺失行情；小幅上涨为浅绿，小幅下跌为浅红' },
+    { label: `+${low}%`, color: '#34533a', title: `+${low}% 的颜色，小幅上涨仍保留浅绿色` },
+    { label: `+${middle}%`, color: '#2c6a3c', title: `+${middle}% 的颜色，区间内逐渐过渡` },
+    { label: `≥+${high}%`, color: '#13843e', title: `涨跌幅 ≥ +${high}%` }
   ]
 }
 

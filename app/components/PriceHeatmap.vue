@@ -231,9 +231,9 @@ const chartData = computed(() => {
       },
       itemStyle: {
         color: changeColor(item.change),
-        borderColor: item.symbol === props.selectedSymbol ? '#66b1ff' : '#151a20',
-        // 选中时只变边框颜色，避免边框宽度影响相邻区块的位置。
-        borderWidth: 1
+        borderColor: item.symbol === props.selectedSymbol ? '#66b1ff' : '#050505',
+        // 相邻小格各保留半像素边框，合成细分隔线；选中时只改变颜色。
+        borderWidth: 0.5
       },
       label: {
         // 实际文本由布局阶段填入，避免图表自动生成省略号或不完整的百分比。
@@ -311,12 +311,13 @@ function renderChart() {
       },
       upperLabel: { show: true, height: 18, color: dark ? '#e5e7eb' : '#303133', fontSize: 11 },
       itemStyle: { borderColor: dark ? '#14181e' : '#e4e7ed', borderWidth: 2, gapWidth: 1 },
-      emphasis: { itemStyle: { borderColor: '#a3d0ff', borderWidth: 1 } },
+      emphasis: { itemStyle: { borderColor: '#a3d0ff', borderWidth: 0.5 } },
       levels: [
         // 根节点只负责排列资产分组，不展示无名称的父级标题栏。
         { itemStyle: { gapWidth: 4 }, upperLabel: { show: false } },
         {
-          itemStyle: { color: dark ? '#1c2026' : '#f2f3f5', gapWidth: 1 },
+          // 小格之间仅用细边框分隔，不再额外增加布局间距。
+          itemStyle: { color: dark ? '#1c2026' : '#f2f3f5', gapWidth: 0 },
           upperLabel: { show: true },
           emphasis: { itemStyle: { color: dark ? '#123c76' : '#245bb4' }, upperLabel: { color: '#fff' } }
         },

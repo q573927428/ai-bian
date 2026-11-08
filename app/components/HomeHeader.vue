@@ -548,7 +548,7 @@ function handleNavigate(target: HomeNavigationTarget) {
 @media (max-width: 480px) {
   .header { padding: 0 8px; }
   .header-content { column-gap: 4px; }
-  .header h1 { font-size: 12px; }
+  .header h1 { font-size: 18px; }
   /* 压缩标签与间距，让权重和估算在手机顶部保持单行。 */
   .header-status {
     display: inline-flex;
