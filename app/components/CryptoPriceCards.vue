@@ -13,20 +13,16 @@
     <template #header>
       <div class="price-cards-header">
         <div class="price-cards-heading">
-          <h3 class="price-cards-title">📊 价格看板</h3>
-          <el-tooltip v-if="viewMode === 'heatmap'" placement="bottom" effect="dark">
-            <template #content>
-              <div class="heatmap-help">
-                <div>颜色 = {{ changePeriod }} 涨跌幅</div>
-                <div class="heatmap-help-legend">
-                  <span v-for="entry in heatmapLegend" :key="entry.label" :style="{ backgroundColor: entry.color }">{{ entry.label }}</span>
-                </div>
-                <div>灰色：持平 / 待更新 · 点击查看 K 线</div>
-                <div>点击分组放大 · 滚轮缩放 · 拖动平移 · 右下角复位</div>
-              </div>
-            </template>
-            <button type="button" class="heatmap-help-button" aria-label="热力图颜色说明">?</button>
-          </el-tooltip>
+          <el-input
+            v-model="symbolSearch"
+            class="price-symbol-search"
+            size="small"
+            placeholder="搜索代币"
+            aria-label="搜索代币"
+            clearable
+          >
+            <template #prefix><el-icon><ElIconSearch /></el-icon></template>
+          </el-input>
           <el-radio-group v-model="viewMode" size="small" aria-label="价格看板显示方式">
             <el-radio-button value="cards" title="卡片视图">卡</el-radio-button>
             <el-radio-button value="heatmap" title="热力图视图">图</el-radio-button>
@@ -49,8 +45,21 @@
             <span v-if="priceCounts.pending" title="当前周期尚无有效行情的交易对数量">待更 {{ priceCounts.pending }}</span>
           </div>
         </div>
-        <el-select
-          v-if="viewMode === 'heatmap'"
+        <div v-if="viewMode === 'heatmap'" class="heatmap-header-actions">
+          <el-tooltip placement="bottom" effect="dark">
+            <template #content>
+              <div class="heatmap-help">
+                <div>颜色 = {{ changePeriod }} 涨跌幅</div>
+                <div class="heatmap-help-legend">
+                  <span v-for="entry in heatmapLegend" :key="entry.label" :style="{ backgroundColor: entry.color }">{{ entry.label }}</span>
+                </div>
+                <div>灰色：持平 / 待更新 · 点击查看 K 线</div>
+                <div>点击分组放大 · 滚轮缩放 · 拖动平移 · 右下角复位</div>
+              </div>
+            </template>
+            <button type="button" class="heatmap-help-button" aria-label="热力图颜色说明">?</button>
+          </el-tooltip>
+          <el-select
           v-model="heatmapSizeMode"
           class="heatmap-size-select"
           size="small"
@@ -59,7 +68,8 @@
           <el-option label="涨跌幅" value="change" />
           <el-option label="成交额" value="volume" />
           <el-option label="等面积" value="equal" />
-        </el-select>
+          </el-select>
+        </div>
         <div class="pagination-actions" v-if="viewMode === 'cards' && totalPages > 1">
           <el-button
             circle
@@ -92,6 +102,7 @@
     <PriceHeatmap
       v-if="viewMode === 'heatmap' && filteredCryptoPrices.length"
       :items="heatmapItems"
+      :search-query="normalizedSymbolSearch"
       :period="changePeriod"
       :selected-symbol="selectedSymbol"
       :height="cardGridHeight"
@@ -166,7 +177,7 @@
       <el-empty description="暂无价格数据" />
     </div>
     <div v-else-if="!isLoading && filteredCryptoPrices.length === 0" class="empty-state">
-      <el-empty :description="priceFilter === 'up' ? '当前周期暂无上涨交易对' : '当前周期暂无下跌交易对'" />
+      <el-empty :description="symbolSearch.trim() ? '未找到匹配的代币' : priceFilter === 'up' ? '当前周期暂无上涨交易对' : '当前周期暂无下跌交易对'" />
     </div>
     </template>
   </el-card>
@@ -245,6 +256,9 @@ const viewMode = ref<'cards' | 'heatmap'>('cards')
 const heatmapSizeMode = ref<'change' | 'volume' | 'equal'>('change')
 const VIEW_MODE_KEY = 'price-board-view-mode'
 const priceFilter = ref<'all' | 'up' | 'down'>('all')
+const symbolSearch = ref('')
+// 兼容大小写和 BTC/USDT 写法；搜索只筛选展示，市场统计始终覆盖全部已选交易对。
+const normalizedSymbolSearch = computed(() => symbolSearch.value.replace(/[\s/]/g, '').toUpperCase())
 const changePeriod = ref<'5m' | '15m' | '1h' | '4h' | '24h'>('1h')
 const heatmapLegend = computed(() => getHeatmapLegend(changePeriod.value))
 const breadthSnapshot = ref<MarketBreadthSnapshot | null>(null)
@@ -323,6 +337,8 @@ const priceCounts = computed(() => {
 })
 // 筛选与头部统计共用当前周期涨跌幅，持平和待更新行情只在“总”中显示。
 const filteredCryptoPrices = computed(() => cryptoPrices.value.filter((crypto) => {
+  // 热力图搜索由图内高亮和定位处理，保留全市场面积及位置关系。
+  if (viewMode.value === 'cards' && !crypto.symbol.includes(normalizedSymbolSearch.value)) return false
   if (priceFilter.value === 'all') return true
   const change = getChangePercent(crypto.symbol)
   return change !== null && (priceFilter.value === 'up' ? change > 0 : change < 0)
@@ -356,7 +372,7 @@ const visibleCryptoPrices = computed(() => {
   return filteredCryptoPrices.value.slice(start, start + pageSize.value)
 })
 
-watch([priceFilter, changePeriod], () => {
+watch([priceFilter, changePeriod, symbolSearch], () => {
   currentPage.value = 0
 }, { flush: 'sync' })
 
@@ -578,7 +594,10 @@ interface CryptoPrice {
 
 .price-cards-header {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  /* 窄窗口横向滚动，保持搜索、周期和全部市场统计在同一行。 */
+  overflow-x: auto;
+  padding: 2px 0;
   gap: 8px;
   align-items: center;
   justify-content: space-between;
@@ -588,14 +607,19 @@ interface CryptoPrice {
 .price-cards-heading {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
-  gap: 8px 12px;
+  flex: 0 0 auto;
+  flex-wrap: nowrap;
+  gap: 8px;
+}
+
+.price-cards-heading > * {
+  flex-shrink: 0;
 }
 
 .price-counts {
   display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
+  flex-wrap: nowrap;
+  gap: 8px;
   color: var(--text-secondary);
   font-size: 12px;
   white-space: nowrap;
@@ -632,12 +656,8 @@ interface CryptoPrice {
   color: var(--color-danger);
 }
 
-.price-cards-title {
-  margin: 0;
-  color: var(--text-primary);
-  font-size: 16px;
-  font-weight: 600;
-  line-height: 1.5;
+.price-symbol-search {
+  width: 120px;
 }
 
 .heatmap-help-button {
@@ -677,14 +697,22 @@ interface CryptoPrice {
 
 .pagination-actions {
   display: flex;
+  flex-shrink: 0;
   align-items: center;
   gap: 4px;
+}
+
+.heatmap-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  margin-left: auto;
 }
 
 .heatmap-size-select {
   width: 80px;
   flex-shrink: 0;
-  margin-left: auto;
 }
 
 .page-indicator {

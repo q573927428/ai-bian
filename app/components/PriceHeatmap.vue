@@ -2,6 +2,16 @@
 <template>
   <div class="price-heatmap" :style="{ height: `${height}px` }">
     <div ref="chartElement" class="heatmap-chart" role="img" :aria-label="`${period}价格热力图，绿色上涨，红色下跌，可点击分组放大、滚轮缩放、点击交易对切换K线`" />
+    <div v-if="searchQuery" class="heatmap-search-results" role="status" aria-live="polite">
+      <template v-if="searchMatches.length">
+        <span>{{ activeSearchSymbol }} · {{ searchIndex + 1 }} / {{ searchMatches.length }}</span>
+        <template v-if="searchMatches.length > 1">
+          <button type="button" aria-label="定位上一个匹配代币" title="上一个匹配" @click="stepSearch(-1)">‹</button>
+          <button type="button" aria-label="定位下一个匹配代币" title="下一个匹配" @click="stepSearch(1)">›</button>
+        </template>
+      </template>
+      <span v-else>未找到匹配的代币</span>
+    </div>
     <div class="heatmap-zoom">
       <button type="button" title="放大" aria-label="放大热力图" @click="zoomChart(1.25)">+</button>
       <button type="button" title="缩小" aria-label="缩小热力图" @click="zoomChart(0.8)">−</button>
@@ -11,7 +21,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, shallowRef, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, shallowRef, watch } from 'vue'
 import { TreemapChart } from 'echarts/charts'
 import { TooltipComponent } from 'echarts/components'
 import { CanvasRenderer } from 'echarts/renderers'
@@ -39,6 +49,8 @@ interface HeatmapItem {
 
 const props = defineProps<{
   items: HeatmapItem[]
+  /** 只定位匹配项，不改变树图数据和各代币的相对面积。 */
+  searchQuery: string
   period: string
   selectedSymbol: string
   height: number
@@ -54,6 +66,48 @@ let chart: ECharts | undefined
 let resizeObserver: ResizeObserver | undefined
 const focusedGroup = ref('')
 let viewRect: { x: number; y: number; width: number; height: number } | undefined
+const searchIndex = ref(0)
+const searchMatches = computed(() => props.items
+  .filter(item => props.searchQuery && item.symbol.includes(props.searchQuery))
+  // 精确币名优先，其余按代码排序，实时行情更新不会打乱定位顺序。
+  .sort((a, b) => Number(b.name.toUpperCase() === props.searchQuery) - Number(a.name.toUpperCase() === props.searchQuery)
+    || a.symbol.localeCompare(b.symbol)))
+const activeSearchSymbol = computed(() => searchMatches.value[searchIndex.value]?.symbol ?? '')
+let searchTimer: ReturnType<typeof setTimeout> | undefined
+
+/** 多个匹配逐个定位，搜索本身不会切换上方 K 线。 */
+function stepSearch(direction: number) {
+  searchIndex.value = (searchIndex.value + direction + searchMatches.value.length) % searchMatches.value.length
+}
+
+/** 使用树图原生缩放定位，保留其他方块，并记录视口以抵御实时行情重绘。 */
+async function locateSearchMatch() {
+  if (!chart) return
+  // 搜索可跨资产组，先退出手动分组放大，确保目标节点存在。
+  focusedGroup.value = ''
+  await nextTick()
+  if (!chart) return
+  resetZoom()
+  if (!activeSearchSymbol.value) return
+  chart.dispatchAction({ type: 'treemapZoomToNode', seriesId: 'price-heatmap', targetNodeId: activeSearchSymbol.value })
+  // 原生定位事件不带 rootRect，从布局中保存最终矩形，供后续重绘恢复。
+  const data = chart.getModel().getSeriesByIndex(0)?.getData() as unknown as {
+    tree?: { root: { getLayout: () => NonNullable<typeof viewRect> } }
+  }
+  const rect = data?.tree?.root.getLayout()
+  if (rect) {
+    viewRect = clampViewRect({ x: rect.x, y: rect.y, width: rect.width, height: rect.height })
+    chart.dispatchAction({ type: 'treemapRender', seriesId: 'price-heatmap', rootRect: viewRect })
+  }
+}
+
+watch(() => props.searchQuery, () => { searchIndex.value = 0 }, { flush: 'sync' })
+watch([() => props.searchQuery, () => searchMatches.value.map(item => item.symbol).join(','), searchIndex], () => {
+  if (searchIndex.value >= searchMatches.value.length) searchIndex.value = 0
+  if (searchTimer) clearTimeout(searchTimer)
+  // 输入停顿后再定位，避免每个按键都触发跳动；清空则立即恢复全景。
+  searchTimer = setTimeout(() => { void locateSearchMatch() }, props.searchQuery ? 200 : 0)
+}, { flush: 'post' })
 
 /** 限制热力图外框覆盖整个显示区域，防止平移或缩小时露出空白。 */
 function clampViewRect(rect: NonNullable<typeof viewRect>): NonNullable<typeof viewRect> {
@@ -231,9 +285,11 @@ const chartData = computed(() => {
       },
       itemStyle: {
         color: changeColor(item.change),
-        borderColor: item.symbol === props.selectedSymbol ? '#66b1ff' : '#050505',
-        // 相邻小格各保留半像素边框，合成细分隔线；选中时只改变颜色。
-        borderWidth: 0.5
+        borderColor: item.symbol === activeSearchSymbol.value ? '#ffd666'
+          : props.searchQuery && item.symbol.includes(props.searchQuery) ? '#ffffff'
+            : item.symbol === props.selectedSymbol ? '#66b1ff' : '#050505',
+        // 搜索命中加粗边框便于寻找，同时保留涨跌底色；普通小格沿用细分隔线。
+        borderWidth: props.searchQuery && item.symbol.includes(props.searchQuery) ? 2 : 0.5
       },
       label: {
         // 实际文本由布局阶段填入，避免图表自动生成省略号或不完整的百分比。
@@ -296,6 +352,7 @@ function renderChart() {
       top: 0, left: 0, right: 0, bottom: 0,
       roam: true,
       scaleLimit: { min: 1, max: 8 },
+      zoomToNodeRatio: 0.15,
       // 缩放仅改变视口，不因放大而重新增删小格，保持整体布局一致。
       visibleMin: 0,
       childrenVisibleMin: 0,
@@ -364,9 +421,11 @@ onMounted(() => {
   })
   resizeObserver.observe(chartElement.value)
   renderChart()
+  if (props.searchQuery) void locateSearchMatch()
 })
 
 onUnmounted(() => {
+  if (searchTimer) clearTimeout(searchTimer)
   iconsActive = false
   if (iconFlushFrame !== undefined) cancelAnimationFrame(iconFlushFrame)
   for (const image of pendingIcons.values()) {
@@ -395,6 +454,42 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   gap: 2px;
+  /* 平时弱化遮挡，鼠标或键盘操作时恢复清晰。 */
+  opacity: 0.55;
+  transition: opacity 0.18s ease;
+}
+.heatmap-zoom:hover,
+.heatmap-zoom:focus-within {
+  opacity: 1;
+}
+.heatmap-search-results {
+  position: absolute;
+  left: 6px;
+  bottom: 6px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 6px;
+  border: 1px solid var(--el-border-color);
+  border-radius: 4px;
+  background: var(--el-bg-color-overlay);
+  color: var(--text-primary);
+  font-size: 12px;
+  /* 搜索提示与缩放控件保持一致，减少对行情方块的遮挡。 */
+  opacity: 0.55;
+  transition: opacity 0.18s ease;
+}
+.heatmap-search-results:hover,
+.heatmap-search-results:focus-within {
+  opacity: 1;
+}
+.heatmap-search-results button {
+  border: 0;
+  border-radius: 3px;
+  background: var(--el-fill-color);
+  color: var(--text-primary);
+  cursor: pointer;
+  font-size: 16px;
 }
 .heatmap-zoom button {
   border: 1px solid var(--el-border-color);
