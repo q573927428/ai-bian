@@ -1,16 +1,25 @@
 <!-- ==================== 全量热门行情独立页面 ==================== -->
 <template>
   <main class="hot-page">
-    <el-card shadow="never">
-      <ClientOnly>
-        <TopSymbolsTable :model-value="true" :selectable="false" embedded />
-      </ClientOnly>
-    </el-card>
+    <ClientOnly>
+      <div class="hot-grid">
+        <el-card shadow="never" class="hot-table-card">
+          <TopSymbolsTable ref="table" :model-value="true" :selectable="false" embedded @overview="overview = $event" />
+        </el-card>
+        <MarketOverviewPanel class="hot-sidebar" :rows="overview.rows" :selected="overview.selected" :scope-label="overview.scopeLabel" @select="table?.locateSymbol($event)" />
+      </div>
+    </ClientOnly>
   </main>
 </template>
 
 <script setup lang="ts">
 import TopSymbolsTable from '../components/TopSymbolsTable.vue'
+import MarketOverviewPanel from '../components/MarketOverviewPanel.vue'
+import { ref } from 'vue'
+import type { MarketOverviewState } from '../../types/market-overview'
+
+const table = ref<InstanceType<typeof TopSymbolsTable>>()
+const overview = ref<MarketOverviewState>({ rows: [], scopeLabel: '热门全量 · 全部资产' })
 
 definePageMeta({ name: 'hot' })
 </script>
@@ -19,8 +28,18 @@ definePageMeta({ name: 'hot' })
 .hot-page {
   height: calc(100dvh - var(--app-header-height, 60px) - var(--app-footer-height, 27px));
   box-sizing: border-box;
-  overflow: auto;
+  min-height: 0;
+  overflow: hidden;
   padding: 20px;
+}
+.hot-grid { display: grid; grid-template-columns: minmax(0, 7fr) minmax(320px, 3fr); gap: 16px; height: 100%; min-height: 0; }
+.hot-table-card { min-width: 0; min-height: 0; height: 100%; box-sizing: border-box; }
+.hot-table-card :deep(.el-card__body) { height: 100%; min-height: 0; box-sizing: border-box; padding: 12px 16px; }
+.hot-table-card :deep(.el-card__body > section) { height: 100%; min-height: 0; }
+.hot-sidebar { min-height: 0; overflow-y: auto; overscroll-behavior-y: contain; scrollbar-gutter: stable; }
+/* 窄屏上下排列，各区仍在页面网格内滚动，不产生整页的超高内容。 */
+@media (max-width: 1200px) {
+  .hot-grid { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 3fr) minmax(0, 2fr); }
 }
 @media (max-width: 768px) {
   .hot-page { padding: 10px; }

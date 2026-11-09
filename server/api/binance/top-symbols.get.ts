@@ -16,9 +16,10 @@ import { binanceApiGateway } from '../../utils/binance-api-gateway'
 import { getBotConfig } from '../../utils/storage'
 import { getBinanceExchangeInfo } from '../../utils/binance-exchange-info'
 import { getSimpleKLineData, getSimpleKLineLastUpdatedAt, initKLineDb } from '../../utils/kline-simple-storage'
+import type { MarketOverviewSymbol } from '../../../types/market-overview'
 
 /** 榜单行情及持续放量统计，涨跌幅均以百分数返回。 */
-interface TopSymbol {
+interface TopSymbol extends MarketOverviewSymbol {
   symbol: string
   volume: number          // 24h 成交额 (USDT)
   price: number           // 当前价格
@@ -93,6 +94,29 @@ let hotRequest: ReturnType<typeof fallbackHotMode> | null = null
 function parseNumber(value: unknown, fallback: number): number {
   const n = Number(value)
   return Number.isFinite(n) ? n : fallback
+}
+
+/** 仅保留交易所提供的有效数值，避免把缺失字段转换成零。 */
+function optionalNumber(value: unknown): number | undefined {
+  if (value == null || value === '') return undefined
+  const result = Number(value)
+  return Number.isFinite(result) ? result : undefined
+}
+
+/** 复用已获取的 24h 行情，为侧栏提供价格区间和成交活跃度。 */
+function tickerDetails(ticker: any) {
+  return {
+    high24h: optionalNumber(ticker.highPrice), low24h: optionalNumber(ticker.lowPrice),
+    open24h: optionalNumber(ticker.openPrice), tradeCount24h: optionalNumber(ticker.count),
+  }
+}
+
+/** 资金费接口同时包含标记价、指数价和下次结算时间，无需增加外部请求。 */
+function premiumDetails(premium: any) {
+  return {
+    markPrice: optionalNumber(premium?.markPrice), indexPrice: optionalNumber(premium?.indexPrice),
+    nextFundingTime: optionalNumber(premium?.nextFundingTime),
+  }
 }
 
 /** 统计工具：平均值 */
@@ -342,6 +366,7 @@ async function fetchStableTopSymbols(options: StableFilterOptions, progress: Sta
     .filter((t: any) => onboardMap.has(t.symbol))
     .map((t: any) => ({
       symbol: t.symbol,
+      ...tickerDetails(t),
       quoteVolume: parseFloat(t.quoteVolume || '0'),
       lastPrice: parseFloat(t.lastPrice || '0'),
       priceChangePercent: parseFloat(t.priceChangePercent || '0'),
@@ -362,7 +387,7 @@ async function fetchStableTopSymbols(options: StableFilterOptions, progress: Sta
       if (!result.valid) {
         return { symbol: ticker.symbol, error: result.reason || 'invalid' }
       }
-      return { symbol: ticker.symbol, ...result.analysis, quoteVolume: ticker.quoteVolume, lastPrice: ticker.lastPrice, priceChangePercent: ticker.priceChangePercent, referenceTime: ticker.referenceTime, windowOpen: dailyWindow.open }
+      return { ...ticker, ...result.analysis, windowOpen: dailyWindow.open }
     } finally {
       // 无论通过筛选、历史不足或请求失败，该候选都已处理完毕。
       progress.completed++
@@ -388,6 +413,7 @@ async function fetchStableTopSymbols(options: StableFilterOptions, progress: Sta
   // 5. 组装最终结果（补资金费率）
   progress.stage = 'funding'
   let fundingMap = new Map<string, number>()
+  const premiums = new Map<string, any>()
   try {
     const allPremium: any[] = await binanceApiGateway.fetchJson<any[]>(
       'marketData',
@@ -395,6 +421,7 @@ async function fetchStableTopSymbols(options: StableFilterOptions, progress: Sta
       'https://fapi.binance.com/fapi/v1/premiumIndex'
     )
     for (const item of allPremium) {
+      premiums.set(item.symbol, item)
       fundingMap.set(item.symbol, parseFloat(item.lastFundingRate || '0') * 100)
     }
   } catch {
@@ -405,6 +432,8 @@ async function fetchStableTopSymbols(options: StableFilterOptions, progress: Sta
   await initKLineDb().catch(() => {})
   return qualified.map((item: any) => ({
     symbol: item.symbol,
+    high24h: item.high24h, low24h: item.low24h, open24h: item.open24h, tradeCount24h: item.tradeCount24h,
+    ...premiumDetails(premiums.get(item.symbol)),
     volume: item.quoteVolume,
     price: item.lastPrice,
     priceChangePercent: item.priceChangePercent,
@@ -580,6 +609,7 @@ async function fallbackHotMode() {
         : 0
       return {
         symbol: t.symbol,
+        ...tickerDetails(t),
         volume: parseFloat(t.quoteVolume || '0'),
         price: parseFloat(t.lastPrice || 'NaN'),
         referenceTime: Number(t.closeTime) || Date.now(),
@@ -593,6 +623,7 @@ async function fallbackHotMode() {
 
   // 3a. 全量获取 premiumIndex（权重 10），一次性获取所有资金费率
   let fundingMap = new Map<string, number>()
+  const premiums = new Map<string, any>()
   try {
     const allPremium: any[] = await binanceApiGateway.fetchJson<any[]>(
       'marketData',
@@ -600,6 +631,7 @@ async function fallbackHotMode() {
       'https://fapi.binance.com/fapi/v1/premiumIndex'
     )
     for (const item of allPremium) {
+      premiums.set(item.symbol, item)
       fundingMap.set(item.symbol, parseFloat(item.lastFundingRate || '0') * 100)
     }
   } catch {
@@ -610,6 +642,7 @@ async function fallbackHotMode() {
   await initKLineDb().catch(() => {})
   const result: TopSymbol[] = symbols.map(item => ({
     ...item,
+    ...premiumDetails(premiums.get(item.symbol)),
     ...getLocalPeriodChanges(item.symbol, item.price, item.referenceTime),
     priceChangePercentDays: getLocal30DayChange(item.symbol, item.price, item.referenceTime),
     fundingRate: fundingMap.get(item.symbol) || 0,

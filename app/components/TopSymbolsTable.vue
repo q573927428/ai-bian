@@ -12,7 +12,7 @@
     }"
     @update:model-value="visible = $event"
   >
-    <div class="top-symbols-container" :class="{ 'top-symbols-container-drawer': !selectable, 'top-symbols-container-page': embedded }">
+    <div class="top-symbols-container" :class="{ 'top-symbols-container-drawer': !selectable, 'top-symbols-container-page': embedded }" :style="embedded ? { '--market-row-padding': `${rowPadding}px` } : undefined">
       <!-- 模式切换与工具栏 -->
       <div class="top-symbols-toolbar">
         <el-radio-group v-model="mode" class="mode-switch" size="small" aria-label="榜单模式" @change="handleModeChange">
@@ -130,6 +130,7 @@
         {{ message }}
       </el-alert>
 
+      <div class="market-main">
       <el-table
         ref="tableRef"
         v-loading="loading && !showingCachedResult"
@@ -137,9 +138,12 @@
         stripe
         row-key="symbol"
         style="width: 100%"
+        :height="embedded ? '100%' : undefined"
         size="small"
         @sort-change="handleSortChange"
-        @row-click="selectable && toggleRowSelection($event)"
+        @row-click="handleRowClick"
+        :highlight-current-row="embedded"
+        :current-row-key="embedded ? detailSymbol?.symbol : undefined"
         @selection-change="handleSelectionChange"
         :default-sort="defaultSort"
         :key="tableKey"
@@ -166,7 +170,7 @@
                 class="crypto-icon-placeholder"
                 :style="{ backgroundColor: getRandomColor(getSymbolDisplay(row.symbol)) }"
               >{{ getSymbolDisplay(row.symbol).substring(0, 1).toUpperCase() }}</span>
-              <el-link type="primary" underline="never" :style="{ cursor: selectable ? 'pointer' : 'default' }" @click.stop="selectable && toggleRowSelection(row)">
+              <el-link type="primary" underline="never" :style="{ cursor: selectable || embedded ? 'pointer' : 'default' }" @click.stop="handleRowClick(row)">
                 {{ row.symbol.replace('USDT', '/USDT') }}
               </el-link>
               <el-tag v-if="row.contractType === 'TRADIFI_PERPETUAL'" size="small" type="warning" effect="plain">T</el-tag>
@@ -316,6 +320,7 @@
         class="market-pagination"
         background
       />
+      </div>
 
       <!-- 多选操作栏 -->
       <div v-if="selectable" class="selection-actions">
@@ -333,16 +338,17 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onBeforeUnmount } from 'vue'
+import { ref, computed, watch, nextTick, onBeforeUnmount } from 'vue'
 import { ElDialog, ElDrawer } from 'element-plus'
 import { useCoinIcon } from '../composables/useCoinIcon'
+import type { MarketOverviewSymbol, MarketOverviewState } from '../../types/market-overview'
 
 const { getCoinIconUrl } = useCoinIcon()
 
 type Mode = 'hot' | 'stable' | 'configured'
 
 /** 热门及持续放量榜单的交易对行情。 */
-interface TopSymbol {
+interface TopSymbol extends MarketOverviewSymbol {
   symbol: string
   volume: number
   price: number
@@ -416,6 +422,7 @@ interface Props {
 interface Emits {
   (e: 'update:modelValue', value: boolean): void
   (e: 'select', symbols: string[]): void
+  (e: 'overview', state: MarketOverviewState): void
 }
 
 const props = withDefaults(defineProps<Props>(), { selectable: true, embedded: false })
@@ -487,7 +494,23 @@ const sortProp = ref('volume')
 const sortOrder = ref<'ascending' | 'descending'>('descending')
 const windowWidth = ref(typeof window !== 'undefined' ? window.innerWidth : 1200)
 const tableRef = ref()
+const tableViewportHeight = ref(0)
+let tableResizeObserver: ResizeObserver | undefined
+// 按可视高度均分一页的行高，表格有足够空间时不留下大块底部空白。
+// 最小行高保持可读，50/100等大分页继续滚动；末页不因行数少而被过度拉高。
+const rowPadding = computed(() => Math.max(2, (Math.min(40, (tableViewportHeight.value - 1) / pageSize.value) - 23) / 2))
+watch(tableRef, (table) => {
+  tableResizeObserver?.disconnect()
+  if (!props.embedded || typeof ResizeObserver === 'undefined') return
+  const viewport = table?.$el?.querySelector('.el-table__body-wrapper .el-scrollbar__wrap') as HTMLElement | undefined
+  if (!viewport) return
+  const measure = () => { tableViewportHeight.value = viewport.clientHeight }
+  tableResizeObserver = new ResizeObserver(measure)
+  tableResizeObserver.observe(viewport)
+  measure()
+}, { flush: 'post' })
 const selectedRows = ref<TopSymbol[]>([])
+const detailSymbolKey = ref('')
 const showFilterParams = ref(false)
 const configuredSymbols = ref<Set<string> | null>(null)
 
@@ -595,6 +618,7 @@ if (typeof window !== 'undefined') {
   window.addEventListener('resize', handleResize)
 }
 onBeforeUnmount(() => {
+  tableResizeObserver?.disconnect()
   requestId++
   stopProgressPolling()
   if (typeof window !== 'undefined') window.removeEventListener('resize', handleResize)
@@ -622,6 +646,54 @@ const sortedData = computed(() => {
   })
   return arr
 })
+
+// 概览跟随榜单和资产分类；搜索、排序和分页不改变市场样本范围。
+const overviewRows = computed(() => data.value.filter(row =>
+  assetType.value === 'all' || row.contractType === (assetType.value === 'tradfi' ? 'TRADIFI_PERPETUAL' : 'PERPETUAL')
+))
+const overviewScope = computed(() => `${mode.value === 'hot' ? '热门全量' : mode.value === 'stable' ? '持续放量结果' : '配置列表'} · ${assetType.value === 'all' ? '全部资产' : assetType.value === 'crypto' ? '加密货币' : '股票 T'}`)
+const detailSymbol = computed(() => sortedData.value.find(row => row.symbol === detailSymbolKey.value) || sortedData.value[0])
+
+// 侧栏由页面作为独立网格项挂载；榜单只提供状态，避免把详情布局嵌入表格组件。
+watch([overviewRows, detailSymbol, overviewScope], () => {
+  if (props.embedded) emit('overview', { rows: overviewRows.value, selected: detailSymbol.value, scopeLabel: overviewScope.value })
+}, { immediate: true })
+
+/** 独立页单击展示详情，配置弹窗继续保持原来的勾选行为。 */
+function handleRowClick(row: TopSymbol) {
+  if (props.selectable) toggleRowSelection(row)
+  else if (props.embedded) detailSymbolKey.value = row.symbol
+}
+
+let locateRequestId = 0
+/** 异动榜定位须等待翻页渲染，再同步高亮和表格内部滚动，保证目标实际可见。 */
+async function locateSymbol(symbol: string) {
+  const currentLocate = ++locateRequestId
+  search.value = ''
+  detailSymbolKey.value = symbol
+  // 清空搜索会触发分页重置，等重置结束后再设置目标页。
+  await nextTick()
+  if (currentLocate !== locateRequestId) return
+  const index = sortedData.value.findIndex(row => row.symbol === symbol)
+  if (index < 0) return
+  currentPage.value = Math.floor(index / pageSize.value) + 1
+  await nextTick()
+  if (currentLocate !== locateRequestId) return
+  const rowIndex = pagedData.value.findIndex(row => row.symbol === symbol)
+  if (rowIndex < 0) return
+  const table = tableRef.value
+  // 翻页会替换行对象，显式选中渲染后的对象，避免仅更新current-row-key时丢失高亮。
+  table?.setCurrentRow(pagedData.value[rowIndex])
+  const viewport = table?.$el?.querySelector('.el-table__body-wrapper .el-scrollbar__wrap') as HTMLElement | undefined
+  const row = table?.$el?.querySelectorAll('.el-table__body-wrapper tbody tr.el-table__row')[rowIndex] as HTMLElement | undefined
+  if (!viewport || !row) return
+  // 仅滚动表格内部，防止scrollIntoView同时带动整页和右侧卡片。
+  const top = viewport.scrollTop + row.getBoundingClientRect().top - viewport.getBoundingClientRect().top
+    - (viewport.clientHeight - row.getBoundingClientRect().height) / 2
+  viewport.scrollTo({ top: Math.max(0, top), behavior: 'smooth' })
+}
+
+defineExpose({ locateSymbol })
 
 // 先对全部结果筛选和排序，再截取当前页，保证跨页排序正确。
 const pagedData = computed(() => props.embedded
@@ -860,6 +932,7 @@ watch(() => props.embedded || visible.value, (newVal) => {
 .symbol-search :deep(.el-input__wrapper) { border-radius: 4px; padding: 0 8px; }
 .symbol-search :deep(.el-input__prefix) { font-size: 12px; }
 .market-pagination { margin-top: 16px; justify-content: flex-end; }
+.market-main { min-width: 0; }
 
 .top-symbols-toolbar {
   display: flex;
@@ -1037,11 +1110,31 @@ watch(() => props.embedded || visible.value, (newVal) => {
     justify-content: flex-end;
   }
 }
-.top-symbols-container-page { max-height: none; overflow: visible; }
+.top-symbols-container-page { display: flex; flex-direction: column; height: 100%; min-height: 0; max-height: none; overflow: hidden; }
+.top-symbols-container-page .market-main { display: flex; flex: 1; flex-direction: column; min-height: 0; margin-top: 8px; }
+/* 表格内部滚动，工具栏和分页保留在可见区，长列表不会撑开页面。 */
+.top-symbols-container-page .market-main > .el-table { flex: 1; min-height: 0; }
+.top-symbols-container-page :deep(.el-table__row) { cursor: pointer; }
+/* 暗色全局样式会让单元格继承普通行背景；选中态须优先于斑马纹和悬停态。 */
+.top-symbols-container-page :deep(.el-table__body tr.current-row > td.el-table__cell) {
+  background-color: color-mix(in srgb, var(--color-primary) 20%, var(--bg-card)) !important;
+}
+.top-symbols-container-page :deep(.el-table__body tr.current-row > td.el-table__cell:first-child) {
+  box-shadow: inset 3px 0 0 var(--color-primary);
+}
+/* 表头保持紧凑，数据行在可用空间内适度伸展，分页紧跟表格底部。 */
+.top-symbols-container-page :deep(.el-table__header .el-table__cell) { padding: 2px 0; }
+.top-symbols-container-page :deep(.el-table__body .el-table__cell) { padding: var(--market-row-padding, 2px) 0; }
+.top-symbols-container-page :deep(.el-table .cell) { line-height: 22px; }
+.top-symbols-container-page .market-pagination { flex-shrink: 0; flex-wrap: wrap; row-gap: 8px; margin-top: 8px; }
+.top-symbols-container-page .stable-params { flex-shrink: 1; min-height: 0; max-height: 40%; overflow: auto; }
+.top-symbols-container-page .stable-progress, .top-symbols-container-page .stable-alert { flex-shrink: 0; }
 /* 独立页直接以榜单模式和刷新操作作为页头，替代重复的标题与返回按钮。 */
 .top-symbols-container-page .top-symbols-toolbar {
-  margin: -20px -20px 0;
-  padding: 12px 20px 12px;
+  /* 工具栏始终留在容器内；负边距会被上层 overflow:hidden 裁掉顶部按钮。 */
+  margin: 0;
+  padding: 0 0 10px;
   border-bottom: 1px solid var(--el-border-color-lighter);
+  flex-shrink: 0;
 }
 </style>

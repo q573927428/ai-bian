@@ -21,6 +21,7 @@ function fixture({ holdDaily = false, failDaily = false, localAge, localGap = fa
   )
   const tickers = metadata.map((item, index) => ({
     symbol: item.symbol, quoteVolume: String(index + 1), lastPrice: '10', priceChangePercent: '2',
+    highPrice: '12', lowPrice: '8', openPrice: '9', count: 1234,
   }))
   const calls = []
   const context = {
@@ -46,7 +47,7 @@ function fixture({ holdDaily = false, failDaily = false, localAge, localGap = fa
         async fetchJson(_group, key) {
           calls.push(key)
           if (key === 'ticker24hr:all' || key === 'stableTicker24hr:all') return tickers
-          if (key === 'premiumIndex:all' || key === 'stablePremiumIndex:all') return [{ symbol: 'STOCKUSDT', lastFundingRate: '0.0001' }]
+          if (key === 'premiumIndex:all' || key === 'stablePremiumIndex:all') return [{ symbol: 'STOCKUSDT', lastFundingRate: '0.0001', markPrice: '10.1', indexPrice: '10', nextFundingTime: 1900000000000 }]
           if (key.startsWith('stableKlines:')) {
             if (holdDaily) await dailyGate
             if (failDaily) throw new Error('模拟日线请求失败')
@@ -71,6 +72,11 @@ test('热门返回超过 200 个合约，包含新上线股票 T，排除非交�
   assert.equal(result.data[0].symbol, 'STOCKUSDT')
   assert.equal(result.data[0].contractType, 'TRADIFI_PERPETUAL')
   assert.equal(result.data[0].fundingRate, 0.01)
+  assert.equal(result.data[0].high24h, 12)
+  assert.equal(result.data[0].low24h, 8)
+  assert.equal(result.data[0].tradeCount24h, 1234)
+  assert.equal(result.data[0].markPrice, 10.1)
+  assert.equal(result.data[0].nextFundingTime, 1900000000000)
   assert.equal(result.data[0].priceChangePercentDays, undefined)
   assert.ok(result.data.every((item, index, rows) => index === 0 || rows[index - 1].volume >= item.volume))
   await handler({ mode: 'hot' })

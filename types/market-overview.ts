@@ -34,3 +34,29 @@ export interface EtfNetFlow {
   usd: number
   date: string
 }
+
+/** 榜单和侧栏共用的行情字段；可选字段缺失时展示占位符。 */
+export interface MarketOverviewSymbol {
+  symbol: string
+  price: number
+  volume: number
+  priceChangePercent: number
+  priceChangePercent1h?: number
+  fundingRate: number
+  contractType?: string
+  onboardDate: number
+  high24h?: number
+  low24h?: number
+  open24h?: number
+  tradeCount24h?: number
+  markPrice?: number
+  indexPrice?: number
+  nextFundingTime?: number
+}
+
+/** 页面网格右栏的展示状态，由行情榜提供筛选范围和当前选择。 */
+export interface MarketOverviewState {
+  rows: MarketOverviewSymbol[]
+  selected?: MarketOverviewSymbol
+  scopeLabel: string
+}
