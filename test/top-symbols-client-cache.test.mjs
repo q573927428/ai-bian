@@ -25,12 +25,41 @@ function component(fetcher, state = vue.ref({}), props = {}) {
       throw new Error(`Unexpected import: ${id}`)
     },
   }
-  const expose = '\nglobalThis.api = { mode, data, loading, updatedAt, showingCachedResult, fetchData, stopProgressPolling, handleRowClick, detailSymbol, locateSymbol, currentPage, search, tableViewportHeight, rowPadding, pageSize, tableRef };'
+  const expose = '\nglobalThis.api = { mode, data, loading, updatedAt, showingCachedResult, fetchData, stopProgressPolling, handleRowClick, detailSymbol, locateSymbol, currentPage, search, tableViewportHeight, rowPadding, pageSize, tableRef, viewMode, heatmapItems, selectHeatmapSymbol, assetType };'
   vm.runInNewContext(ts.transpile(source + expose, { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS }), context)
   return context.api
 }
 
 const result = { success: true, mode: 'stable', updatedAt: 12345, data: [{ symbol: 'BTCUSDT', volume: 100 }] }
+
+test('热力图复用全量榜单，搜索不截断区块，选择及切换视图不增加请求', async () => {
+  let requests = 0
+  const api = component(async () => { requests++; return { success: true, data: [] } }, vue.ref({}), { embedded: true })
+  try {
+    await new Promise(resolve => setImmediate(resolve))
+    const before = requests
+    api.data.value = [
+      { symbol: 'BTCUSDT', volume: 100, price: 10, priceChangePercent: 2, contractType: 'PERPETUAL' },
+      { symbol: 'STOCKUSDT', volume: 200, price: 20, priceChangePercent: null, contractType: 'TRADIFI_PERPETUAL' },
+    ]
+    api.viewMode.value = 'heatmap'
+    api.search.value = 'BTC'
+    assert.equal(api.heatmapItems.value.length, 2)
+    assert.equal(api.heatmapItems.value[1].change, null)
+    assert.equal(api.heatmapItems.value[1].volume, 200)
+    api.selectHeatmapSymbol('STOCKUSDT')
+    assert.equal(api.detailSymbol.value.symbol, 'STOCKUSDT')
+    assert.equal(api.search.value, 'BTC')
+    await api.locateSymbol('STOCKUSDT')
+    assert.equal(api.search.value, '')
+    assert.equal(api.viewMode.value, 'heatmap')
+    api.assetType.value = 'crypto'
+    assert.equal(api.heatmapItems.value.length, 1)
+    api.viewMode.value = 'table'
+    await vue.nextTick()
+    assert.equal(requests, before)
+  } finally { api.stopProgressPolling() }
+})
 
 test('行高随表格可用高度伸展，大分页保持最小行高且超高屏幕不无限拉伸', () => {
   const api = component(async () => result)

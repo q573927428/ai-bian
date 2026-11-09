@@ -36,6 +36,18 @@
           </span>
         </div>
         <div class="toolbar-actions">
+          <template v-if="embedded && viewMode === 'heatmap'">
+            <span class="heatmap-caption">24h 涨跌幅 · {{ overviewRows.length }} 个交易对</span>
+            <el-select v-model="heatmapSizeMode" size="small" aria-label="热力图区块面积" class="heatmap-size-select">
+              <el-option label="按涨跌幅面积" value="change" />
+              <el-option label="按24h成交额" value="volume" />
+              <el-option label="等面积" value="equal" />
+            </el-select>
+          </template>
+          <el-radio-group v-if="embedded" v-model="viewMode" size="small" aria-label="行情展示方式">
+            <el-radio-button value="table">表格</el-radio-button>
+            <el-radio-button value="heatmap">热力图</el-radio-button>
+          </el-radio-group>
           <el-button type="primary" size="small" :loading="loading" @click="fetchData">
             <el-icon><ElIconRefresh /></el-icon>
             刷新
@@ -131,7 +143,12 @@
       </el-alert>
 
       <div class="market-main">
+      <div v-if="embedded && viewMode === 'heatmap'" v-loading="loading && !showingCachedResult" class="market-heatmap">
+        <PriceHeatmap v-if="heatmapItems.length" class="market-heatmap-chart" :items="heatmapItems" :search-query="normalizeSymbol(search)" period="24h" :selected-symbol="detailSymbol?.symbol || ''" :focus-selected-on-mount="false" :height="400" :size-mode="heatmapSizeMode" volume-source="ticker24h" selection-hint="点击查看交易对详情" @select="selectHeatmapSymbol" />
+        <el-empty v-else description="暂无行情数据" />
+      </div>
       <el-table
+        v-else
         ref="tableRef"
         v-loading="loading && !showingCachedResult"
         :data="pagedData"
@@ -310,7 +327,7 @@
       </el-table>
 
       <el-pagination
-        v-if="embedded && sortedData.length > 0"
+        v-if="embedded && viewMode === 'table' && sortedData.length > 0"
         v-model:current-page="currentPage"
         v-model:page-size="pageSize"
         :page-sizes="[20, 50, 100, 200]"
@@ -338,12 +355,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, nextTick, onBeforeUnmount } from 'vue'
+import { ref, computed, watch, nextTick, onBeforeUnmount, defineAsyncComponent } from 'vue'
 import { ElDialog, ElDrawer } from 'element-plus'
 import { useCoinIcon } from '../composables/useCoinIcon'
 import type { MarketOverviewSymbol, MarketOverviewState } from '../../types/market-overview'
 
 const { getCoinIconUrl } = useCoinIcon()
+// 用户切换到热力图时才加载 ECharts，保持表格首次加载轻量。
+const PriceHeatmap = defineAsyncComponent(() => import('./PriceHeatmap.vue'))
 
 type Mode = 'hot' | 'stable' | 'configured'
 
@@ -488,6 +507,8 @@ const search = ref('')
 const currentPage = ref(1)
 const pageSize = ref(20)
 const mode = ref<Mode>('hot')
+const viewMode = ref<'table' | 'heatmap'>('table')
+const heatmapSizeMode = ref<'change' | 'volume' | 'equal'>('change')
 const message = ref('')
 const updatedAt = ref<number | null>(null)
 const sortProp = ref('volume')
@@ -652,7 +673,24 @@ const overviewRows = computed(() => data.value.filter(row =>
   assetType.value === 'all' || row.contractType === (assetType.value === 'tradfi' ? 'TRADIFI_PERPETUAL' : 'PERPETUAL')
 ))
 const overviewScope = computed(() => `${mode.value === 'hot' ? '热门全量' : mode.value === 'stable' ? '持续放量结果' : '配置列表'} · ${assetType.value === 'all' ? '全部资产' : assetType.value === 'crypto' ? '加密货币' : '股票 T'}`)
-const detailSymbol = computed(() => sortedData.value.find(row => row.symbol === detailSymbolKey.value) || sortedData.value[0])
+// 热力图搜索仅定位区块，不裁切整个市场，也不隐藏当前选中交易对的详情。
+const detailSymbol = computed(() => {
+  const rows = props.embedded && viewMode.value === 'heatmap' ? overviewRows.value : sortedData.value
+  return rows.find(row => row.symbol === detailSymbolKey.value) || rows[0]
+})
+const heatmapItems = computed(() => overviewRows.value.map(row => ({
+  symbol: row.symbol, name: getSymbolDisplay(row.symbol),
+  price: Number.isFinite(row.price) ? row.price : 0,
+  volume: Number.isFinite(row.volume) && row.volume >= 0 ? row.volume : null,
+  change: typeof row.priceChangePercent === 'number' && Number.isFinite(row.priceChangePercent) ? row.priceChangePercent : null,
+  group: row.contractType === 'TRADIFI_PERPETUAL' ? '传统金融' : row.contractType === 'PERPETUAL' ? '加密资产' : '其他合约',
+  icon: cryptoIconUrl(row.symbol),
+})))
+
+/** 热力图区块选择只更新详情，保留图内缩放和搜索状态。 */
+function selectHeatmapSymbol(symbol: string) {
+  detailSymbolKey.value = symbol
+}
 
 // 侧栏由页面作为独立网格项挂载；榜单只提供状态，避免把详情布局嵌入表格组件。
 watch([overviewRows, detailSymbol, overviewScope], () => {
@@ -669,6 +707,12 @@ let locateRequestId = 0
 /** 异动榜定位须等待翻页渲染，再同步高亮和表格内部滚动，保证目标实际可见。 */
 async function locateSymbol(symbol: string) {
   const currentLocate = ++locateRequestId
+  // 异动榜复用当前视图：热力图通过selected-symbol定位，表格执行翻页滚动。
+  if (props.embedded && viewMode.value === 'heatmap') {
+    search.value = ''
+    detailSymbolKey.value = symbol
+    return
+  }
   search.value = ''
   detailSymbolKey.value = symbol
   // 清空搜索会触发分页重置，等重置结束后再设置目标页。
@@ -933,6 +977,10 @@ watch(() => props.embedded || visible.value, (newVal) => {
 .symbol-search :deep(.el-input__prefix) { font-size: 12px; }
 .market-pagination { margin-top: 16px; justify-content: flex-end; }
 .market-main { min-width: 0; }
+.market-heatmap { display: flex; flex: 1; flex-direction: column; min-height: 0; gap: 10px; }
+.heatmap-caption { font-size: 11px; color: var(--text-secondary); white-space: nowrap; }
+.heatmap-size-select { width: 130px; flex-shrink: 0; }
+.market-heatmap-chart { flex: 1; min-height: 0; height: auto !important; }
 
 .top-symbols-toolbar {
   display: flex;

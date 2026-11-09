@@ -1,7 +1,7 @@
 <!-- ==================== 实时价格矩形树状热力图 ==================== -->
 <template>
   <div class="price-heatmap" :style="{ height: `${height}px` }">
-    <div ref="chartElement" class="heatmap-chart" role="img" :aria-label="`${period}价格热力图，绿色上涨，红色下跌，可点击分组放大、滚轮缩放、点击交易对切换K线`" />
+    <div ref="chartElement" class="heatmap-chart" role="img" :aria-label="`${period}价格热力图，绿色上涨，红色下跌，可点击分组放大、滚轮缩放、${selectionHint || '点击切换 K 线'}`" />
     <div v-if="searchQuery" class="heatmap-search-results" role="status" aria-live="polite">
       <template v-if="searchMatches.length">
         <span>{{ activeSearchSymbol }} · {{ searchIndex + 1 }} / {{ searchMatches.length }}</span>
@@ -69,6 +69,12 @@ const props = defineProps<{
   sizeMode: 'change' | 'volume' | 'equal'
   /** 成交额完整窗口的结束时间（毫秒），用于悬浮提示解释统计范围。 */
   volumeWindowEnd?: number
+  /** 热门页复用滚动24h ticker成交额，首页继续使用已收盘K线成交额。 */
+  volumeSource?: 'closed-klines' | 'ticker24h'
+  /** 复用热力图时明确点击区块的实际行为。 */
+  selectionHint?: string
+  /** 热门页初次进入展示全图，选中详情不等同于用户主动请求缩放定位。 */
+  focusSelectedOnMount?: boolean
 }>()
 const emit = defineEmits<{ select: [symbol: string] }>()
 const chartElement = ref<HTMLElement | null>(null)
@@ -393,8 +399,8 @@ function renderChart() {
         const volume = item.volume === null ? '待更新'
           : '$' + new Intl.NumberFormat('zh-CN', { notation: 'compact', maximumFractionDigits: 2 }).format(item.volume)
         const volumeLine = props.sizeMode === 'volume'
-          ? `\n${props.period} 成交额：${volume}\n仅含已收盘 5m K 线${props.volumeWindowEnd ? '，截至 ' + new Date(props.volumeWindowEnd).toLocaleTimeString() : ''}` : ''
-        return `${item.name} · ${item.group}\n最新价：${item.price > 0 ? '$' + formatPrice(item.price) : '待更新'}\n${props.period} 涨跌幅：${changeLabel(item.change)}${volumeLine}\n点击切换 K 线`
+          ? `\n${props.period} 成交额：${volume}\n${props.volumeSource === 'ticker24h' ? '币安滚动24h行情快照' : `仅含已收盘 5m K 线${props.volumeWindowEnd ? '，截至 ' + new Date(props.volumeWindowEnd).toLocaleTimeString() : ''}`}` : ''
+        return `${item.name} · ${item.group}\n最新价：${item.price > 0 ? '$' + formatPrice(item.price) : '待更新'}\n${props.period} 涨跌幅：${changeLabel(item.change)}${volumeLine}\n${props.selectionHint || '点击切换 K 线'}`
       }
     },
     series: [{
@@ -494,7 +500,7 @@ onMounted(() => {
   resizeObserver.observe(chartElement.value)
   renderChart()
   if (props.searchQuery) void locateSearchMatch()
-  else if (props.items.some(item => item.symbol === props.selectedSymbol)) void locateSymbol(props.selectedSymbol)
+  else if (props.focusSelectedOnMount !== false && props.items.some(item => item.symbol === props.selectedSymbol)) void locateSymbol(props.selectedSymbol)
 })
 
 onUnmounted(() => {

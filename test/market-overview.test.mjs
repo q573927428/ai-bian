@@ -66,7 +66,7 @@ test('快速切换交易对后，旧本地K线响应不能覆盖新详情', asyn
 })
 
 test('行情榜和侧栏的Vue脚本、模板均能编译', () => {
-  for (const path of ['components/TopSymbolsTable', 'components/MarketOverviewPanel', 'pages/hot']) {
+  for (const path of ['components/TopSymbolsTable', 'components/MarketOverviewPanel', 'components/PriceHeatmap', 'pages/hot']) {
     const name = path.split('/').pop()
     const source = fs.readFileSync(new URL(`../app/${path}.vue`, import.meta.url), 'utf8')
     const parsed = parse(source)
