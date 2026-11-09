@@ -2,7 +2,15 @@
   <el-card class="active-positions-card" shadow="hover">
     <template #header>
       <div class="positions-card-header">
-        <span>📌 当前持仓 ({{ hasActiveFilters ? `${filteredPositions.length}/${positions.length}` : positions.length }})</span>
+        <span class="positions-title">📌 当前持仓</span>
+        <!-- 标题右侧汇总全部持仓；筛选仅影响列表，盈亏随共享行情实时刷新。 -->
+        <div class="positions-summary" aria-label="全部当前持仓盈亏汇总">
+          <span>总{{ positions.length }}</span>
+          <span class="text-success">盈{{ positionSummary.profitCount }}</span>
+          <span class="text-danger">亏{{ positionSummary.lossCount }}</span>
+          <span title="全部持仓总未实现盈亏">盈亏<strong :class="{ 'text-success': positionSummary.total > 0, 'text-danger': positionSummary.total < 0 }">{{ formatSummaryPnl(positionSummary.total) }}</strong></span>
+          <span v-if="positionSummary.pendingCount" title="缺少行情的持仓暂未计入盈亏">待行情{{ positionSummary.pendingCount }}</span>
+        </div>
         <el-button size="small" text :type="hasActiveFilters ? 'primary' : 'default'" :aria-expanded="showFilter" aria-controls="positions-filter" @click="showFilter = !showFilter">
           <el-icon><ElIconFilter /></el-icon>
           筛选{{ hasActiveFilters ? '（已启用）' : '' }}
@@ -222,6 +230,32 @@ function calculateUnrealizedPnl(position: any): number {
     : position.entryPrice - currentPrice
   
   return priceDiff * position.quantity
+}
+
+/** 汇总全部持仓的浮动盈亏；缺少行情的仓位单独提示，避免误认为持平。 */
+const positionSummary = computed(() => {
+  const summary = { profitCount: 0, lossCount: 0, pendingCount: 0, total: 0 }
+  for (const position of positions.value) {
+    const currentPrice = getCurrentPrice(position.symbol)
+    const pnl = calculateUnrealizedPnl(position)
+    if (!Number.isFinite(currentPrice) || currentPrice <= 0 || !Number.isFinite(pnl)) {
+      summary.pendingCount++
+      continue
+    }
+    if (pnl > 0) {
+      summary.profitCount++
+    } else if (pnl < 0) {
+      summary.lossCount++
+    }
+    summary.total += pnl
+  }
+  return summary
+})
+
+/** 统一汇总金额的正负号和两位小数，避免极小浮亏显示为 -0.00。 */
+function formatSummaryPnl(value: number): string {
+  const rounded = Number(value.toFixed(2))
+  return `${rounded > 0 ? '+' : ''}${rounded.toFixed(2)}`
 }
 
 // 计算未实现盈亏百分比
@@ -789,11 +823,34 @@ onUnmounted(() => {
 
 .positions-card-header {
   display: flex;
-  justify-content: space-between;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
   color: var(--text-primary);
   font-weight: 600;
+}
+
+.positions-title {
+  white-space: nowrap;
+}
+
+.positions-card-header > .el-button {
+  margin-left: auto;
+}
+
+.positions-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+
+.positions-summary > span {
+  white-space: nowrap;
 }
 
 .positions-filter {
