@@ -115,8 +115,9 @@ function draw(now: number) {
   const lowerY = data.zone ? series.priceToCoordinate(data.zone.lower) : null
   const top = upperY === null || lowerY === null ? -1 : Math.max(0, Math.min(upperY, lowerY))
   const bottom = upperY === null || lowerY === null ? -1 : Math.min(height, Math.max(upperY, lowerY) + (upperY === lowerY ? 2 : 0))
-  // 标注只占用价格分布左侧空间；窄屏保留横条和悬停，避免文字遮挡蜡烛。
-  const zone = data.zone && bottom > top ? { y: top, height: bottom - top, labelY: width < 420 ? -20 : Math.min(height - 5, Math.max(100, top - 5)), label: `${price(data.zone.lower)}–${price(data.zone.upper)}` } : null
+  // 文字基线始终贴在最大成交价位虚线上方6px，不再跟随密集带上沿或强制避让顶部100px。
+  // 窄屏仍保留横条和悬停；上下边界只做必要裁剪保护。
+  const zone = data.zone && bottom > top ? { y: top, height: bottom - top, labelY: width < 420 ? -20 : Math.min(height - 5, Math.max(12, peakY - 6)), label: `${price(data.zone.lower)}–${price(data.zone.upper)}` } : null
   const next: Geometry = { width, height, barWidth, peakY, zone, bars }
   const serialized = JSON.stringify(next)
   if (serialized !== previous) { geometry.value = next; previous = serialized }
