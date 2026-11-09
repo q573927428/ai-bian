@@ -1,7 +1,7 @@
 // ==================== 加密市场趋势看板数据契约 ====================
 export type CryptoTrendKey = 'btcEtf' | 'ethEtf' | 'btcOi' | 'ethOi' | 'longLiquidations' | 'shortLiquidations' | 'stablecoinSupply'
 /** UTC 日期的数值快照，单位由指标决定；缺失日期不补零。 */
-export interface TrendPoint { date: string; value: number }
+export interface TrendPoint { date: string; value: number; provisional?: boolean }
 /** 每个指标独立保存来源、同步状态和实际覆盖范围。 */
 export interface TrendHistory {
   points: TrendPoint[]
@@ -13,4 +13,7 @@ export interface TrendHistory {
 export interface CryptoTrendsResponse {
   metrics: Record<CryptoTrendKey, TrendHistory>
   prices: { btc: TrendPoint[]; eth: TrendPoint[]; btcdom: TrendPoint[] }
+  volumes: { btc: TrendPoint[]; eth: TrendPoint[] }
+  volatility: { btc: TrendPoint[]; eth: TrendPoint[] }
+  volatilityDays: number // 波动率计算窗口，与全局时间范围一致
 }

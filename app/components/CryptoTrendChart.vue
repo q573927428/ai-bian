@@ -34,16 +34,22 @@ function render() {
   const label = (value: number) => props.format === 'percent' ? `${value.toFixed(2)}%` : props.format === 'index' ? `${value.toLocaleString('en-US', { maximumFractionDigits: 2 })} 点` : money(value)
   chart.setOption({
     animation: false, color: props.series.map(s => s.color),
-    legend: { top: 2, type: 'scroll', textStyle: { color: text, fontSize: 10 } },
-    tooltip: { ...getChartTooltipTheme(element.value), trigger: 'axis', confine: true, valueFormatter: (value: unknown) => typeof value === 'number' ? label(value) : '--' },
-    grid: { top: 38, left: 68, right: props.series.some(s => s.right) ? 68 : 16, bottom: 48 },
+    legend: { top: 0, type: 'scroll', itemWidth: 12, itemHeight: 7, itemGap: 8, textStyle: { color: text, fontSize: 9 } },
+    tooltip: { ...getChartTooltipTheme(element.value), trigger: 'axis', confine: true, valueFormatter: (value: unknown, dataIndex: number) => {
+      const provisional = props.series.some(series => series.points.some(point => point.date === dates[dataIndex] && point.provisional))
+      return typeof value === 'number' ? `${label(value)}${provisional ? '（盘中，未收盘）' : ''}` : '--'
+    } },
+    grid: { top: 24, left: 8, right: 8, bottom: 28, outerBoundsMode: 'same', outerBoundsContain: 'axisLabel' },
     xAxis: { type: 'category', data: dates, axisLabel: { color: text, fontSize: 10, formatter: (value: string) => value.slice(5) }, axisLine: { lineStyle: { color: dark ? '#374151' : '#d1d5db' } } },
-    yAxis: [0, 1].map(index => ({ type: 'value', scale: true, position: index ? 'right' : 'left', show: !index || props.series.some(s => s.right), axisLabel: { color: text, fontSize: 10, formatter: label }, splitLine: { show: !index, lineStyle: { color: dark ? '#29313c' : '#edf0f4' } } })),
-    dataZoom: [{ type: 'inside' }, { type: 'slider', height: 13, bottom: 5, showDetail: false, borderColor: 'transparent' }],
+    yAxis: [0, 1].map(index => ({ type: 'value', scale: true, splitNumber: 3, position: index ? 'right' : 'left', show: !index || props.series.some(s => s.right), axisLabel: { color: text, fontSize: 9, formatter: label }, splitLine: { show: !index, lineStyle: { color: dark ? '#29313c' : '#edf0f4' } } })),
+    dataZoom: [{ type: 'inside' }, { type: 'slider', height: 9, bottom: 3, showDetail: false, borderColor: 'transparent' }],
     series: props.series.map(s => {
-      const lookup = new Map(s.points.map(p => [p.date, p.value]))
+      const lookup = new Map(s.points.map(p => [p.date, p]))
       // 共用堆叠组让清算正负柱在同一日期中心对齐；正负数仍分别从零轴向两侧延伸。
-      return { name: s.name, type: s.bar ? 'bar' : 'line', stack: s.stack, yAxisIndex: s.right ? 1 : 0, showSymbol: false, connectNulls: false, lineStyle: { width: 2, type: s.dashed ? 'dashed' : 'solid' }, data: dates.map(date => lookup.get(date) ?? null) }
+      return { name: s.name, type: s.bar ? 'bar' : 'line', stack: s.stack, yAxisIndex: s.right ? 1 : 0, showSymbol: false, connectNulls: false, lineStyle: { width: 2, type: s.dashed ? 'dashed' : 'solid' }, data: dates.map(date => {
+        const point = lookup.get(date)
+        return point?.provisional ? { value: point.value, itemStyle: { opacity: .55 } } : point?.value ?? null
+      }) }
     }),
   }, true)
 }
