@@ -92,8 +92,20 @@
         <div class="stat-value">{{ stats.validHoldCount ? formatHoldDuration(stats.averageHoldDurationMs) : '—' }}</div>
       </div>
       <div class="stat-item">
-        <div class="stat-label" title="当前筛选结果按平仓时间排序后的最长连盈 / 最长连亏笔数，保本交易中断连续统计">连盈连亏</div>
-        <div class="stat-value"><span :class="{ 'text-success': stats.maxConsecutiveWins > 0 }">{{ stats.maxConsecutiveWins }}</span>/<span :class="{ 'text-danger': stats.maxConsecutiveLosses > 0 }">{{ stats.maxConsecutiveLosses }}</span> 笔</div>
+        <div class="stat-label" title="当前筛选结果按平仓时间排序后的最长连续盈利笔数，亏损或保本交易中断连续统计">最长连盈</div>
+        <div :class="['stat-value', { 'text-success': stats.maxConsecutiveWins > 0 }]">{{ stats.maxConsecutiveWins }} 笔</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-label" title="当前筛选结果按平仓时间排序后的最长连续亏损笔数，盈利或保本交易中断连续统计">最长连亏</div>
+        <div :class="['stat-value', { 'text-danger': stats.maxConsecutiveLosses > 0 }]">{{ stats.maxConsecutiveLosses }} 笔</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-label" title="当前筛选范围内单笔已结算净盈利的最大值，无盈利交易时为 0">最大盈利</div>
+        <div class="stat-value text-success">{{ stats.maxTradeProfit.toFixed(2) }} U</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-label" title="当前筛选范围内单笔已结算净亏损的最大绝对值，无亏损交易时为 0">最大亏损</div>
+        <div class="stat-value text-danger">{{ stats.maxTradeLoss.toFixed(2) }} U</div>
       </div>
     </div>
 
@@ -140,7 +152,9 @@ const stats = ref({
   averageHoldDurationMs: 0,
   validHoldCount: 0,
   maxConsecutiveWins: 0,
-  maxConsecutiveLosses: 0
+  maxConsecutiveLosses: 0,
+  maxTradeProfit: 0,
+  maxTradeLoss: 0
 })
 const { theme } = useTheme()
 let chartInstance: ECharts | null = null
@@ -422,7 +436,7 @@ onUnmounted(() => {
 
 .chart-container {
   width: 100%;
-  height: 228px;
+  height: 204px;
 }
 
 .empty-state {
@@ -450,46 +464,53 @@ onUnmounted(() => {
 
 .stats-container {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px 12px;
-  padding-top: 10px;
-  margin-top: 8px;
-  border-top: 1px solid var(--el-border-color-lighter);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-rows: repeat(3, minmax(0, 1fr));
+  /* 统计区增加 24px 用于每格上下留白，走势图等量缩减，保持组件整体高度。 */
+  height: 134px;
+  box-sizing: border-box;
+  margin-top: 18px;
+  border: 1px solid var(--el-border-color-lighter);
 }
 
-/* 用轻量卡片区分指标，保持横排和紧凑留白，将主要空间留给走势。 */
+/* 共用连续网格线，去掉独立卡片背景、圆角和间隙；上下排版适配四列宽度。 */
 .stat-item {
   display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 2px 6px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
   min-width: 0;
-  padding: 6px 8px;
-  background: var(--stat-card-bg);
-  border: 1px solid var(--el-border-color-lighter);
-  border-radius: 6px;
+  padding: 4px 2px;
+  border-right: 1px solid var(--el-border-color-lighter);
+  border-bottom: 1px solid var(--el-border-color-lighter);
+}
+
+.stat-item:nth-child(4n) {
+  border-right: 0;
+}
+
+.stat-item:nth-last-child(-n + 4) {
+  border-bottom: 0;
 }
 
 .stat-label {
-  font-size: 12px;
+  max-width: 100%;
+  font-size: 11px;
+  line-height: 14px;
   color: var(--text-secondary);
-}
-
-.stat-value {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text-primary);
   white-space: nowrap;
 }
 
-/* 移动端统计分成2列显示。 */
-@media (max-width: 640px) {
-  .stats-container {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 8px 16px;
-  }
+.stat-value {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
 }
 
 </style>

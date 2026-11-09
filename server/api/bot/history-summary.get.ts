@@ -39,6 +39,8 @@ export default defineEventHandler((event) => {
   let maxConsecutiveWins = 0
   let consecutiveLosses = 0
   let maxConsecutiveLosses = 0
+  let maxTradeProfit = 0
+  let maxTradeLoss = 0
   const dateMap = new Map<string, any>()
   for (const trade of records) {
     cumulativePnl += Number(trade.pnl || 0)
@@ -49,6 +51,9 @@ export default defineEventHandler((event) => {
     peakNetPnl = Math.max(peakNetPnl, netPnl)
     maxDrawdown = Math.max(maxDrawdown, peakNetPnl - netPnl)
     const pnl = Number(trade.pnl || 0)
+    // 单笔极值沿用当前筛选范围的已结算净盈亏；亏损展示正的绝对值，无对应交易时保留零。
+    maxTradeProfit = Math.max(maxTradeProfit, pnl)
+    maxTradeLoss = Math.max(maxTradeLoss, -pnl)
     // 连盈连亏仅按筛选结果的平仓顺序统计；反向盈亏或保本都会中断对应连续记录。
     consecutiveWins = pnl > 0 ? consecutiveWins + 1 : 0
     maxConsecutiveWins = Math.max(maxConsecutiveWins, consecutiveWins)
@@ -92,5 +97,7 @@ export default defineEventHandler((event) => {
     validHoldCount,
     maxConsecutiveWins,
     maxConsecutiveLosses,
+    maxTradeProfit,
+    maxTradeLoss,
   } }
 })
