@@ -32,6 +32,7 @@ import { useTheme } from '../composables/useTheme'
 import { useGlobalPolling } from '../composables/useGlobalPolling'
 import { formatPrice } from './kline-chart/utils/kline-formatters'
 import { getHeatmapLabelHeight, installPriceHeatmapLabels } from '../utils/price-heatmap-labels'
+import { getRoundedIconMemoryCache, loadRoundedIconCache, saveRoundedIcon } from '../utils/rounded-icon-cache'
 
 use([TreemapChart, TooltipComponent, CanvasRenderer, LabelLayout])
 installPriceHeatmapLabels()
@@ -221,16 +222,27 @@ function resetZoom() {
   viewRect = { x: 0, y: 0, width: chart.getWidth(), height: chart.getHeight() }
   chart.dispatchAction({ type: 'treemapRender', seriesId: 'price-heatmap', rootRect: viewRect })
 }
-const roundedIcons = shallowRef<Record<string, string>>({})
-const loadedIcons: Record<string, string> = {}
+const loadedIcons: Record<string, string> = getRoundedIconMemoryCache()
+const roundedIcons = shallowRef<Record<string, string>>({ ...loadedIcons })
 const pendingIcons = new Map<string, HTMLImageElement>()
 const failedIcons = new Set<string>()
 let iconsActive = false
+let iconCacheReady = false
 let iconFlushFrame: number | undefined
+
+/** 先批量恢复本地裁剪结果，只有未命中缓存的图标才重新加载原图。 */
+async function restoreRoundedIcons() {
+  const cached = await loadRoundedIconCache()
+  if (!iconsActive) return
+  Object.assign(loadedIcons, cached)
+  roundedIcons.value = { ...loadedIcons }
+  iconCacheReady = true
+  loadRoundedIcons()
+}
 
 /** 圆形裁剪必须作用于图片像素；ECharts 富文本的 borderRadius 不会裁掉图片背景的方角。 */
 function loadRoundedIcons() {
-  if (!iconsActive) return
+  if (!iconsActive || !iconCacheReady) return
   for (const url of new Set(props.items.map(item => item.icon).filter(Boolean))) {
     if (loadedIcons[url] || pendingIcons.has(url) || failedIcons.has(url)) continue
     const image = new Image()
@@ -256,6 +268,8 @@ function loadRoundedIcons() {
         const height = image.naturalHeight * scale
         context.drawImage(image, (size - width) / 2, (size - height) / 2, width, height)
         loadedIcons[url] = canvas.toDataURL('image/png')
+        // IndexedDB 保存二进制 PNG，避免 Base64 的体积膨胀及 localStorage 的同步写入。
+        canvas.toBlob(blob => { if (blob) saveRoundedIcon(url, blob) }, 'image/png')
         // 同一帧批量提交图标，避免每张图片到达都单独重绘热力图。
         if (iconFlushFrame === undefined) {
           iconFlushFrame = requestAnimationFrame(() => {
@@ -477,7 +491,7 @@ watch([chartData, () => props.period, theme], renderChart)
 
 onMounted(() => {
   iconsActive = true
-  loadRoundedIcons()
+  void restoreRoundedIcons()
   if (!chartElement.value) return
   chart = init(chartElement.value)
   chart.on('mouseover', (params) => {

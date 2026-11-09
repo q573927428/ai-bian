@@ -1,14 +1,14 @@
 {
   "version": 1,
-  "updatedAt": "2026-10-19T06:45:33.178Z",
+  "updatedAt": "2026-11-09T16:13:05.633Z",
   "source": {
     "contracts": "https://fapi.binance.com/fapi/v1/exchangeInfo",
     "logos": "https://www.binance.com/bapi/apex/v1/public/apex/marketing/futures/asset/logo"
   },
   "pageTemplate": "https://www.binance.com/zh-CN/futures/{symbol}",
-  "assetCount": 745,
-  "resolvedCount": 743,
-  "officialCount": 743,
+  "assetCount": 756,
+  "resolvedCount": 754,
+  "officialCount": 754,
   "retainedCount": 0,
   "unresolvedCount": 2,
   "unresolved": [
@@ -324,6 +324,18 @@
       "quoteAsset": "USDT",
       "iconUrl": "https://bin.bnbstatic.com/image/admin_mgs_image_upload/20240711/51935450-ab9e-452c-a50a-550f8b977c6c.png",
       "localUrl": "/assets/crypto-icons/AAVE.png",
+      "source": "binance"
+    },
+    "ABBV": {
+      "symbol": "ABBVUSDT",
+      "symbols": [
+        "ABBVUSDT"
+      ],
+      "contractType": "TRADIFI_PERPETUAL",
+      "underlyingType": "EQUITY",
+      "quoteAsset": "USDT",
+      "iconUrl": "https://public.bnbstatic.com/image/symbol/logo/20261026/0614c940-5442-43c8-a8b1-5c9232051b30.png",
+      "localUrl": "/assets/crypto-icons/ABBV.png",
       "source": "binance"
     },
     "ACE": {
@@ -709,6 +721,18 @@
       "quoteAsset": "USDT",
       "iconUrl": "https://public.bnbstatic.com/image/symbol/logo/20260504/e770bcb3-8098-469e-8443-d763adccf53c.png",
       "localUrl": "/assets/crypto-icons/AMD.png",
+      "source": "binance"
+    },
+    "AMGN": {
+      "symbol": "AMGNUSDT",
+      "symbols": [
+        "AMGNUSDT"
+      ],
+      "contractType": "TRADIFI_PERPETUAL",
+      "underlyingType": "EQUITY",
+      "quoteAsset": "USDT",
+      "iconUrl": "https://public.bnbstatic.com/image/symbol/logo/20261027/38fc879f-534e-455e-9050-448123dfd0c5.png",
+      "localUrl": "/assets/crypto-icons/AMGN.png",
       "source": "binance"
     },
     "AMZN": {
@@ -1227,6 +1251,18 @@
       "quoteAsset": "USDT",
       "iconUrl": "https://bin.bnbstatic.com/image/admin_mgs_image_upload/20250409/0a706316-b77e-4d64-baef-42d8a611782f.png",
       "localUrl": "/assets/crypto-icons/BABY.png",
+      "source": "binance"
+    },
+    "BAC": {
+      "symbol": "BACUSDT",
+      "symbols": [
+        "BACUSDT"
+      ],
+      "contractType": "TRADIFI_PERPETUAL",
+      "underlyingType": "EQUITY",
+      "quoteAsset": "USDT",
+      "iconUrl": "https://public.bnbstatic.com/image/symbol/logo/20261014/2f94c3a9-6622-4ca3-bf08-4b2f0c229b6f.png",
+      "localUrl": "/assets/crypto-icons/BAC.png",
       "source": "binance"
     },
     "BAN": {
@@ -1956,6 +1992,18 @@
       "localUrl": "/assets/crypto-icons/CC.png",
       "source": "binance"
     },
+    "CEG": {
+      "symbol": "CEGUSDT",
+      "symbols": [
+        "CEGUSDT"
+      ],
+      "contractType": "TRADIFI_PERPETUAL",
+      "underlyingType": "EQUITY",
+      "quoteAsset": "USDT",
+      "iconUrl": "https://public.bnbstatic.com/image/symbol/logo/20261014/77a9bc2c-7d64-4d1a-abc2-dac124855dee.png",
+      "localUrl": "/assets/crypto-icons/CEG.png",
+      "source": "binance"
+    },
     "CELO": {
       "symbol": "CELOUSDT",
       "symbols": [
@@ -2048,7 +2096,7 @@
       "contractType": "PERPETUAL",
       "underlyingType": "COIN",
       "quoteAsset": "USDT",
-      "iconUrl": "https://bin.bnbstatic.com/image/admin_mgs_image_upload/20260421/b94239d6-641e-4dbf-8500-44fcb470a723.png",
+      "iconUrl": "https://bin.bnbstatic.com/image/admin_mgs_image_upload/20261106/23d90bb7-a58e-4340-affe-3f7a785c533e.png",
       "localUrl": "/assets/crypto-icons/CHIP.png",
       "source": "binance"
     },
@@ -2847,6 +2895,18 @@
       "localUrl": "/assets/crypto-icons/EGLD.png",
       "source": "binance"
     },
+    "EIDO": {
+      "symbol": "EIDOUSDT",
+      "symbols": [
+        "EIDOUSDT"
+      ],
+      "contractType": "TRADIFI_PERPETUAL",
+      "underlyingType": "EQUITY",
+      "quoteAsset": "USDT",
+      "iconUrl": "https://public.bnbstatic.com/image/symbol/logo/20261022/86619d8b-82b6-4915-949a-f0e0eb6fb74d.png",
+      "localUrl": "/assets/crypto-icons/EIDO.png",
+      "source": "binance"
+    },
     "EIGEN": {
       "symbol": "EIGENUSDT",
       "symbols": [
@@ -2920,16 +2980,16 @@
       "localUrl": "/assets/crypto-icons/ENSO.png",
       "source": "binance"
     },
-    "EPIC": {
-      "symbol": "EPICUSDT",
+    "EQT": {
+      "symbol": "EQTUSDT",
       "symbols": [
-        "EPICUSDT"
+        "EQTUSDT"
       ],
-      "contractType": "PERPETUAL",
-      "underlyingType": "COIN",
+      "contractType": "TRADIFI_PERPETUAL",
+      "underlyingType": "EQUITY",
       "quoteAsset": "USDT",
-      "iconUrl": "https://bin.bnbstatic.com/image/admin_mgs_image_upload/20260310/b5ac3299-7140-4d52-a97d-71b6ec8b8daa.png",
-      "localUrl": "/assets/crypto-icons/EPIC.png",
+      "iconUrl": "https://public.bnbstatic.com/image/symbol/logo/20261026/87fb1a0c-17c2-4292-84fb-503274c85f33.png",
+      "localUrl": "/assets/crypto-icons/EQT.png",
       "source": "binance"
     },
     "ERA": {
@@ -3053,7 +3113,7 @@
       "contractType": "TRADIFI_PERPETUAL",
       "underlyingType": "EQUITY",
       "quoteAsset": "USDT",
-      "iconUrl": "https://public.bnbstatic.com/image/symbol/logo/20260611/c279e719-ebe9-4060-8732-0bc371e86e7b.png",
+      "iconUrl": "https://public.bnbstatic.com/image/symbol/logo/20261022/71a3461a-b1fe-41f2-b2f6-67b9d5cff947.png",
       "localUrl": "/assets/crypto-icons/EWJ.png",
       "source": "binance"
     },
@@ -3065,7 +3125,7 @@
       "contractType": "TRADIFI_PERPETUAL",
       "underlyingType": "EQUITY",
       "quoteAsset": "USDT",
-      "iconUrl": "https://public.bnbstatic.com/image/symbol/logo/20260611/ecffa66f-451e-4a2a-9e8e-70f44c2d4920.png",
+      "iconUrl": "https://public.bnbstatic.com/image/symbol/logo/20261022/30753fa5-1114-40df-9bff-52b5f084e8f2.png",
       "localUrl": "/assets/crypto-icons/EWT.png",
       "source": "binance"
     },
@@ -3077,7 +3137,7 @@
       "contractType": "TRADIFI_PERPETUAL",
       "underlyingType": "EQUITY",
       "quoteAsset": "USDT",
-      "iconUrl": "https://public.bnbstatic.com/image/symbol/logo/20260611/3cda82c6-b502-4591-a4c9-ac4626c1668a.png",
+      "iconUrl": "https://public.bnbstatic.com/image/symbol/logo/20261022/70040f23-d4d1-4f1c-814e-18c7234a6ae7.png",
       "localUrl": "/assets/crypto-icons/EWY.png",
       "source": "binance"
     },
@@ -3089,8 +3149,20 @@
       "contractType": "TRADIFI_PERPETUAL",
       "underlyingType": "EQUITY",
       "quoteAsset": "USDT",
-      "iconUrl": "https://public.bnbstatic.com/image/symbol/logo/20260611/bdd575ab-fc74-4f66-8e52-ebc0b154f821.png",
+      "iconUrl": "https://public.bnbstatic.com/image/symbol/logo/20261022/99e60694-86a9-486f-bb23-978d9dd4d006.png",
       "localUrl": "/assets/crypto-icons/EWZ.png",
+      "source": "binance"
+    },
+    "EWZS": {
+      "symbol": "EWZSUSDT",
+      "symbols": [
+        "EWZSUSDT"
+      ],
+      "contractType": "TRADIFI_PERPETUAL",
+      "underlyingType": "EQUITY",
+      "quoteAsset": "USDT",
+      "iconUrl": "https://public.bnbstatic.com/image/symbol/logo/20261027/628b6e81-33fd-40d2-a635-128abba49c4a.png",
+      "localUrl": "/assets/crypto-icons/EWZS.png",
       "source": "binance"
     },
     "F": {
@@ -3959,6 +4031,18 @@
       "localUrl": "/assets/crypto-icons/HYUNDAI.png",
       "source": "binance"
     },
+    "IBKR": {
+      "symbol": "IBKRUSDT",
+      "symbols": [
+        "IBKRUSDT"
+      ],
+      "contractType": "TRADIFI_PERPETUAL",
+      "underlyingType": "EQUITY",
+      "quoteAsset": "USDT",
+      "iconUrl": "https://public.bnbstatic.com/image/symbol/logo/20261014/87e71236-e8d3-407b-9efe-024bfc2fc531.png",
+      "localUrl": "/assets/crypto-icons/IBKR.png",
+      "source": "binance"
+    },
     "IBM": {
       "symbol": "IBMUSDT",
       "symbols": [
@@ -4207,7 +4291,7 @@
       "contractType": "TRADIFI_PERPETUAL",
       "underlyingType": "EQUITY",
       "quoteAsset": "USDT",
-      "iconUrl": "https://public.bnbstatic.com/image/symbol/logo/20260611/9917c0d4-baae-4120-b5ff-567005832af7.png",
+      "iconUrl": "https://public.bnbstatic.com/image/symbol/logo/20261022/481296b6-861b-4d6b-9c81-ff585d6d2469.png",
       "localUrl": "/assets/crypto-icons/IWM.png",
       "source": "binance"
     },
@@ -4934,6 +5018,18 @@
       "localUrl": "/assets/crypto-icons/MDB.png",
       "source": "binance"
     },
+    "MDT": {
+      "symbol": "MDTUSDT",
+      "symbols": [
+        "MDTUSDT"
+      ],
+      "contractType": "TRADIFI_PERPETUAL",
+      "underlyingType": "EQUITY",
+      "quoteAsset": "USDT",
+      "iconUrl": "https://public.bnbstatic.com/image/symbol/logo/20261014/ead4e6b1-bb50-44ea-8022-23208416fdd9.png",
+      "localUrl": "/assets/crypto-icons/MDT.png",
+      "source": "binance"
+    },
     "ME": {
       "symbol": "MEUSDT",
       "symbols": [
@@ -4980,6 +5076,18 @@
       "quoteAsset": "USDT",
       "iconUrl": "https://public.bnbstatic.com/image/symbol/logo/20250717/6bdba6c4-11f8-4d97-9d2d-e0d3d3c884d9.png",
       "localUrl": "/assets/crypto-icons/MELANIA.png",
+      "source": "binance"
+    },
+    "MELI": {
+      "symbol": "MELIUSDT",
+      "symbols": [
+        "MELIUSDT"
+      ],
+      "contractType": "TRADIFI_PERPETUAL",
+      "underlyingType": "EQUITY",
+      "quoteAsset": "USDT",
+      "iconUrl": "https://public.bnbstatic.com/image/symbol/logo/20261027/423399d0-0614-4e7d-b135-dee7faa057c6.png",
+      "localUrl": "/assets/crypto-icons/MELI.png",
       "source": "binance"
     },
     "MEME": {
@@ -5088,18 +5196,6 @@
       "quoteAsset": "USDT",
       "iconUrl": "https://bin.bnbstatic.com/image/admin_mgs_image_upload/20250925/6eebc31d-55f1-4a0b-82d5-0ff0791bb9e3.png",
       "localUrl": "/assets/crypto-icons/MIRA.png",
-      "source": "binance"
-    },
-    "MITO": {
-      "symbol": "MITOUSDT",
-      "symbols": [
-        "MITOUSDT"
-      ],
-      "contractType": "PERPETUAL",
-      "underlyingType": "COIN",
-      "quoteAsset": "USDT",
-      "iconUrl": "https://bin.bnbstatic.com/image/admin_mgs_image_upload/20250821/0fc2dbf2-7a89-4abf-a8d5-d999bd6333fb.png",
-      "localUrl": "/assets/crypto-icons/MITO.png",
       "source": "binance"
     },
     "MMT": {
@@ -5861,6 +5957,18 @@
       "localUrl": "/assets/crypto-icons/OURA.png",
       "source": "binance"
     },
+    "OXY": {
+      "symbol": "OXYUSDT",
+      "symbols": [
+        "OXYUSDT"
+      ],
+      "contractType": "TRADIFI_PERPETUAL",
+      "underlyingType": "EQUITY",
+      "quoteAsset": "USDT",
+      "iconUrl": "https://public.bnbstatic.com/image/symbol/logo/20261027/5ebb88d8-2d7e-4ff6-b21f-3a68f6b831a7.png",
+      "localUrl": "/assets/crypto-icons/OXY.png",
+      "source": "binance"
+    },
     "PANW": {
       "symbol": "PANWUSDT",
       "symbols": [
@@ -5980,6 +6088,18 @@
       "quoteAsset": "USDT",
       "iconUrl": "https://bin.bnbstatic.com/image/admin_mgs_image_upload/20220126/fca13cc6-3034-4136-a740-ecb8af48d53c.png",
       "localUrl": "/assets/crypto-icons/PEOPLE.png",
+      "source": "binance"
+    },
+    "PFE": {
+      "symbol": "PFEUSDT",
+      "symbols": [
+        "PFEUSDT"
+      ],
+      "contractType": "TRADIFI_PERPETUAL",
+      "underlyingType": "EQUITY",
+      "quoteAsset": "USDT",
+      "iconUrl": "https://public.bnbstatic.com/image/symbol/logo/20261027/3a068b1d-fb1c-49db-9dbb-1885eb344631.png",
+      "localUrl": "/assets/crypto-icons/PFE.png",
       "source": "binance"
     },
     "PHA": {
@@ -6187,6 +6307,18 @@
       "localUrl": "/assets/crypto-icons/POWR.png",
       "source": "binance"
     },
+    "PREDICT": {
+      "symbol": "PREDICTUSDT",
+      "symbols": [
+        "PREDICTUSDT"
+      ],
+      "contractType": "PERPETUAL",
+      "underlyingType": "PREMARKET",
+      "quoteAsset": "USDT",
+      "iconUrl": "https://public.bnbstatic.com/image/symbol/logo/20261025/209e5cfa-c47e-40a8-bc9b-3a36341eb41c.png",
+      "localUrl": "/assets/crypto-icons/PREDICT.png",
+      "source": "binance"
+    },
     "PRL": {
       "symbol": "PRLUSDT",
       "symbols": [
@@ -6221,18 +6353,6 @@
       "quoteAsset": "USDT",
       "iconUrl": "https://bin.bnbstatic.com/image/admin_mgs_image_upload/20250805/11ea7dc3-2b43-48ee-a7c3-87fb7b269bc6.png",
       "localUrl": "/assets/crypto-icons/PROVE.png",
-      "source": "binance"
-    },
-    "PTB": {
-      "symbol": "PTBUSDT",
-      "symbols": [
-        "PTBUSDT"
-      ],
-      "contractType": "PERPETUAL",
-      "underlyingType": "COIN",
-      "quoteAsset": "USDT",
-      "iconUrl": "https://public.bnbstatic.com/image/symbol/logo/20250903/73b0baec-7f22-4d04-8c0e-2a2c76f4ccd1.png",
-      "localUrl": "/assets/crypto-icons/PTB.png",
       "source": "binance"
     },
     "PUMP": {
@@ -7027,6 +7147,18 @@
       "localUrl": "/assets/crypto-icons/SMH.png",
       "source": "binance"
     },
+    "SMR": {
+      "symbol": "SMRUSDT",
+      "symbols": [
+        "SMRUSDT"
+      ],
+      "contractType": "TRADIFI_PERPETUAL",
+      "underlyingType": "EQUITY",
+      "quoteAsset": "USDT",
+      "iconUrl": "https://public.bnbstatic.com/image/symbol/logo/20261027/13ba31d3-25b6-442c-8d88-f5c9c96cbe70.png",
+      "localUrl": "/assets/crypto-icons/SMR.png",
+      "source": "binance"
+    },
     "SNDK": {
       "symbol": "SNDKUSDT",
       "symbols": [
@@ -7375,6 +7507,18 @@
       "quoteAsset": "USDT",
       "iconUrl": "https://bin.bnbstatic.com/image/admin_mgs_image_upload/20220329/0aba3da3-5e35-40e8-be2a-af60a880ec80.png",
       "localUrl": "/assets/crypto-icons/STEEM.png",
+      "source": "binance"
+    },
+    "STM": {
+      "symbol": "STMUSDT",
+      "symbols": [
+        "STMUSDT"
+      ],
+      "contractType": "TRADIFI_PERPETUAL",
+      "underlyingType": "EQUITY",
+      "quoteAsset": "USDT",
+      "iconUrl": "https://public.bnbstatic.com/image/symbol/logo/20261026/7b8e55d0-b21c-4993-bb5e-4302cf42ae81.png",
+      "localUrl": "/assets/crypto-icons/STM.png",
       "source": "binance"
     },
     "STO": {
@@ -8157,7 +8301,7 @@
       "contractType": "TRADIFI_PERPETUAL",
       "underlyingType": "FX",
       "quoteAsset": "USDT",
-      "iconUrl": "https://public.bnbstatic.com/image/symbol/logo/20260918/7273c389-268b-40b3-9e22-4397b76d8f20.png",
+      "iconUrl": "https://public.bnbstatic.com/image/symbol/logo/20261021/4afa852e-0a92-4c18-8536-9278c41b55d9.png",
       "localUrl": "/assets/crypto-icons/USDBRL.png",
       "source": "binance"
     },
@@ -8255,18 +8399,6 @@
       "quoteAsset": "USDT",
       "iconUrl": "https://bin.bnbstatic.com/image/admin_mgs_image_upload/20260424/95845911-5a4d-48fd-865a-766f802633c3.png",
       "localUrl": "/assets/crypto-icons/VANA.png",
-      "source": "binance"
-    },
-    "VELODROME": {
-      "symbol": "VELODROMEUSDT",
-      "symbols": [
-        "VELODROMEUSDT"
-      ],
-      "contractType": "PERPETUAL",
-      "underlyingType": "COIN",
-      "quoteAsset": "USDT",
-      "iconUrl": "https://bin.bnbstatic.com/image/admin_mgs_image_upload/20241213/02067ba5-dbc2-42c2-94e8-753e82b4c746.png",
-      "localUrl": "/assets/crypto-icons/VELODROME.png",
       "source": "binance"
     },
     "VELVET": {
@@ -8508,7 +8640,7 @@
       "contractType": "PERPETUAL",
       "underlyingType": "COIN",
       "quoteAsset": "USDT",
-      "iconUrl": "https://bin.bnbstatic.com/image/admin_mgs_image_upload/20230406/63ab2366-0bfe-4f72-bae6-a5e8c859226f.png",
+      "iconUrl": "https://bin.bnbstatic.com/image/admin_mgs_image_upload/20261023/7fb795e6-abc3-4796-86cd-2b3140592368.png",
       "localUrl": "/assets/crypto-icons/WOO.png",
       "source": "binance"
     },

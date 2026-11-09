@@ -32,7 +32,7 @@ definePageMeta({ name: 'hot' })
   overflow: hidden;
   padding: 20px;
 }
-.hot-grid { display: grid; grid-template-columns: minmax(0, 7fr) minmax(320px, 3fr); gap: 16px; height: 100%; min-height: 0; }
+.hot-grid { display: grid; grid-template-columns: minmax(0, 7.5fr) minmax(320px, 2.5fr); gap: 16px; height: 100%; min-height: 0; }
 .hot-table-card { min-width: 0; min-height: 0; height: 100%; box-sizing: border-box; }
 .hot-table-card :deep(.el-card__body) { height: 100%; min-height: 0; box-sizing: border-box; padding: 12px 16px; }
 .hot-table-card :deep(.el-card__body > section) { height: 100%; min-height: 0; }

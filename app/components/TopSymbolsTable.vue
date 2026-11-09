@@ -16,9 +16,10 @@
       <!-- 模式切换与工具栏 -->
       <div class="top-symbols-toolbar">
         <el-radio-group v-model="mode" class="mode-switch" size="small" aria-label="榜单模式" @change="handleModeChange">
-          <el-radio-button value="hot">🔥 24h 热门</el-radio-button>
-          <el-radio-button value="stable">📈 持续放量</el-radio-button>
-          <el-radio-button value="configured">📋 配置列表</el-radio-button>
+          <el-radio-button value="hot">🔥 热门</el-radio-button>
+          <el-radio-button value="stable">📈 放量</el-radio-button>
+          <el-radio-button value="configured">📋 已配</el-radio-button>
+          <el-radio-button value="favorites">⭐ 收藏</el-radio-button>
         </el-radio-group>
         <div class="market-filters">
           <el-radio-group v-model="assetType" size="small" aria-label="资产类型">
@@ -37,7 +38,7 @@
         </div>
         <div class="toolbar-actions">
           <template v-if="embedded && viewMode === 'heatmap'">
-            <span class="heatmap-caption">24h 涨跌幅 · {{ overviewRows.length }} 个交易对</span>
+            <span class="heatmap-caption">{{ overviewRows.length }} 个交易对</span>
             <el-select v-model="heatmapSizeMode" size="small" aria-label="热力图区块面积" class="heatmap-size-select">
               <el-option label="按涨跌幅面积" value="change" />
               <el-option label="按24h成交额" value="volume" />
@@ -164,14 +165,28 @@
         @selection-change="handleSelectionChange"
         :default-sort="defaultSort"
         :key="tableKey"
+        :empty-text="mode === 'favorites' ? '暂无符合条件的收藏，点击交易对前的星标添加收藏' : '暂无数据'"
       >
+        <el-table-column label="" width="50" align="center" fixed="left">
+          <template #default="{ row }">
+            <button
+              type="button"
+              class="favorite-button"
+              :class="{ 'is-favorite': isFavoriteSymbol(row.symbol) }"
+              :aria-pressed="isFavoriteSymbol(row.symbol)"
+              :aria-label="`${isFavoriteSymbol(row.symbol) ? '取消收藏' : '收藏'} ${row.symbol}`"
+              :title="isFavoriteSymbol(row.symbol) ? '取消收藏' : '收藏交易对'"
+              @click.stop="toggleFavorite(row.symbol)"
+            >{{ isFavoriteSymbol(row.symbol) ? '★' : '☆' }}</button>
+          </template>
+        </el-table-column>
         <el-table-column v-if="selectable" type="selection" width="40" reserve-selection />
-        <el-table-column type="index" :index="rowIndex" label="#" width="60" />
+        <el-table-column type="index" :index="rowIndex" label="#" width="40" />
 
         <el-table-column
           prop="symbol"
           label="交易对"
-          min-width="150"
+          min-width="170"
         >
           <template #default="{ row }">
             <div class="symbol-cell">
@@ -187,7 +202,8 @@
                 class="crypto-icon-placeholder"
                 :style="{ backgroundColor: getRandomColor(getSymbolDisplay(row.symbol)) }"
               >{{ getSymbolDisplay(row.symbol).substring(0, 1).toUpperCase() }}</span>
-              <el-link type="primary" underline="never" :style="{ cursor: selectable || embedded ? 'pointer' : 'default' }" @click.stop="handleRowClick(row)">
+              <!-- Element Plus 的插槽行类型为 DefaultRow；实际数据来自 TopSymbol[]，在事件边界明确类型。 -->
+              <el-link type="primary" underline="never" :style="{ cursor: selectable || embedded ? 'pointer' : 'default' }" @click.stop="handleRowClick(row as TopSymbol)">
                 {{ row.symbol.replace('USDT', '/USDT') }}
               </el-link>
               <el-tag v-if="row.contractType === 'TRADIFI_PERPETUAL'" size="small" type="warning" effect="plain">T</el-tag>
@@ -324,6 +340,22 @@
             </span>
           </template>
         </el-table-column>
+        <el-table-column v-if="embedded" label="30日曲线" width="150" align="center">
+          <template #default="{ row }">
+            <svg
+              v-if="localCurves[row.symbol]"
+              class="price-sparkline"
+              :class="curveChangeClass(localCurves[row.symbol]!)"
+              viewBox="0 0 132 24"
+              role="img"
+              :aria-label="`${row.symbol} 最近30日本地价格曲线`"
+            >
+              <title>最近30日本地收盘价，空白表示本地数据缺失</title>
+              <polyline v-for="(points, index) in curvePaths(localCurves[row.symbol]!)" :key="index" :points="points" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+            <span v-else class="curve-empty" title="暂无可用的本地30日历史">--</span>
+          </template>
+        </el-table-column>
       </el-table>
 
       <el-pagination
@@ -355,7 +387,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, nextTick, onBeforeUnmount, defineAsyncComponent } from 'vue'
+import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount, defineAsyncComponent } from 'vue'
 import { ElDialog, ElDrawer } from 'element-plus'
 import { useCoinIcon } from '../composables/useCoinIcon'
 import type { MarketOverviewSymbol, MarketOverviewState } from '../../types/market-overview'
@@ -364,7 +396,7 @@ const { getCoinIconUrl } = useCoinIcon()
 // 用户切换到热力图时才加载 ECharts，保持表格首次加载轻量。
 const PriceHeatmap = defineAsyncComponent(() => import('./PriceHeatmap.vue'))
 
-type Mode = 'hot' | 'stable' | 'configured'
+type Mode = 'hot' | 'stable' | 'configured' | 'favorites'
 
 /** 热门及持续放量榜单的交易对行情。 */
 interface TopSymbol extends MarketOverviewSymbol {
@@ -415,6 +447,14 @@ interface TopSymbolsResponse {
   updatedAt?: number
   params?: FilterParams
   data: TopSymbol[]
+}
+
+/** 本地历史曲线携带时间范围与周期，避免将短历史拉伸为完整 30 天。 */
+interface LocalPriceCurve {
+  points: [number, number][]
+  intervalSeconds: number
+  from: number
+  to: number
 }
 
 /** 与服务端 FILTER_DEFAULTS 保持一致的默认值 */
@@ -508,6 +548,25 @@ const currentPage = ref(1)
 const pageSize = ref(20)
 const mode = ref<Mode>('hot')
 const viewMode = ref<'table' | 'heatmap'>('table')
+const VIEW_MODE_STORAGE_KEY = 'hot-market-view-mode'
+// 仅独立热门页保存展示偏好，配置弹窗不读取或覆盖此设置。
+onMounted(() => {
+  if (!props.embedded) return
+  try {
+    const saved = localStorage.getItem(VIEW_MODE_STORAGE_KEY)
+    if (saved === 'table' || saved === 'heatmap') viewMode.value = saved
+  } catch {
+    // 浏览器禁用本地存储时沿用默认表格视图。
+  }
+})
+watch(viewMode, (value) => {
+  if (!props.embedded) return
+  try {
+    localStorage.setItem(VIEW_MODE_STORAGE_KEY, value)
+  } catch {
+    // 保存失败不影响视图切换。
+  }
+})
 const heatmapSizeMode = ref<'change' | 'volume' | 'equal'>('change')
 const heatmapFocusRequest = ref<{ symbol: string; id: number }>()
 const message = ref('')
@@ -535,6 +594,41 @@ const selectedRows = ref<TopSymbol[]>([])
 const detailSymbolKey = ref('')
 const showFilterParams = ref(false)
 const configuredSymbols = ref<Set<string> | null>(null)
+const FAVORITES_STORAGE_KEY = 'market-favorite-symbols'
+const favoriteSymbols = ref<string[]>([])
+const favoriteSymbolSet = computed(() => new Set(favoriteSymbols.value))
+
+// 挂载后读取，保证服务端与浏览器首次渲染一致；仅持久化交易对，不保存过期行情。
+onMounted(() => {
+  try {
+    const saved: unknown = JSON.parse(localStorage.getItem(FAVORITES_STORAGE_KEY) || '[]')
+    if (Array.isArray(saved)) {
+      favoriteSymbols.value = [...new Set(saved.filter((symbol): symbol is string => typeof symbol === 'string')
+        .map(normalizeSymbol).filter(Boolean))]
+    }
+  } catch {
+    // 存储损坏或被禁用时仍允许在本次页面中使用收藏。
+  }
+})
+
+/** 收藏匹配沿用行情的标准交易对格式，避免大小写与斜杠造成重复收藏。 */
+function isFavoriteSymbol(symbol: string): boolean {
+  return favoriteSymbolSet.value.has(normalizeSymbol(symbol))
+}
+
+/** 点击星标立即切换收藏；存储不可用时保留本次页面的操作结果。 */
+function toggleFavorite(symbol: string) {
+  const normalized = normalizeSymbol(symbol)
+  if (!normalized) return
+  favoriteSymbols.value = isFavoriteSymbol(normalized)
+    ? favoriteSymbols.value.filter(item => item !== normalized)
+    : [...favoriteSymbols.value, normalized]
+  try {
+    localStorage.setItem(FAVORITES_STORAGE_KEY, JSON.stringify(favoriteSymbols.value))
+  } catch {
+    // 隐私模式或存储空间不足不阻断行情操作。
+  }
+}
 
 /** 统一配置与币安行情的交易对格式，避免斜杠和大小写影响匹配。 */
 function normalizeSymbol(symbol: string): string {
@@ -598,7 +692,8 @@ const activeDaysPercent = computed({
 const isMobile = computed(() => windowWidth.value < 768)
 
 const dialogTitle = computed(() =>
-  mode.value === 'configured' ? `📋 配置列表（${data.value.length}）`
+  mode.value === 'favorites' ? `⭐ 收藏列表（${favoriteSymbols.value.length}）`
+    : mode.value === 'configured' ? `📋 配置列表（${data.value.length}）`
     : mode.value === 'stable' ? '📈 持续放量交易对 Top' + filterParams.value.top : '🔥 热门交易对 · 全部'
 )
 
@@ -647,10 +742,14 @@ onBeforeUnmount(() => {
 })
 
 // 排序处理
+// 收藏列表使用全量热门行情，增删收藏立即作用于表格、热力图和概览，无须额外请求。
+const modeRows = computed(() => mode.value === 'favorites'
+  ? data.value.filter(row => isFavoriteSymbol(row.symbol))
+  : data.value)
 const sortedData = computed(() => {
   const keyword = normalizeSymbol(search.value)
   // 使用官方合约类型区分 T 合约；未知类型不归入加密货币，避免误分类。
-  const arr = data.value.filter(row =>
+  const arr = modeRows.value.filter(row =>
     (assetType.value === 'all' || row.contractType === (assetType.value === 'tradfi' ? 'TRADIFI_PERPETUAL' : 'PERPETUAL')) &&
     (!keyword || normalizeSymbol(row.symbol).includes(keyword))
   )
@@ -670,10 +769,10 @@ const sortedData = computed(() => {
 })
 
 // 概览跟随榜单和资产分类；搜索、排序和分页不改变市场样本范围。
-const overviewRows = computed(() => data.value.filter(row =>
+const overviewRows = computed(() => modeRows.value.filter(row =>
   assetType.value === 'all' || row.contractType === (assetType.value === 'tradfi' ? 'TRADIFI_PERPETUAL' : 'PERPETUAL')
 ))
-const overviewScope = computed(() => `${mode.value === 'hot' ? '热门全量' : mode.value === 'stable' ? '持续放量结果' : '配置列表'} · ${assetType.value === 'all' ? '全部资产' : assetType.value === 'crypto' ? '加密货币' : '股票 T'}`)
+const overviewScope = computed(() => `${mode.value === 'hot' ? '热门全量' : mode.value === 'stable' ? '持续放量结果' : mode.value === 'favorites' ? '收藏列表' : '配置列表'} · ${assetType.value === 'all' ? '全部资产' : assetType.value === 'crypto' ? '加密货币' : '股票 T'}`)
 // 热力图搜索仅定位区块，不裁切整个市场，也不隐藏当前选中交易对的详情。
 const detailSymbol = computed(() => {
   const rows = props.embedded && viewMode.value === 'heatmap' ? overviewRows.value : sortedData.value
@@ -746,6 +845,52 @@ const pagedData = computed(() => props.embedded
   ? sortedData.value.slice((currentPage.value - 1) * pageSize.value, currentPage.value * pageSize.value)
   : sortedData.value)
 
+const localCurves = ref<Record<string, LocalPriceCurve>>({})
+let curveController: AbortController | undefined
+let curveRequestId = 0
+
+/** 曲线使用真实时间作横轴；缺失 K线处分段，避免跨越历史缺口连线。 */
+function curvePaths(curve: LocalPriceCurve): string[] {
+  const prices = curve.points.map(point => point[1])
+  const min = Math.min(...prices)
+  const range = Math.max(...prices) - min
+  const paths: string[] = []
+  let previousTime: number | undefined
+  for (const [time, price] of curve.points) {
+    if (previousTime === undefined || time - previousTime > curve.intervalSeconds * 1.5) paths.push('')
+    const x = 2 + (time - curve.from) / (curve.to - curve.from) * 128
+    const y = range > 0 ? 22 - (price - min) / range * 20 : 12
+    paths[paths.length - 1] += `${x.toFixed(2)},${y.toFixed(2)} `
+    previousTime = time
+  }
+  return paths
+}
+
+/** 涨跌颜色按本地序列首尾价格计算，与曲线本身保持一致。 */
+function curveChangeClass(curve: LocalPriceCurve): string {
+  return curve.points[curve.points.length - 1]![1] >= curve.points[0]![1] ? 'color-up' : 'color-down'
+}
+
+// 只为独立页当前可见的表格行批量读取本地数据，翻页及快速切换时丢弃旧响应。
+watch([() => pagedData.value.map(row => row.symbol).join(','), viewMode, updatedAt, loading], async ([symbols], _previous, onCleanup) => {
+  const currentRequest = ++curveRequestId
+  curveController?.abort()
+  if (!props.embedded || viewMode.value !== 'table' || !symbols || loading.value) return
+  const controller = new AbortController()
+  curveController = controller
+  onCleanup(() => controller.abort())
+  try {
+    const response = await $fetch<{ success: boolean; data: Record<string, LocalPriceCurve> }>('/api/binance/local-price-curves', {
+      query: { symbols }, signal: controller.signal, timeout: 10000, retry: 0,
+    })
+    if (currentRequest === curveRequestId && !controller.signal.aborted && response.success) localCurves.value = response.data
+  } catch {
+    // 曲线是附加展示，读取失败不遮挡主表格。
+    if (currentRequest === curveRequestId) localCurves.value = {}
+  }
+}, { immediate: true })
+onBeforeUnmount(() => { curveController?.abort() })
+
 /** 页内序号延续筛选结果的全局顺序。 */
 function rowIndex(index: number): number {
   return (props.embedded ? (currentPage.value - 1) * pageSize.value : 0) + index + 1
@@ -753,6 +898,11 @@ function rowIndex(index: number): number {
 
 watch([assetType, search, pageSize, sortProp, sortOrder, data], () => {
   currentPage.value = 1
+})
+
+// 取消收藏可能删除末页最后一行，仅在当前页超出范围时回退，避免留下空白页。
+watch(() => sortedData.value.length, (count) => {
+  currentPage.value = Math.min(currentPage.value, Math.max(1, Math.ceil(count / pageSize.value)))
 })
 
 const handleSortChange = (sortData: { prop: string | null; order: 'ascending' | 'descending' | null }) => {
@@ -794,7 +944,7 @@ const fetchData = async () => {
           cvMax: filterParams.value.cvMax,
           segmentRatio: filterParams.value.segmentRatio,
         }
-      : { mode: mode.value }
+      : { mode: mode.value === 'favorites' ? 'hot' : mode.value }
     const cacheKey = JSON.stringify(query)
     const cached = mode.value === 'stable' ? stableResults.value[cacheKey] : undefined
     if (cached) {
@@ -1114,6 +1264,28 @@ watch(() => props.embedded || visible.value, (newVal) => {
   flex-shrink: 0;
 }
 
+.favorite-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--el-text-color-secondary);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  vertical-align: middle;
+}
+.favorite-button.is-favorite, .favorite-button:hover { color: var(--el-color-warning); }
+.favorite-button:focus-visible { outline: 2px solid var(--el-color-primary); outline-offset: 1px; }
+/* 与紧凑数据行保持相同高度，曲线不会额外撑开表格。 */
+.price-sparkline { display: block; width: 132px; height: 22px; margin: 0 auto; }
+.curve-empty { color: var(--el-text-color-secondary); }
+
 .crypto-icon {
   width: 18px;
   height: 18px;
@@ -1164,6 +1336,8 @@ watch(() => props.embedded || visible.value, (newVal) => {
 .top-symbols-container-page .market-main { display: flex; flex: 1; flex-direction: column; min-height: 0; margin-top: 8px; }
 /* 表格内部滚动，工具栏和分页保留在可见区，长列表不会撑开页面。 */
 .top-symbols-container-page .market-main > .el-table { flex: 1; min-height: 0; }
+/* 隐藏表格纵向滚动条；大分页或小屏幕仍可用滚轮和触控浏览完整数据。 */
+.top-symbols-container-page :deep(.el-table .el-scrollbar__bar.is-vertical) { display: none; }
 .top-symbols-container-page :deep(.el-table__row) { cursor: pointer; }
 /* 暗色全局样式会让单元格继承普通行背景；选中态须优先于斑马纹和悬停态。 */
 .top-symbols-container-page :deep(.el-table__body tr.current-row > td.el-table__cell) {
@@ -1176,6 +1350,9 @@ watch(() => props.embedded || visible.value, (newVal) => {
 .top-symbols-container-page :deep(.el-table__header .el-table__cell) { padding: 2px 0; }
 .top-symbols-container-page :deep(.el-table__body .el-table__cell) { padding: var(--market-row-padding, 2px) 0; }
 .top-symbols-container-page :deep(.el-table .cell) { line-height: 22px; }
+/* 固定内容高度并垂直居中，消除链接、按钮的行内基线留白；每行比预算少 2px，避免累积溢出。 */
+.top-symbols-container-page :deep(.el-table__body .cell) { display: flex; align-items: center; height: 22px; line-height: 22px; }
+.top-symbols-container-page :deep(.el-table__body .is-center .cell) { justify-content: center; }
 .top-symbols-container-page .market-pagination { flex-shrink: 0; flex-wrap: wrap; row-gap: 8px; margin-top: 8px; }
 .top-symbols-container-page .stable-params { flex-shrink: 1; min-height: 0; max-height: 40%; overflow: auto; }
 .top-symbols-container-page .stable-progress, .top-symbols-container-page .stable-alert { flex-shrink: 0; }
