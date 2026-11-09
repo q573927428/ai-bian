@@ -707,13 +707,17 @@ const defaultSort = computed<{ prop: string; order: 'ascending' | 'descending' }
 const tableKey = computed(() => `${mode.value}-${sortProp.value}-${sortOrder.value}`)
 
 const handleModeChange = () => {
+  // 新榜单从全景开始，不能把上一榜单的搜索或异动定位带入重新挂载的热力图。
+  locateRequestId++
+  heatmapFocusRequest.value = undefined
+  if (viewMode.value === 'heatmap') search.value = ''
   data.value = []
   message.value = ''
   updatedAt.value = null
   showFilterParams.value = false
   sortProp.value = 'volume'
   sortOrder.value = 'descending'
-  fetchData()
+  return fetchData()
 }
 
 const resetParams = () => {

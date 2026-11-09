@@ -154,9 +154,11 @@ watch(() => props.focusRequest, async (request) => {
 }, { flush: 'post' })
 
 watch(() => props.searchQuery, () => { searchIndex.value = 0 }, { flush: 'sync' })
-watch([() => props.searchQuery, () => searchMatches.value.map(item => item.symbol).join(','), searchIndex], () => {
+watch([() => props.searchQuery, () => searchMatches.value.map(item => item.symbol).join(','), searchIndex], (_value, previous) => {
   if (searchIndex.value >= searchMatches.value.length) searchIndex.value = 0
   if (searchTimer) clearTimeout(searchTimer)
+  // 榜单更换、图标加载和行情更新都可能重算匹配项；没有搜索时不应触发定位。
+  if (!props.searchQuery && !previous?.[0]) return
   // 输入停顿后再定位，避免每个按键都触发跳动；清空则立即恢复全景。
   searchTimer = setTimeout(() => { void locateSearchMatch() }, props.searchQuery ? 200 : 0)
 }, { flush: 'post' })
@@ -551,7 +553,13 @@ onUnmounted(() => {
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  margin: -10px;
+  /* 组件不能自行向外扩张，否则热门页的裁剪容器会截掉四周 10px 及选中边框。 */
+  margin: 0;
+  box-sizing: border-box;
+  min-width: 0;
+  min-height: 0;
+  /* 画布始终位于可视边界内，给边缘像素和高亮描边保留少量空间。 */
+  padding: 2px;
 }
 .heatmap-zoom {
   position: absolute;

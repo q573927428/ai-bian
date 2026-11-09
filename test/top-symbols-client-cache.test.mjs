@@ -27,13 +27,28 @@ function component(fetcher, state = vue.ref({}), props = {}, storage = new Map()
       throw new Error(`Unexpected import: ${id}`)
     },
   }
-  const expose = '\nglobalThis.api = { mode, data, loading, updatedAt, showingCachedResult, fetchData, stopProgressPolling, handleRowClick, detailSymbol, locateSymbol, currentPage, search, tableViewportHeight, rowPadding, pageSize, tableRef, viewMode, heatmapItems, selectHeatmapSymbol, assetType, toggleFavorite, isFavoriteSymbol, sortedData, pagedData, overviewRows, overviewScope, localCurves, curvePaths };'
+  const expose = '\nglobalThis.api = { mode, data, loading, updatedAt, showingCachedResult, fetchData, stopProgressPolling, handleRowClick, detailSymbol, locateSymbol, currentPage, search, tableViewportHeight, rowPadding, pageSize, tableRef, viewMode, heatmapItems, selectHeatmapSymbol, assetType, toggleFavorite, isFavoriteSymbol, sortedData, pagedData, overviewRows, overviewScope, localCurves, curvePaths, handleModeChange, heatmapFocusRequest };'
   vm.runInNewContext(ts.transpile(source + expose, { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS }), context)
   mounted.forEach(callback => callback())
   return context.api
 }
 
 const result = { success: true, mode: 'stable', updatedAt: 12345, data: [{ symbol: 'BTCUSDT', volume: 100 }] }
+
+test('切换四个榜单清除热力图旧搜索和定位请求，主动定位仍可再次使用', async () => {
+  const api = component(async () => ({ success: true, data: [] }), vue.ref({}), { embedded: true })
+  await new Promise(resolve => setImmediate(resolve))
+  api.viewMode.value = 'heatmap'
+  for (const mode of ['stable', 'configured', 'favorites', 'hot']) {
+    await api.locateSymbol('BTCUSDT')
+    assert.equal(api.heatmapFocusRequest.value.symbol, 'BTCUSDT')
+    api.search.value = 'BTC'
+    api.mode.value = mode
+    await api.handleModeChange()
+    assert.equal(api.search.value, '')
+    assert.equal(api.heatmapFocusRequest.value, undefined)
+  }
+})
 
 test('曲线按真实时间保留空白和缺口，平价序列无无效坐标', () => {
   const api = component(async () => result)
