@@ -124,6 +124,35 @@ test('开仓时间筛选包含边界，支持单侧限制，并在分页前计�
   assert.throws(() => queryTradeHistory(records, { openTimeMin: 2, openTimeMax: 1 }))
 })
 
+test('持仓分钟数支持闭区间、单侧及组合筛选，异常时间不参与时长筛选', () => {
+  const trades = [0, 0.5, 30, 60].map((minutes, index) => ({
+    ...records[index], id: String(minutes), openTime: 0, closeTime: minutes * 60000,
+    pnl: index % 2 ? -5 : 10,
+  }))
+  trades.push(
+    { ...records[0], id: 'missing', openTime: undefined },
+    { ...records[0], id: 'null', closeTime: null },
+    { ...records[0], id: 'nan', closeTime: NaN },
+    { ...records[0], id: 'reversed', closeTime: 1, openTime: 2 },
+  )
+  assert.equal(queryTradeHistory(trades, {}).pagination.total, 8)
+  assert.deepEqual(queryTradeHistory(trades, { holdingMinutesMin: '0', holdingMinutesMax: '0' }).data.map(r => r.id), ['0'])
+  const range = queryTradeHistory(trades, { holdingMinutesMin: '0.5', holdingMinutesMax: '30', pageSize: 1 })
+  assert.equal(range.pagination.total, 2)
+  assert.equal(range.data.length, 1)
+  assert.equal(range.summary.totalPnl, 5)
+  assert.equal(range.summary.winRate, 50)
+  assert.equal(queryTradeHistory(trades, { holdingMinutesMin: 30 }).pagination.total, 2)
+  assert.equal(queryTradeHistory(trades, { holdingMinutesMax: 0.5 }).pagination.total, 2)
+  assert.deepEqual(queryTradeHistory(trades, { holdingMinutesMin: 30, pnlMin: 0 }).data.map(r => r.id), ['30'])
+  assert.equal(queryTradeHistory(trades, { holdingMinutesMin: '', holdingMinutesMax: '' }).pagination.total, 8)
+  for (const query of [
+    { holdingMinutesMin: 'invalid' }, { holdingMinutesMax: 'Infinity' },
+    { holdingMinutesMin: -1 }, { holdingMinutesMax: -1 },
+    { holdingMinutesMin: 60, holdingMinutesMax: 30 },
+  ]) assert.throws(() => queryTradeHistory(trades, query))
+})
+
 test('网格汇总按全量筛选结果计算平均盈亏和盈亏比，保本不计入胜负', () => {
   const trades = [30, 10, -5, 0].map((pnl, index) => ({
     ...records[index], pnl, openTime: 1000 + index,
@@ -292,7 +321,7 @@ test('快速切换筛选时迟到的旧请求不会覆盖筛选选项和汇总',
   })
   const store = module.exports.useTradeHistoryStore()
   const first = store.fetchPage(1, 16)
-  store.setFilter({ symbol: 'ETH/USDT' })
+  store.setFilter({ symbol: 'ETH/USDT', holdingMinutesMin: 0, holdingMinutesMax: 30 })
   const second = store.fetchPage(1, 16)
   const response = symbol => ({ success: true, data: [], options: { symbols: [symbol], strategies: [], closeCategories: [] }, summary: { orderCount: symbol === 'ETH/USDT' ? 2 : 1 } })
   pending[1].resolve(response('ETH/USDT'))
@@ -303,6 +332,9 @@ test('快速切换筛选时迟到的旧请求不会覆盖筛选选项和汇总',
   assert.equal(store.filteredSummary.value.orderCount, 2)
   assert.equal(pending[1].options.params.symbol, 'ETH/USDT')
   assert.equal(pending[1].options.params.pageSize, 16)
+  assert.equal(pending[1].options.params.holdingMinutesMin, 0)
+  assert.equal(pending[1].options.params.holdingMinutesMax, 30)
+  store.setFilter({ holdingMinutesMin: undefined, holdingMinutesMax: undefined })
   store.setFilter({ openTimeMin: 1000, openTimeMax: 1002, estimatedVolumeMin: 1.5, estimatedVolumeMax: 2, erMin: 0, erMax: 0.6 })
   const timed = store.fetchPage(1, 16)
   assert.equal(pending[2].options.params.openTimeMin, 1000)
@@ -320,6 +352,8 @@ test('快速切换筛选时迟到的旧请求不会覆盖筛选选项和汇总',
   store.resetFilter()
   assert.equal(store.filter.value.openTimeMin, undefined)
   assert.equal(store.filter.value.openTimeMax, undefined)
+  assert.equal(store.filter.value.holdingMinutesMin, undefined)
+  assert.equal(store.filter.value.holdingMinutesMax, undefined)
   assert.equal(store.filter.value.estimatedVolumeMin, undefined)
   assert.equal(store.filter.value.erMin, undefined)
   assert.equal(store.filter.value.erMax, undefined)

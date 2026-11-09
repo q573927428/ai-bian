@@ -61,6 +61,9 @@ export interface FilterConfig {
   /** 开仓时间的起止毫秒时间戳，包含两端边界。 */
   openTimeMin?: number
   openTimeMax?: number
+  /** 持仓时长闭区间，单位为分钟，按平仓时间减开仓时间计算。 */
+  holdingMinutesMin?: number
+  holdingMinutesMax?: number
 }
 
 // 排序字段标签映射
@@ -101,6 +104,8 @@ export const useTradeHistoryStore = defineStore('tradeHistory', () => {
     estimatedVolumeMax: undefined,
     openTimeMin: undefined,
     openTimeMax: undefined,
+    holdingMinutesMin: undefined,
+    holdingMinutesMax: undefined,
   })
 
   // ========== 排序状态 ==========
@@ -133,6 +138,8 @@ export const useTradeHistoryStore = defineStore('tradeHistory', () => {
       estimatedVolumeMax: undefined,
       openTimeMin: undefined,
       openTimeMax: undefined,
+      holdingMinutesMin: undefined,
+      holdingMinutesMax: undefined,
     }
   }
 

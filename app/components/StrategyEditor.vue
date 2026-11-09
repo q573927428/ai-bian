@@ -295,7 +295,7 @@
                 v-model="form.aiPrompt.userPrompt"
                 type="textarea"
                 :rows="22"
-                placeholder="当EMA金叉且RSI<30时，开多仓..."
+                placeholder="请输入策略的做多、做空硬性条件和辅助条件..."
               />
             </el-form-item>
             <el-row :gutter="12">
@@ -672,15 +672,52 @@ const oiParams = reactive({
 
 // 使用 ref 统一模板与脚本的表单类型解析，兼容 Vue 扩展对 v-model 的 .value 生成逻辑。
 const form = ref<CreateStrategyInput>({
-  name: '',
+  name: 'ADX-DMI趋势增强共振策略',
   marketData: {
     symbols: [],
-    timeframes: ['1h']
+    timeframes: ['15m']
   },
   indicators: [],
   statistics: [],
   aiPrompt: {
-    userPrompt: '请分析当前市场趋势，当技术指标显示明确的方向时给出开仓建议。\n\n要求：\n1. 趋势明确时才给出信号\n2. 严格控制风险\n3. 返回JSON格式：{direction: "long/short", confidence: 0-100, reasoning: "理由"}',
+    // 新建策略预填完整示例，保留多空边界及辅助条件至少满足两项的业务含义。
+    userPrompt: `ADX-DMI趋势增强共振策略
+
+一、做多 LONG 完整规则
+
+入场硬性条件（全部必须满足）：
+1. ADX ∈ [16, 35]
+2. PDI - MDI ≥ 3
+3. DI信号趋势 结果为“多头增强”
+
+辅助条件（至少满足2项）：
+1. RSI ∈ (30, 70)
+2. OI变化率 ≥ 0.1%
+3. ADX斜率 > 0
+
+开仓决策：
+- 趋势条件满足
+- 硬性条件全部满足
+- 辅助条件 ≥ 2项
+=> 做多开仓
+
+二、做空 SHORT 完整规则
+
+入场硬性条件（全部必须满足）：
+1. ADX ∈ [16, 38]
+2. MDI - PDI ≥ 3
+3. DI信号趋势 结果为“空头增强”
+
+辅助条件（至少满足2项）：
+1. RSI ∈ (30, 70)
+2. OI变化率 ≥ 0.1%
+3. ADX斜率 > 0
+
+开仓决策：
+- 趋势条件满足
+- 硬性条件全部满足
+- 辅助条件 ≥ 2项
+=> 做空开仓`,
     temperature: 0.3,
     maxTokens: 3000,
     thinkingEnabled: false,
@@ -715,8 +752,8 @@ const form = ref<CreateStrategyInput>({
   },
   preScreenConfig: {
     enableConfidence: false,
-    minAdx: 10,
-    maxAdx: 60,
+    minAdx: 16,
+    maxAdx: 38,
     minAdxSlope: 0,
     minEr: 0,
     maxEr: 1,
@@ -756,8 +793,8 @@ watch(oiMaxChangePeriod, (maxPeriod) => {
   oiParams.changePeriod = Math.max(1, Math.min(maxPeriod, Math.floor(Number(oiParams.changePeriod) || 1)))
 }, { immediate: true })
 
-// 预筛启用标记
-const preScreenEnabledFlags = ref<string[]>(['enableAdx', 'enableAdxSlope', 'enableAtr', 'enableOi', 'enableVolume'])
+// ADX 预筛覆盖多空区间；辅助项交由 AI 按至少两项判断，避免预筛将其变为硬性条件。
+const preScreenEnabledFlags = ref<string[]>(['enableAdx'])
 
 // 脚本显式访问 ref.value；模板仍由 Vue 自动解包为表单对象。
 watch(preScreenEnabledFlags, (flags) => {

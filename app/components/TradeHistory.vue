@@ -43,6 +43,7 @@
             v-model="filter.symbol"
             placeholder="全部"
             size="small"
+            filterable
             clearable
             style="width: 80%"
             @change="handleFilterChange"
@@ -214,6 +215,29 @@
           <span class="range-unit">x</span>
         </div>
 
+        <div class="filter-item range-filter-item">
+          <span class="filter-label">持仓时间 (分钟)</span>
+          <el-input-number
+            v-model="filter.holdingMinutesMin"
+            class="range-input"
+            placeholder="最小"
+            size="small"
+            :min="0"
+            :controls="false"
+            @change="handleFilterChange"
+          />
+          <span class="range-separator">—</span>
+          <el-input-number
+            v-model="filter.holdingMinutesMax"
+            class="range-input"
+            placeholder="最大"
+            size="small"
+            :min="0"
+            :controls="false"
+            @change="handleFilterChange"
+          />
+        </div>
+
         <div v-for="metric in indicatorRangeFilters" :key="metric.minKey" class="filter-item range-filter-item">
           <span class="filter-label">{{ metric.label }}</span>
           <el-input-number
@@ -221,6 +245,9 @@
             class="range-input"
             placeholder="最小"
             size="small"
+            :min="metric.minKey === 'erMin' ? 0 : undefined"
+            :max="metric.minKey === 'erMin' ? 1 : undefined"
+            :step="metric.minKey === 'erMin' ? 0.01 : 1"
             :controls="false"
             @change="handleFilterChange"
           />
@@ -230,33 +257,9 @@
             class="range-input"
             placeholder="最大"
             size="small"
-            :controls="false"
-            @change="handleFilterChange"
-          />
-        </div>
-
-        <div class="filter-item range-filter-item">
-          <span class="filter-label">ER（20）</span>
-          <el-input-number
-            v-model="filter.erMin"
-            class="range-input"
-            placeholder="最小"
-            size="small"
-            :min="0"
-            :max="1"
-            :step="0.01"
-            :controls="false"
-            @change="handleFilterChange"
-          />
-          <span class="range-separator">—</span>
-          <el-input-number
-            v-model="filter.erMax"
-            class="range-input"
-            placeholder="最大"
-            size="small"
-            :min="0"
-            :max="1"
-            :step="0.01"
+            :min="metric.minKey === 'erMin' ? 0 : undefined"
+            :max="metric.minKey === 'erMin' ? 1 : undefined"
+            :step="metric.minKey === 'erMin' ? 0.01 : 1"
             :controls="false"
             @change="handleFilterChange"
           />
@@ -876,12 +879,13 @@ function formatCommunitySentimentValue(key: string, value: unknown): string {
   return key.endsWith('Percent') ? `${formatted}%` : formatted
 }
 
-// 指标区间共用输入与重置逻辑，百分比直接使用页面数值（如 1 表示 1%）。
+// 按页面顺序共用输入与重置逻辑；ER 保留 0～1 范围及 0.01 步长。
 const indicatorRangeFilters = [
   { label: 'RSI', minKey: 'rsiMin', maxKey: 'rsiMax' },
   { label: 'ADX', minKey: 'adxMin', maxKey: 'adxMax' },
   { label: 'ADX斜率', minKey: 'adxSlopeMin', maxKey: 'adxSlopeMax' },
   { label: 'ATR (%)', minKey: 'atrPercentMin', maxKey: 'atrPercentMax' },
+  { label: 'ER（20）', minKey: 'erMin', maxKey: 'erMax' },
   { label: '阻力距离 (ATR)', minKey: 'resistanceDistanceATRMin', maxKey: 'resistanceDistanceATRMax' },
   { label: '支撑距离 (ATR)', minKey: 'supportDistanceATRMin', maxKey: 'supportDistanceATRMax' },
 ] as const satisfies ReadonlyArray<{ label: string; minKey: keyof FilterConfig; maxKey: keyof FilterConfig }>
@@ -905,6 +909,8 @@ const filter = reactive<FilterConfig>({
   estimatedVolumeMax: undefined,
   openTimeMin: undefined,
   openTimeMax: undefined,
+  holdingMinutesMin: undefined,
+  holdingMinutesMax: undefined,
 })
 
 // 使用浏览器本地时间选择日期，传输毫秒时间戳，避免服务端时区影响筛选边界。
@@ -971,6 +977,8 @@ const handleResetFilter = () => {
   filter.oiMax = undefined
   filter.estimatedVolumeMin = undefined
   filter.estimatedVolumeMax = undefined
+  filter.holdingMinutesMin = undefined
+  filter.holdingMinutesMax = undefined
   filter.erMin = undefined
   filter.erMax = undefined
   for (const metric of indicatorRangeFilters) {
@@ -1153,8 +1161,8 @@ onUnmounted(() => {
 .filter-row {
   /* 下拉和区间共用同一网格，确保所有筛选项按列对齐并随容器宽度换行。 */
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 140px), 1fr));
-  column-gap: 28px;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 128px), 1fr));
+  column-gap: 10px;
   row-gap: 8px;
   align-items: start;
 }

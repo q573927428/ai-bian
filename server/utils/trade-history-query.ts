@@ -3,14 +3,19 @@ import type { TradeHistory } from "../../types"
 type SortField = keyof TradeHistory | 'holdingMinutes' | 'oiChangePercent' | 'estimatedVolumeEmaRatioPercent'
 const SORT_FIELDS: SortField[] = ['openTime', 'closeTime', 'holdingMinutes', 'entryPrice', 'exitPrice', 'pnl', 'pnlPercentage', 'quantity', 'leverage', 'oiChangePercent', 'estimatedVolumeEmaRatioPercent']
 
+/** 按真实时间差计算分钟数；缺失或异常时间不能作为零时长参与筛选和排序。 */
+function getHoldingMinutes(order: TradeHistory): number | undefined {
+  if (!Number.isFinite(order.openTime) || !Number.isFinite(order.closeTime)) return undefined
+  const duration = (order.closeTime - order.openTime) / 60000
+  return Number.isFinite(duration) && duration >= 0 ? duration : undefined
+}
+
 /**
  * 获取历史订单字段对应的可排序值，统一处理持仓时间和嵌套入场指标。
  */
 function getSortValue(order: TradeHistory, field: SortField): number | string | undefined {
   if (field === 'holdingMinutes') {
-    return order.closeTime && order.openTime
-      ? (order.closeTime - order.openTime) / 60000
-      : undefined
+    return getHoldingMinutes(order)
   }
 
   // OI 与预计量展示值保存在 entryIndicators 中，需要按页面展示口径读取。
@@ -42,7 +47,7 @@ function matchesRange(value: number | null | undefined, min?: number, max?: numb
 /** 仅返回当前页完整记录；筛选汇总始终覆盖全部匹配交易。 */
 export function queryTradeHistory(allHistory: TradeHistory[], query: Record<string, any>) {
   const filter: any = { ...query }
-  for (const key of ['pnlMin','pnlMax','scoreMin','scoreMax','confidenceMin','confidenceMax','oiMin','oiMax','estimatedVolumeMin','estimatedVolumeMax','openTimeMin','openTimeMax']) {
+  for (const key of ['pnlMin','pnlMax','scoreMin','scoreMax','confidenceMin','confidenceMax','oiMin','oiMax','estimatedVolumeMin','estimatedVolumeMax','openTimeMin','openTimeMax','holdingMinutesMin','holdingMinutesMax']) {
     filter[key] = query[key] === undefined || query[key] === '' ? undefined : Number(query[key])
     if (filter[key] !== undefined && !Number.isFinite(filter[key])) throw new Error(`无效筛选参数: ${key}`)
   }
@@ -77,12 +82,21 @@ export function queryTradeHistory(allHistory: TradeHistory[], query: Record<stri
   if (filter.openTimeMin != null && filter.openTimeMax != null && filter.openTimeMin > filter.openTimeMax) {
     throw new Error('开始时间不能晚于结束时间')
   }
+  if ((filter.holdingMinutesMin != null && filter.holdingMinutesMin < 0)
+    || (filter.holdingMinutesMax != null && filter.holdingMinutesMax < 0)) {
+    throw new Error('持仓时间不能小于 0 分钟')
+  }
+  if (filter.holdingMinutesMin != null && filter.holdingMinutesMax != null && filter.holdingMinutesMin > filter.holdingMinutesMax) {
+    throw new Error('持仓时间最小值不能大于最大值')
+  }
   const sort = { field: (query.sortField || 'closeTime') as SortField, direction: query.sortDirection === 'asc' ? 'asc' : 'desc' }
   if (!SORT_FIELDS.includes(sort.field)) throw new Error('无效排序字段')
   let result = [...allHistory]
 
   // 按开仓时间筛选全部记录，确保分页与盈亏、胜率汇总采用相同时间范围。
   result = result.filter(order => matchesRange(order.openTime, filter.openTimeMin, filter.openTimeMax))
+  // 使用未取整的实际分钟数，并在分页及统计前过滤，保证列表和汇总一致。
+  result = result.filter(order => matchesRange(getHoldingMinutes(order), filter.holdingMinutesMin, filter.holdingMinutesMax))
 
   // 筛选：交易对
   if (filter.symbol) {
