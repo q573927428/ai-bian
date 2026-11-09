@@ -5,6 +5,10 @@
 import { ColorType, CrosshairMode } from 'lightweight-charts'
 import type { SimpleKLineData } from '../../../../types/kline-simple'
 
+// 成交量统一使用55%不透明度，历史加载和实时更新保持一致，降低底部柱子的视觉干扰。
+export const VOLUME_UP_COLOR = 'rgba(38, 166, 154, 0.55)'
+export const VOLUME_DOWN_COLOR = 'rgba(239, 83, 80, 0.55)'
+
 /**
  * 根据时间查找K线数据
  * @param klineData K线数据数组
@@ -116,7 +120,7 @@ export function prepareVolumeData(klineData: SimpleKLineData[]) {
     return {
       time: item.t,
       value: volumeValue,
-      color: item.c >= item.o ? '#26a69a' : '#ef5350'
+      color: item.c >= item.o ? VOLUME_UP_COLOR : VOLUME_DOWN_COLOR
     }
   })
 }

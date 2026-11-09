@@ -47,6 +47,17 @@ interface HeatmapItem {
   icon: string
 }
 
+/** 仅描述保存树图视口所需的内部布局接口，隔离 ECharts 未公开的 getModel 类型。 */
+interface HeatmapLayoutReader {
+  getModel(): {
+    getSeriesByIndex(index: number): {
+      getData(): {
+        tree?: { root: { getLayout(): { x: number; y: number; width: number; height: number } } }
+      }
+    } | undefined
+  }
+}
+
 const props = defineProps<{
   items: HeatmapItem[]
   /** 只定位匹配项，不改变树图数据和各代币的相对面积。 */
@@ -62,8 +73,11 @@ const props = defineProps<{
 const emit = defineEmits<{ select: [symbol: string] }>()
 const chartElement = ref<HTMLElement | null>(null)
 const { theme } = useTheme()
+// 普通边框和分隔缝共用主题色，避免组级与区块级颜色不一致。
+const separatorColor = computed(() => theme.value === 'dark' ? '#14181e' : '#e4e7ed')
 let chart: ECharts | undefined
 let resizeObserver: ResizeObserver | undefined
+let hoveredGroup = ''
 const focusedGroup = ref('')
 let viewRect: { x: number; y: number; width: number; height: number } | undefined
 const searchIndex = ref(0)
@@ -74,6 +88,15 @@ const searchMatches = computed(() => props.items
     || a.symbol.localeCompare(b.symbol)))
 const activeSearchSymbol = computed(() => searchMatches.value[searchIndex.value]?.symbol ?? '')
 let searchTimer: ReturnType<typeof setTimeout> | undefined
+let locallySelectedSymbol = ''
+
+/** 图内点击只切换 K 线，标记本轮选择来源，避免父组件回传选中项时触发定位。 */
+function selectSymbol(symbol: string) {
+  locallySelectedSymbol = symbol
+  emit('select', symbol)
+  // 等父组件和选中监听处理完再清理；重复点击当前币种也不会留下过期标记。
+  void nextTick(() => { locallySelectedSymbol = '' })
+}
 
 /** 多个匹配逐个定位，搜索本身不会切换上方 K 线。 */
 function stepSearch(direction: number) {
@@ -95,10 +118,8 @@ async function locateSymbol(symbol: string) {
   resetZoom()
   if (!symbol) return
   chart.dispatchAction({ type: 'treemapZoomToNode', seriesId: 'price-heatmap', targetNodeId: symbol })
-  // 原生定位事件不带 rootRect，从布局中保存最终矩形，供后续重绘恢复。
-  const data = chart.getModel().getSeriesByIndex(0)?.getData() as unknown as {
-    tree?: { root: { getLayout: () => NonNullable<typeof viewRect> } }
-  }
+  // 原生定位事件不带 rootRect，仍需读取内部布局；用最小接口隔离私有 API，供重绘恢复视口。
+  const data = (chart as unknown as HeatmapLayoutReader).getModel().getSeriesByIndex(0)?.getData()
   const rect = data?.tree?.root.getLayout()
   if (rect) {
     viewRect = clampViewRect({ x: rect.x, y: rect.y, width: rect.width, height: rect.height })
@@ -106,10 +127,10 @@ async function locateSymbol(symbol: string) {
   }
 }
 
-// 仅选择或目标重新进入结果集时定位，避免价格刷新打断用户的拖动和缩放。
+// 仅外部选择或目标重新进入结果集时定位，图内点击保留当前视口。
 watch([() => props.selectedSymbol, () => props.items.some(item => item.symbol === props.selectedSymbol)],
   ([symbol, available]) => {
-    if (symbol && available) void locateSymbol(symbol)
+    if (symbol && available && symbol !== locallySelectedSymbol) void locateSymbol(symbol)
   }, { flush: 'post' })
 
 watch(() => props.searchQuery, () => { searchIndex.value = 0 }, { flush: 'sync' })
@@ -145,8 +166,22 @@ function constrainRoam(params: unknown) {
 
 /** 再次点击当前分组标题返回全部资产，不额外占用顶部按钮空间。 */
 function focusGroup(group: string) {
+  highlightGroup('')
   focusedGroup.value = focusedGroup.value === group ? '' : group
   viewRect = undefined
+}
+
+/** 子区块的原生悬停不会传递给父板块，联动父节点的边框和标题底层背景。 */
+function highlightGroup(group: string) {
+  if (!chart || group === hoveredGroup) return
+  if (hoveredGroup) {
+    chart.dispatchAction({ type: 'downplay', seriesId: 'price-heatmap', name: hoveredGroup, highlightKey: 'heatmap-group-hover' })
+  }
+  hoveredGroup = group
+  if (group) {
+    // 使用独立的高亮来源，避免移出代币时的原生 downplay 提前清除父板块高亮。
+    chart.dispatchAction({ type: 'highlight', seriesId: 'price-heatmap', name: group, highlightKey: 'heatmap-group-hover' })
+  }
 }
 
 /** 按当前视口中心缩放，沿用滚轮/拖动产生的矩形，避免按钮与滚轮缩放互相跳变。 */
@@ -285,12 +320,13 @@ const chartData = computed(() => {
     const isSelected = item.symbol === props.selectedSymbol
     const isSearchMatch = Boolean(props.searchQuery && item.symbol.includes(props.searchQuery))
     const borderColor = item.symbol === activeSearchSymbol.value ? '#ffd666'
-      : isSearchMatch ? '#ffffff' : isSelected ? '#66b1ff' : '#050505'
+      : isSearchMatch ? '#ffffff' : isSelected ? '#66b1ff' : separatorColor.value
     if (!groups.has(item.group)) groups.set(item.group, [])
     groups.get(item.group)!.push({
       id: item.symbol,
       name: item.name,
       symbol: item.symbol,
+      group: item.group,
       value,
       // 保留完整原文，布局阶段依据区块实际宽高决定每一行是否完整显示。
       heatmapLabel: {
@@ -301,14 +337,15 @@ const chartData = computed(() => {
       itemStyle: {
         color: changeColor(item.change),
         borderColor,
+        // 分隔线由代币自身绘制，避免父板块高亮背景透过间隙；相邻各半像素组成 1px 分隔线。
         // 当前交易对用持续的粗蓝框标记，保留涨跌底色；搜索命中仍沿用黄/白色。
-        borderWidth: isSelected ? 3 : isSearchMatch ? 2 : 0.5
+        borderWidth: isSelected ? 3 : isSearchMatch ? 2 : 0.2
       },
-      // 悬停不能把选中交易对的粗边框覆盖为全局的细边框。
+      // 悬停保持内部边框不变，普通分隔线只跟随主题；选中和搜索标记继续保留。
       emphasis: {
         itemStyle: {
-          borderColor: isSelected || isSearchMatch ? borderColor : '#a3d0ff',
-          borderWidth: isSelected ? 3 : isSearchMatch ? 2 : 1
+          borderColor,
+          borderWidth: isSelected ? 3 : isSearchMatch ? 2 : 0.2
         }
       },
       label: {
@@ -372,7 +409,8 @@ function renderChart() {
       top: 0, left: 0, right: 0, bottom: 0,
       roam: true,
       scaleLimit: { min: 1, max: 8 },
-      zoomToNodeRatio: 0.15,
+      // 定位时让目标占约 3% 的视口面积，保留更多周边代币供对照。
+      zoomToNodeRatio: 0.03,
       // 缩放仅改变视口，不因放大而重新增删小格，保持整体布局一致。
       visibleMin: 0,
       childrenVisibleMin: 0,
@@ -387,16 +425,21 @@ function renderChart() {
         return { dy: visibleHeight ? Math.max(0, (available - visibleHeight) / 2) : 0 }
       },
       upperLabel: { show: true, height: 18, color: dark ? '#e5e7eb' : '#303133', fontSize: 11 },
-      itemStyle: { borderColor: dark ? '#14181e' : '#e4e7ed', borderWidth: 2, gapWidth: 1 },
-      emphasis: { itemStyle: { borderColor: '#a3d0ff', borderWidth: 0.5 } },
+      itemStyle: { borderColor: separatorColor.value, borderWidth: 2, gapWidth: 1 },
+      emphasis: { itemStyle: { borderColor: '#a3d0ff', borderWidth: 1 } },
       levels: [
         // 根节点只负责排列资产分组，不展示无名称的父级标题栏。
         { itemStyle: { gapWidth: 4 }, upperLabel: { show: false } },
         {
-          // 小格之间仅用细边框分隔，不再额外增加布局间距。
-          itemStyle: { color: dark ? '#1c2026' : '#f2f3f5', gapWidth: 0 },
-          upperLabel: { show: true },
-          emphasis: { itemStyle: { color: dark ? '#123c76' : '#245bb4' }, upperLabel: { color: '#fff' } }
+          // 树图的父节点背景同时承载外框和标题栏；标题文本背景透明，避免覆盖高亮后留下深色横条。
+          // 关闭子区块间隙，内部改用代币边框分隔，只让板块外框和标题露出高亮背景。
+          itemStyle: { color: dark ? '#1c2026' : '#f2f3f5', borderColor: separatorColor.value, gapWidth: 0 },
+          upperLabel: { show: true, padding: [0, 0, 0, 6], backgroundColor: 'transparent' },
+          emphasis: {
+            itemStyle: { borderColor: '#a3d0ff' },
+            // 高亮底色为浅蓝，标题使用深色文字以保持可读性；显式透明也清除合并更新遗留的旧背景。
+            upperLabel: { color: '#172b4d', backgroundColor: 'transparent' }
+          }
         },
         { upperLabel: { show: false } }
       ]
@@ -418,9 +461,18 @@ onMounted(() => {
   loadRoundedIcons()
   if (!chartElement.value) return
   chart = init(chartElement.value)
+  chart.on('mouseover', (params) => {
+    const data = params.data as { group?: string; name?: string; children?: unknown[] } | undefined
+    highlightGroup(data?.group ?? (data?.children ? data.name ?? '' : ''))
+  })
+  // 标题、代币和分隔缝之间移动时保持所属板块高亮，离开画布或进入空白后恢复。
+  chart.getZr().on('mousemove', (event) => {
+    if (!event.target) highlightGroup('')
+  })
+  chart.getZr().on('globalout', () => { highlightGroup('') })
   chart.on('click', (params) => {
     const data = params.data as { symbol?: string; name?: string; children?: unknown[] } | undefined
-    if (data?.symbol) emit('select', data.symbol)
+    if (data?.symbol) selectSymbol(data.symbol)
     else if (data?.children && data.name) focusGroup(data.name)
   })
   chart.on('treemaprender', constrainRoam)

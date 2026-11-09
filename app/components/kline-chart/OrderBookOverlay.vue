@@ -1,8 +1,8 @@
 <!-- ==================== 价格轴左侧实时盘口挂单条 ==================== -->
 <template>
   <template v-if="!historical && symbol">
-    <button class="depth-toggle" type="button" :aria-pressed="enabled" @click="enabled = !enabled">
-      {{ enabled ? '隐藏盘口' : '盘口挂单' }}
+    <button class="depth-toggle" type="button" :aria-pressed="enabled" @click="$emit('toggle')">
+      {{ enabled ? '隐藏盘口挂单' : '盘口挂单' }}
     </button>
     <span v-if="enabled" class="depth-status" :class="{ live: geometry, 'depth-capacity': connectionStatus === 'capacity' }" :title="connectionStatus === 'capacity' ? '最多同时观察 3 个交易对，关闭其他盘口后重试' : description">
       {{ connectionStatus === 'capacity' ? '' : '盘口 · ' }}{{ statusLabel }}{{ geometry?.partial ? ' · 部分覆盖' : '' }}
@@ -23,10 +23,10 @@
 import { computed, onBeforeUnmount, onMounted, shallowRef, watch } from 'vue'
 import type { IChartApi, ISeriesApi } from 'lightweight-charts'
 import type { OrderBookSnapshot } from '../../../types/order-book'
-import { useChartOverlayPreference } from '../../composables/useChartOverlayPreference'
 
 /** 图层只观察当前盘口；历史复盘禁止叠加今天的挂单。 */
 interface Props {
+  enabled: boolean
   symbol?: string
   historical?: boolean
   loading?: boolean
@@ -54,7 +54,8 @@ interface Geometry {
   bars: Bar[]
 }
 const props = defineProps<Props>()
-const enabled = useChartOverlayPreference('chart-order-book-enabled', false)
+defineEmits<{ toggle: [] }>()
+const enabled = computed(() => props.enabled)
 const snapshot = shallowRef<OrderBookSnapshot | null>(null)
 const connectionStatus = shallowRef('syncing')
 const geometry = shallowRef<Geometry | null>(null)

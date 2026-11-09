@@ -14,6 +14,28 @@ interface HeatmapLabelItem {
   label?: { formatter?: string; rich?: Record<string, Record<string, unknown>> }
 }
 
+/** 树图节点使用相对父节点的矩形；对齐时需要保留父节点的原始坐标。 */
+interface HeatmapLayoutNode {
+  children: HeatmapLayoutNode[]
+  getLayout(): { x: number; y: number; width: number; height: number } | undefined
+}
+
+/** 对齐绝对边缘再换回相对坐标，避免小数像素使同色的 1px 分隔缝显得深浅不一。 */
+function alignHeatmapEdges(node: HeatmapLayoutNode, parentX = 0, parentY = 0, alignedParentX = 0, alignedParentY = 0) {
+  const layout = node.getLayout()
+  if (!layout) return
+  const x = parentX + layout.x
+  const y = parentY + layout.y
+  const alignedX = Math.round(x)
+  const alignedY = Math.round(y)
+  // 按左右、上下两条边分别取整，保持相邻格子共用的 1px 间距，不能单独取整宽高。
+  layout.width = Math.max(0, Math.round(x + layout.width) - alignedX)
+  layout.height = Math.max(0, Math.round(y + layout.height) - alignedY)
+  layout.x = alignedX - alignedParentX
+  layout.y = alignedY - alignedParentY
+  for (const child of node.children) alignHeatmapEdges(child, x, y, alignedX, alignedY)
+}
+
 /** 按完整内容、中等内容和仅图标三档分配尺寸；宽或高不足时隐藏整行。 */
 export function fitHeatmapLabel(content: HeatmapLabelContent, width: number, height: number, fontFamily = 'sans-serif'): string {
   const availableWidth = Math.max(0, width - 4)
@@ -63,6 +85,9 @@ export function installPriceHeatmapLabels() {
     reset(seriesModel, ecModel) {
       if (seriesModel.id !== 'price-heatmap') return
       const data = seriesModel.getData()
+      // 在原生布局后统一处理，覆盖搜索定位、滚轮缩放、拖动和窗口调整。
+      const tree = (data as typeof data & { tree?: { root: HeatmapLayoutNode } }).tree
+      if (tree) alignHeatmapEdges(tree.root)
       const fontFamily = ecModel.option.textStyle?.fontFamily || 'sans-serif'
       data.each(index => {
         const item = data.getRawDataItem(index) as HeatmapLabelItem | undefined

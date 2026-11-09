@@ -3,7 +3,8 @@
     <div ref="chartContainer" class="kline-chart" :title="pinnedCrosshair ? '光标已锁定，再次点击图表解除锁定' : '点击图表锁定光标，再次点击解除锁定'"></div>
     <SupportResistanceOverlay :symbol="symbol" :timeframe="timeframe" :klines="klineData" :loading="loading || !!error" :historical-order="historicalOrder" :get-chart="() => chart" :get-series="() => candlestickSeries" />
     <PositionRiskOverlay :symbol="symbol" :historical-order="historicalOrder" :klines="klineData" :loading="loading || !!error" :get-chart="() => chart" :get-series="() => candlestickSeries" />
-    <OrderBookOverlay :symbol="symbol" :historical="!!historicalOrder" :loading="loading || !!error" :get-chart="() => chart" :get-series="() => candlestickSeries" />
+    <OrderBookOverlay :enabled="orderBookEnabled" :symbol="symbol" :historical="!!historicalOrder" :loading="loading || !!error" :get-chart="() => chart" :get-series="() => candlestickSeries" @toggle="orderBookEnabled = !orderBookEnabled" />
+    <VolumeProfileOverlay :enabled="volumeProfileEnabled" :symbol="symbol" :timeframe="timeframe" :klines="klineData" :loading="loading || !!error" :get-chart="() => chart" :get-series="() => candlestickSeries" @toggle="volumeProfileEnabled = !volumeProfileEnabled" />
 
     <!-- 加载状态 -->
     <div v-if="loading" class="chart-loading">
@@ -32,6 +33,8 @@
 import PositionRiskOverlay from './PositionRiskOverlay.vue'
 import SupportResistanceOverlay from './SupportResistanceOverlay.vue'
 import OrderBookOverlay from './OrderBookOverlay.vue'
+import VolumeProfileOverlay from './VolumeProfileOverlay.vue'
+import { useChartOverlayPreference } from '../../composables/useChartOverlayPreference'
 import { useChartPosition } from '../../composables/usePositionChart'
 import { ref, onMounted, onUnmounted, watch, nextTick, computed } from 'vue'
 import { createChart, ColorType, CandlestickSeries, HistogramSeries, LineSeries, createSeriesMarkers } from 'lightweight-charts'
@@ -53,7 +56,7 @@ import {
 import { calculateRSISeries } from '../../utils/rsi-calculator'
 import { calculateADXSeries } from '../../utils/adx-calculator'
 import { calculateErChartMetricsSeries } from '../../utils/er-chart-series'
-import { prepareCandlestickData, prepareVolumeData, getChartOptions, getPricePrecision } from './utils/kline-helpers'
+import { prepareCandlestickData, prepareVolumeData, getChartOptions, getPricePrecision, VOLUME_UP_COLOR, VOLUME_DOWN_COLOR } from './utils/kline-helpers'
 import { useBotStore } from '../../stores/bot'
 
 // 定义props
@@ -94,6 +97,11 @@ const props = withDefaults(defineProps<Props>(), {
 
 // 使用Pinia store获取配置
 const botStore = useBotStore()
+const orderBookEnabled = useChartOverlayPreference('chart-order-book-enabled', false)
+const volumeProfileEnabled = useChartOverlayPreference('chart-volume-profile-enabled', false)
+// 两种分布共用价格轴左侧空间，互斥切换也能让盘口组件立即释放实时连接。
+watch(orderBookEnabled, value => { if (value) volumeProfileEnabled.value = false }, { flush: 'sync' })
+watch(volumeProfileEnabled, value => { if (value) orderBookEnabled.value = false }, { flush: 'sync' })
 const selectedRiskPosition = useChartPosition(() => props.symbol)
 
 // 计算EMA周期 - 优先使用props.emaPeriods，否则从配置获取
@@ -744,7 +752,7 @@ const initChart = () => {
   
   // 添加成交量系列
   volumeSeries = chart.addSeries(HistogramSeries, {
-    color: '#26a69a',
+    color: VOLUME_UP_COLOR,
     priceFormat: { type: 'volume' },
     priceScaleId: ''
   })
@@ -938,7 +946,7 @@ const updateLastKline = (updatedKline: SimpleKLineData) => {
     const volumeData = {
       time: updatedKline.t,
       value: updatedKline.v || 0,
-      color: updatedKline.c >= updatedKline.o ? '#26a69a' : '#ef5350'
+      color: updatedKline.c >= updatedKline.o ? VOLUME_UP_COLOR : VOLUME_DOWN_COLOR
     }
     volumeSeries.update(volumeData)
 
@@ -1018,7 +1026,7 @@ const appendNewKline = (newKline: SimpleKLineData) => {
     const volumeData = {
       time: newKline.t,
       value: newKline.v || 0,
-      color: newKline.c >= newKline.o ? '#26a69a' : '#ef5350'
+      color: newKline.c >= newKline.o ? VOLUME_UP_COLOR : VOLUME_DOWN_COLOR
     }
     volumeSeries.update(volumeData)
 

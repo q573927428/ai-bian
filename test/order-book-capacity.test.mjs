@@ -8,11 +8,10 @@ import ts from 'typescript'
 test('满额事件关闭 EventSource，迟到错误不覆盖提示；手动重试只新建一次连接', async () => {
   const sockets = []
   const fixture = {
-    props: { symbol: 'BTC/USDT', historical: false },
+    props: { enabled: true, symbol: 'BTC/USDT', historical: false },
     computed: fn => ({ get value() { return fn() } }),
     shallowRef: value => ({ value }),
     onBeforeUnmount() {}, onMounted() {}, watch() {},
-    useChartOverlayPreference: () => ({ value: true }),
     // 模拟具名事件和关闭动作，不访问服务器或币安。
     EventSource: class {
       handlers = {}
@@ -25,8 +24,8 @@ test('满额事件关闭 EventSource，迟到错误不覆盖提示；手动重�
   const file = readFileSync(new URL('../app/components/kline-chart/OrderBookOverlay.vue', import.meta.url), 'utf8')
   let source = file.match(/<script setup lang="ts">([\s\S]*?)<\/script>/)[1]
     .replace(/import \{[^}]+\} from 'vue'/, 'const {computed,onBeforeUnmount,onMounted,shallowRef,watch} = globalThis.__capacityFixture')
-    .replace(/import \{ useChartOverlayPreference \} from '[^']+'/, 'const {useChartOverlayPreference} = globalThis.__capacityFixture')
     .replace('const props = defineProps<Props>()', 'const props = globalThis.__capacityFixture.props')
+    .replace('defineEmits<{ toggle: [] }>()', '')
     .replace('new EventSource(', 'new globalThis.__capacityFixture.EventSource(')
   source += '\nexport function start() { mounted = true; reconnect() }\nexport { reconnect, connectionStatus, statusLabel };'
   globalThis.__capacityFixture = fixture
@@ -50,5 +49,9 @@ test('满额事件关闭 EventSource，迟到错误不覆盖提示；手动重�
     sockets[1].onerror()
     assert.equal(component.connectionStatus.value, 'disconnected')
     assert.equal(sockets[1].closed, false, '普通网络错误保留浏览器自动恢复')
+    fixture.props.enabled = false
+    component.reconnect()
+    assert.equal(sockets[1].closed, true, '切换成交分布后关闭盘口连接')
+    assert.equal(sockets.length, 2, '隐藏盘口期间不得重新连接')
   } finally { delete globalThis.__capacityFixture }
 })
