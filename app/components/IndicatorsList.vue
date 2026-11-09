@@ -89,12 +89,12 @@
         <div class="numeric-filter-item" role="group" aria-label="支撑阻力试算参数">
           <span class="numeric-filter-label">支撑阻力</span>
           <div class="structure-controls">
-            <label>左
+            <label>
               <el-select v-model="structurePreview.pivotLeft" size="small" aria-label="支撑阻力左侧确认根数">
                 <el-option v-for="count in 10" :key="count" :label="`${count} 根`" :value="count" />
               </el-select>
             </label>
-            <label>右
+            <label>
               <el-select v-model="structurePreview.pivotRight" size="small" aria-label="支撑阻力右侧确认根数">
                 <el-option v-for="count in 10" :key="count" :label="`${count} 根`" :value="count" />
               </el-select>
@@ -1095,7 +1095,7 @@ onUnmounted(() => {
 .market-counts > span { white-space: nowrap; }
 .structure-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .structure-controls label { display: flex; align-items: center; gap: 6px; }
-.structure-controls :deep(.el-select) { width: 62px; }
+.structure-controls :deep(.el-select) { width: 56px; }
 /* 与订单筛选共用面板底色和边框，避免浅填充色在深色主题下显得过亮。 */
 .numeric-filters {
   flex-shrink: 0;
@@ -1111,7 +1111,7 @@ onUnmounted(() => {
 }
 .numeric-filter-header, .numeric-filter-actions { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .numeric-filter-header { margin-bottom: 8px; flex-wrap: wrap; }
-.numeric-filter-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr)); gap: 8px 28px; align-items: start; }
+.numeric-filter-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(120px, 100%), 1fr)); gap: 8px 5px; align-items: start; }
 .numeric-filter-item { min-width: 0; }
 .numeric-filter-label { display: block; margin-bottom: 4px; font-size: 13px; line-height: 18px; color: var(--text-regular); }
 .numeric-filter-item > :deep(.el-select) { width: 80%; }
