@@ -1,22 +1,40 @@
 <!-- ==================== 热门及持续放量交易对榜单 ==================== -->
 <template>
   <component
-    :is="selectable ? ElDialog : ElDrawer"
-    v-model="visible"
-    :title="dialogTitle"
-    v-bind="selectable
-      ? { width: '66%', fullscreen: isMobile, top: '22vh', draggable: true }
-      : { direction: 'rtl', size: isMobile ? '100%' : '75%' }"
-    append-to-body
+    :is="embedded ? 'section' : selectable ? ElDialog : ElDrawer"
+    v-bind="embedded ? {} : {
+      modelValue: visible,
+      title: dialogTitle,
+      appendToBody: true,
+      ...(selectable
+        ? { width: '66%', fullscreen: isMobile, top: '22vh', draggable: true }
+        : { direction: 'rtl', size: isMobile ? '100%' : '75%' })
+    }"
+    @update:model-value="visible = $event"
   >
-    <div class="top-symbols-container" :class="{ 'top-symbols-container-drawer': !selectable }">
+    <div class="top-symbols-container" :class="{ 'top-symbols-container-drawer': !selectable, 'top-symbols-container-page': embedded }">
       <!-- 模式切换与工具栏 -->
       <div class="top-symbols-toolbar">
-        <el-radio-group v-model="mode" size="small" @change="handleModeChange">
+        <el-radio-group v-model="mode" class="mode-switch" size="small" aria-label="榜单模式" @change="handleModeChange">
           <el-radio-button value="hot">🔥 24h 热门</el-radio-button>
           <el-radio-button value="stable">📈 持续放量</el-radio-button>
           <el-radio-button value="configured">📋 配置列表</el-radio-button>
         </el-radio-group>
+        <div class="market-filters">
+          <el-radio-group v-model="assetType" size="small" aria-label="资产类型">
+            <el-radio-button value="all">全部</el-radio-button>
+            <el-radio-button value="crypto">加密货币</el-radio-button>
+            <el-radio-button value="tradfi">股票 T</el-radio-button>
+          </el-radio-group>
+          <el-input v-model="search" size="small" placeholder="交易对" clearable aria-label="搜索交易对" class="symbol-search">
+            <template #prefix>
+              <el-icon><ElIconSearch /></el-icon>
+            </template>
+          </el-input>
+          <span v-if="mode === 'stable' && updatedAt" class="data-updated-at">
+            数据更新于 {{ new Date(updatedAt).toLocaleString('zh-CN') }}
+          </span>
+        </div>
         <div class="toolbar-actions">
           <el-button type="primary" size="small" :loading="loading" @click="fetchData">
             <el-icon><ElIconRefresh /></el-icon>
@@ -35,12 +53,16 @@
         </div>
       </div>
 
-      <div v-if="mode === 'stable' && updatedAt" class="data-updated-at">
-        数据更新于 {{ new Date(updatedAt).toLocaleString('zh-CN') }}
-      </div>
-
       <div v-if="selectable && mode === 'hot'" class="toolbar-hint">
         勾选交易对后点击底部"添加选中到列表"可批量添加
+      </div>
+
+      <div v-if="mode === 'stable' && loading && !showingCachedResult" class="stable-progress" role="status" aria-live="polite">
+        <div class="progress-caption">
+          <span>{{ progressText }}</span>
+          <span class="progress-note">首次加载需获取日线，币安限流时可能需要较长时间</span>
+        </div>
+        <el-progress :percentage="progressPercent" :indeterminate="!progress || progress.stage === 'preparing' || progress.stage === 'failed'" :stroke-width="6" />
       </div>
 
       <!-- 持续放量模式参数设置 -->
@@ -69,7 +91,7 @@
           <div class="param-item">
             <label>日均成交额下限 (万USDT)</label>
             <el-input-number v-model="minDailyWan" :min="0" :step="1000" size="small" controls-position="right" />
-            <span class="param-desc">窗口日均成交额及活跃日的单日成交额须 ≥ 此值</span>
+            <span class="param-desc">日均及活跃日单日成交额须 ≥ 此值</span>
           </div>
           <div class="param-item">
             <label>活跃天数比例 (%)</label>
@@ -110,8 +132,8 @@
 
       <el-table
         ref="tableRef"
-        v-loading="loading"
-        :data="sortedData"
+        v-loading="loading && !showingCachedResult"
+        :data="pagedData"
         stripe
         row-key="symbol"
         style="width: 100%"
@@ -123,7 +145,7 @@
         :key="tableKey"
       >
         <el-table-column v-if="selectable" type="selection" width="40" reserve-selection />
-        <el-table-column type="index" label="#" width="50" />
+        <el-table-column type="index" :index="rowIndex" label="#" width="60" />
 
         <el-table-column
           prop="symbol"
@@ -144,7 +166,7 @@
                 class="crypto-icon-placeholder"
                 :style="{ backgroundColor: getRandomColor(getSymbolDisplay(row.symbol)) }"
               >{{ getSymbolDisplay(row.symbol).substring(0, 1).toUpperCase() }}</span>
-              <el-link type="primary" :underline="false" :style="{ cursor: selectable ? 'pointer' : 'default' }" @click.stop="selectable && toggleRowSelection(row)">
+              <el-link type="primary" underline="never" :style="{ cursor: selectable ? 'pointer' : 'default' }" @click.stop="selectable && toggleRowSelection(row)">
                 {{ row.symbol.replace('USDT', '/USDT') }}
               </el-link>
               <el-tag v-if="row.contractType === 'TRADIFI_PERPETUAL'" size="small" type="warning" effect="plain">T</el-tag>
@@ -283,6 +305,18 @@
         </el-table-column>
       </el-table>
 
+      <el-pagination
+        v-if="embedded && sortedData.length > 0"
+        v-model:current-page="currentPage"
+        v-model:page-size="pageSize"
+        :page-sizes="[20, 50, 100, 200]"
+        :total="sortedData.length"
+        :pager-count="isMobile ? 5 : 7"
+        :layout="isMobile ? 'prev, pager, next' : 'total, sizes, prev, pager, next, jumper'"
+        class="market-pagination"
+        background
+      />
+
       <!-- 多选操作栏 -->
       <div v-if="selectable" class="selection-actions">
         <span class="selection-count">已选 {{ selectedRows.length }} 个</span>
@@ -299,7 +333,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onBeforeUnmount } from 'vue'
 import { ElDialog, ElDrawer } from 'element-plus'
 import { useCoinIcon } from '../composables/useCoinIcon'
 
@@ -341,23 +375,41 @@ interface FilterParams {
   segmentRatio: number
 }
 
+/** 服务端返回的持续放量计算进度，按实际完成候选数量展示。 */
+interface StableProgress {
+  stage: 'preparing' | 'analyzing' | 'funding' | 'completed' | 'failed'
+  completed: number
+  total: number
+}
+
+/** 榜单响应；客户端只保存成功的持续放量结果，不缓存降级热门行情。 */
+interface TopSymbolsResponse {
+  success: boolean
+  mode?: string
+  message?: string
+  updatedAt?: number
+  params?: FilterParams
+  data: TopSymbol[]
+}
+
 /** 与服务端 FILTER_DEFAULTS 保持一致的默认值 */
 const DEFAULT_FILTER_PARAMS: FilterParams = {
   days: 30,
-  minDataRatio: 0.8,
+  minDataRatio: 0.6,
   pool: 150,
-  top: 50,
-  minDaily: 50_000_000,
+  top: 80,
+  minDaily: 20_000_000,
   activeDaysRatio: 0.8,
   minRatio: 0.02,
   cvMax: 1.0,
   segmentRatio: 0.2,
 }
 
-/** 榜单弹窗参数；selectable 仅在配置表单添加交易对时启用。 */
+/** 榜单展示参数；embedded 用于独立分页页面，selectable 用于配置表单批量添加。 */
 interface Props {
   modelValue: boolean
   selectable?: boolean
+  embedded?: boolean
 }
 
 /** 配置表单通过 select 接收选中的交易对。 */
@@ -366,7 +418,7 @@ interface Emits {
   (e: 'select', symbols: string[]): void
 }
 
-const props = withDefaults(defineProps<Props>(), { selectable: true })
+const props = withDefaults(defineProps<Props>(), { selectable: true, embedded: false })
 const emit = defineEmits<Emits>()
 
 const visible = computed({
@@ -375,7 +427,59 @@ const visible = computed({
 })
 
 const loading = ref(false)
+const showingCachedResult = ref(false)
+// 跨页面保留最近 20 组结果；再次打开先展示旧结果和原更新时间，再向服务端核对。
+const stableResults = useState<Record<string, TopSymbolsResponse>>('stable-symbol-results', () => ({}))
+// 快速切换榜单时，仅允许最后一次请求更新页面，避免旧响应覆盖当前模式。
+let requestId = 0
+const progress = ref<StableProgress | null>(null)
+let progressTimer: ReturnType<typeof setTimeout> | undefined
+let progressController: AbortController | undefined
+const progressPercent = computed(() => {
+  if (!progress.value) return 0
+  if (progress.value.stage === 'completed') return 100
+  if (progress.value.stage === 'funding') return 95
+  return progress.value.total > 0 ? Math.round(progress.value.completed / progress.value.total * 95) : 0
+})
+const progressText = computed(() => {
+  const state = progress.value
+  if (!state || state.stage === 'preparing') return '正在准备市场行情…'
+  if (state.stage === 'analyzing') return `正在分析日线：已处理 ${state.completed} / ${state.total} 个交易对`
+  if (state.stage === 'funding') return '交易对分析完成，正在获取资金费率并汇总结果…'
+  if (state.stage === 'failed') return '持续放量计算失败，正在加载备用行情…'
+  return '分析完成，正在展示结果…'
+})
+
+/** 切换模式、请求结束或离开页面时停止轮询，避免后台遗留请求。 */
+function stopProgressPolling() {
+  clearTimeout(progressTimer)
+  progressController?.abort()
+  progressController = undefined
+}
+
+/** 串行轮询真实进度；失败不影响主行情请求，也不自动发起新的计算。 */
+function startProgressPolling(query: Record<string, string | number | undefined>, currentRequest: number) {
+  const controller = new AbortController()
+  progressController = controller
+  const poll = async () => {
+    if (controller.signal.aborted || currentRequest !== requestId) return
+    try {
+      const response = await $fetch<{ success: boolean; progress: StableProgress | null }>('/api/binance/top-symbols', {
+        query: { ...query, progress: '1' }, signal: controller.signal, timeout: 5000, retry: 0,
+      })
+      if (!controller.signal.aborted && currentRequest === requestId && response.progress) progress.value = response.progress
+    } catch {
+      // 暂时读取不到进度时保留已知计数，继续等待主请求。
+    }
+    if (!controller.signal.aborted && currentRequest === requestId) progressTimer = setTimeout(poll, 1000)
+  }
+  progressTimer = setTimeout(poll, 500)
+}
 const data = ref<TopSymbol[]>([])
+const assetType = ref<'all' | 'crypto' | 'tradfi'>('all')
+const search = ref('')
+const currentPage = ref(1)
+const pageSize = ref(20)
 const mode = ref<Mode>('hot')
 const message = ref('')
 const updatedAt = ref<number | null>(null)
@@ -401,7 +505,7 @@ function isConfiguredSymbol(symbol: string): boolean {
 async function fetchConfiguredSymbols() {
   configuredSymbols.value = null
   try {
-    const res = await $fetch<{ success: boolean; data?: { symbols?: string[] } }>('/api/market/config')
+    const res = await $fetch<{ success: boolean; data?: { symbols?: string[] } }>('/api/market/config', { timeout: 10000, retry: 0 })
     if (res.success && Array.isArray(res.data?.symbols)) {
       configuredSymbols.value = new Set(res.data.symbols.map(normalizeSymbol))
     }
@@ -437,7 +541,7 @@ const minDailyWan = computed({
 // 数据覆盖比例独立于活跃天数比例，允许调整上市时长要求。
 const dataCoveragePercent = computed({
   get: () => Math.round(filterParams.value.minDataRatio * 100),
-  set: (val: number) => { filterParams.value.minDataRatio = (val ?? 80) / 100 }
+  set: (val: number) => { filterParams.value.minDataRatio = (val ?? DEFAULT_FILTER_PARAMS.minDataRatio * 100) / 100 }
 })
 
 // 前端以百分数输入，接口统一使用 0–1 的比例。
@@ -450,7 +554,7 @@ const isMobile = computed(() => windowWidth.value < 768)
 
 const dialogTitle = computed(() =>
   mode.value === 'configured' ? `📋 配置列表（${data.value.length}）`
-    : mode.value === 'stable' ? '📈 持续放量交易对 Top' + filterParams.value.top : '🔥 热门交易对 Top 200'
+    : mode.value === 'stable' ? '📈 持续放量交易对 Top' + filterParams.value.top : '🔥 热门交易对 · 全部'
 )
 
 const defaultSort = computed<{ prop: string; order: 'ascending' | 'descending' }>(() =>
@@ -463,6 +567,7 @@ const defaultSort = computed<{ prop: string; order: 'ascending' | 'descending' }
 const tableKey = computed(() => `${mode.value}-${sortProp.value}-${sortOrder.value}`)
 
 const handleModeChange = () => {
+  data.value = []
   message.value = ''
   updatedAt.value = null
   showFilterParams.value = false
@@ -489,10 +594,20 @@ const handleResize = () => {
 if (typeof window !== 'undefined') {
   window.addEventListener('resize', handleResize)
 }
+onBeforeUnmount(() => {
+  requestId++
+  stopProgressPolling()
+  if (typeof window !== 'undefined') window.removeEventListener('resize', handleResize)
+})
 
 // 排序处理
 const sortedData = computed(() => {
-  const arr = [...data.value]
+  const keyword = normalizeSymbol(search.value)
+  // 使用官方合约类型区分 T 合约；未知类型不归入加密货币，避免误分类。
+  const arr = data.value.filter(row =>
+    (assetType.value === 'all' || row.contractType === (assetType.value === 'tradfi' ? 'TRADIFI_PERPETUAL' : 'PERPETUAL')) &&
+    (!keyword || normalizeSymbol(row.symbol).includes(keyword))
+  )
   arr.sort((a, b) => {
     let aVal = a[sortProp.value as keyof TopSymbol] as number
     let bVal = b[sortProp.value as keyof TopSymbol] as number
@@ -506,6 +621,20 @@ const sortedData = computed(() => {
     return sortOrder.value === 'descending' ? bVal - aVal : aVal - bVal
   })
   return arr
+})
+
+// 先对全部结果筛选和排序，再截取当前页，保证跨页排序正确。
+const pagedData = computed(() => props.embedded
+  ? sortedData.value.slice((currentPage.value - 1) * pageSize.value, currentPage.value * pageSize.value)
+  : sortedData.value)
+
+/** 页内序号延续筛选结果的全局顺序。 */
+function rowIndex(index: number): number {
+  return (props.embedded ? (currentPage.value - 1) * pageSize.value : 0) + index + 1
+}
+
+watch([assetType, search, pageSize, sortProp, sortOrder, data], () => {
+  currentPage.value = 1
 })
 
 const handleSortChange = (sortData: { prop: string | null; order: 'ascending' | 'descending' | null }) => {
@@ -525,8 +654,14 @@ function onIconError(symbol: string) {
 
 // 获取数据
 const fetchData = async () => {
+  const currentRequest = ++requestId
+  stopProgressPolling()
+  progress.value = null
+  showingCachedResult.value = false
   loading.value = true
   message.value = ''
+  // 配置标记不影响榜单内容，不能让辅助请求阻塞已命中缓存的行情展示。
+  void fetchConfiguredSymbols()
   try {
     const query = mode.value === 'stable'
       ? {
@@ -542,15 +677,28 @@ const fetchData = async () => {
           segmentRatio: filterParams.value.segmentRatio,
         }
       : { mode: mode.value }
-    const [res] = await Promise.all([$fetch<{
-      success: boolean
-      mode?: string
-      message?: string
-      updatedAt?: number
-      params?: FilterParams
-      data: TopSymbol[]
-    }>('/api/binance/top-symbols', { query }), fetchConfiguredSymbols()])
+    const cacheKey = JSON.stringify(query)
+    const cached = mode.value === 'stable' ? stableResults.value[cacheKey] : undefined
+    if (cached) {
+      data.value = cached.data
+      updatedAt.value = cached.updatedAt || null
+      if (cached.params) {
+        loadedDays.value = cached.params.days
+        loadedActiveDaysRatio.value = cached.params.activeDaysRatio
+      }
+      sortProp.value = 'avgDailyVolume'
+      showingCachedResult.value = true
+    } else if (mode.value === 'stable') {
+      startProgressPolling(query, currentRequest)
+    }
+    const res = await $fetch<TopSymbolsResponse>('/api/binance/top-symbols', { query })
+    if (currentRequest !== requestId) return
     if (res.success) {
+      if (res.mode === 'stable') {
+        const keys = Object.keys(stableResults.value)
+        if (keys.length >= 20 && !stableResults.value[cacheKey]) delete stableResults.value[keys[0]!]
+        stableResults.value[cacheKey] = res
+      }
       data.value = res.data
       if (res.params) {
         loadedDays.value = res.params.days
@@ -564,12 +712,18 @@ const fetchData = async () => {
       sortProp.value = mode.value === 'stable' ? 'avgDailyVolume' : 'volume'
       sortOrder.value = 'descending'
       clearSelection()
+    } else {
+      message.value = res.message || '获取行情失败，请重试'
     }
   } catch (err: any) {
+    if (currentRequest !== requestId) return
     console.error('获取热门交易对失败:', err)
     message.value = `获取数据失败: ${err?.message || '未知错误'}`
   } finally {
-    loading.value = false
+    if (currentRequest === requestId) {
+      stopProgressPolling()
+      loading.value = false
+    }
   }
 }
 
@@ -674,13 +828,13 @@ const cvClass = (val: number | undefined): string => {
 }
 
 // 监听对话框打开时刷新数据
-watch(visible, (newVal) => {
+watch(() => props.embedded || visible.value, (newVal) => {
   if (newVal) {
     fetchData()
   } else {
     showFilterParams.value = false
   }
-})
+}, { immediate: true })
 </script>
 
 <style scoped>
@@ -693,9 +847,25 @@ watch(visible, (newVal) => {
   max-height: none;
 }
 
+.market-filters {
+  display: flex;
+  flex: 1 1 390px;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+.market-filters :deep(.el-radio-group), .mode-switch { flex-shrink: 0; }
+.symbol-search { flex: 0 0 120px; width: 120px; }
+.symbol-search :deep(.el-input__wrapper) { border-radius: 4px; padding: 0 8px; }
+.symbol-search :deep(.el-input__prefix) { font-size: 12px; }
+.market-pagination { margin-top: 16px; justify-content: flex-end; }
+
 .top-symbols-toolbar {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
+  gap: 16px;
   justify-content: space-between;
   margin-bottom: 12px;
 }
@@ -704,6 +874,8 @@ watch(visible, (newVal) => {
   display: flex;
   align-items: center;
   gap: 8px;
+  margin-left: auto;
+  flex-shrink: 0;
 }
 
 .toolbar-actions .el-button + .el-button {
@@ -717,9 +889,9 @@ watch(visible, (newVal) => {
 }
 
 .data-updated-at {
-  margin: -4px 0 8px;
   color: #909399;
   font-size: 12px;
+  white-space: nowrap;
 }
 
 .stable-params {
@@ -729,9 +901,13 @@ watch(visible, (newVal) => {
   padding: 8px;
 }
 
+.stable-progress { margin: 12px 0; padding: 12px; border-radius: 6px; background: var(--el-fill-color-light); }
+.progress-caption { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-bottom: 8px; font-size: 12px; color: var(--el-text-color-regular); }
+.progress-note { color: var(--el-text-color-secondary); }
+
 .params-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
   gap: 10px;
   padding: 4px 8px;
 }
@@ -848,6 +1024,7 @@ watch(visible, (newVal) => {
     flex-wrap: wrap;
     gap: 8px;
   }
+  .market-filters { flex-basis: 100%; gap: 8px; }
   .params-grid {
     grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
   }
@@ -859,5 +1036,12 @@ watch(visible, (newVal) => {
   .selection-buttons {
     justify-content: flex-end;
   }
+}
+.top-symbols-container-page { max-height: none; overflow: visible; }
+/* 独立页直接以榜单模式和刷新操作作为页头，替代重复的标题与返回按钮。 */
+.top-symbols-container-page .top-symbols-toolbar {
+  margin: -20px -20px 0;
+  padding: 12px 20px 12px;
+  border-bottom: 1px solid var(--el-border-color-lighter);
 }
 </style>

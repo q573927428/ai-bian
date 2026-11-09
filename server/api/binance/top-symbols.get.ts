@@ -1,7 +1,7 @@
 // ==================== 热门、持续放量及已配置交易对 API ====================
 //
 // 查询参数：
-//   mode=hot（默认）：按 24h 成交额排序取前 200
+//   mode=hot（默认）：展示全部在交易的 USDT 永续合约，按 24h 成交额排序
 //   mode=configured：展示配置文件中的全部交易对，不限制数量和上线时长
 //   mode=stable：按"最近 N 天持续稳定放量"筛选（排除短期热点）
 //     附加参数：days / minDataRatio / pool / top / minDaily / activeDaysRatio / minRatio / cvMax / segmentRatio
@@ -15,7 +15,7 @@
 import { binanceApiGateway } from '../../utils/binance-api-gateway'
 import { getBotConfig } from '../../utils/storage'
 import { getBinanceExchangeInfo } from '../../utils/binance-exchange-info'
-import { getSimpleKLineData, initKLineDb } from '../../utils/kline-simple-storage'
+import { getSimpleKLineData, getSimpleKLineLastUpdatedAt, initKLineDb } from '../../utils/kline-simple-storage'
 
 /** 榜单行情及持续放量统计，涨跌幅均以百分数返回。 */
 interface TopSymbol {
@@ -54,10 +54,10 @@ interface StableFilterOptions {
 /** 持续放量筛选参数默认值 */
 const FILTER_DEFAULTS: StableFilterOptions = {
   days: 30,
-  minDataRatio: 0.8,
+  minDataRatio: 0.6,
   pool: 150,
-  top: 50,
-  minDaily: 50_000_000,
+  top: 80,
+  minDaily: 20_000_000,
   activeDaysRatio: 0.8,
   minRatio: 0.02,
   cvMax: 1.0,
@@ -66,13 +66,18 @@ const FILTER_DEFAULTS: StableFilterOptions = {
 
 /** 4H K线的毫秒数 */
 const KLINE_4H_MS = 4 * 60 * 60 * 1000
-/** 返回的热门交易对数量上限 */
-const TOP_SYMBOLS_LIMIT = 200
 /** 24h 热门、持续放量榜单及日线共用的缓存时长（30 分钟） */
 const TOP_SYMBOLS_CACHE_TTL = 30 * 60 * 1000
 // 按参数缓存榜单，按交易对和统计窗口缓存日线。
 const stableCache = new Map<string, { data: TopSymbol[]; timestamp: number }>()
 const stableRequests = new Map<string, Promise<TopSymbol[]>>()
+/** 同参数计算任务的真实进度；完成计数包含分析失败的候选，避免进度停滞。 */
+interface StableProgress {
+  stage: 'preparing' | 'analyzing' | 'funding' | 'completed' | 'failed'
+  completed: number
+  total: number
+}
+const stableProgress = new Map<string, StableProgress>()
 /** 同一份日线同时提供成交额与窗口起始价格，避免为天数涨跌幅重复请求。 */
 interface DailyWindow {
   volumes: number[]
@@ -81,7 +86,7 @@ interface DailyWindow {
 const dailyVolumeCache = new Map<string, { data: DailyWindow; timestamp: number }>()
 const dailyVolumeRequests = new Map<string, Promise<DailyWindow>>()
 // 24h 热门结果缓存（无参数依赖）
-let hotCache: { data: TopSymbol[]; timestamp: number } | null = null
+let hotCache: { data: TopSymbol[]; hotSymbols: Set<string>; timestamp: number } | null = null
 let hotRequest: ReturnType<typeof fallbackHotMode> | null = null
 
 /** 解析查询参数为数字，非法时回退默认值 */
@@ -101,6 +106,33 @@ function stddev(arr: number[]): number {
   return Math.sqrt(arr.reduce((s, v) => s + (v - m) ** 2, 0) / arr.length)
 }
 
+/** 仅复用新鲜且覆盖完整 UTC 日线窗口的本地数据，缺失、断档或陈旧时回退币安。 */
+function getLocalDailyWindow(symbol: string, days: number): { data: DailyWindow; timestamp: number } | undefined {
+  const now = Date.now()
+  const updatedAt = getSimpleKLineLastUpdatedAt(symbol, '1d')
+  if (!updatedAt || updatedAt > now || now - updatedAt >= TOP_SYMBOLS_CACHE_TTL) return
+  const today = Math.floor(now / 86400000) * 86400
+  // 跨 UTC 零点后必须等新日线同步，不能把昨天的末根当成今天的数据。
+  if (updatedAt < today * 1000) return
+  try {
+    const from = today - (days - 1) * 86400
+    const candles = getSimpleKLineData(symbol, '1d', { from, to: today, limit: days })
+    if (candles.length !== days || candles.some((candle, index) =>
+      candle.t !== from + index * 86400 || !Number.isFinite(candle.c) || candle.c <= 0 ||
+      !Number.isFinite(candle.v) || candle.v < 0
+    )) return
+    const open = candles[0]?.o
+    if (typeof open !== 'number' || !Number.isFinite(open) || open <= 0) return
+    return {
+      data: { volumes: candles.map(candle => candle.c * candle.v), open },
+      // 沿用原始同步时间，不能因读取缓存延长当前未收盘日线的新鲜期。
+      timestamp: updatedAt,
+    }
+  } catch {
+    // 本地数据库不可用时仍可正常执行远端筛选。
+  }
+}
+
 /**
  * 拉取单个交易对最近 days 天日线，折算为每日成交额序列（USDT）。
  * klines 每根形如 [openTime, open, high, low, close, volume, ...]
@@ -112,6 +144,16 @@ async function fetchDailyVolumes(symbol: string, days: number): Promise<DailyWin
 
   const pending = dailyVolumeRequests.get(key)
   if (pending) return pending
+
+  const local = getLocalDailyWindow(symbol, days)
+  if (local) {
+    if (dailyVolumeCache.size >= 1000) {
+      const oldestKey = dailyVolumeCache.keys().next().value
+      if (oldestKey) dailyVolumeCache.delete(oldestKey)
+    }
+    dailyVolumeCache.set(key, local)
+    return local.data
+  }
 
   const request = binanceApiGateway.fetchJson<any[]>(
     'marketData',
@@ -264,11 +306,20 @@ function getLocal30DayChange(symbol: string, price: number, referenceTime: numbe
 /**
  * 执行"持续放量"筛选模式。
  */
-async function fetchStableTopSymbols(options: StableFilterOptions): Promise<TopSymbol[]> {
+async function fetchStableTopSymbols(options: StableFilterOptions, progress: StableProgress): Promise<TopSymbol[]> {
+  // 元数据与行情互不依赖；使用热门榜相同的网关键，合并同时发生的全市场请求。
+  const [exchangeInfo, tickers] = await Promise.all([
+    getBinanceExchangeInfo().catch(() => ({ symbols: [] })),
+    binanceApiGateway.fetchJson<any[]>(
+      'marketData',
+      'ticker24hr:all',
+      'https://fapi.binance.com/fapi/v1/ticker/24hr'
+    ),
+    initKLineDb().catch(() => {}),
+  ])
   // 1. 获取全市场合约信息（含上线时间与合约类型）
   let onboardMap = new Map<string, { onboardDate: number; contractType: string }>()
   try {
-    const exchangeInfo = await getBinanceExchangeInfo()
     for (const s of (exchangeInfo.symbols || [])) {
       if (
         (s.contractType === 'PERPETUAL' || s.contractType === 'TRADIFI_PERPETUAL') &&
@@ -287,11 +338,6 @@ async function fetchStableTopSymbols(options: StableFilterOptions): Promise<TopS
   }
 
   // 2. 24hr Ticker 全量，按成交额取候选池
-  const tickers = await binanceApiGateway.fetchJson<any[]>(
-    'marketData',
-    'stableTicker24hr:all',
-    'https://fapi.binance.com/fapi/v1/ticker/24hr'
-  )
   const candidatePool = tickers
     .filter((t: any) => onboardMap.has(t.symbol))
     .map((t: any) => ({
@@ -306,14 +352,21 @@ async function fetchStableTopSymbols(options: StableFilterOptions): Promise<TopS
     .slice(0, options.pool)
 
   // 3. 并行拉取每个候选的日线并分析稳定性（限流器自动排队，应用层限制并发 5）
+  progress.stage = 'analyzing'
+  progress.total = candidatePool.length
   const analysisResults = await runPool(candidatePool, 5, async (ticker) => {
-    const dailyWindow = await fetchDailyVolumes(ticker.symbol, options.days)
-    const dailyVolumes = dailyWindow.volumes
-    const result = analyzeSymbol(ticker.symbol, dailyVolumes, options.days, options.segmentRatio, ticker.contractType, options.minDaily, options.minDataRatio)
-    if (!result.valid) {
-      return { symbol: ticker.symbol, error: result.reason || 'invalid' }
+    try {
+      const dailyWindow = await fetchDailyVolumes(ticker.symbol, options.days)
+      const dailyVolumes = dailyWindow.volumes
+      const result = analyzeSymbol(ticker.symbol, dailyVolumes, options.days, options.segmentRatio, ticker.contractType, options.minDaily, options.minDataRatio)
+      if (!result.valid) {
+        return { symbol: ticker.symbol, error: result.reason || 'invalid' }
+      }
+      return { symbol: ticker.symbol, ...result.analysis, quoteVolume: ticker.quoteVolume, lastPrice: ticker.lastPrice, priceChangePercent: ticker.priceChangePercent, referenceTime: ticker.referenceTime, windowOpen: dailyWindow.open }
+    } finally {
+      // 无论通过筛选、历史不足或请求失败，该候选都已处理完毕。
+      progress.completed++
     }
-    return { symbol: ticker.symbol, ...result.analysis, quoteVolume: ticker.quoteVolume, lastPrice: ticker.lastPrice, priceChangePercent: ticker.priceChangePercent, referenceTime: ticker.referenceTime, windowOpen: dailyWindow.open }
   })
 
   // 4. 过滤 + 排序 + 取前 top
@@ -333,11 +386,12 @@ async function fetchStableTopSymbols(options: StableFilterOptions): Promise<TopS
     .slice(0, options.top)
 
   // 5. 组装最终结果（补资金费率）
+  progress.stage = 'funding'
   let fundingMap = new Map<string, number>()
   try {
     const allPremium: any[] = await binanceApiGateway.fetchJson<any[]>(
       'marketData',
-      'stablePremiumIndex:all',
+      'premiumIndex:all',
       'https://fapi.binance.com/fapi/v1/premiumIndex'
     )
     for (const item of allPremium) {
@@ -375,37 +429,68 @@ function refreshStableTopSymbols(key: string, options: StableFilterOptions): Pro
   const pending = stableRequests.get(key)
   if (pending) return pending
 
-  const request = fetchStableTopSymbols(options).then(data => {
+  // 仅回收已结束的任务，活跃计算的进度必须对所有复用请求可见。
+  for (const [progressKey, value] of stableProgress) {
+    if (stableProgress.size < 20) break
+    if (value.stage === 'completed' || value.stage === 'failed') stableProgress.delete(progressKey)
+  }
+  const progress: StableProgress = { stage: 'preparing', completed: 0, total: 0 }
+  stableProgress.set(key, progress)
+  const request = fetchStableTopSymbols(options, progress).then(data => {
     if (stableCache.size >= 20 && !stableCache.has(key)) {
       const oldestKey = stableCache.keys().next().value
       if (oldestKey) stableCache.delete(oldestKey)
     }
     stableCache.set(key, { data, timestamp: Date.now() })
+    progress.stage = 'completed'
     return data
+  }).catch(error => {
+    progress.stage = 'failed'
+    throw error
   }).finally(() => stableRequests.delete(key))
   stableRequests.set(key, request)
   return request
 }
 
 /** 缓存未命中时复用同一轮热门榜计算，失败后允许下一次请求重试。 */
-function getHotTopSymbols(): ReturnType<typeof fallbackHotMode> {
+function getMarketTopSymbols(): ReturnType<typeof fallbackHotMode> {
   if (hotCache && Date.now() - hotCache.timestamp < TOP_SYMBOLS_CACHE_TTL) {
-    return Promise.resolve({ success: true, data: hotCache.data })
+    return Promise.resolve({ success: true, data: hotCache.data, hotSymbols: hotCache.hotSymbols })
   }
   if (hotRequest) return hotRequest
 
   hotRequest = fallbackHotMode().then(result => {
-    if (result.success) hotCache = { data: result.data, timestamp: Date.now() }
+    if (result.success) hotCache = { data: result.data, hotSymbols: result.hotSymbols, timestamp: Date.now() }
     return result
   }).finally(() => { hotRequest = null })
   return hotRequest
+}
+
+/** 热门和配置列表共享全市场快照；配置实时读取，切换标签不重复请求币安。 */
+async function getHotTopSymbols(configuredOnly = false): Promise<{ success: boolean; data: TopSymbol[] }> {
+  const botConfig = configuredOnly ? await getBotConfig() : undefined
+  const configuredSymbols = [...new Set((botConfig?.symbols || [])
+    .map(symbol => symbol.trim().replace(/\//g, '').toUpperCase()).filter(Boolean))]
+  if (configuredOnly && configuredSymbols.length === 0) return { success: true, data: [] }
+
+  const snapshot = await getMarketTopSymbols()
+  if (!configuredOnly) {
+    return { success: snapshot.success, data: snapshot.data.filter(item => snapshot.hotSymbols.has(item.symbol)) }
+  }
+  const bySymbol = new Map(snapshot.data.map(item => [item.symbol, item]))
+  // 缺失行情的配置也保留一行，不能因行情缓存或合约状态把配置项隐藏。
+  const data = configuredSymbols.map(symbol => bySymbol.get(symbol) || {
+    symbol, volume: 0, price: NaN, priceChangePercent: NaN,
+    fundingRate: 0, klineCount4h: 0, onboardDate: 0,
+  }).sort((a, b) => b.volume - a.volume)
+  return { success: snapshot.success, data }
 }
 
 export default defineEventHandler(async (event) => {
   const query = getQuery(event)
   // 每次读取当前配置，避免热门榜缓存或筛选条件遗漏已配置交易对。
   if (query.mode === 'configured') {
-    return { ...await fallbackHotMode(true), mode: 'configured' }
+    return { ...await getHotTopSymbols(true), mode: 'configured' }
   }
   const mode = query.mode === 'stable' ? 'stable' : 'hot'
 
@@ -425,6 +510,11 @@ export default defineEventHandler(async (event) => {
 
     // 过期时先返回上次结果，后台合并同参数刷新；冷缓存才等待完整计算。
     const cacheKey = JSON.stringify(options)
+    // 进度查询只读取内存，不启动计算、不调用币安，避免轮询增加外部请求。
+    if (query.progress === '1') {
+      const progress = stableProgress.get(cacheKey)
+      return { success: true, progress: progress ? { ...progress } : null }
+    }
     const cached = stableCache.get(cacheKey)
     if (cached) {
       if (Date.now() - cached.timestamp >= TOP_SYMBOLS_CACHE_TTL) {
@@ -452,24 +542,19 @@ export default defineEventHandler(async (event) => {
 })
 
 /**
- * 原有 24h 热门逻辑：按 24h 成交额排序取前 TOP_SYMBOLS_LIMIT。
- * 配置模式复用行情组装，但不应用热门榜的数量、合约和上线时长筛选。
+ * 全量 24h 热门行情：包含新上线合约，历史不足的周期涨跌幅留空。
+ * 缓存完整市场行情，热门榜与配置列表在返回时分别筛选。
  */
-async function fallbackHotMode(configuredOnly = false) {
-  // 0. 从 bot-config.json 读取 requiredCandles 作为最少需要的4H K线根数
-  const botConfig = await getBotConfig()
-  const minKlineCount = botConfig.indicatorsConfig?.requiredCandles || 493
-  const configuredSymbols = [...new Set((botConfig.symbols || [])
-    .map(symbol => symbol.trim().replace(/\//g, '').toUpperCase()).filter(Boolean))]
-  if (configuredOnly && configuredSymbols.length === 0) return { success: true, data: [] }
-
+async function fallbackHotMode() {
   // 1. 获取所有合约的 exchangeInfo（含上线时间和合约类型）
   const onboardMap = new Map<string, { onboardDate: number; contractType: string }>()
+  const hotSymbols = new Set<string>()
   try {
     const exchangeInfo = await getBinanceExchangeInfo()
     for (const s of (exchangeInfo.symbols || [])) {
       // PERPETUAL = 普通永续合约, TRADIFI_PERPETUAL = TradFi 永续合约（如 SNDKUSDT）
       if ((s.contractType === 'PERPETUAL' || s.contractType === 'TRADIFI_PERPETUAL') && s.symbol.endsWith('USDT') && !s.symbol.endsWith('USDCUSDT')) {
+        if (s.status === 'TRADING') hotSymbols.add(s.symbol)
         const onboardDate = s.onboardDate ? Number(s.onboardDate) : 0
         onboardMap.set(s.symbol, { onboardDate, contractType: s.contractType })
       }
@@ -485,22 +570,9 @@ async function fallbackHotMode(configuredOnly = false) {
     'https://fapi.binance.com/fapi/v1/ticker/24hr'
   )
 
-  // 3. 筛选符合 K 线要求的 USDT 永续合约，再按成交额取前 TOP_SYMBOLS_LIMIT 个
-  // 缺失行情仍保留配置行，以空值展示，确保列表完整反映配置文件。
-  const tickerMap = new Map(tickers.map((ticker: any) => [ticker.symbol, ticker]))
-  const sourceTickers = configuredOnly
-    ? configuredSymbols.map(symbol => tickerMap.get(symbol) || { symbol })
-    : tickers
-  const symbols = sourceTickers
-    .filter((t: any) => configuredOnly || onboardMap.has(t.symbol)) // 配置列表不受市场筛选限制
-    // 先排除上线时间不足的交易对，避免截取后榜单数量不足上限
-    .filter((t: any) => {
-      if (configuredOnly) return true
-      const onboardDate = onboardMap.get(t.symbol)?.onboardDate || 0
-      return onboardDate > 0 && Math.floor((Date.now() - onboardDate) / KLINE_4H_MS) >= minKlineCount
-    })
+  // 3. 保留完整快照供配置列表筛选，热门榜返回时再限定在交易的 USDT 永续。
+  const symbols = [...tickers]
     .sort((a: any, b: any) => parseFloat(b.quoteVolume || '0') - parseFloat(a.quoteVolume || '0'))
-    .slice(0, configuredOnly ? undefined : TOP_SYMBOLS_LIMIT)
     .map((t: any) => {
       const { onboardDate = 0, contractType } = onboardMap.get(t.symbol) || {}
       const klineCount4h = onboardDate > 0
@@ -509,9 +581,9 @@ async function fallbackHotMode(configuredOnly = false) {
       return {
         symbol: t.symbol,
         volume: parseFloat(t.quoteVolume || '0'),
-        price: parseFloat(t.lastPrice || (configuredOnly ? 'NaN' : '0')),
+        price: parseFloat(t.lastPrice || 'NaN'),
         referenceTime: Number(t.closeTime) || Date.now(),
-        priceChangePercent: parseFloat(t.priceChangePercent || (configuredOnly ? 'NaN' : '0')),
+        priceChangePercent: parseFloat(t.priceChangePercent || 'NaN'),
         fundingRate: 0,
         klineCount4h,
         onboardDate,
@@ -543,5 +615,5 @@ async function fallbackHotMode(configuredOnly = false) {
     fundingRate: fundingMap.get(item.symbol) || 0,
   }))
 
-  return { success: true, data: result }
+  return { success: true, data: result, hotSymbols }
 }

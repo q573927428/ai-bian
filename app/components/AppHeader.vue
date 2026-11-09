@@ -22,7 +22,7 @@ const { passwordVerified, showPasswordDialog, handleUnlock, handlePasswordSucces
   onOpen: panel => { void navigateTo(`/${panel}`) },
   onLock: () => {}
 })
-const activePanels = computed(() => ({ home: route.path === '/', indicators: route.path === '/indicators', orders: route.path === '/orders', macro: route.path === '/macro', trends: route.path === '/trends' }))
+const activePanels = computed(() => ({ home: route.path === '/', hot: route.path === '/hot', indicators: route.path === '/indicators', orders: route.path === '/orders', macro: route.path === '/macro', trends: route.path === '/trends' }))
 /** 指标和订单共用密码门禁，验证成功后跳转到本次请求的页面。 */
 function handleNavigate(target: HomeNavigationTarget) {
   if (target === 'orders' || target === 'indicators') { handleOpenProtectedPanel(target); return }

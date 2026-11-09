@@ -25,7 +25,6 @@
               @refresh="refreshPanelData"
               @open="handleOpenProtectedPanel"
               @logs="handleOpenProtectedPanel('logs')"
-              @hot="showTopSymbolsDialog = true"
             />
 
             <!-- 盈亏胜率走势图表 -->
@@ -64,9 +63,6 @@
             </ClientOnly>
 
 
-            <ClientOnly>
-              <TopSymbolsTable v-model="showTopSymbolsDialog" :selectable="false" />
-            </ClientOnly>
 
           </el-col>
 
@@ -108,7 +104,6 @@ import MacroDataDrawer from '../components/MacroDataDrawer.vue'
 import ActivePositions from '../components/ActivePositions.vue'
 import LatestNews from '../components/LatestNews.vue'
 import Strategies from '../components/Strategies.vue'
-import TopSymbolsTable from '../components/TopSymbolsTable.vue'
 import BotConfigDialog from '../components/BotConfigDialog.vue'
 import ProfitWinRateChart from '../components/ProfitWinRateChart.vue'
 
@@ -133,7 +128,6 @@ const showConfigDialog = ref(false)
 const showIndicatorsDrawer = ref(false)
 // 日志实例位于全局布局，首页仅在通过解锁验证后请求打开抽屉。
 const showLogsDrawer = useState<boolean>('system-logs-visible', () => false)
-const showTopSymbolsDialog = ref(false)
 const showMacroDataDrawer = ref(false)
 const showCryptoTrendsDrawer = ref(false)
 const showStrategiesDrawer = ref(false)
@@ -170,13 +164,16 @@ function handleNavigate(target: HomeNavigationTarget) {
     void navigateTo('/')
     return
   }
+  if (target === 'hot') {
+    void navigateTo('/hot')
+    return
+  }
   if (target === 'orders') {
     handleOpenProtectedPanel('orders')
     return
   }
   const panels = {
     indicators: showIndicatorsDrawer,
-    hot: showTopSymbolsDialog,
     macro: showMacroDataDrawer,
     trends: showCryptoTrendsDrawer
   }
