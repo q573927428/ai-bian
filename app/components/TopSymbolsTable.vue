@@ -144,7 +144,7 @@
 
       <div class="market-main">
       <div v-if="embedded && viewMode === 'heatmap'" v-loading="loading && !showingCachedResult" class="market-heatmap">
-        <PriceHeatmap v-if="heatmapItems.length" class="market-heatmap-chart" :items="heatmapItems" :search-query="normalizeSymbol(search)" period="24h" :selected-symbol="detailSymbol?.symbol || ''" :focus-selected-on-mount="false" :height="400" :size-mode="heatmapSizeMode" volume-source="ticker24h" selection-hint="点击查看交易对详情" @select="selectHeatmapSymbol" />
+        <PriceHeatmap v-if="heatmapItems.length" :key="`${mode}:${assetType}`" class="market-heatmap-chart" :items="heatmapItems" :search-query="normalizeSymbol(search)" period="24h" :selected-symbol="detailSymbol?.symbol || ''" :focus-selected-on-mount="false" :focus-on-selection-change="false" :focus-request="heatmapFocusRequest" :height="400" :size-mode="heatmapSizeMode" volume-source="ticker24h" selection-hint="点击查看交易对详情" @select="selectHeatmapSymbol" />
         <el-empty v-else description="暂无行情数据" />
       </div>
       <el-table
@@ -509,6 +509,7 @@ const pageSize = ref(20)
 const mode = ref<Mode>('hot')
 const viewMode = ref<'table' | 'heatmap'>('table')
 const heatmapSizeMode = ref<'change' | 'volume' | 'equal'>('change')
+const heatmapFocusRequest = ref<{ symbol: string; id: number }>()
 const message = ref('')
 const updatedAt = ref<number | null>(null)
 const sortProp = ref('volume')
@@ -707,10 +708,11 @@ let locateRequestId = 0
 /** 异动榜定位须等待翻页渲染，再同步高亮和表格内部滚动，保证目标实际可见。 */
 async function locateSymbol(symbol: string) {
   const currentLocate = ++locateRequestId
-  // 异动榜复用当前视图：热力图通过selected-symbol定位，表格执行翻页滚动。
+  // 详情的默认选中不触发缩放，只有异动榜点击才发送独立定位请求。
   if (props.embedded && viewMode.value === 'heatmap') {
     search.value = ''
     detailSymbolKey.value = symbol
+    heatmapFocusRequest.value = { symbol, id: currentLocate }
     return
   }
   search.value = ''

@@ -75,6 +75,10 @@ const props = defineProps<{
   selectionHint?: string
   /** 热门页初次进入展示全图，选中详情不等同于用户主动请求缩放定位。 */
   focusSelectedOnMount?: boolean
+  /** 是否把详情选中变化视为定位；热门页只接受显式定位请求。 */
+  focusOnSelectionChange?: boolean
+  /** 独立于详情选中状态的主动定位请求，id允许重复定位同一交易对。 */
+  focusRequest?: { symbol: string; id: number }
 }>()
 const emit = defineEmits<{ select: [symbol: string] }>()
 const chartElement = ref<HTMLElement | null>(null)
@@ -136,8 +140,17 @@ async function locateSymbol(symbol: string) {
 // 仅外部选择或目标重新进入结果集时定位，图内点击保留当前视口。
 watch([() => props.selectedSymbol, () => props.items.some(item => item.symbol === props.selectedSymbol)],
   ([symbol, available]) => {
-    if (symbol && available && symbol !== locallySelectedSymbol) void locateSymbol(symbol)
+    if (props.focusOnSelectionChange !== false && symbol && available && symbol !== locallySelectedSymbol) void locateSymbol(symbol)
   }, { flush: 'post' })
+
+watch(() => props.focusRequest, async (request) => {
+  if (!request) return
+  // 等搜索清空监听执行后取消其恢复全景定时器，避免覆盖本次主动定位。
+  await nextTick()
+  if (request !== props.focusRequest) return
+  if (searchTimer) clearTimeout(searchTimer)
+  if (props.items.some(item => item.symbol === request.symbol)) await locateSymbol(request.symbol)
+}, { flush: 'post' })
 
 watch(() => props.searchQuery, () => { searchIndex.value = 0 }, { flush: 'sync' })
 watch([() => props.searchQuery, () => searchMatches.value.map(item => item.symbol).join(','), searchIndex], () => {
