@@ -196,9 +196,9 @@
           </div>
         </template>
       </el-table-column>
-      <el-table-column label="趋势" min-width="120" class-name="trend-column">
+      <el-table-column label="趋势" min-width="125" class-name="trend-column">
         <template #default="{ row }">
-          <div :class="[row.diDirection.startsWith('多头') ? 'up' : row.diDirection.startsWith('空头') ? 'down' : 'muted', { 'macd-weakening': row.diDirection.endsWith('减弱') }]">{{ row.diDirection }}</div>
+          <div class="trend-result" :class="[row.diDirection.startsWith('多头') ? 'up' : row.diDirection.startsWith('空头') ? 'down' : 'muted', { 'macd-weakening': row.diDirection.endsWith('减弱') }]">{{ row.diDirection }}</div>
           <div class="adx-line">
             <span><span class="muted">ADX</span> {{ formatTrendValue(row.adx) }}</span>
             <el-tooltip placement="top">
@@ -208,9 +208,9 @@
               <span :class="row.adxSlope == null || row.adxSlope === 0 ? 'muted' : directionClass(row.adxSlope)"><span class="muted">斜率</span> {{ formatAdxSlope(row.adxSlope) }}</span>
             </el-tooltip>
           </div>
-          <div class="di-line">
-            <span class="up"><span class="muted">PDI</span> {{ formatTrendValue(row.pdi) }}</span>
-            <span class="down"><span class="muted">MDI</span> {{ formatTrendValue(row.mdi) }}</span>
+          <div class="di-line" :title="`PDI：${formatTrendValue(row.pdi)}\nMDI：${formatTrendValue(row.mdi)}\n差值 = PDI - MDI`">
+            <span>PDI {{ diComparison(row.pdi, row.mdi).operator }} MDI</span>
+            <span>差 {{ diComparison(row.pdi, row.mdi).difference }}</span>
           </div>
         </template>
       </el-table-column>
@@ -222,38 +222,41 @@
       <el-table-column label="RSI" align="center" header-align="center" min-width="60" sortable="custom" prop="rsi">
         <template #default="{ row }"><span :class="rsiClass(row.rsi)">{{ row.rsi == null || !Number.isFinite(row.rsi) ? '--' : row.rsi.toFixed(1) }}</span></template>
       </el-table-column>
-      <el-table-column label="EMA" min-width="110" class-name="ema-column">
+      <el-table-column label="EMA" min-width="120" class-name="ema-column">
         <template #default="{ row }">
-          <div class="ema-line"><span class="muted">EMA{{ row.fastEmaPeriod }}</span> <span class="ema-fast-value" :class="{ muted: row.fastEma == null }">{{ formatPrice(row.fastEma) }}</span></div>
-          <div class="ema-line"><span class="muted">EMA{{ row.slowEmaPeriod }}</span> <span class="ema-slow-value" :class="{ muted: row.slowEma == null }">{{ formatPrice(row.slowEma) }}</span></div>
-          <span :class="row.emaBullish == null ? 'muted' : row.emaBullish ? 'up' : 'down'">{{ row.emaBullish == null ? '--' : row.emaBullish ? '多头' : '空头' }}</span>
-          <span class="ema-slope" :class="directionClass(row.emaSlope)" :title="`EMA${row.fastEmaPeriod}斜率（回看周期使用机器人配置）`">{{ signed(row.emaSlope) }}{{ row.emaSlope == null ? '' : '%' }}</span>
+          <div class="ema-line" :title="`EMA${row.fastEmaPeriod}：${formatPrice(row.fastEma)}\nEMA${row.slowEmaPeriod}：${formatPrice(row.slowEma)}`">
+            <span class="muted">EMA{{ row.fastEmaPeriod }}</span>
+            <span :class="emaComparison(row.fastEma, row.slowEma).tone"> {{ emaComparison(row.fastEma, row.slowEma).operator }} </span>
+            <span class="muted">EMA{{ row.slowEmaPeriod }}</span>
+          </div>
+          <div class="ema-state-line">
+            <span :class="emaComparison(row.fastEma, row.slowEma).tone">{{ emaComparison(row.fastEma, row.slowEma).label }}</span>
+            <span class="ema-slope" :class="directionClass(row.emaSlope)" :title="`EMA${row.fastEmaPeriod}斜率（回看周期使用机器人配置）`"><span class="muted">斜率</span> {{ signed(row.emaSlope) }}{{ row.emaSlope == null ? '' : '%' }}</span>
+          </div>
         </template>
       </el-table-column>
       <el-table-column label="预量" align="center" header-align="center" min-width="65" prop="volumeRatio" sortable="custom">
         <template #default="{ row }">{{ format(row.volumeRatio) }}x</template>
       </el-table-column>
-      <el-table-column label="MACD 实时 · H" min-width="160" sortable="custom" prop="macdHistogram">
+      <el-table-column label="MACD 实时 · H" min-width="135" sortable="custom" prop="macdHistogram">
         <template #default="{ row }">
           <div class="macd-cell" :title="`当前 M：${formatMacd(row.macd)} / S：${formatMacd(row.macdSignal)}\n上组 M：${formatMacd(row.previousMacd)} / S：${formatMacd(row.previousMacdSignal)}\nH 为柱值，背景柱仅用于同一交易对的当前与上组比较`">
             <div class="macd-state-line">
               <span class="macd-crossover" :class="crossoverClass(row.macdCrossover)">{{ crossoverLabel(row.macdCrossover) }}</span>
               <span class="macd-result" :class="macdResultClass(row.macdHistogram, row.previousMacdHistogram)">{{ macdResult(row.macdHistogram, row.previousMacdHistogram) }}</span>
             </div>
-            <!-- 数值放在柱体相反的一侧，以零轴为边界，避免遮挡柱体。 -->
-            <div class="macd-bars" :aria-label="`当前 H：${formatSignedMacd(row.macdHistogram)}，上组 H：${formatSignedMacd(row.previousMacdHistogram)}`">
+            <!-- 柱形用于快速比较，具体 H 数值通过悬停和无障碍标签提供。 -->
+            <div class="macd-bars" :title="`当前 H：${formatSignedMacd(row.macdHistogram)}\n上组 H：${formatSignedMacd(row.previousMacdHistogram)}`" :aria-label="`当前 H：${formatSignedMacd(row.macdHistogram)}，上组 H：${formatSignedMacd(row.previousMacdHistogram)}`">
             <div class="macd-values macd-data-row current-values">
               <span class="macd-row-label">当前</span>
               <span class="macd-row-chart">
                 <span class="macd-chart-bar" :class="directionClass(row.macdHistogram)" :style="histogramBarStyle(row.macdHistogram, row.previousMacdHistogram)"></span>
-                <span class="macd-h-value" :class="{ 'value-right': row.macdHistogram != null && row.macdHistogram < 0 }">{{ formatSignedMacd(row.macdHistogram) }}</span>
               </span>
             </div>
             <div class="macd-values macd-data-row previous-values">
               <span class="macd-row-label">上组</span>
               <span class="macd-row-chart">
                 <span class="macd-chart-bar" :class="directionClass(row.previousMacdHistogram)" :style="histogramBarStyle(row.previousMacdHistogram, row.macdHistogram)"></span>
-                <span class="macd-h-value" :class="{ 'value-right': row.previousMacdHistogram != null && row.previousMacdHistogram < 0 }">{{ formatSignedMacd(row.previousMacdHistogram) }}</span>
               </span>
             </div>
             </div>
@@ -994,6 +997,29 @@ function adxSlopeTooltip(slope?: number, period?: number) {
   return `${formula}\n${strength}，数值为差值\n方向看 PDI/MDI，动能看 MACD`
 }
 /** 价格与 EMA 始终显示完整数字，小额价格保留必要的小数精度。 */
+/** 用原始方向指标比较大小，差值统一为 PDI - MDI，缺失时不补零。 */
+function diComparison(pdi?: number, mdi?: number) {
+  if (pdi == null || mdi == null || !Number.isFinite(pdi) || !Number.isFinite(mdi)) {
+    return { operator: '--', difference: '--' }
+  }
+  const difference = Number((pdi - mdi).toFixed(1))
+  return {
+    operator: pdi === mdi ? '=' : pdi > mdi ? '>' : '<',
+    difference: `${difference > 0 ? '+' : ''}${difference.toFixed(1)}`
+  }
+}
+
+/** 按未取整的 EMA 比较；缺失值不判断方向，相等时不沿用空头标签。 */
+function emaComparison(fast?: number, slow?: number) {
+  if (fast == null || slow == null || !Number.isFinite(fast) || !Number.isFinite(slow)) {
+    return { operator: '--', label: '--', tone: 'muted' }
+  }
+  if (fast === slow) return { operator: '=', label: '持平', tone: 'muted' }
+  return fast > slow
+    ? { operator: '>', label: '多头', tone: 'up' }
+    : { operator: '<', label: '空头', tone: 'down' }
+}
+
 function formatPrice(value?: number) { return value == null || !Number.isFinite(value) ? '--' : value.toLocaleString('en-US', { maximumFractionDigits: Math.abs(value) < 1 ? 6 : 2 }) }
 /** 资金流只为有效非零数值着色，零值和缺失值沿用正文颜色。 */
 function flowDirectionClass(value?: number) {
@@ -1162,11 +1188,10 @@ onUnmounted(() => {
 .numeric-filter-range { display: flex; align-items: center; gap: 6px; }
 .numeric-filter-range :deep(.el-input-number) { width: 0; min-width: 0; flex: 1; }
 .numeric-filter-error { display: block; margin-top: 4px; color: var(--el-color-danger); }
-.ema-slope { margin-left: 8px; white-space: nowrap; }
+.ema-state-line { display: flex; align-items: baseline; gap: 8px; white-space: nowrap; }
+.ema-slope { white-space: nowrap; }
 /* 数值沿用图表快线暖色、慢线紫色的含义，降低饱和度以免与涨跌提示争抢注意力。 */
 .ema-line { display: flex; align-items: baseline; gap: 6px; white-space: nowrap; }
-.ema-fast-value:not(.muted) { color: var(--indicator-ema-fast); }
-.ema-slow-value:not(.muted) { color: var(--indicator-ema-slow); }
 /* 与 small 尺寸筛选控件齐高，细进度条用主题主色表达时间进展。 */
 .candle-progress { display: inline-flex; align-items: center; gap: 7px; height: 24px; padding: 0 8px; box-sizing: border-box; border: 1px solid var(--el-border-color); border-radius: 4px; background: var(--el-fill-color-light); white-space: nowrap; font-size: 12px; font-variant-numeric: tabular-nums; }
 .candle-progress-label { color: var(--el-text-color-secondary); }
@@ -1237,7 +1262,8 @@ onUnmounted(() => {
 .macd-crossover.muted { color: var(--el-text-color-primary); }
 .macd-crossover.up { color: var(--el-color-success); }
 .macd-crossover.down { color: var(--el-color-danger); }
-.macd-result { white-space: nowrap; font-weight: 600; }
+/* 趋势与 MACD 状态共用字重，避免同色文字因粗细不同产生亮度差异。 */
+.trend-result, .macd-result { white-space: nowrap; font-weight: 600; }
 .macd-weakening { opacity: .6; }
 .macd-row-label, .previous-values { color: var(--text-secondary); }
 .current-values { color: var(--text-primary); }
@@ -1245,8 +1271,6 @@ onUnmounted(() => {
 .macd-data-row > span:not(.macd-row-chart) { position: relative; z-index: 1; }
 .macd-row-chart { position: absolute; left: 36px; right: 0; top: 1px; bottom: 1px; padding: 0; border: 0; pointer-events: none; }
 .macd-row-chart::before { content: ''; position: absolute; left: 50%; top: 15%; bottom: 15%; width: 1px; background: var(--text-secondary); opacity: .45; }
-.macd-h-value { position: absolute; right: 50%; top: 0; bottom: 0; display: flex; align-items: center; padding-right: 5px; color: var(--text-secondary); font-variant-numeric: tabular-nums; font-size: 11px; }
-.macd-h-value.value-right { left: 50%; right: auto; padding-right: 0; padding-left: 5px; }
 .macd-chart-bar { position: absolute; top: 15%; height: 70%; margin: 0; padding: 0; border: 0; background: currentColor; opacity: .28; }
 .previous-values .macd-chart-bar { opacity: .12; }
 
