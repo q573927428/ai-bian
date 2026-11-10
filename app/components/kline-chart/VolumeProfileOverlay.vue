@@ -1,9 +1,9 @@
 <!-- ==================== 可见K线估算成交分布与主密集区 ==================== -->
 <template>
-  <button class="profile-toggle" type="button" :aria-pressed="enabled" title="历史成交分布，与实时盘口互斥显示" @click="$emit('toggle')">
+  <button ref="toggleButton" class="profile-toggle" type="button" :aria-pressed="enabled" title="历史成交分布，与实时盘口互斥显示" @click="$emit('toggle')">
     {{ enabled ? '隐藏成交分布' : '成交分布' }}
   </button>
-  <svg v-if="enabled && !loading && geometry" class="profile-overlay" :width="geometry.width" :height="geometry.height" aria-label="可见K线估算成交分布：条长为成交额，青色净买占比至少5%，红色净卖占比至少5%，灰色差额不足5%，斜纹表示方向数据缺失">
+  <svg v-if="enabled && !loading && geometry" ref="overlay" class="profile-overlay" :width="geometry.width" :height="geometry.height" aria-label="可见K线估算成交分布：条长为成交额，青色净买占比至少5%，红色净卖占比至少5%，灰色差额不足5%，斜纹表示方向数据缺失">
     <defs>
       <pattern :id="patternId" width="6" height="6" patternUnits="userSpaceOnUse">
         <rect width="6" height="6" fill="#909399" fill-opacity="0.2" />
@@ -13,7 +13,7 @@
     <template v-if="geometry.zone">
       <rect x="0" :y="geometry.zone.y" :width="geometry.width" :height="geometry.zone.height" fill="#d8b456" fill-opacity="0.065" />
       <line x1="0" :x2="geometry.width" :y1="geometry.peakY" :y2="geometry.peakY" stroke="#d8b456" stroke-opacity="0.65" stroke-dasharray="4 4" />
-      <text :x="geometry.width - geometry.barWidth - 8" :y="geometry.zone.labelY" text-anchor="end">主密集区 {{ geometry.zone.label }}</text>
+      <text v-if="zoneHovered" :x="geometry.width - geometry.barWidth - 8" :y="geometry.zone.labelY" text-anchor="end">主密集区 {{ geometry.zone.label }}</text>
     </template>
     <rect v-for="bar in geometry.bars" :key="bar.index" :x="geometry.width - bar.width" :y="bar.y" :width="bar.width" :height="bar.height" :fill="bar.missing ? `url(#${patternId})` : bar.color" :fill-opacity="bar.opacity" class="profile-bar" @pointerdown.stop @click.stop @dblclick.stop>
       <title>{{ bar.title }}</title>
@@ -22,7 +22,7 @@
 </template>
 
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, shallowRef, useId, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, shallowRef, useId, watch } from 'vue'
 import type { IChartApi, ISeriesApi } from 'lightweight-charts'
 import type { SimpleKLineData } from '../../../types/kline-simple'
 import { calculateVolumeProfile } from '../../utils/volume-profile'
@@ -52,6 +52,30 @@ defineEmits<{ toggle: [] }>()
 const patternId = `profile-missing-${useId().replace(/:/g, '-')}`
 const directionThreshold = 0.05
 const geometry = shallowRef<Geometry | null>(null)
+const toggleButton = shallowRef<HTMLButtonElement | null>(null)
+const overlay = shallowRef<SVGSVGElement | null>(null)
+const pointer = shallowRef<{ x: number; y: number } | null>(null)
+// 虚线上下各留 5px 容差，便于命中细线，同时不因经过整个密集带而显示文字。
+const zoneHovered = computed(() => {
+  const area = geometry.value
+  const point = pointer.value
+  return !!(props.enabled && !props.loading && area?.zone && point
+    && point.x >= 0 && point.x <= area.width && point.y >= 0 && point.y <= area.height
+    && Math.abs(point.y - area.peakY) <= 5)
+})
+let hoverContainer: HTMLElement | null = null
+
+/** 旁听图表容器的鼠标移动，不让虚线拦截图表拖动及十字光标操作。 */
+function trackPointer(event: PointerEvent) {
+  const bounds = overlay.value?.getBoundingClientRect()
+  pointer.value = bounds && event.pointerType !== 'touch'
+    ? { x: event.clientX - bounds.left, y: event.clientY - bounds.top } : null
+}
+
+/** 离开图表后收起主密集区说明。 */
+function clearPointer() {
+  pointer.value = null
+}
 const profile = shallowRef<ReturnType<typeof calculateVolumeProfile> | null>(null)
 let frame = 0
 let lastDraw = 0
@@ -133,8 +157,17 @@ watch(() => props.enabled, () => { dirty = true; geometry.value = null; profile.
 watch([() => props.symbol, () => props.timeframe], () => {
   dirty = true; geometry.value = null; profile.value = null; previous = ''
 }, { flush: 'sync' })
-onMounted(() => { frame = requestAnimationFrame(draw) })
-onBeforeUnmount(() => cancelAnimationFrame(frame))
+onMounted(() => {
+  hoverContainer = toggleButton.value?.parentElement ?? null
+  hoverContainer?.addEventListener('pointermove', trackPointer, { passive: true })
+  hoverContainer?.addEventListener('pointerleave', clearPointer)
+  frame = requestAnimationFrame(draw)
+})
+onBeforeUnmount(() => {
+  hoverContainer?.removeEventListener('pointermove', trackPointer)
+  hoverContainer?.removeEventListener('pointerleave', clearPointer)
+  cancelAnimationFrame(frame)
+})
 </script>
 
 <style scoped>
