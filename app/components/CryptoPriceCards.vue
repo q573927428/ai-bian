@@ -25,8 +25,8 @@
             <template #prefix><el-icon><ElIconSearch /></el-icon></template>
           </el-input>
           <el-radio-group v-model="viewMode" size="small" aria-label="价格看板显示方式">
-            <el-radio-button value="cards" title="卡片视图">卡</el-radio-button>
-            <el-radio-button value="heatmap" title="热力图视图">图</el-radio-button>
+            <el-radio-button value="cards" title="卡片视图" aria-label="卡片视图"><el-icon><ElIconPostcard /></el-icon></el-radio-button>
+            <el-radio-button value="heatmap" title="热力图视图" aria-label="热力图视图"><el-icon><ElIconGrid /></el-icon></el-radio-button>
           </el-radio-group>
           <el-radio-group v-model="changePeriod" size="small" aria-label="涨跌幅周期">
             <el-radio-button value="5m">5m</el-radio-button>

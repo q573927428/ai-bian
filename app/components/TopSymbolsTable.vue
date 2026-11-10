@@ -46,8 +46,8 @@
             </el-select>
           </template>
           <el-radio-group v-if="embedded" v-model="viewMode" size="small" aria-label="行情展示方式">
-            <el-radio-button value="table">表格</el-radio-button>
-            <el-radio-button value="heatmap">热力图</el-radio-button>
+            <el-radio-button value="table" title="表格视图" aria-label="表格视图"><el-icon><ElIconList /></el-icon></el-radio-button>
+            <el-radio-button value="heatmap" title="热力图视图" aria-label="热力图视图"><el-icon><ElIconGrid /></el-icon></el-radio-button>
           </el-radio-group>
           <el-button type="primary" size="small" :loading="loading" @click="fetchData">
             <el-icon><ElIconRefresh /></el-icon>
