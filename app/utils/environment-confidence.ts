@@ -70,7 +70,7 @@ export interface EnvironmentAssessment {
 
 /** 本次请求固定快照，包含双方向评分，防止 AI 自由调整分数。 */
 export interface EnvironmentContext {
-  version: 'environment-v1' | 'environment-v2' | 'environment-v3' | 'environment-v4'
+  version: 'environment-v1' | 'environment-v2' | 'environment-v3' | 'environment-v4' | 'environment-v5'
   /** 计算该置信度时使用的策略或看板主周期；历史档案允许缺失。 */
   mainTimeframe?: TrendPeriod
   periods: PeriodSignals
@@ -92,7 +92,7 @@ export function formatEnvironmentConfidence(context?: EnvironmentContext): strin
     ? `（24h市场${assessment.marketBreadthAdjustment.state}，广度修正${score(assessment.marketBreadthAdjustment.adjustment)}）`
     : ''
   const direction = (name: string, assessment: EnvironmentAssessment) => assessment.available
-    ? `${name}：置信度${assessment.confidence}分，${describe(assessment.confidence!)}${breadth(assessment)}${community(assessment)}。\n\t\t（分项：市场支持${score(assessment.market)}×40% + 五周期支持${score(assessment.structure)}×30% + 相对强弱${score(assessment.relativeStrength)}×30%）`
+    ? `${name}：置信度${assessment.confidence}分，${describe(assessment.confidence!)}${breadth(assessment)}${community(assessment)}。\n\t\t（分项：市场支持${score(assessment.market)}×30% + 五周期支持${score(assessment.structure)}×40% + 相对强弱${score(assessment.relativeStrength)}×30%）`
     : `${name}：暂无可用分数，环境数据不足。市场支持：${score(assessment.market)}；五周期方向支持：${score(assessment.structure)}；相对强弱：${score(assessment.relativeStrength)}。`
   return [
     `五周期结构：${context.structure.label}；${TREND_PERIODS.map(period => `${period} ${context.periods[period] ?? '暂无数据'}`).join('，')}。`,
@@ -134,7 +134,7 @@ export function applyCommunityConfidence(
   const adjust = (assessment: EnvironmentAssessment, side: number): EnvironmentAssessment => {
     // 使用环境三个原始分项，只在社区修正后统一取整；无效社区数据保持旧置信度。
     // 从未取整分项复算并保留广度扣分，防止启用社区情绪后覆盖市场风险修正。
-    const base = assessment.available ? assessment.market! * 0.4 + assessment.structure! * 0.3 + assessment.relativeStrength! * 0.3
+    const base = assessment.available ? assessment.market! * 0.3 + assessment.structure! * 0.4 + assessment.relativeStrength! * 0.3
       + (assessment.marketBreadthAdjustment?.adjustment ?? 0) : null
     const adjustment = assessment.available ? delta * side : 0
     const confidence = base === null ? assessment.confidence : Math.round(Math.max(0, Math.min(100, base + adjustment)))
@@ -221,17 +221,15 @@ export function classifyTrendStructure(signals: PeriodSignals): TrendStructure {
   return { label: `${text}背景分歧`, tone: '观望' }
 }
 
-/** 市场占比和中位数必须一致；所有占比都以有效样本（含持平）为分母。 */
+/** 按涨跌家数差连续评分；持平计入有效分母，不再使用中位数确认或分档。 */
 function marketSupport(stats: MarketBreadthSnapshot['periods']['5m'], side: number): number | null {
-  if (!finite(stats.validCount) || stats.validCount <= 0 || !finite(stats.medianChangePct)) return null
-  const favorable = (side > 0 ? stats.upCount : stats.downCount) / stats.validCount * 100
-  const adverse = (side > 0 ? stats.downCount : stats.upCount) / stats.validCount * 100
-  const median = stats.medianChangePct * side
-  if (median > 0 && favorable >= 65) return 100
-  if (median > 0 && favorable >= 55) return 75
-  if (median < 0 && adverse >= 65) return 0
-  if (median < 0 && adverse >= 55) return 25
-  return 50
+  const { validCount, upCount, downCount, flatCount } = stats
+  // 异常或缺失计数不能伪装成中性分。
+  if (![validCount, upCount, downCount, flatCount].every(value => Number.isSafeInteger(value) && value >= 0)
+    || validCount === 0 || upCount + downCount + flatCount !== validCount) return null
+  // 以50为中性起点保持多空对称；合法家数天然保证分数在0～100之间。
+  const shortScore = 50 + 50 * (downCount - upCount) / validCount
+  return side > 0 ? 100 - shortScore : shortScore
 }
 
 /** 同窗口归一化排名明细，分数与提示词共用；名次按表现从高到低，同值并列。 */
@@ -257,10 +255,13 @@ export function relativeStrengthRanking(stats: MarketBreadthSnapshot['periods'][
     tiedCount: equalOthers + 1, longScore: rank, shortScore: 100 - rank }
 }
 
-/** 方向分数直接复用排名明细，避免展示与实际置信度使用不同口径。 */
+/** 原始排名保持不变，仅将环境评分向中性50分收缩，降低极端排名的影响。 */
 function relativeRank(stats: MarketBreadthSnapshot['periods']['5m'], symbol: string, side: number): number | null {
   const ranking = relativeStrengthRanking(stats, symbol)
-  return ranking ? side > 0 ? ranking.longScore : ranking.shortScore : null
+  // 保留原排名70%的差异，适度减弱极端排名；多空仍互补，范围为15～85，缺失不补齐。
+  if (!ranking) return null
+  const rawScore = side > 0 ? ranking.longScore : ranking.shortScore
+  return rawScore * 0.7 + 50 * 0.3
 }
 
 /** 统一按五周期方向支持度计算；回调或反转是否可入场由策略规则判断。 */
@@ -274,7 +275,7 @@ function structureSupport(signals: PeriodSignals, side: number): number | null {
   return TREND_PERIODS.reduce((sum, period, index) => sum + support(period) * weights[index]! / 100, 0)
 }
 
-/** 固定40/30/30权重；任何关键维度缺失均不可用，不靠剩余维度补分。 */
+/** 固定30/40/30权重；任何关键维度缺失均不可用，不靠剩余维度补分。 */
 export function assessEnvironment(
   periods: PeriodSignals, breadth: MarketBreadthSnapshot | undefined, symbol: string,
   side: number, now = Date.now(), mainTimeframe: TrendPeriod = '15m'
@@ -298,7 +299,7 @@ export function assessEnvironment(
     ? Math.round(windows.reduce((sum, window, index) => sum + breadth.periods[window].validCount / breadth.selectedCount * weights[index]!, 0)) : 0
   return {
     available, confidence: available ? Math.round(Math.max(0, Math.min(100,
-      market! * 0.4 + structure! * 0.3 + relativeStrength! * 0.3 + breadthAdjustment!.adjustment))) : null,
+      market! * 0.3 + structure! * 0.4 + relativeStrength! * 0.3 + breadthAdjustment!.adjustment))) : null,
     market, structure, relativeStrength, marketBreadthAdjustment: breadthAdjustment ?? undefined, coverage
   }
 }
@@ -307,7 +308,7 @@ export function assessEnvironment(
 export function buildEnvironmentContext(periods: PeriodSignals, breadth: MarketBreadthSnapshot | undefined, symbol: string, mainTimeframe: TrendPeriod = '15m'): EnvironmentContext {
   const now = Date.now()
   return {
-    version: 'environment-v4', mainTimeframe, periods, structure: classifyTrendStructure(periods),
+    version: 'environment-v5', mainTimeframe, periods, structure: classifyTrendStructure(periods),
     long: assessEnvironment(periods, breadth, symbol, 1, now, mainTimeframe),
     short: assessEnvironment(periods, breadth, symbol, -1, now, mainTimeframe)
   }
