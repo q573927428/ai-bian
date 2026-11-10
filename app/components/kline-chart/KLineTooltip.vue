@@ -93,6 +93,15 @@
         <span class="label">K线:</span>
         <span class="value">{{ klineData.length }}</span>
       </span>
+      <button
+        class="load-earlier"
+        type="button"
+        :disabled="earlierLoading || loading || !hasEarlier || !klineData.length"
+        :title="earlierError || '向前加载最多499根K线，可连续加载'"
+        @click.stop="$emit('load-earlier')"
+        @pointerdown.stop
+      >{{ earlierLoading ? '加载中…' : !hasEarlier ? '无更多数据' : earlierError ? '重试加载更早' : '加载更早' }}</button>
+      <span v-if="earlierError" class="earlier-error">{{ earlierError }}</span>
     </div>
 
     <!-- 图表统计固定在行情数据下方，并与行情数据共用画布内的悬浮定位。 -->
@@ -242,6 +251,10 @@ interface Props {
   orders?: TradeHistory[]
   klineData?: SimpleKLineData[]
   updated?: number
+  loading?: boolean
+  earlierLoading?: boolean
+  hasEarlier?: boolean
+  earlierError?: string
   position?: {
     left: string
     top: string
@@ -266,6 +279,10 @@ const props = withDefaults(defineProps<Props>(), {
   orders: () => [],
   klineData: () => [],
   updated: 0,
+  loading: false,
+  earlierLoading: false,
+  hasEarlier: true,
+  earlierError: '',
   position: () => ({
     left: '20px',
     top: '20px'
@@ -273,7 +290,7 @@ const props = withDefaults(defineProps<Props>(), {
 })
 
 // 定义 emits
-const emitClose = defineEmits<{ 'close': [] }>()
+const emitClose = defineEmits<{ 'close': []; 'load-earlier': [] }>()
 
 // 工具引用
 const tooltipRef = ref<HTMLElement | null>(null)
@@ -315,6 +332,28 @@ const style = computed(() => ({
 
 .tooltip-content-hidden {
   visibility: hidden;
+}
+
+.load-earlier {
+  pointer-events: auto;
+  color: var(--color-primary);
+  background: var(--bg-hover);
+  border: 1px solid var(--border-color);
+  border-radius: 3px;
+  padding: 1px 5px;
+  font-size: 11px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.load-earlier:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.earlier-error {
+  font-size: 11px;
+  color: var(--text-secondary);
 }
 
 .tooltip-content .symbol {

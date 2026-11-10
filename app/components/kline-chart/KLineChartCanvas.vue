@@ -1110,6 +1110,9 @@ const updateChart = (preserveViewport = false) => {
   const previousLogicalRange = shouldPreserveViewport
     ? timeScale.getVisibleLogicalRange?.()
     : null
+  // 前插历史会改变逻辑索引，恢复视野时需补上新增根数，才能仍显示原来的时间段。
+  const previousFirstTime = candlestickSeries.data()[0]?.time
+  const prependedBars = previousFirstTime == null ? 0 : Math.max(0, validData.findIndex(bar => bar.t === previousFirstTime))
   const wasFollowingLatest = (timeScale.scrollPosition?.() ?? 0) <= 1
   const latestKlineTime = validData[validData.length - 1]?.t ?? null
   const isSameLastKline = renderedLastKlineTime !== null && renderedLastKlineTime === latestKlineTime
@@ -1171,7 +1174,10 @@ const updateChart = (preserveViewport = false) => {
     const restoreViewport = () => {
       if (!chart) return
       if (previousLogicalRange) {
-        chart.timeScale().setVisibleLogicalRange(previousLogicalRange)
+        chart.timeScale().setVisibleLogicalRange({
+          from: previousLogicalRange.from + prependedBars,
+          to: previousLogicalRange.to + prependedBars
+        })
       } else {
         chart.timeScale().setVisibleRange(previousVisibleRange)
       }

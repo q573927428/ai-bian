@@ -84,6 +84,11 @@
         :position="tooltipPosition"
         :kline-data="klineData"
         :updated="meta.updated"
+        :loading="loading"
+        :earlier-loading="earlierLoading"
+        :has-earlier="hasEarlier"
+        :earlier-error="earlierError"
+        @load-earlier="loadEarlierKlines"
       />
 
       <!-- 订单详情浮动面板 -->
@@ -137,6 +142,8 @@ import { calculateRSISeries } from '../../utils/rsi-calculator'
 import { calculateADXSeries } from '../../utils/adx-calculator'
 import { calculateErChartMetricsSeries } from '../../utils/er-chart-series'
 import { DEFAULT_ER_PERIOD } from '../../utils/efficiency-ratio'
+import { mergeKlineHistory } from '../../utils/kline-history'
+import { restoreKlineHistoryCache, saveKlineHistoryCache } from '../../utils/kline-history-cache'
 
 // 初始化bot store
 const botStore = useBotStore()
@@ -308,6 +315,69 @@ watch(() => botStore.botConfig, (newConfig) => {
 })
 
 const klineData = ref<SimpleKLineData[]>([])
+const earlierLoading = ref(false)
+const hasEarlier = ref(true)
+const earlierError = ref('')
+const historyExpanded = ref(false)
+const historyCacheExpiresAt = ref(0)
+// 复盘与实时图表分开缓存，避免把订单复盘窗口扩展到当前行情。
+const historyCacheScope = computed(() => JSON.stringify([
+  props.symbol || 'BTCUSDT', selectedTimeframe.value,
+  props.historicalOrder ? String(props.historicalOrder.openTime) : 'live'
+]))
+// 独立于普通轮询代次，轮询完成不能使历史请求失效。
+let earlierGeneration = 0
+
+// 切换上下文立即作废旧请求，防止 A → B → A 时混入上一次的历史响应。
+watch(() => [props.symbol, selectedTimeframe.value, props.historicalOrder, timeline.value], () => {
+  earlierGeneration++
+  earlierLoading.value = false
+  hasEarlier.value = true
+  earlierError.value = ''
+  historyExpanded.value = false
+  historyCacheExpiresAt.value = 0
+  klineData.value = []
+  requestGeneration++
+  loading.value = false
+}, { flush: 'sync' })
+
+/** 按当前最早时间向前翻页，失败保留现有数据；当前行情优先于历史响应。 */
+async function loadEarlierKlines() {
+  const first = klineData.value[0]
+  if (!first || earlierLoading.value || loading.value || !hasEarlier.value || timeline.value) return
+  const generation = ++earlierGeneration
+  earlierLoading.value = true
+  earlierError.value = ''
+  try {
+    const result = await $fetch<{ success: boolean; data: SimpleKLineData[]; hasMore: boolean }>('/api/kline-simple/earlier', {
+      query: { symbol: props.symbol || 'BTCUSDT', timeframe: selectedTimeframe.value, before: first.t },
+      timeout: 25000,
+      retry: 0
+    })
+    if (generation !== earlierGeneration) return
+    if (!result.success) throw new Error('加载失败')
+    const earlier = result.data.filter(bar => bar.t < first.t)
+    if (earlier.length) {
+      historyExpanded.value = true
+      klineData.value = mergeKlineHistory(earlier, klineData.value)
+      void loadTradeHistory()
+    }
+    hasEarlier.value = result.hasMore && earlier.length > 0
+    persistHistoryCache()
+  } catch {
+    if (generation === earlierGeneration) earlierError.value = '加载失败，请重试'
+  } finally {
+    if (generation === earlierGeneration) earlierLoading.value = false
+  }
+}
+
+/** 仅缓存已扩展的图表；最新窗口随正常刷新更新，但不延长历史有效期。 */
+function persistHistoryCache() {
+  if (!historyExpanded.value) return
+  historyCacheExpiresAt.value = saveKlineHistoryCache(
+    historyCacheScope.value, klineData.value, hasEarlier.value, historyCacheExpiresAt.value
+  )
+}
 const meta = ref({
   first: 0,
   last: 0,
@@ -483,10 +553,21 @@ const loadKLineData = async (silent = false) => {
         const open = Math.floor(new Date(props.historicalOrder.openTime).getTime() / 1000)
         const step = getTimeframeSeconds(timeframeToUse)
         if (!nextKlineData.some(bar => bar.t <= open && bar.t + step > open)) {
-          // 本地行情存在保存期限，禁止把不包含入场时刻的行情当作订单复盘。
-          klineData.value = []
-          error.value = '本地缺少该订单开仓时段的 K 线数据'
-          return
+          // 老订单已超出本地窗口时，直接按开仓时刻定位，不能依赖空图表上的向前翻页按钮。
+          // 沿用开仓后100根的观察范围，首次最多取499根，为入场前走势留出空间。
+          const before = Math.min(Math.floor(Date.now() / 1000), open + step * 100)
+          const historical = await $fetch<{ success: boolean; data: SimpleKLineData[]; hasMore: boolean }>('/api/kline-simple/earlier', {
+            query: { symbol: symbolToUse, timeframe: timeframeToUse, before },
+            timeout: 25000,
+            retry: 0
+          })
+          // 交易所查询可能较慢，切换订单/交易对/周期后必须丢弃旧结果。
+          if (generation !== requestGeneration) return
+          if (!historical.success || !historical.data.some(bar => bar.t <= open && bar.t + step > open)) {
+            throw new Error('交易所未返回该订单开仓时段的K线，请稍后重试')
+          }
+          nextKlineData = historical.data
+          hasEarlier.value = historical.hasMore
         }
       }
 
@@ -505,8 +586,20 @@ const loadKLineData = async (silent = false) => {
         provisionalReloadRequestedAt = 0
       }
 
-      klineData.value = nextKlineData
+      // 首次进入或切换回来先取服务器窗口；缓存只补充更早且时间连续的历史。
+      if (!historyExpanded.value) {
+        const cached = restoreKlineHistoryCache(historyCacheScope.value, nextKlineData, getTimeframeSeconds(timeframeToUse))
+        if (cached) {
+          nextKlineData = cached.data
+          historyExpanded.value = true
+          historyCacheExpiresAt.value = cached.expiresAt
+          hasEarlier.value = cached.hasEarlier
+        }
+      }
+      // 同步只覆盖同时间的行情，手动加载的历史不受最新495根窗口影响。
+      klineData.value = historyExpanded.value ? mergeKlineHistory(klineData.value, nextKlineData) : nextKlineData
       meta.value = result.data.meta
+      persistHistoryCache()
       
       // 加载历史订单数据（等待完成）
       await loadTradeHistory()
@@ -519,7 +612,7 @@ const loadKLineData = async (silent = false) => {
       
       // 显示最新K线数据
       showLatestKline()
-    } else if (!silent) {
+    } else if (!silent && !historyExpanded.value) {
       error.value = result.message || '获取数据失败'
       klineData.value = []
       hideTooltip()
@@ -528,7 +621,7 @@ const loadKLineData = async (silent = false) => {
     console.error('加载K线数据失败:', err)
     // 旧交易对的超时/异常不能反向清空用户刚切换后已加载的新图表。
     if (generation !== requestGeneration) return
-    if (!silent) {
+    if (!silent && !historyExpanded.value) {
       error.value = err.name === 'TimeoutError' ? 'K线加载超时，请关闭多余页面或检查网络后重试' : `加载失败: ${err.message}`
       klineData.value = []
       hideTooltip()
@@ -1209,6 +1302,7 @@ onBeforeUnmount(() => {
 
 // 组件卸载时异步清理
 onUnmounted(() => {
+  earlierGeneration++
   botStore.unsubscribeFromPrices(priceSubscriberId)
 })
 </script>
