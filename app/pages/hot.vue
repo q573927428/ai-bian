@@ -37,11 +37,17 @@ definePageMeta({ name: 'hot' })
 .hot-table-card :deep(.el-card__body) { height: 100%; min-height: 0; box-sizing: border-box; padding: 12px 16px; }
 .hot-table-card :deep(.el-card__body > section) { height: 100%; min-height: 0; }
 .hot-sidebar { min-height: 0; overflow-y: auto; overscroll-behavior-y: contain; scrollbar-gutter: stable; }
-/* 窄屏上下排列，各区仍在页面网格内滚动，不产生整页的超高内容。 */
+/* 平板上下排列，仍保留视口内的分区滚动。 */
 @media (max-width: 1200px) {
   .hot-grid { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 3fr) minmax(0, 2fr); }
 }
 @media (max-width: 768px) {
-  .hot-page { padding: 10px; }
+  /* 手机按内容撑开整页，避免上下两块区域被视口高度截断。 */
+  .hot-page { height: auto; overflow: visible; padding: 10px; }
+  .hot-grid { height: auto; grid-template-rows: auto auto; }
+  .hot-table-card,
+  .hot-table-card :deep(.el-card__body),
+  .hot-table-card :deep(.el-card__body > section) { height: auto; }
+  .hot-sidebar { overflow-y: visible; overscroll-behavior-y: auto; scrollbar-gutter: auto; }
 }
 </style>

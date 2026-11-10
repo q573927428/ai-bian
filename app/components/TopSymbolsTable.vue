@@ -156,7 +156,7 @@
         stripe
         row-key="symbol"
         style="width: 100%"
-        :height="embedded ? '100%' : undefined"
+        :height="embedded && windowWidth > 768 ? '100%' : undefined"
         size="small"
         @sort-change="handleSortChange"
         @row-click="handleRowClick"
@@ -579,7 +579,7 @@ const tableViewportHeight = ref(0)
 let tableResizeObserver: ResizeObserver | undefined
 // 按可视高度均分一页的行高，表格有足够空间时不留下大块底部空白。
 // 最小行高保持可读，50/100等大分页继续滚动；末页不因行数少而被过度拉高。
-const rowPadding = computed(() => Math.max(2, (Math.min(40, (tableViewportHeight.value - 1) / pageSize.value) - 23) / 2))
+const rowPadding = computed(() => windowWidth.value <= 768 ? 2 : Math.max(2, (Math.min(40, (tableViewportHeight.value - 1) / pageSize.value) - 23) / 2))
 watch(tableRef, (table) => {
   tableResizeObserver?.disconnect()
   if (!props.embedded || typeof ResizeObserver === 'undefined') return
@@ -1367,5 +1367,15 @@ watch(() => props.embedded || visible.value, (newVal) => {
   padding: 0 0 10px;
   border-bottom: 1px solid var(--el-border-color-lighter);
   flex-shrink: 0;
+}
+
+@media (max-width: 768px) {
+  /* 独立热门页使用整页滚动，表格和筛选区随内容展开，分页跟在列表后。 */
+  .top-symbols-container-page { height: auto; overflow: visible; }
+  .top-symbols-container-page .market-main,
+  .top-symbols-container-page .market-main > .el-table { flex: none; }
+  .top-symbols-container-page .stable-params { max-height: none; overflow: visible; }
+  /* 取消父容器定高后，热力图仍需保留可绘制的展示空间。 */
+  .top-symbols-container-page .market-heatmap-chart { flex: none; min-height: 400px; }
 }
 </style>
