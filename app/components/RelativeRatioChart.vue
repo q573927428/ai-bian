@@ -40,7 +40,7 @@ const periods: { value: KLineTimeframe; label: string; seconds: number }[] = [
   { value: '1d', label: '日线', seconds: 86400 }, { value: '1w', label: '周线', seconds: 604800 },
 ]
 const numerator = ref('ETHUSDT'), denominator = ref('BTCUSDT')
-const timeframe = ref<KLineTimeframe>('4h')
+const timeframe = ref<KLineTimeframe>('1d')
 const available = ref<string[]>(['ETHUSDT', 'BTCUSDT', 'SOLUSDT', 'DOGEUSDT'])
 const symbols = computed(() => [...new Set([...available.value, numerator.value, denominator.value])].sort())
 const element = ref<HTMLDivElement>()
@@ -151,7 +151,7 @@ onMounted(async () => {
     if (saved && /^[A-Z0-9]+USDT$/.test(saved.numerator) && /^[A-Z0-9]+USDT$/.test(saved.denominator) && periods.some(entry => entry.value === saved.timeframe)) {
       numerator.value = saved.numerator; denominator.value = saved.denominator; timeframe.value = saved.timeframe
     }
-  } catch { /* 损坏的偏好回退到 ETH/BTC、4小时。 */ }
+  } catch { /* 损坏的偏好回退到 ETH/BTC、日线。 */ }
   void load()
   try {
     const result = await $fetch<{ success: boolean; data?: { symbols: { symbol: string }[] } }>('/api/kline-simple', { query: { action: 'stored-symbols' }, signal: optionsController.signal, timeout: 15000, retry: 0 })
