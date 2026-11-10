@@ -89,6 +89,10 @@
           ({{ data.erChangePercent == null ? '--' : `${data.erChangePercent > 0 ? '+' : ''}${data.erChangePercent.toFixed(2)}%` }})
         </span>
       </span>
+      <span class="data-item" title="当前已加载的K线总根数">
+        <span class="label">K线:</span>
+        <span class="value">{{ klineData.length }}</span>
+      </span>
     </div>
 
     <!-- 图表统计固定在行情数据下方，并与行情数据共用画布内的悬浮定位。 -->

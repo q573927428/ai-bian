@@ -127,7 +127,7 @@ const navigationItems: NavigationItem[] = [
   { id: 'orders', label: '订单', description: '交易复盘', icon: ElIconTickets },
   { id: 'macro', label: '宏观', description: '全球市场', icon: ElIconPlatform },
   { id: 'trends', label: '趋势', description: '行情脉络', icon: ElIconTrendCharts },
-  { id: 'hot', label: '热门', description: '全量行情', icon: ElIconStar }
+  { id: 'hot', label: '行情', description: '全量行情', icon: ElIconStar }
 ]
 
 // 桌面与移动端共用登录状态过滤，退出或凭证到期后同步隐藏受保护入口。
