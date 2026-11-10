@@ -175,7 +175,7 @@
             <span class="muted" aria-hidden="true"></span>
             <span :class="[row.shortConfidence == null ? 'muted' : 'down', { 'confidence-leading': row.longConfidence != null && row.shortConfidence != null && row.shortConfidence > row.longConfidence }]"><span class="confidence-label">空</span> {{ row.shortConfidence ?? '--' }}</span>
           </div>
-          <div v-if="recentDivergence(row.latestDivergence)" :class="row.latestDivergence?.kind === 'bullish' ? 'up' : 'down'" :title="`CVD 背离确认于 ${formatOITime((row.latestDivergence?.confirmedAt ?? 0) * 1000)}；摆动点左右各 3 根收盘确认`">
+          <div v-if="recentDivergence(row.latestDivergence)" class="symbol-divergence" :class="row.latestDivergence?.kind === 'bullish' ? 'up' : 'down'" :title="`CVD 背离确认于 ${formatOITime((row.latestDivergence?.confirmedAt ?? 0) * 1000)}；摆动点左右各 3 根收盘确认`">
             {{ row.latestDivergence?.kind === 'bullish' ? '底背离' : '顶背离' }} · {{ divergenceWindow }}
           </div>
         </template>
@@ -1180,6 +1180,8 @@ onUnmounted(() => {
 .candle-unavailable { width: 24px; flex: 0 0 24px; text-align: center; }
 /* 与趋势背景左边缘对齐，将综合评分收在交易对信息末行。 */
 .symbol-confidence { display: flex; align-items: center; gap: 5px; margin-top: 6px; padding-left: 25px; line-height: 1.5; white-space: nowrap; font-variant-numeric: tabular-nums; }
+/* 背离提示与上方多空评分共用缩进，保持交易对列的信息层级。 */
+.symbol-divergence { padding-left: 25px; white-space: nowrap; }
 /* 仅突出双向评分中更高的一侧；相等或数据缺失时不暗示方向优势。 */
 .confidence-leading { font-weight: 700; }
 .symbol-confidence > span:not(.confidence-leading) { color: var(--text-regular); }
