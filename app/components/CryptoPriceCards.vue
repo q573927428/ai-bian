@@ -1151,6 +1151,40 @@ interface CryptoPrice {
   margin-top: 8px;
 }
 
+@media (max-width: 768px) {
+  /* 手机按操作层级排成三行，避免右侧按钮独占一行留下大片空白。 */
+  .price-cards-header {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto 26px;
+    overflow-x: visible;
+  }
+
+  .price-cards-heading,
+  .price-board-actions {
+    display: contents;
+  }
+
+  .price-symbol-search { grid-area: 1 / 1; width: 100%; max-width: 150px; }
+  .price-cards-heading > [aria-label="价格看板显示方式"] { grid-area: 1 / 2; }
+  .board-expand-button { grid-area: 1 / 3; }
+  .price-cards-heading > [aria-label="涨跌幅周期"] { grid-area: 2 / 1; }
+  .heatmap-header-actions { grid-area: 2 / 2 / 3 / 4; justify-self: end; gap: 6px; }
+  .price-cards-heading :deep(.el-radio-button__inner) { padding: 5px 8px; }
+
+  .price-counts {
+    grid-area: 3 / 1 / 4 / -1;
+    min-width: 0;
+    flex-wrap: wrap;
+    gap: 6px 8px;
+  }
+}
+
+@media (max-width: 360px) {
+  /* 极窄屏把热力图选项下移，优先保证周期按钮和统计完整可读。 */
+  .price-cards-heading > [aria-label="涨跌幅周期"] { grid-column: 1 / -1; }
+  .heatmap-header-actions { grid-area: 4 / 1 / 5 / -1; }
+}
+
 @media (max-width: 480px) {
   .cards-grid-baseline .price-card {
     min-width: 0;
