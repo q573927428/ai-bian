@@ -28,7 +28,8 @@ export interface SortConfig {
  * 字符串字段用于精确匹配；数值字段分别表示各业务指标的最小值和最大值。
  */
 export interface FilterConfig {
-  symbol: string
+  /** 多选交易对，空数组表示全部；字符串兼容原单选调用。 */
+  symbol: string[] | string
   direction: string
   strategyId: string
   closeCategory: string
@@ -88,7 +89,7 @@ export const useTradeHistoryStore = defineStore('tradeHistory', () => {
   const filteredSummary = ref({ orderCount: 0, winCount: 0, totalPnl: 0, winRate: 0, averagePnl: 0, payoffRatio: null as number | null })
   // ========== 筛选状态 ==========
   const filter = ref<FilterConfig>({
-    symbol: '',
+    symbol: [],
     direction: '',
     strategyId: '',
     closeCategory: '',
@@ -122,7 +123,7 @@ export const useTradeHistoryStore = defineStore('tradeHistory', () => {
   // ========== 重置筛选 ==========
   const resetFilter = () => {
     filter.value = {
-      symbol: '',
+      symbol: [],
       direction: '',
       strategyId: '',
       closeCategory: '',
@@ -156,6 +157,8 @@ export const useTradeHistoryStore = defineStore('tradeHistory', () => {
     // 保持历史数据与接口的百分数口径，页面筛选统一使用倍数（1.5x 对应 150）。
     const response = await $fetch('/api/bot/history', { params: {
       ...filter.value,
+      // 用逗号传递多选，避免不同查询字符串序列化方式丢失重复参数。
+      symbol: Array.isArray(filter.value.symbol) ? filter.value.symbol.join(',') : filter.value.symbol,
       estimatedVolumeMin: filter.value.estimatedVolumeMin == null ? undefined : filter.value.estimatedVolumeMin * 100,
       estimatedVolumeMax: filter.value.estimatedVolumeMax == null ? undefined : filter.value.estimatedVolumeMax * 100,
       page, pageSize, sortField: sort.value.field, sortDirection: sort.value.direction

@@ -98,9 +98,12 @@ export function queryTradeHistory(allHistory: TradeHistory[], query: Record<stri
   // 使用未取整的实际分钟数，并在分页及统计前过滤，保证列表和汇总一致。
   result = result.filter(order => matchesRange(getHoldingMinutes(order), filter.holdingMinutesMin, filter.holdingMinutesMax))
 
-  // 筛选：交易对
-  if (filter.symbol) {
-    result = result.filter(order => order.symbol === filter.symbol)
+  // 多选按任意一个交易对命中，兼容原单值及重复查询参数；在分页和汇总前限定范围。
+  const selectedSymbols = new Set((Array.isArray(filter.symbol) ? filter.symbol : [filter.symbol])
+    .flatMap((value: unknown) => typeof value === 'string' ? value.split(',') : [])
+    .map((value: string) => value.trim()).filter(Boolean))
+  if (selectedSymbols.size) {
+    result = result.filter(order => selectedSymbols.has(order.symbol))
   }
 
   // 筛选：方向

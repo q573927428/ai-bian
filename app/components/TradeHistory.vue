@@ -44,14 +44,20 @@
             placeholder="全部"
             size="small"
             filterable
+            multiple
+            collapse-tags
+            collapse-tags-tooltip
+            :tag-tooltip="{ popperClass: 'history-symbol-tags' }"
+            :reserve-keyword="false"
             clearable
+            aria-label="筛选历史订单交易对（可搜索、多选）"
             style="width: 80%"
             @change="handleFilterChange"
           >
             <el-option
               v-for="s in tradeHistoryStore.availableSymbols"
               :key="s"
-              :label="s"
+              :label="s.replace(/\/?USDT$/i, '')"
               :value="s"
             />
           </el-select>
@@ -893,7 +899,7 @@ const indicatorRangeFilters = [
 // 本地筛选条件（与 store 同步）
 
 const filter = reactive<FilterConfig>({
-  symbol: '',
+  symbol: [],
   direction: '',
   strategyId: '',
   closeCategory: '',
@@ -963,7 +969,7 @@ const handleFilterChange = () => {
 
 // 重置筛选
 const handleResetFilter = () => {
-  filter.symbol = ''
+  filter.symbol = []
   filter.direction = ''
   filter.strategyId = ''
   filter.closeCategory = ''
@@ -1245,6 +1251,10 @@ onUnmounted(() => {
   gap: 4px;
   min-height: 28px;
 }
+
+/* 折叠标签提示挂载到 body，独立限宽，避免多选时横向撑满订单页面。 */
+:global(.history-symbol-tags) { width: 300px; max-width: calc(100vw - 32px); box-sizing: border-box; }
+:global(.history-symbol-tags .el-select__selection) { flex-wrap: wrap; max-height: 220px; overflow-y: auto; }
 
 .filter-label {
   grid-column: 1 / -1;

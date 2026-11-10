@@ -14,6 +14,31 @@ const records = Array.from({ length: 3205 }, (_, index) => ({
   aiReasoning: '完整详情',
 }))
 
+test('交易对多选在分页前取并集，汇总与其他条件使用同一范围', () => {
+  const trades = [
+    { ...records[0], symbol: 'BTC/USDT', pnl: 10 },
+    { ...records[1], symbol: 'ETH/USDT', pnl: -3 },
+    { ...records[2], symbol: 'SOL/USDT', pnl: 100 },
+  ]
+  for (const symbol of ['BTC/USDT,ETH/USDT', ['BTC/USDT', 'ETH/USDT'], ['BTC/USDT,ETH/USDT', 'BTC/USDT']]) {
+    const result = queryTradeHistory(trades, { symbol, pageSize: 1 })
+    assert.equal(result.pagination.total, 2)
+    assert.equal(result.pagination.totalPages, 2)
+    assert.equal(result.data.length, 1)
+    assert.equal(result.summary.orderCount, 2)
+    assert.equal(result.summary.totalPnl, 7)
+    assert.deepEqual(result.options.symbols, ['BTC/USDT', 'ETH/USDT', 'SOL/USDT'])
+    const winners = queryTradeHistory(trades, { symbol, pnlMin: 0 })
+    assert.equal(winners.pagination.total, 1)
+    assert.equal(winners.data[0].symbol, 'BTC/USDT')
+  }
+  for (const symbol of [undefined, '', [], ['']]) {
+    assert.equal(queryTradeHistory(trades, { symbol }).pagination.total, 3)
+  }
+  assert.equal(queryTradeHistory(trades, { symbol: 'BTC/USDT' }).pagination.total, 1)
+  assert.equal(queryTradeHistory(trades, { symbol: ['NONE', 'MISSING'] }).pagination.total, 0)
+})
+
 test('超过 3000 笔仍完整统计，分页只返回当前页并保留详情', () => {
   const result = queryTradeHistory(records, { page: 2, pageSize: 16 })
   assert.equal(result.pagination.total, 3205)

@@ -661,7 +661,7 @@ const symbolOptions = computed(() => botStore.botConfig?.symbols || [])
 
 // 多选变量
 const selectedIndicators = ref<string[]>(['EMA', 'RSI', 'ADX', 'ATR', 'ER'])
-const emaPeriods = ref<number[]>([14, 60, 120])
+const emaPeriods = ref<number[]>([20, 60])
 const selectedStatistics = ref<string[]>(['OI', 'Volume'])
 
 // OI参数
@@ -992,7 +992,7 @@ watch(() => props.strategy, (newVal) => {
         .map(Number)
         .filter(p => allowed.has(p))
         .sort((a, b) => a - b)
-      emaPeriods.value = normalized.length >= 2 ? normalized.slice(0, 3) : [14, 50]
+      emaPeriods.value = normalized.length >= 2 ? normalized.slice(0, 3) : [20, 60]
     }
 
     // 同步统计数据

@@ -30,19 +30,28 @@
         <span>总 {{ breadthSymbols.length }}</span>
         <span class="up">涨 {{ marketBreadth.upCount }}</span>
         <span class="down">跌 {{ marketBreadth.downCount }}</span>
-        <span>上涨占比 {{ marketBreadth.upRatioPct === null ? '—' : `${marketBreadth.upRatioPct.toFixed(0)}%` }}</span>
+        <span>涨比 {{ marketBreadth.upRatioPct === null ? '—' : `${marketBreadth.upRatioPct.toFixed(0)}%` }}</span>
         <span :class="directionClass(marketBreadth.medianChangePct ?? undefined)">
-          中位数 {{ marketBreadth.medianChangePct === null ? '—' : `${signed(marketBreadth.medianChangePct, 2)}%` }}
+          中位 {{ marketBreadth.medianChangePct === null ? '—' : `${signed(marketBreadth.medianChangePct, 2)}%` }}
         </span>
-        <span v-if="marketBreadth.missingCount" class="muted">待更新 {{ marketBreadth.missingCount }}</span>
+        <span v-if="marketBreadth.missingCount" class="muted">待更 {{ marketBreadth.missingCount }}</span>
       </div>
-      <el-input v-model="symbolSearch" class="symbol-search" size="small" placeholder="交易对" aria-label="交易对" clearable>
-        <template #prefix><el-icon><ElIconSearch /></el-icon></template>
-      </el-input>
-      <el-select :model-value="confidenceSort" class="confidence-sort" size="small" placeholder="当前按列排序" aria-label="交易对置信度排序" @change="handleConfidenceSortChange">
-        <el-option label="默认排序" value="default" />
-        <el-option label="多头置信度 ↓" value="longConfidence" />
-        <el-option label="空头置信度 ↓" value="shortConfidence" />
+      <el-select
+        v-model="selectedSymbols"
+        class="symbol-select"
+        size="small"
+        multiple
+        filterable
+        clearable
+        collapse-tags
+        collapse-tags-tooltip
+        :tag-tooltip="{ popperClass: 'indicator-symbol-tags' }"
+        :reserve-keyword="false"
+        placeholder="全部交易对"
+        aria-label="选择观察交易对（可搜索、多选）"
+        title="可搜索并选择多个交易对，清空后显示全部"
+      >
+        <el-option v-for="symbol in symbolOptions" :key="symbol" :label="symbol.replace(/USDT$/, '')" :value="symbol" />
       </el-select>
       <el-button class="refresh-button" size="small" :loading="loading" @click="requestRefresh">
         <el-icon><ElIconRefresh /></el-icon>刷新
@@ -61,6 +70,14 @@
         </span>
       </div>
       <div class="numeric-filter-grid">
+        <div class="numeric-filter-item">
+          <span class="numeric-filter-label">置信度排序</span>
+          <el-select :model-value="confidenceSort" size="small" placeholder="当前按列排序" aria-label="交易对置信度排序" @change="handleConfidenceSortChange">
+            <el-option label="默认排序" value="default" />
+            <el-option label="多头置信度 ↓" value="longConfidence" />
+            <el-option label="空头置信度 ↓" value="shortConfidence" />
+          </el-select>
+        </div>
         <div class="numeric-filter-item">
           <span class="numeric-filter-label">五周期方向</span>
           <el-select v-model="signalFilter" size="small" aria-label="五周期方向筛选">
@@ -295,7 +312,7 @@
 
 <script setup lang="ts">
 // ==================== 指标看板 ====================
-import { computed, ref, watch, onUnmounted, useId } from 'vue'
+import { computed, ref, watch, onMounted, onUnmounted, useId } from 'vue'
 import { ElDrawer, type TableInstance } from 'element-plus'
 import { useBotStore } from '../stores/bot'
 import { useCoinIcon } from '../composables/useCoinIcon'
@@ -433,7 +450,31 @@ async function refresh() {
 defineExpose({ refresh })
 type SignalTone = '多头' | '空头' | '反转' | '观望'
 const signalFilter = ref<SignalTone | '全部'>('全部')
-const symbolSearch = ref('')
+const selectedSymbols = ref<string[]>([])
+const selectedSymbolSet = computed(() => new Set(selectedSymbols.value))
+const SYMBOL_SELECTION_KEY = 'indicator-selected-symbols'
+let symbolSelectionRestored = false
+
+// 挂载后恢复，避免服务端渲染读取浏览器存储，也避免恢复前覆盖已有选择。
+onMounted(() => {
+  try {
+    const saved: unknown = JSON.parse(localStorage.getItem(SYMBOL_SELECTION_KEY) || '[]')
+    if (Array.isArray(saved)) {
+      selectedSymbols.value = [...new Set(saved.filter((symbol): symbol is string => typeof symbol === 'string' && /^[A-Z0-9]+$/.test(symbol)))]
+    }
+  } catch {
+    // 存储被禁用或内容损坏时，仍可在当前页面正常选择。
+  }
+  symbolSelectionRestored = true
+})
+watch(selectedSymbols, value => {
+  if (!symbolSelectionRestored) return
+  try {
+    localStorage.setItem(SYMBOL_SELECTION_KEY, JSON.stringify(value))
+  } catch {
+    // 保存失败不阻断筛选，当前会话的选择仍然有效。
+  }
+}, { deep: true })
 const divergenceFilter = ref<'all' | 'recent' | 'bearish' | 'bullish'>('all')
 const divergenceWindow = ref(3)
 
@@ -473,8 +514,9 @@ const activeNumericFilters = computed(() => numericFilterFields.filter(({ key })
 const activeFilters = computed(() => activeNumericFilters.value
   + Number(signalFilter.value !== '全部') + Number(divergenceFilter.value !== 'all'))
 
-/** 重置全部指标筛选，保留交易对搜索及用户选择的排序。 */
+/** 重置指标条件和观察交易对，恢复全部交易对，保留用户选择的排序。 */
 function resetNumericFilters() {
+  selectedSymbols.value = []
   for (const { key } of numericFilterFields) numericFilters.value[key] = { min: null, max: null }
   trendStateFilter.value = ''
   macdStateFilter.value = ''
@@ -510,9 +552,8 @@ function matchesNumericFilters(row: IndicatorRow) {
 }
 // 筛选仅影响表格，顶部市场统计始终覆盖全部已配置交易对。
 const filteredRows = computed(() => {
-  // 搜索仅过滤已加载数据，不触发额外指标请求或改变当前排序。
-  const keyword = symbolSearch.value.toUpperCase().replace(/[\s/_-]/g, '')
-  const result = sortedRows.value.filter(row => row.symbol.toUpperCase().replace(/[\s/_-]/g, '').includes(keyword)
+  // 先限定观察范围再应用指标条件；空选择表示全部，不改变行情订阅和市场统计。
+  const result = sortedRows.value.filter(row => (!selectedSymbolSet.value.size || selectedSymbolSet.value.has(row.symbol))
     && (divergenceFilter.value === 'all' || (recentDivergence(row.latestDivergence)
       && (divergenceFilter.value === 'recent' || row.latestDivergence?.kind === divergenceFilter.value)))
     && (signalFilter.value === '全部' || resonanceInfo(row.symbol).tone === signalFilter.value)
@@ -617,6 +658,9 @@ const symbols = computed<string[]>(() => {
   if (!Array.isArray(configuredSymbols)) return []
   return configuredSymbols.map((symbol: string) => symbol.replace('/', '').toUpperCase())
 })
+
+// 选项来自完整配置，不受指标条件或请求失败影响；保留旧选择以便配置变化后仍能手动移除。
+const symbolOptions = computed(() => [...new Set([...symbols.value, ...selectedSymbols.value])])
 
 const breadthSymbols = computed(() => [...new Set(symbols.value.map(symbol => symbol.trim()).filter(Boolean))])
 // 日线对应价格看板的滚动 24h，其余周期直接复用同一份本地 5m 基准。
@@ -1142,8 +1186,10 @@ onUnmounted(() => {
 /* 标签保持次级灰且不随优势数字加粗，只给数字保留轻微的亮度及方向差异。 */
 .symbol-confidence .confidence-label { color: var(--text-secondary); font-weight: 400; }
 .symbol-confidence > span.muted { color: var(--text-secondary); }
-.symbol-search { flex: 1; min-width: 100px; max-width: 120px; margin-left: auto; }
-.confidence-sort { width: 100px; flex-shrink: 0; }
+.symbol-select { flex: 0 0 170px; width: 170px; min-width: 0; margin-left: auto; }
+/* 已选标签提示挂载在 body，单独限宽并换行，避免多选后横向撑满页面。 */
+:global(.indicator-symbol-tags) { width: 300px; max-width: calc(100vw - 32px); box-sizing: border-box; }
+:global(.indicator-symbol-tags .el-select__selection) { flex-wrap: wrap; max-height: 220px; overflow-y: auto; }
 /* 不沿用相邻按钮的额外左间距，统一由工具栏 gap 控制。 */
 .toolbar > .el-button { margin-left: 0; }
 .adx-line { display: flex; align-items: center; gap: 8px; white-space: nowrap; }
@@ -1275,7 +1321,7 @@ onUnmounted(() => {
   .toolbar :deep(.el-radio-button__inner) { padding-left: 8px; padding-right: 8px; }
   .candle-progress { gap: 5px; padding: 0 6px; }
   .candle-progress-track { width: 24px; }
-  .symbol-search { flex: 1; width: auto; min-width: 100px; margin-left: 0; }
+  .symbol-select { margin-left: 0; }
   /* Element Plus 相邻按钮默认有左边距；换行间距统一由工具栏 gap 控制。 */
   .toolbar > .el-button { margin-left: 0; }
 
