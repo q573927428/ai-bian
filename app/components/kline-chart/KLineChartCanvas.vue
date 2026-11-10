@@ -1245,8 +1245,9 @@ watch(() => props.klineData, (newData, oldData) => {
     return
   }
 
-  // 如果只是最后一根K线更新，不刷新整个图表
-  // 这个情况由 updateLastKline 方法处理
+  // 整批响应即使首尾时间没变，也可能修订最近多根 OHLC/成交量，必须应用到画布。
+  // 原地实时价格更新的 newData === oldData，仍由 updateLastKline 处理，避免逐笔重画。
+  if (newData !== oldData) updateChart(true)
 }, { deep: true })
 
 // 监听主题变化

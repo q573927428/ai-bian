@@ -323,13 +323,20 @@ const historyCacheExpiresAt = ref(0)
 // 复盘与实时图表分开缓存，避免把订单复盘窗口扩展到当前行情。
 const historyCacheScope = computed(() => JSON.stringify([
   props.symbol || 'BTCUSDT', selectedTimeframe.value,
-  props.historicalOrder ? String(props.historicalOrder.openTime) : 'live'
+  props.historicalOrder ? `${props.historicalOrder.id}:${props.historicalOrder.openTime}` : 'live'
 ]))
 // 独立于普通轮询代次，轮询完成不能使历史请求失效。
 let earlierGeneration = 0
 
 // 切换上下文立即作废旧请求，防止 A → B → A 时混入上一次的历史响应。
-watch(() => [props.symbol, selectedTimeframe.value, props.historicalOrder, timeline.value], () => {
+watch([
+  () => props.symbol,
+  () => selectedTimeframe.value,
+  () => props.historicalOrder?.id,
+  () => props.historicalOrder?.openTime,
+  () => timeline.value
+], () => {
+  // 同一订单重新点击或替换对象不应清空图表，只在交易上下文实际变化时重置。
   earlierGeneration++
   earlierLoading.value = false
   hasEarlier.value = true
@@ -339,6 +346,8 @@ watch(() => [props.symbol, selectedTimeframe.value, props.historicalOrder, timel
   klineData.value = []
   requestGeneration++
   loading.value = false
+  provisionalKlineTimestamp = null
+  provisionalReloadRequestedAt = 0
 }, { flush: 'sync' })
 
 /** 按当前最早时间向前翻页，失败保留现有数据；当前行情优先于历史响应。 */
@@ -567,7 +576,8 @@ const loadKLineData = async (silent = false) => {
             throw new Error('交易所未返回该订单开仓时段的K线，请稍后重试')
           }
           nextKlineData = historical.data
-          hasEarlier.value = historical.hasMore
+          // 已经向前翻到历史起点时，刷新初始窗口不能重新开启“加载更早”。
+          if (!historyExpanded.value) hasEarlier.value = historical.hasMore
         }
       }
 
@@ -1123,14 +1133,20 @@ const appendProvisionalKline = (timestamp: number) => {
 
 // 获取最后一根K线数据（含成交量），用于更新图表
 const fetchLastBar = async () => {
+  if (timeline.value || props.historicalOrder) return
   const symbolToUse = props.symbol || 'BTCUSDT'
   const timeframeToUse = selectedTimeframe.value
+  const generation = requestGeneration
   if (!symbolToUse || !timeframeToUse || klineData.value.length === 0) return
 
   try {
     const params = new URLSearchParams({ symbol: symbolToUse, timeframe: timeframeToUse })
     const response = await fetch(`/api/kline-simple/last-bar?${params}`)
     const result = await response.json()
+
+    // 不同交易对可能恰好具有相同时间戳，不能只比较最后一根的时间。
+    if (generation !== requestGeneration || symbolToUse !== (props.symbol || 'BTCUSDT')
+      || timeframeToUse !== selectedTimeframe.value || timeline.value || props.historicalOrder) return
 
     if (result.success && result.data && chartCanvasRef.value) {
       const lastBar = result.data as SimpleKLineData
@@ -1292,6 +1308,9 @@ onMounted(() => {
 
 // 组件卸载前同步清理
 onBeforeUnmount(() => {
+  // 卸载后所有行情和历史请求都应失效，避免仍在写入旧图表或缓存。
+  requestGeneration++
+  earlierGeneration++
   stopNewKlineCheck()
   window.removeEventListener('keydown', handleExpandedEscape)
   // 切换引擎或离开页面时释放滚动锁。
@@ -1302,7 +1321,6 @@ onBeforeUnmount(() => {
 
 // 组件卸载时异步清理
 onUnmounted(() => {
-  earlierGeneration++
   botStore.unsubscribeFromPrices(priceSubscriberId)
 })
 </script>

@@ -53,11 +53,11 @@ export function saveKlineHistoryCache(
   if (!storage) return expiry
   try {
     const key = PREFIX + scope
-    prune(storage, now, key, true)
     if (expiry <= now) {
       storage.removeItem(key)
       return expiry
     }
+    prune(storage, now, key, true)
     const cache: HistoryCache = {
       expiresAt: expiry, data: data.slice(-MAX_BARS), hasEarlier: hasEarlier || data.length > MAX_BARS
     }

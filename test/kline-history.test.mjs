@@ -4,7 +4,7 @@ import test from 'node:test'
 import { readFileSync } from 'node:fs'
 import vm from 'node:vm'
 import ts from 'typescript'
-import { ref } from 'vue'
+import { ref, reactive, watch } from 'vue'
 import { parse } from 'vue/compiler-sfc'
 import { mergeKlineHistory } from '../app/utils/kline-history.ts'
 import { restoreKlineHistoryCache, saveKlineHistoryCache, KLINE_HISTORY_CACHE_TTL } from '../app/utils/kline-history-cache.ts'
@@ -29,11 +29,16 @@ function fixture() {
   const ast = ts.createSourceFile('chart.ts', source, ts.ScriptTarget.Latest, true)
   const declarations = ast.statements.filter(statement =>
     (ts.isFunctionDeclaration(statement) && ['loadEarlierKlines', 'persistHistoryCache'].includes(statement.name?.text))
-    || (ts.isVariableStatement(statement) && statement.declarationList.declarations.some(item => item.name.getText(ast) === 'loadKLineData')))
-  assert.equal(declarations.length, 3)
+    || (ts.isVariableStatement(statement) && statement.declarationList.declarations.some(item => ['loadKLineData', 'fetchLastBar'].includes(item.name.getText(ast)))))
+  assert.equal(declarations.length, 4)
+  const contextWatcher = ast.statements.find(statement => ts.isExpressionStatement(statement)
+    && ts.isCallExpression(statement.expression) && statement.expression.expression.getText(ast) === 'watch'
+    && ts.isArrayLiteralExpression(statement.expression.arguments[0]))
+  assert.ok(contextWatcher)
   const storage = memoryStorage()
   const state = {
-    props: { symbol: 'BTCUSDT' }, selectedTimeframe: ref('5m'), timeline: ref(false),
+    props: reactive({ symbol: 'BTCUSDT' }), selectedTimeframe: ref('5m'), timeline: ref(false),
+    watch, chartCanvasRef: ref({ updateLastKline() {} }),
     klineData: ref([bar(3000), bar(3300)]), earlierLoading: ref(false), hasEarlier: ref(true),
     earlierError: ref(''), historyExpanded: ref(false), loading: ref(false), error: ref(''), meta: ref({}),
     historyCacheScope: ref('BTCUSDT:5m:live'), historyCacheExpiresAt: ref(0), storage,
@@ -54,6 +59,7 @@ function fixture() {
   const context = vm.createContext(state)
   const compiled = ts.transpileModule('let earlierGeneration = 0, requestGeneration = 0, provisionalKlineTimestamp = null, provisionalReloadRequestedAt = 0;\n'
     + declarations.map(statement => statement.getText(ast)).join('\n')
+    + '\nglobalThis.syncLastBar = fetchLastBar; globalThis.installContextWatcher = () => { ' + contextWatcher.getText(ast) + ' };'
     + '\nglobalThis.loadEarlier = loadEarlierKlines; globalThis.refresh = loadKLineData; globalThis.invalidate = () => { earlierGeneration++; earlierLoading.value = false; }; globalThis.invalidateAll = () => { requestGeneration++; };', {
     compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS }
   })
@@ -175,6 +181,63 @@ test('交易所补取过程中切换图表后，旧订单响应不能写入新�
   assert.deepEqual(state.klineData.value.map(item => item.t), [9000])
 })
 
+test('重复选择同一订单不清空图表，切换周期仍立即重置', () => {
+  const state = fixture()
+  state.props.historicalOrder = { id: 'order-1', openTime: 3000000 }
+  state.historyExpanded.value = true
+  state.installContextWatcher()
+  state.props.historicalOrder = { id: 'order-1', openTime: 3000000 }
+  assert.equal(state.klineData.value.length, 2)
+  assert.equal(state.historyExpanded.value, true)
+  state.selectedTimeframe.value = '15m'
+  assert.equal(state.klineData.value.length, 0)
+  assert.equal(state.historyExpanded.value, false)
+})
+
+test('切换交易对后，旧末根请求即使时间戳相同也不能覆盖新图表', async () => {
+  const state = fixture()
+  let resolve
+  state.fetch = () => new Promise(done => { resolve = done })
+  const pending = state.syncLastBar()
+  state.props.symbol = 'ETHUSDT'
+  state.invalidateAll()
+  state.klineData.value = [bar(3300, 200)]
+  resolve({ json: async () => ({ success: true, data: bar(3300, 99999) }) })
+  await pending
+  assert.equal(state.klineData.value[0].c, 200)
+})
+
+test('老订单已经翻到起点后，刷新初始窗口不能重开向前加载', async () => {
+  const state = fixture()
+  state.props.historicalOrder = { openTime: 3000000 }
+  state.live = []
+  state.reply = { success: true, data: [bar(2700), bar(3000)], hasMore: true }
+  await state.refresh()
+  state.historyExpanded.value = true
+  state.hasEarlier.value = false
+  await state.refresh()
+  assert.equal(state.hasEarlier.value, false)
+})
+
+test('整批同步修订中间K线时刷新画布，原地逐笔更新不触发全量重画', () => {
+  const source = parse(readFileSync(new URL('../app/components/kline-chart/KLineChartCanvas.vue', import.meta.url), 'utf8')).descriptor.scriptSetup.content
+  const ast = ts.createSourceFile('canvas.ts', source, ts.ScriptTarget.Latest, true)
+  const statement = ast.statements.find(item => ts.isExpressionStatement(item)
+    && item.getText(ast).startsWith('watch(() => props.klineData, (newData, oldData)'))
+  assert.ok(statement)
+  let callback
+  let redraws = 0
+  const compiled = ts.transpileModule(statement.getText(ast), { compilerOptions: { target: ts.ScriptTarget.ES2022 } })
+  vm.runInNewContext(compiled.outputText, {
+    watch: (_source, handler) => { callback = handler }, updateChart: () => { redraws++ }
+  })
+  const old = [bar(300), bar(600), bar(900)]
+  callback([bar(300), bar(600, 42), bar(900)], old)
+  assert.equal(redraws, 1)
+  callback(old, old)
+  assert.equal(redraws, 1)
+})
+
 test('30分钟固定过期，普通同步写缓存不续期，过期后不再恢复', () => {
   const storage = memoryStorage()
   const now = 1000000
@@ -195,6 +258,14 @@ test('不同交易对和周期缓存隔离，历史与服务器有缺口时丢�
   assert.equal(restoreKlineHistoryCache('BTCUSDT:15m', [bar(900)], 900, 1000001, storage), null)
   assert.equal(restoreKlineHistoryCache('BTCUSDT:5m', [bar(1200)], 300, 1000001, storage), null)
   assert.equal(storage.length, 0)
+})
+
+test('过期图表继续刷新时，只删除自己的缓存，不误淘汰其他有效缓存', () => {
+  const storage = memoryStorage()
+  for (let i = 0; i < 5; i++) saveKlineHistoryCache(`other${i}`, [bar(300)], true, 0, 1000000, storage)
+  saveKlineHistoryCache('expired', [bar(300)], true, 999999, 1000000, storage)
+  assert.equal(storage.length, 5)
+  assert.ok(storage.getItem('kline-history:v1:other0'))
 })
 
 test('损坏或不可用的浏览器存储不影响图表，缓存空间有上限', () => {
