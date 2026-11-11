@@ -4,6 +4,7 @@ import test from 'node:test'
 import fs from 'node:fs'
 import vm from 'node:vm'
 import ts from 'typescript'
+import { computed, ref } from 'vue'
 import { summarizeBreadth, calculateLiveBreadth, classifyBreadthAsset, selectBreadthForSymbol, filterBreadthSymbols, BREADTH_CATEGORY_LABELS } from '../app/utils/market-breadth.ts'
 import { assessEnvironment, buildEnvironmentContext, relativeStrengthRanking, formatEnvironmentConfidence } from '../app/utils/environment-confidence.ts'
 
@@ -36,6 +37,37 @@ function mixedSnapshot() {
     }]))
   }
 }
+
+test('首页分类切换只改变统计，隐藏高度基准卡片保持完整涨跌幅', () => {
+  const source = fs.readFileSync(new URL('../app/components/CryptoPriceCards.vue', import.meta.url), 'utf8')
+  const script = source.slice(source.indexOf('const fullBreadth = computed'), source.indexOf('/** 获取共享快照'))
+  const now = Date.now()
+  const allSymbols = ['BTCUSDT', 'STOCKUSDT']
+  const scopeSymbols = ref(allSymbols)
+  const snapshot = {
+    symbols: allSymbols, expiresAt: now + 60000,
+    periods: { '1h': { bases: { BTCUSDT: 100, STOCKUSDT: 100 }, referenceTime: now } }
+  }
+  const context = {
+    computed, summarizeBreadth, calculateLiveBreadth, scopeSymbols,
+    DEFAULT_CRYPTOS: ref(allSymbols), breadthSnapshot: ref(snapshot), breadthClock: ref(now), changePeriod: ref('1h'),
+    botStore: { prices: { BTCUSDT: { price: 102, timestamp: now }, STOCKUSDT: { price: 99, timestamp: now } } }
+  }
+  vm.createContext(context)
+  vm.runInContext(ts.transpile(script + '\nglobalThis.api = { activeBreadth, getChangePercent };', {
+    target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS
+  }), context)
+  const before = allSymbols.map(context.api.getChangePercent)
+  assert.equal(context.api.activeBreadth.value.validCount, 2)
+  scopeSymbols.value = ['BTCUSDT']
+  assert.equal(context.api.activeBreadth.value.upCount, 1)
+  assert.equal(context.api.activeBreadth.value.downCount, 0)
+  assert.deepEqual(allSymbols.map(context.api.getChangePercent), before)
+  scopeSymbols.value = ['STOCKUSDT']
+  assert.equal(context.api.activeBreadth.value.upCount, 0)
+  assert.equal(context.api.activeBreadth.value.downCount, 1)
+  assert.deepEqual(allSymbols.map(context.api.getChangePercent), before)
+})
 
 test('看板分类范围包含同类缺失行情，未知仅在全部展示，空组不回退全市场', () => {
   const snapshot = mixedSnapshot()

@@ -39,7 +39,7 @@
             
             <!-- 加密货币价格卡片组件 -->
             <ClientOnly>
-              <CryptoPriceCards v-model:chart-symbol="selectedChartSymbol" :chart-timeframe="selectedChartTimeframe" />
+              <CryptoPriceCards v-model:chart-symbol="selectedChartSymbol" :chart-timeframe="selectedChartTimeframe" :chart-focus-request="chartFocusRequest" />
             </ClientOnly>
 
             <!-- 技术指标抽屉由顶部导航打开 -->
@@ -183,10 +183,14 @@ function handleNavigate(target: HomeNavigationTarget) {
 // 与全局通知共享图表目标，跨页面返回时仍能定位到通知中的交易对及周期。
 const selectedChartSymbol = useState<string>('home-chart-symbol', () => '')
 const selectedChartTimeframe = useState<string>('home-chart-timeframe', () => '')
+// 每次点击都有独立请求，重复点击当前持仓也能重新放大热力图。
+const chartFocusRequest = ref<{ symbol: string; id: number }>()
+let chartFocusId = 0
 
 /** 点击持仓交易对时，同时定位图表交易对和该持仓的主周期。 */
 function handlePositionChartSelect(symbol: string, mainTimeframe?: string) {
   selectedChartSymbol.value = symbol
+  chartFocusRequest.value = { symbol: symbol.replace('/', '').trim().toUpperCase(), id: ++chartFocusId }
   // 兼容未保存主周期的旧持仓，避免向图表传入无效周期。
   if (mainTimeframe) selectedChartTimeframe.value = mainTimeframe
 }

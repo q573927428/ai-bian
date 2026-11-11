@@ -80,6 +80,8 @@ const props = defineProps<{
   focusOnSelectionChange?: boolean
   /** 独立于详情选中状态的主动定位请求，id允许重复定位同一交易对。 */
   focusRequest?: { symbol: string; id: number }
+  /** 首页价格看板单独配置聚焦倍率；未配置的行情页沿用原定位比例。 */
+  focusZoom?: { minScale: number; targetAreaRatio: number }
 }>()
 const emit = defineEmits<{ select: [symbol: string] }>()
 const chartElement = ref<HTMLElement | null>(null)
@@ -126,6 +128,18 @@ async function locateSymbol(symbol: string) {
   focusedGroup.value = ''
   await nextTick()
   if (!chart) return
+  // 首次选中会先因蓝框变化触发 setOption，此时旧区块可能仍在播放尺寸动画。
+  // 仅把 animation 改为 false 不会停止已经启动的动画：旧内容矩形之后会覆盖
+  // 定位后的尺寸，露出整片蓝色边框背景。先结束旧动画，再执行本轮定位布局。
+  for (const root of chart.getZr().storage.getRoots()) {
+    root.stopAnimation(undefined, true)
+    root.traverse(element => { element.stopAnimation(undefined, true) })
+  }
+  // 原生定位会启动节点位移动画；随后校正 rootRect 只能更新布局，无法取消
+  // 已启动的动画，动画结束后会再次覆盖位置并露出大片空白。主动定位先关闭
+  // 本轮系列动画，让原生定位与边界校正在同一轮完成；行情重绘仍沿用原动画策略。
+  chart.setOption({ series: [{ id: 'price-heatmap', animation: false,
+    zoomToNodeRatio: props.focusZoom?.targetAreaRatio ?? 0.03 }] })
   resetZoom()
   if (!symbol) return
   chart.dispatchAction({ type: 'treemapZoomToNode', seriesId: 'price-heatmap', targetNodeId: symbol })
@@ -133,7 +147,16 @@ async function locateSymbol(symbol: string) {
   const data = (chart as unknown as HeatmapLayoutReader).getModel().getSeriesByIndex(0)?.getData()
   const rect = data?.tree?.root.getLayout()
   if (rect) {
-    viewRect = clampViewRect({ x: rect.x, y: rect.y, width: rect.width, height: rect.height })
+    // 首页持仓聚焦单独保证最低倍率；行情页不额外放大，保留原定位行为。
+    // 以原生定位中心缩放后校正边界，避免靠边目标把画布移出视口。
+    const factor = Math.max(1, chart.getWidth() * (props.focusZoom?.minScale ?? 1) / rect.width)
+    const centerX = chart.getWidth() / 2
+    const centerY = chart.getHeight() / 2
+    viewRect = clampViewRect({
+      x: centerX - (centerX - rect.x) * factor,
+      y: centerY - (centerY - rect.y) * factor,
+      width: rect.width * factor, height: rect.height * factor
+    })
     chart.dispatchAction({ type: 'treemapRender', seriesId: 'price-heatmap', rootRect: viewRect })
   }
 }
@@ -141,11 +164,13 @@ async function locateSymbol(symbol: string) {
 // 仅外部选择或目标重新进入结果集时定位，图内点击保留当前视口。
 watch([() => props.selectedSymbol, () => props.items.some(item => item.symbol === props.selectedSymbol)],
   ([symbol, available]) => {
+    // 主动请求由专门监听处理，避免同一轮选中更新触发两次异步定位。
+    if (props.focusRequest?.symbol === symbol) return
     if (props.focusOnSelectionChange !== false && symbol && available && symbol !== locallySelectedSymbol) void locateSymbol(symbol)
   }, { flush: 'post' })
 
-watch(() => props.focusRequest, async (request) => {
-  if (!request) return
+watch([() => props.focusRequest, () => props.items.some(item => item.symbol === props.focusRequest?.symbol)], async ([request, available]) => {
+  if (!request || !available) return
   // 等搜索清空监听执行后取消其恢复全景定时器，避免覆盖本次主动定位。
   await nextTick()
   if (request !== props.focusRequest) return
@@ -444,8 +469,8 @@ function renderChart() {
       top: 0, left: 0, right: 0, bottom: 0,
       roam: true,
       scaleLimit: { min: 1, max: 8 },
-      // 定位时让目标占约 3% 的视口面积，保留更多周边代币供对照。
-      zoomToNodeRatio: 0.03,
+      // 默认沿用行情页原比例；首页的持仓聚焦通过独立参数控制。
+      zoomToNodeRatio: props.focusZoom?.targetAreaRatio ?? 0.03,
       // 缩放仅改变视口，不因放大而重新增删小格，保持整体布局一致。
       visibleMin: 0,
       childrenVisibleMin: 0,

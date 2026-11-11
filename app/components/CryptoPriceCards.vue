@@ -104,6 +104,8 @@
       :search-query="normalizedSymbolSearch"
       :period="changePeriod"
       :selected-symbol="selectedSymbol"
+      :focus-zoom="{ minScale: 2, targetAreaRatio: 0.12 }"
+      :focus-request="props.chartFocusRequest"
       :height="cardGridHeight"
       :size-mode="heatmapSizeMode"
       :volume-window-end="periodVolumes?.windowEnd"
@@ -214,7 +216,7 @@ import { useCoinIcon } from '../composables/useCoinIcon'
 import { useGlobalPolling } from '../composables/useGlobalPolling'
 import type { MarketBreadthSnapshot } from '../../types/market-breadth'
 import type { MarketPeriodVolumes } from '../../types/market-period-volumes'
-import { calculateLiveBreadth } from '../utils/market-breadth'
+import { calculateLiveBreadth, summarizeBreadth } from '../utils/market-breadth'
 import { useMarketScope } from '../composables/useMarketScope'
 
 const props = defineProps<{
@@ -222,6 +224,8 @@ const props = defineProps<{
   chartSymbol?: string
   /** 持仓对应的主周期，传递给当前图表引擎。 */
   chartTimeframe?: string
+  /** 持仓主动点击请求，重复选择同一交易对时仍执行热力图聚焦。 */
+  chartFocusRequest?: { symbol: string; id: number }
 }>()
 
 const emit = defineEmits<{
@@ -302,18 +306,26 @@ const breadthClock = ref(Date.now())
 let breadthRequestId = 0
 
 // 所有周期（含滚动24h）复用服务端本地5m基准，结合实时价格重算。
-const activeBreadth = computed(() => {
+const fullBreadth = computed(() => {
   const snapshot = breadthSnapshot.value
   const validSnapshot = snapshot && breadthClock.value < snapshot.expiresAt
     && JSON.stringify([...DEFAULT_CRYPTOS.value].sort()) === JSON.stringify(snapshot.symbols)
   const stats = validSnapshot ? snapshot.periods[changePeriod.value] : null
-  return calculateLiveBreadth(scopeSymbols.value, botStore.prices, changePeriod.value,
+  return calculateLiveBreadth(DEFAULT_CRYPTOS.value, botStore.prices, changePeriod.value,
     stats?.bases ?? {}, stats?.referenceTime ?? null, Math.max(breadthClock.value, Date.now()))
 })
 
-/** 卡片与标题共享实时聚合结果，实时价格更新即触发重算。 */
+// 分类只改变头部聚合范围；完整行情供隐藏基准卡片测量，避免切换分类后
+// 其他分类的涨跌幅变成“待更新”，导致文本换行或卡片宽度变化而撑高看板。
+const activeBreadth = computed(() => {
+  const stats = fullBreadth.value
+  return summarizeBreadth(Object.fromEntries(scopeSymbols.value.map(symbol => [symbol, stats.changes[symbol] ?? null])),
+    stats.referenceTime, stats.bases)
+})
+
+/** 展示和测量卡片共享完整实时行情，分类过滤不改写其他标的的涨跌幅。 */
 function getChangePercent(symbol: string): number | null {
-  return activeBreadth.value?.changes[symbol] ?? null
+  return fullBreadth.value.changes[symbol] ?? null
 }
 
 /** 获取共享快照；丢弃配置变更或卸载前发出的旧请求。 */
