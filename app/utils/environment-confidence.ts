@@ -95,7 +95,7 @@ export function formatEnvironmentConfidence(context?: EnvironmentContext): strin
     ? `（24h市场${assessment.marketBreadthAdjustment.state}，广度修正${score(assessment.marketBreadthAdjustment.adjustment)}）`
     : ''
   const direction = (name: string, assessment: EnvironmentAssessment) => assessment.available
-    ? `${name}：置信度${assessment.confidence}分，${describe(assessment.confidence!)}${breadth(assessment)}${community(assessment)}。\n\t\t（分项：市场支持${score(assessment.market)}×30% + 五周期支持${score(assessment.structure)}×40% + 相对强弱${score(assessment.relativeStrength)}×30%）`
+    ? `${name}：置信度${assessment.confidence}分，${describe(assessment.confidence!)}${breadth(assessment)}${community(assessment)}。\n\t（分项：市场支持${score(assessment.market)}×30% + 五周期支持${score(assessment.structure)}×40% + 相对强弱${score(assessment.relativeStrength)}×30%）`
     : `${name}：暂无可用分数，环境数据不足。市场支持：${score(assessment.market)}；五周期方向支持：${score(assessment.structure)}；相对强弱：${score(assessment.relativeStrength)}。`
   return [
     ...(context.marketScope ? [`市场比较范围：${BREADTH_CATEGORY_LABELS[context.marketScope.category]}，已选同类${context.marketScope.selectedCount}个交易对。`] : []),

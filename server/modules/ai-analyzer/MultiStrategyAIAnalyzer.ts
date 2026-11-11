@@ -825,6 +825,7 @@ ${formatMarketBreadth(indicators.marketBreadth, symbol, environmentContext?.main
 ## 四、策略（唯一规则）
 ${promptConfig.userPrompt}
 --------------------------
+
 ## 五、置信度结果
 ${formatEnvironmentConfidence(environmentContext)}
 
