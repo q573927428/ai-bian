@@ -2,6 +2,21 @@
 export type BreadthPeriod = '5m' | '15m' | '1h' | '4h' | '24h'
 export type BreadthAssetCategory = 'crypto' | 'tradfi' | 'unknown'
 
+/** 指标详情的同类市场聚合表格；仅传当前交易对涨跌幅，不展开其他标的明细。 */
+export interface MarketBreadthSummary {
+  selectedCount: number
+  computedAt: number
+  expiresAt: number
+  /** 主周期ATR归一化排名；过期或有效样本不足时为空。 */
+  ranking: { position: number; sampleCount: number; tiedCount: number } | null
+  rows: (Pick<BreadthStatistics, 'upCount' | 'downCount' | 'flatCount' | 'upRatioPct' | 'medianChangePct' | 'validCount' | 'missingCount'> & {
+    period: BreadthPeriod
+    changePct: number | null
+    /** 当前窗口同类资产ATR归一化排名；兼容旧响应，缺失不借用其他窗口。 */
+    ranking?: MarketBreadthSummary['ranking']
+  })[]
+}
+
 /** 单周期统计；占比以有效样本（含持平）为分母，缺失行情不按零处理。 */
 export interface BreadthStatistics {
   validCount: number

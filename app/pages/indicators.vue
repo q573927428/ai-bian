@@ -5,12 +5,9 @@
       <PasswordDialog v-model="showPasswordDialog" @success="handlePasswordSuccess" />
       <!-- 锁定时卸载看板和图表，直接访问页面也不能展示或继续请求指标。 -->
       <div v-if="passwordVerified" class="dashboard-grid">
-        <IndicatorsList ref="listRef" class="board" :model-value="true" :selected-symbol="selected" :auto-height="isMobile" embedded coordinated-refresh @refresh-request="refreshDashboard" @symbols-ready="initializeSymbol" @select-symbol="selectSymbol" @timeframe-change="chartTimeframe = $event" />
+        <IndicatorsList ref="listRef" class="board" :model-value="true" :selected-symbol="selected" :auto-height="isMobile" embedded coordinated-refresh environment-panel @refresh-request="refreshDashboard" @symbols-ready="initializeSymbol" @select-symbol="selectSymbol" @show-environment="showEnvironment" @timeframe-change="chartTimeframe = $event" />
         <aside v-if="!isMobile">
-          <template v-if="selected">
-            <IndicatorTrendChart ref="chartRef" :symbol="selected" :timeframe="chartTimeframe" coordinated-refresh @refresh-request="refreshDashboard" @timeframe-change="chartTimeframe = $event" />
-          </template>
-          <el-empty v-else description="等待看板数据，加载后默认显示第一个交易对" />
+          <IndicatorSidePanel ref="sidePanelRef" v-model:view="panelView" :symbol="selected" :timeframe="chartTimeframe" :details="environmentDetails" @refresh-request="refreshDashboard" @timeframe-change="chartTimeframe = $event" />
         </aside>
       </div>
       <el-empty v-else description="解锁后查看指标看板">
@@ -19,29 +16,32 @@
       <el-dialog
         v-if="passwordVerified && isMobile"
         v-model="chartDialogVisible"
-        :title="`${selected} 指标图表`"
+        :title="`${selected} ${panelView === 'chart' ? '指标图表' : '环境详情'}`"
         fullscreen
         append-to-body
         destroy-on-close
       >
         <div v-if="chartDialogVisible && selected" class="mobile-chart-panel">
-          <IndicatorTrendChart ref="chartRef" :symbol="selected" :timeframe="chartTimeframe" :expandable="false" coordinated-refresh @refresh-request="refreshDashboard" @timeframe-change="chartTimeframe = $event" />
+          <IndicatorSidePanel ref="sidePanelRef" v-model:view="panelView" :symbol="selected" :timeframe="chartTimeframe" :details="environmentDetails" :expandable="false" @refresh-request="refreshDashboard" @timeframe-change="chartTimeframe = $event" />
         </div>
       </el-dialog>
     </ClientOnly>
   </main>
 </template>
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount } from 'vue'
+import { computed, ref, onMounted, onBeforeUnmount } from 'vue'
 import IndicatorsList from '../components/IndicatorsList.vue'
-import IndicatorTrendChart from '../components/IndicatorTrendChart.vue'
+import IndicatorSidePanel from '../components/IndicatorSidePanel.vue'
 import PasswordDialog from '../components/PasswordDialog.vue'
 import { usePageUnlock } from '../composables/usePageUnlock'
 import { useGlobalPolling } from '../composables/useGlobalPolling'
+import { useIndicatorPanelView } from '../composables/useIndicatorPanelView'
 const selected = ref('')
 const chartTimeframe = ref('1h')
 const listRef = ref<InstanceType<typeof IndicatorsList>>()
-const chartRef = ref<InstanceType<typeof IndicatorTrendChart>>()
+const sidePanelRef = ref<InstanceType<typeof IndicatorSidePanel>>()
+const panelView = useIndicatorPanelView()
+const environmentDetails = computed(() => listRef.value?.getEnvironmentDetails(selected.value))
 // 先不挂载桌面图表，避免手机首次进入时发起隐藏图表的行情请求。
 const isMobile = ref(true)
 const chartDialogVisible = ref(false)
@@ -74,7 +74,7 @@ async function refreshDashboard() {
   if (!passwordVerified.value || refreshing) return
   refreshing = true
   try {
-    await Promise.allSettled([listRef.value?.refresh(), chartRef.value?.refresh()])
+    await Promise.allSettled([listRef.value?.refresh(), sidePanelRef.value?.refresh()])
   } finally {
     refreshing = false
   }
@@ -91,6 +91,11 @@ function selectSymbol(symbol: string, timeframe: string) {
   chartTimeframe.value = timeframe
   if (isMobile.value) chartDialogVisible.value = true
 }
+/** 点击多空分数直接打开环境视图，同时复用现有选中与手机弹窗逻辑。 */
+function showEnvironment(symbol: string, timeframe: string) {
+  panelView.value = 'environment'
+  selectSymbol(symbol, timeframe)
+}
 </script>
 <style scoped>
 .indicator-page { padding: 10px 12px; color: var(--el-text-color-primary); height: calc(100dvh - var(--app-header-height, 60px) - var(--app-footer-height, 27px)); box-sizing: border-box; display: flex; flex-direction: column; overflow: hidden; }
@@ -100,7 +105,8 @@ function selectSymbol(symbol: string, timeframe: string) {
 .board :deep(.indicators-table) { flex: 1; min-height: 0; }
 /* 单张联动图占满右栏，主图与 CVD 副图共用时间轴。 */
 aside { min-width: 0; min-height: 0; display: grid; grid-template-rows: minmax(0, 1fr); overflow: hidden; }
-.mobile-chart-panel { height: calc(100dvh - 110px); min-height: 0; }
+.mobile-chart-panel { height: calc(100dvh - 110px); min-height: 0; display: flex; flex-direction: column; }
+.mobile-chart-panel > :deep(.indicator-side-panel) { flex: 1; }
 @media (max-width: 1000px) {
   /* 手机使用整页滚动，表格不再被页面、容器或百分比高度截断。 */
   .indicator-page { height: auto; overflow: visible; }

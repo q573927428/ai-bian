@@ -9,7 +9,7 @@
         <button v-for="period in timeframes" :key="period" type="button" :class="{ active: selectedTimeframe === period }" :aria-pressed="selectedTimeframe === period" @click="selectedTimeframe = period">{{ period }}</button>
       </div>
       <label class="ema-toggle" title="价格摆动点左右各3根收盘确认；比较对应CVD，非反转信号"><input v-model="showDivergence" type="checkbox">背离</label>
-      <button type="button" @click="requestRefresh">刷新</button>
+      <button v-if="showRefresh !== false" type="button" @click="requestRefresh">刷新</button>
       <button v-if="expandable !== false" type="button" :aria-pressed="expanded" @click="expanded = !expanded">{{ expanded ? '收起' : '放大' }}</button>
     </header>
     <div v-if="error" class="error" role="status">{{ error }}</div>
@@ -32,7 +32,14 @@ import { useBotStore } from '../stores/bot'
 import { useSupportResistancePreview } from '../composables/useSupportResistancePreview'
 
 /** 主表选择交易对时传入其周期；图表仍允许独立切换周期。 */
-interface Props { symbol: string; timeframe: string; coordinatedRefresh?: boolean; expandable?: boolean }
+interface Props {
+  symbol: string
+  timeframe: string
+  coordinatedRefresh?: boolean
+  expandable?: boolean
+  /** 指标页由外层切换栏提供统一刷新入口，其他场景默认保留内部按钮。 */
+  showRefresh?: boolean
+}
 const props = defineProps<Props>()
 const structurePreview = useSupportResistancePreview()
 const emit = defineEmits<{ 'timeframe-change': [timeframe: string]; 'refresh-request': [] }>()

@@ -82,10 +82,14 @@ export interface EnvironmentContext {
   short: EnvironmentAssessment
 }
 
+/** 将已计算的环境分数映射为展示结论，前端卡片与 AI 文案共用阈值。 */
+export function describeEnvironmentConfidence(value: number): string {
+  return value >= 80 ? '环境明显支持' : value >= 60 ? '环境偏支持' : value >= 40 ? '环境中性或分歧' : value >= 20 ? '环境偏不利' : '环境明显反向'
+}
+
 /** 将内部快照转为AI可直接引用的多空结果与分项，最终置信度仍由程序计算。 */
 export function formatEnvironmentConfidence(context?: EnvironmentContext): string {
   if (!context) return '置信度结果：LONG做多、SHORT做空均暂无可用分数。'
-  const describe = (value: number) => value >= 80 ? '环境明显支持' : value >= 60 ? '环境偏支持' : value >= 40 ? '环境中性或分歧' : value >= 20 ? '环境偏不利' : '环境明显反向'
   // 分项仅为展示保留两位小数，避免浮点噪声；缺失值不能伪装成零分。
   const score = (value: number | null) => finite(value) ? `${Number(value.toFixed(2))}` : '暂无可用分数'
   const community = (assessment: EnvironmentAssessment) => assessment.communityAdjustment
@@ -95,7 +99,7 @@ export function formatEnvironmentConfidence(context?: EnvironmentContext): strin
     ? `（24h市场${assessment.marketBreadthAdjustment.state}，广度修正${score(assessment.marketBreadthAdjustment.adjustment)}）`
     : ''
   const direction = (name: string, assessment: EnvironmentAssessment) => assessment.available
-    ? `${name}：置信度${assessment.confidence}分，${describe(assessment.confidence!)}${breadth(assessment)}${community(assessment)}。\n\t（分项：市场支持${score(assessment.market)}×30% + 五周期支持${score(assessment.structure)}×40% + 相对强弱${score(assessment.relativeStrength)}×30%）`
+    ? `${name}：置信度${assessment.confidence}分，${describeEnvironmentConfidence(assessment.confidence!)}${breadth(assessment)}${community(assessment)}。\n\t（分项：市场支持${score(assessment.market)}×30% + 五周期支持${score(assessment.structure)}×40% + 相对强弱${score(assessment.relativeStrength)}×30%）`
     : `${name}：暂无可用分数，环境数据不足。市场支持：${score(assessment.market)}；五周期方向支持：${score(assessment.structure)}；相对强弱：${score(assessment.relativeStrength)}。`
   return [
     ...(context.marketScope ? [`市场比较范围：${BREADTH_CATEGORY_LABELS[context.marketScope.category]}，已选同类${context.marketScope.selectedCount}个交易对。`] : []),

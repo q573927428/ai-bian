@@ -6,10 +6,12 @@ import { getMaxOIChangePeriod } from '../../utils/strategy-indicators-normalizer
 import { getSimpleKLineLastUpdatedAt } from '../../utils/kline-simple-storage'
 import { getCachedSquareHeat } from '../../utils/square-heat'
 import { loadEnvironmentContext } from '../../utils/environment-context'
-import { getMarketBreadth } from '../../utils/market-breadth'
+import { getMarketBreadth, formatMarketBreadth } from '../../utils/market-breadth'
+import { selectBreadthForSymbol } from '../../../app/utils/market-breadth'
+import type { BreadthPeriod, MarketBreadthSummary } from '../../../types/market-breadth'
 import { getBotConfig } from '../../utils/storage'
 import { getCandleVolume } from '../../utils/candle-volume'
-import { formatEnvironmentConfidence } from '../../../app/utils/environment-confidence'
+import { formatEnvironmentConfidence, relativeStrengthRanking } from '../../../app/utils/environment-confidence'
 import { normalizeERPeriod } from '../../../app/utils/efficiency-ratio'
 import { normalizeSupportResistanceConfig } from '../../../types/support-resistance'
 import { latestCvdDivergence } from '../../../app/utils/cvd-divergence'
@@ -121,11 +123,36 @@ export default defineEventHandler(async (event) => {
   const errors: Record<string, string> = {}
   // 复用策略分析的服务端评分口径；方向标记请求无需重复计算五周期环境。
   // 环境计算失败仅清空评分，不影响其他指标展示。
-  const environmentContext = !signalOnly
+  const marketBreadth = !signalOnly
     ? await Promise.resolve().then(async () => getMarketBreadth(botConfig, false, indicatorsHub))
-      .then(breadth => loadEnvironmentContext(indicatorsHub, indicatorSymbol, breadth, timeframe))
       .catch(() => undefined)
     : undefined
+  // 两段说明共用本轮广度快照；环境指标失败时仍保留可用的广度说明。
+  const environmentContext = !signalOnly
+    ? await loadEnvironmentContext(indicatorsHub, indicatorSymbol, marketBreadth, timeframe).catch(() => undefined)
+    : undefined
+  // 表格直接返回同类聚合字段，避免浏览器解析格式化文案或改用实时行情重算。
+  const scopedBreadth = selectBreadthForSymbol(marketBreadth, indicatorSymbol)
+  const marketBreadthSummary: MarketBreadthSummary | undefined = scopedBreadth ? {
+    selectedCount: scopedBreadth.selectedCount,
+    computedAt: scopedBreadth.computedAt,
+    expiresAt: scopedBreadth.expiresAt,
+    ranking: Date.now() < scopedBreadth.expiresAt && scopedBreadth.computedAt <= Date.now()
+      ? relativeStrengthRanking(scopedBreadth.periods[timeframe === '1d' ? '24h' : timeframe], normalizeSymbol(indicatorSymbol))
+      : null,
+    rows: (['5m', '15m', '1h', '4h', '24h'] as BreadthPeriod[]).map(period => {
+      const stats = scopedBreadth.periods[period]
+      return {
+        period, upCount: stats.upCount, downCount: stats.downCount, flatCount: stats.flatCount,
+        upRatioPct: stats.upRatioPct, medianChangePct: stats.medianChangePct,
+        validCount: stats.validCount, missingCount: stats.missingCount,
+        changePct: stats.changes[normalizeSymbol(indicatorSymbol)] ?? null,
+        // 复用本轮快照的归一化结果，不读取指标中心或额外计算ATR。
+        ranking: Date.now() < scopedBreadth.expiresAt && scopedBreadth.computedAt <= Date.now()
+          ? relativeStrengthRanking(stats, normalizeSymbol(indicatorSymbol)) : null
+      }
+    })
+  } : undefined
 
   /**
    * 单项失败只记录错误，确保仍能看到其余已正常计算的指标。
@@ -216,6 +243,8 @@ export default defineEventHandler(async (event) => {
       requestedAt,
       environmentContext,
       environmentDescription: formatEnvironmentConfidence(environmentContext),
+      marketBreadthDescription: signalOnly ? undefined : formatMarketBreadth(marketBreadth, indicatorSymbol, timeframe),
+      marketBreadthSummary,
       completedAt,
       durationMs: completedAt - requestedAt,
       // 复用本地行情缓存和图表规则，轮询时同步更新，方向标记请求无需重复检测。

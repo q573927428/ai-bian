@@ -171,11 +171,24 @@
               :title="`${period}：${periodSignals[row.symbol]?.[period] ?? '暂无数据'}`"
             ></span>
           </div>
-          <div class="symbol-confidence" :title="row.environmentDescription || '暂无可用环境置信度'">
+          <el-popover :disabled="environmentPanel" trigger="click" placement="right" :width="640" popper-style="max-width: calc(100vw - 24px)">
+            <EnvironmentDetails
+              v-if="!environmentPanel"
+              :symbol="row.symbol"
+              :timeframe="timeframe"
+              :now="progressNow"
+              :context="row.environmentContext"
+              :summary="row.marketBreadthSummary"
+              :breadth-description="row.marketBreadthDescription"
+            />
+            <template #reference>
+          <button type="button" class="symbol-confidence" aria-label="点击查看环境置信度与市场广度详情" @click.stop="showEnvironment(row.symbol)">
             <span :class="[row.longConfidence == null ? 'muted' : 'up', { 'confidence-leading': row.longConfidence != null && row.shortConfidence != null && row.longConfidence > row.shortConfidence }]"><span class="confidence-label">多</span> {{ row.longConfidence ?? '--' }}</span>
             <span class="muted" aria-hidden="true"></span>
             <span :class="[row.shortConfidence == null ? 'muted' : 'down', { 'confidence-leading': row.longConfidence != null && row.shortConfidence != null && row.shortConfidence > row.longConfidence }]"><span class="confidence-label">空</span> {{ row.shortConfidence ?? '--' }}</span>
-          </div>
+          </button>
+            </template>
+          </el-popover>
           <div v-if="recentDivergence(row.latestDivergence)" class="symbol-divergence" :class="row.latestDivergence?.kind === 'bullish' ? 'up' : 'down'" :title="`CVD 背离确认于 ${formatOITime((row.latestDivergence?.confirmedAt ?? 0) * 1000)}；摆动点左右各 3 根收盘确认`">
             {{ row.latestDivergence?.kind === 'bullish' ? '底背离' : '顶背离' }} · {{ divergenceWindow }}
           </div>
@@ -324,11 +337,13 @@ import { useSupportResistancePreview } from '../composables/useSupportResistance
 import { useGlobalPolling } from '../composables/useGlobalPolling'
 import type { SupportResistanceSnapshot } from '../../types/support-resistance'
 import SupportResistanceInfo from './SupportResistanceInfo.vue'
+import EnvironmentDetails from './EnvironmentDetails.vue'
+import type { EnvironmentDetailsData } from '../utils/environment-display'
 import { TREND_PERIODS, diTrend, isDoubleStrengthening, type DirectionalTrend, type EnvironmentContext, type PeriodTrend } from '../utils/environment-confidence'
 import { isRecentCvdDivergence, type LatestCvdDivergence } from '../utils/cvd-divergence'
 import { calculateLiveBreadth } from '../utils/market-breadth'
 import { useMarketScope } from '../composables/useMarketScope'
-import type { BreadthPeriod, MarketBreadthSnapshot } from '../../types/market-breadth'
+import type { BreadthPeriod, MarketBreadthSnapshot, MarketBreadthSummary } from '../../types/market-breadth'
 
 /** 指标列表中的单个交易对展示数据。 */
 interface IndicatorRow {
@@ -342,6 +357,10 @@ interface IndicatorRow {
   longConfidence?: number; shortConfidence?: number
   /** 文案、圆点与评分共用后端同一环境快照，不在浏览器重新判断。 */
   environmentContext?: EnvironmentContext; environmentDescription?: string
+  /** 与环境评分同一轮快照、同一资产分类和主周期的市场广度说明。 */
+  marketBreadthDescription?: string
+  /** 同一固定快照的聚合表格，与完整文案同步刷新或清空。 */
+  marketBreadthSummary?: MarketBreadthSummary
   adx?: number; rsi?: number; atrPercent?: number; oiChangePercent?: number
   /** ER 包含最新未收盘 K 线；方向颜色取同窗口净涨跌，不取 ER 高低。 */
   er?: number; erNetChangePercent?: number; erTooltip: string
@@ -375,6 +394,8 @@ interface Props {
   autoHeight?: boolean
   /** 独立指标页由父组件统一调度列表和图表。 */
   coordinatedRefresh?: boolean
+  /** 独立指标页改在右侧展示环境详情，首页抽屉仍使用浮层。 */
+  environmentPanel?: boolean
 }
 
 /** 指标抽屉向父组件同步开关状态的事件。 */
@@ -384,6 +405,7 @@ interface Emits {
   (event: 'select-symbol', symbol: string, timeframe: string): void
   (event: 'symbols-ready', symbols: string[]): void
   (event: 'timeframe-change', timeframe: string): void
+  (event: 'show-environment', symbol: string, timeframe: string): void
 }
 
 const props = defineProps<Props>()
@@ -423,6 +445,11 @@ function selectChart(symbol: string) {
   if (!props.embedded) visible.value = false
 }
 
+/** 独立指标页点击分数切到右侧环境视图；其他使用场景继续由浮层处理。 */
+function showEnvironment(symbol: string) {
+  if (props.environmentPanel) emit('show-environment', symbol, timeframe.value)
+}
+
 /** 整行点击联动图表；文字选择和交互控件保留自身行为，交易对按钮继续支持键盘操作。 */
 function handleRowClick(row: IndicatorRow, _column: unknown, event: MouseEvent) {
   if (window.getSelection()?.toString().trim()) return
@@ -452,7 +479,17 @@ async function refresh() {
   if (loading.value) return
   await fetchData()
 }
-defineExpose({ refresh })
+/** 直接读取列表响应，父页计算属性可跟随选中标的、评分刷新和过期时钟更新。 */
+function getEnvironmentDetails(symbol: string): EnvironmentDetailsData | undefined {
+  const row = rows.value.find(item => item.symbol === symbol)
+  if (!row) return undefined
+  return {
+    symbol: row.symbol, timeframe: timeframe.value, now: progressNow.value,
+    context: row.environmentContext, summary: row.marketBreadthSummary,
+    breadthDescription: row.marketBreadthDescription
+  }
+}
+defineExpose({ refresh, getEnvironmentDetails })
 type SignalTone = '多头' | '空头' | '反转' | '观望'
 const signalFilter = ref<SignalTone | '全部'>('全部')
 // 涨跌筛选只影响表格，始终使用与顶部统计相同周期的实时涨跌幅。
@@ -623,6 +660,8 @@ async function refreshStructure() {
             row.supportResistance = response.data?.indicators?.supportResistance?.values
             row.environmentContext = response.data?.environmentContext
             row.environmentDescription = response.data?.environmentDescription
+            row.marketBreadthDescription = response.data?.marketBreadthDescription
+            row.marketBreadthSummary = response.data?.marketBreadthSummary
             row.longConfidence = finiteNumber(response.data?.environmentContext?.long?.confidence)
             row.shortConfidence = finiteNumber(response.data?.environmentContext?.short?.confidence)
           }
@@ -635,6 +674,8 @@ async function refreshStructure() {
               row.latestDivergence = undefined
               row.environmentContext = undefined
               row.environmentDescription = undefined
+              row.marketBreadthDescription = undefined
+              row.marketBreadthSummary = undefined
               row.longConfidence = undefined
               row.shortConfidence = undefined
             }
@@ -896,6 +937,8 @@ function toRow(data: any): IndicatorRow {
     shortConfidence: finiteNumber(data.environmentContext?.short?.confidence),
     environmentContext: data.environmentContext,
     environmentDescription: data.environmentDescription,
+    marketBreadthDescription: data.marketBreadthDescription,
+    marketBreadthSummary: data.marketBreadthSummary,
     adx: Number(adx.adx), rsi: Number(values('rsi').rsi),
     er: erReady ? finiteNumber(er.er) : undefined,
     erNetChangePercent: erReady ? finiteNumber(er.netChangePercent) : undefined,
@@ -1222,6 +1265,7 @@ onUnmounted(() => {
 .current-candle { width: 24px; height: 48px; flex: 0 0 24px; }
 .candle-unavailable { width: 24px; flex: 0 0 24px; text-align: center; }
 /* 与趋势背景左边缘对齐，将综合评分收在交易对信息末行。 */
+.symbol-confidence { border: 0; background: transparent; color: inherit; font: inherit; cursor: pointer; }
 .symbol-confidence { display: flex; align-items: center; gap: 5px; margin-top: 6px; padding-left: 25px; line-height: 1.5; white-space: nowrap; font-variant-numeric: tabular-nums; }
 /* 背离提示与上方多空评分共用缩进，保持交易对列的信息层级。 */
 .symbol-divergence { padding-left: 25px; white-space: nowrap; }
