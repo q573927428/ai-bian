@@ -26,10 +26,11 @@
         <span class="candle-progress-track" aria-hidden="true"><span :style="{ width: `${currentCandleProgress}%` }"></span></span>
         <span class="candle-progress-value">{{ currentCandleProgress }}%</span>
       </div>
-      <div class="market-counts" :title="`按全部已配置交易对的 ${breadthPeriod} 实时涨跌幅统计`">
-        <span>总 {{ breadthSymbols.length }}</span>
-        <span class="up">涨 {{ marketBreadth.upCount }}</span>
-        <span class="down">跌 {{ marketBreadth.downCount }}</span>
+      <div class="market-counts" :title="`按${scopeLabel}中已配置交易对的 ${breadthPeriod} 实时涨跌幅统计，不受涨跌、交易对或指标条件筛选影响；${breadthPeriod === '24h' ? '1d 对应滚动24h；' : ''}持平 ${marketBreadth.flatCount}，分类未知 ${unknownCount}（仅计入全部）；涨比分母含持平、排除待更；置信度使用分析时的固定快照`">
+        <MarketScopeSelect v-model="marketScope" />
+        <button type="button" class="count-filter" :class="{ 'is-active': priceFilter === 'all' }" :aria-pressed="priceFilter === 'all'" title="显示当前分类全部交易对，保留其他筛选条件" @click="priceFilter = 'all'">总 {{ scopeSymbols.length }}</button>
+        <button type="button" class="count-filter up" :class="{ 'is-active': priceFilter === 'up' }" :aria-pressed="priceFilter === 'up'" :title="`仅显示 ${breadthPeriod} 上涨交易对`" @click="priceFilter = 'up'">涨 {{ marketBreadth.upCount }}</button>
+        <button type="button" class="count-filter down" :class="{ 'is-active': priceFilter === 'down' }" :aria-pressed="priceFilter === 'down'" :title="`仅显示 ${breadthPeriod} 下跌交易对`" @click="priceFilter = 'down'">跌 {{ marketBreadth.downCount }}</button>
         <span>涨比 {{ marketBreadth.upRatioPct === null ? '—' : `${marketBreadth.upRatioPct.toFixed(0)}%` }}</span>
         <span :class="directionClass(marketBreadth.medianChangePct ?? undefined)">
           中位 {{ marketBreadth.medianChangePct === null ? '—' : `${signed(marketBreadth.medianChangePct, 2)}%` }}
@@ -326,6 +327,7 @@ import SupportResistanceInfo from './SupportResistanceInfo.vue'
 import { TREND_PERIODS, diTrend, isDoubleStrengthening, type DirectionalTrend, type EnvironmentContext, type PeriodTrend } from '../utils/environment-confidence'
 import { isRecentCvdDivergence, type LatestCvdDivergence } from '../utils/cvd-divergence'
 import { calculateLiveBreadth } from '../utils/market-breadth'
+import { useMarketScope } from '../composables/useMarketScope'
 import type { BreadthPeriod, MarketBreadthSnapshot } from '../../types/market-breadth'
 
 /** 指标列表中的单个交易对展示数据。 */
@@ -453,6 +455,8 @@ async function refresh() {
 defineExpose({ refresh })
 type SignalTone = '多头' | '空头' | '反转' | '观望'
 const signalFilter = ref<SignalTone | '全部'>('全部')
+// 涨跌筛选只影响表格，始终使用与顶部统计相同周期的实时涨跌幅。
+const priceFilter = ref<'all' | 'up' | 'down'>('all')
 const selectedSymbols = ref<string[]>([])
 const selectedSymbolSet = computed(() => new Set(selectedSymbols.value))
 const SYMBOL_SELECTION_KEY = 'indicator-selected-symbols'
@@ -553,10 +557,20 @@ function matchesNumericFilters(row: IndicatorRow) {
       && (range.max == null || value <= range.max)
   })
 }
-// 筛选仅影响表格，顶部市场统计始终覆盖全部已配置交易对。
+/** 持平与待更新仅在“总”中显示，不使用指标方向替代价格涨跌。 */
+function matchesPriceFilter(symbol: string): boolean {
+  if (priceFilter.value === 'all') return true
+  const change = marketBreadth.value.changes[symbol]
+  return typeof change === 'number' && Number.isFinite(change)
+    && (priceFilter.value === 'up' ? change > 0 : change < 0)
+}
+
+// 分类同时限定表格和市场统计；其余观察条件只筛选表格，保留市场背景参考。
 const filteredRows = computed(() => {
-  // 先限定观察范围再应用指标条件；空选择表示全部，不改变行情订阅和市场统计。
-  const result = sortedRows.value.filter(row => (!selectedSymbolSet.value.size || selectedSymbolSet.value.has(row.symbol))
+  // 空交易对选择表示当前分类全部，不改变行情订阅或 AI 快照。
+  const result = sortedRows.value.filter(row => scopeSymbolSet.value.has(row.symbol)
+    && matchesPriceFilter(row.symbol)
+    && (!selectedSymbolSet.value.size || selectedSymbolSet.value.has(row.symbol))
     && (divergenceFilter.value === 'all' || (recentDivergence(row.latestDivergence)
       && (divergenceFilter.value === 'recent' || row.latestDivergence?.kind === divergenceFilter.value)))
     && (signalFilter.value === '全部' || resonanceInfo(row.symbol).tone === signalFilter.value)
@@ -669,6 +683,7 @@ const breadthSymbols = computed(() => [...new Set(symbols.value.map(symbol => sy
 // 日线对应价格看板的滚动 24h，其余周期直接复用同一份本地 5m 基准。
 const breadthPeriod = computed<BreadthPeriod>(() => timeframe.value === '1d' ? '24h' : timeframe.value as BreadthPeriod)
 const breadthSnapshot = ref<MarketBreadthSnapshot | null>(null)
+const { marketScope, scopeSymbols, scopeSymbolSet, scopeLabel, unknownCount } = useMarketScope(breadthSymbols, breadthSnapshot)
 const breadthClock = ref(Date.now())
 let breadthRequestId = 0
 const marketBreadth = computed(() => {
@@ -676,7 +691,7 @@ const marketBreadth = computed(() => {
   const valid = snapshot && breadthClock.value < snapshot.expiresAt
     && JSON.stringify([...breadthSymbols.value].sort()) === JSON.stringify(snapshot.symbols)
   const stats = valid ? snapshot.periods[breadthPeriod.value] : null
-  return calculateLiveBreadth(breadthSymbols.value, botStore.prices, breadthPeriod.value,
+  return calculateLiveBreadth(scopeSymbols.value, botStore.prices, breadthPeriod.value,
     stats?.bases ?? {}, stats?.referenceTime ?? null, Math.max(breadthClock.value, Date.now()))
 })
 
@@ -1163,6 +1178,9 @@ onUnmounted(() => {
 .toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 10px; }
 .market-counts { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; font-size: 12px; font-variant-numeric: tabular-nums; }
 .market-counts > span { white-space: nowrap; }
+.count-filter { padding: 1px 4px; border: 1px solid transparent; border-radius: 4px; background: transparent; color: inherit; font: inherit; white-space: nowrap; cursor: pointer; }
+.count-filter:hover, .count-filter.is-active { border-color: currentColor; background: var(--el-fill-color-light); }
+.count-filter:focus-visible { outline: 2px solid var(--el-color-primary); outline-offset: 2px; }
 .structure-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .structure-controls label { display: flex; align-items: center; gap: 6px; }
 .structure-controls :deep(.el-select) { width: 56px; }

@@ -3,7 +3,7 @@
 export const CONTRACT_ASSET_LABELS = {
   crypto: '加密', equity: '美股', hk_equity: '港股',
   kr_equity: '韩股', cn_equity: '中股', commodity: '商品',
-  fx: '外汇', premarket: 'Pre-IPO', index: '指数', tradfi: '其他', unknown: '未分类',
+  fx: '外汇', premarket: 'IPO', index: '指数', tradfi: '其他', unknown: '未知',
 } as const
 
 export type ContractAssetCategory = keyof typeof CONTRACT_ASSET_LABELS
@@ -18,8 +18,6 @@ interface ContractAssetMetadata {
 
 /** 优先使用标的类型；缺少元数据的旧缓存保留在未分类中，等待行情刷新。 */
 export function classifyContractAsset(row: ContractAssetMetadata): ContractAssetCategory {
-  // 黄金代币跟随底层商品展示，避免在商品筛选中遗漏黄金敞口。
-  if (['PAXGUSDT', 'XAUTUSDT'].includes(row.symbol)) return 'commodity'
   const type = typeof row.underlyingType === 'string' ? row.underlyingType.toUpperCase() : ''
   const subtypes = Array.isArray(row.underlyingSubType)
     ? row.underlyingSubType.filter((value): value is string => typeof value === 'string').map(value => value.toUpperCase()) : []

@@ -35,8 +35,9 @@
             <el-radio-button value="4h">4h</el-radio-button>
             <el-radio-button value="24h">24h</el-radio-button>
           </el-radio-group>
-          <div class="price-counts" :title="`按已选交易对的${changePeriod}实时涨跌幅统计；AI使用每轮固定快照；上涨占比和中位数仅计算有效行情（含持平）；所有周期参考价取本地5m K线（24h为滚动窗口）；参考价快照时间：${breadthSnapshot ? new Date(breadthSnapshot.computedAt).toLocaleString() : '待更新'}`">
-            <button type="button" class="count-filter" :class="{ 'is-active': priceFilter === 'all' }" :aria-pressed="priceFilter === 'all'" title="显示全部交易对" @click="priceFilter = 'all'">总 {{ DEFAULT_CRYPTOS.length }}</button>
+          <div class="price-counts" :title="`按${scopeLabel}中已配置交易对的${changePeriod}实时涨跌幅统计，不受搜索或涨跌筛选影响；持平 ${activeBreadth.flatCount}，分类未知 ${unknownCount}（仅计入全部）；AI使用每轮固定快照；上涨占比和中位数仅计算有效行情（含持平、排除待更）；所有周期参考价取本地5m K线（24h为滚动窗口）；参考价快照时间：${breadthSnapshot ? new Date(breadthSnapshot.computedAt).toLocaleString() : '待更新'}`">
+            <MarketScopeSelect v-model="marketScope" />
+            <button type="button" class="count-filter" :class="{ 'is-active': priceFilter === 'all' }" :aria-pressed="priceFilter === 'all'" title="显示当前分类全部交易对" @click="priceFilter = 'all'">总 {{ scopeSymbols.length }}</button>
             <button type="button" class="count-filter count-up" :class="{ 'is-active': priceFilter === 'up' }" :aria-pressed="priceFilter === 'up'" title="仅显示上涨交易对" @click="priceFilter = 'up'">涨 {{ priceCounts.up }}</button>
             <button type="button" class="count-filter count-down" :class="{ 'is-active': priceFilter === 'down' }" :aria-pressed="priceFilter === 'down'" title="仅显示下跌交易对" @click="priceFilter = 'down'">跌 {{ priceCounts.down }}</button>
             <span title="上涨交易对占有效行情的比例（含持平）">涨比 {{ priceCounts.upRatio === null ? '—' : `${priceCounts.upRatio.toFixed(0)}%` }}</span>
@@ -194,7 +195,7 @@
       <el-empty description="暂无价格数据" :image-size="64" />
     </div>
     <div v-else-if="!isLoading && filteredCryptoPrices.length === 0" class="empty-state">
-      <el-empty :description="symbolSearch.trim() ? '未找到匹配的代币' : priceFilter === 'up' ? '当前周期暂无上涨交易对' : '当前周期暂无下跌交易对'" :image-size="64" />
+      <el-empty :description="!scopeSymbols.length ? '当前分类暂无交易对或分类待更新' : symbolSearch.trim() ? '未找到匹配的代币' : priceFilter === 'up' ? '当前周期暂无上涨交易对' : priceFilter === 'down' ? '当前周期暂无下跌交易对' : '当前分类暂无价格数据'" :image-size="64" />
     </div>
     </div>
     </template>
@@ -214,6 +215,7 @@ import { useGlobalPolling } from '../composables/useGlobalPolling'
 import type { MarketBreadthSnapshot } from '../../types/market-breadth'
 import type { MarketPeriodVolumes } from '../../types/market-period-volumes'
 import { calculateLiveBreadth } from '../utils/market-breadth'
+import { useMarketScope } from '../composables/useMarketScope'
 
 const props = defineProps<{
   /** 由外部指定要展示的交易对，例如点击当前持仓时传入。 */
@@ -253,21 +255,9 @@ function handleBoardEscape(event: KeyboardEvent) {
 }
 
 const { getCoinIconUrl } = useCoinIcon()
-const contractTypes = ref<Record<string, string>>({})
-
-/** 单独加载低频合约元数据，失败时仍保留实时价格展示。 */
-async function loadContractTypes() {
-  try {
-    const response = await $fetch<{ contractTypes: Record<string, string> }>('/api/binance/contract-types')
-    contractTypes.value = response.contractTypes
-  } catch (error) {
-    console.warn('[Price] 获取合约类型失败:', error)
-  }
-}
-
-/** 仅按官方合约类型标记，避免通过币种名称误判传统金融合约。 */
+/** 标记与市场统计、置信度使用相同的官方元数据分类。 */
 function isTradFi(symbol: string): boolean {
-  return contractTypes.value[symbol.replace('/', '').trim().toUpperCase()] === 'TRADIFI_PERPETUAL'
+  return breadthSnapshot.value?.assetCategories?.[symbol] === 'tradfi'
 }
 
 // 从配置文件获取加密货币列表，处理去掉/。
@@ -300,11 +290,12 @@ const heatmapSizeMode = ref<'change' | 'volume' | 'equal'>('change')
 const VIEW_MODE_KEY = 'price-board-view-mode'
 const priceFilter = ref<'all' | 'up' | 'down'>('all')
 const symbolSearch = ref('')
-// 兼容大小写和 BTC/USDT 写法；搜索只筛选展示，市场统计始终覆盖全部已选交易对。
+// 搜索只筛选展示，市场统计始终覆盖当前资产分类。
 const normalizedSymbolSearch = computed(() => symbolSearch.value.replace(/[\s/]/g, '').toUpperCase())
 const changePeriod = ref<'5m' | '15m' | '1h' | '4h' | '24h'>('1h')
 const heatmapLegend = computed(() => getHeatmapLegend(changePeriod.value))
 const breadthSnapshot = ref<MarketBreadthSnapshot | null>(null)
+const { marketScope, scopeSymbols, scopeSymbolSet, scopeLabel, unknownCount } = useMarketScope(DEFAULT_CRYPTOS, breadthSnapshot)
 const periodVolumes = ref<MarketPeriodVolumes | null>(null)
 let volumeRequestId = 0
 const breadthClock = ref(Date.now())
@@ -316,7 +307,7 @@ const activeBreadth = computed(() => {
   const validSnapshot = snapshot && breadthClock.value < snapshot.expiresAt
     && JSON.stringify([...DEFAULT_CRYPTOS.value].sort()) === JSON.stringify(snapshot.symbols)
   const stats = validSnapshot ? snapshot.periods[changePeriod.value] : null
-  return calculateLiveBreadth(DEFAULT_CRYPTOS.value, botStore.prices, changePeriod.value,
+  return calculateLiveBreadth(scopeSymbols.value, botStore.prices, changePeriod.value,
     stats?.bases ?? {}, stats?.referenceTime ?? null, Math.max(breadthClock.value, Date.now()))
 })
 
@@ -374,12 +365,13 @@ const priceCounts = computed(() => {
   const stats = activeBreadth.value
   return {
     up: stats?.upCount ?? 0, down: stats?.downCount ?? 0,
-    pending: stats?.missingCount ?? DEFAULT_CRYPTOS.value.length,
+    pending: stats?.missingCount ?? scopeSymbols.value.length,
     upRatio: stats?.upRatioPct ?? null, median: stats?.medianChangePct ?? null
   }
 })
 // 筛选与头部统计共用当前周期涨跌幅，持平和待更新行情只在“总”中显示。
 const filteredCryptoPrices = computed(() => cryptoPrices.value.filter((crypto) => {
+  if (!scopeSymbolSet.value.has(crypto.symbol)) return false
   // 热力图搜索由图内高亮和定位处理，保留全市场面积及位置关系。
   if (viewMode.value === 'cards' && !crypto.symbol.includes(normalizedSymbolSearch.value)) return false
   if (priceFilter.value === 'all') return true
@@ -395,7 +387,7 @@ const heatmapItems = computed(() => filteredCryptoPrices.value.map((crypto) => (
   volume: periodVolumes.value && Date.now() < periodVolumes.value.expiresAt
     ? periodVolumes.value.periods[changePeriod.value][crypto.symbol] ?? null : null,
   change: getChangePercent(crypto.symbol),
-  group: isTradFi(crypto.symbol) ? '传统金融' : '加密资产',
+  group: isTradFi(crypto.symbol) ? '传统金融' : breadthSnapshot.value?.assetCategories?.[crypto.symbol] === 'crypto' ? '加密资产' : '分类未知',
   icon: cryptoIconUrl(crypto.symbol)
 })))
 
@@ -613,7 +605,6 @@ onMounted(() => {
     if (localStorage.getItem(VIEW_MODE_KEY) === 'heatmap') viewMode.value = 'heatmap'
   } catch { /* 存储不可用时使用默认卡片视图。 */ }
   void loadMarketBreadth()
-  void loadContractTypes()
   // 订阅 botStore 共享价格更新，自动同步价格
   botStore.subscribeToPrices('crypto-price-cards')
   updateHeatmapMeasureCount()
@@ -754,6 +745,7 @@ interface CryptoPrice {
 
 .price-counts {
   display: flex;
+  align-items: center;
   flex-wrap: nowrap;
   gap: 8px;
   color: var(--text-secondary);
@@ -793,7 +785,7 @@ interface CryptoPrice {
 }
 
 .price-symbol-search {
-  width: 110px;
+  width: 105px;
 }
 
 .heatmap-help-button {
@@ -839,7 +831,7 @@ interface CryptoPrice {
 }
 
 .heatmap-size-select {
-  width: 80px;
+  width: 70px;
   flex-shrink: 0;
 }
 

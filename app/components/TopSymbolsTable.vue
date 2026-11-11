@@ -26,6 +26,14 @@
             <el-option label="全部" value="all" />
             <el-option v-for="(label, category) in CONTRACT_ASSET_LABELS" :key="category" :label="label" :value="category" />
           </el-select>
+          <div v-if="embedded" class="market-counts" :title="`按当前榜单及资产分类的24h涨跌幅统计，不受搜索、涨跌筛选或分页影响；持平 ${marketBreadth.flatCount}，待更 ${marketBreadth.missingCount}；涨比分母含持平、排除待更`">
+            <button type="button" class="count-filter" :class="{ 'is-active': priceFilter === 'all' }" :aria-pressed="priceFilter === 'all'" title="显示当前分类全部交易对" @click="priceFilter = 'all'">总 {{ overviewRows.length }}</button>
+            <button type="button" class="count-filter count-up" :class="{ 'is-active': priceFilter === 'up' }" :aria-pressed="priceFilter === 'up'" title="仅显示24h上涨交易对" @click="priceFilter = 'up'">涨 {{ marketBreadth.upCount }}</button>
+            <button type="button" class="count-filter count-down" :class="{ 'is-active': priceFilter === 'down' }" :aria-pressed="priceFilter === 'down'" title="仅显示24h下跌交易对" @click="priceFilter = 'down'">跌 {{ marketBreadth.downCount }}</button>
+            <span>涨比 {{ marketBreadth.upRatioPct === null ? '—' : `${marketBreadth.upRatioPct.toFixed(0)}%` }}</span>
+            <span :class="percentClass(marketBreadth.medianChangePct ?? 0)">中位 {{ marketBreadth.medianChangePct === null ? '—' : formatChange(marketBreadth.medianChangePct) }}</span>
+            <span v-if="marketBreadth.missingCount" class="heatmap-caption">待更 {{ marketBreadth.missingCount }}</span>
+          </div>
           <el-input v-model="search" size="small" placeholder="交易对" clearable aria-label="搜索交易对" class="symbol-search">
             <template #prefix>
               <el-icon><ElIconSearch /></el-icon>
@@ -38,10 +46,10 @@
         </div>
         <div class="toolbar-actions">
           <template v-if="embedded && viewMode === 'heatmap'">
-            <span class="heatmap-caption">{{ overviewRows.length }} 个交易对</span>
+            <span class="heatmap-caption">{{ directionRows.length }} 个交易对</span>
             <el-select v-model="heatmapSizeMode" size="small" aria-label="热力图区块面积" class="heatmap-size-select">
-              <el-option label="按涨跌幅面积" value="change" />
-              <el-option label="按24h成交额" value="volume" />
+              <el-option label="涨跌幅" value="change" />
+              <el-option label="成交额" value="volume" />
               <el-option label="等面积" value="equal" />
             </el-select>
           </template>
@@ -391,6 +399,7 @@ import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount, defineAsync
 import { ElDialog, ElDrawer } from 'element-plus'
 import { useCoinIcon } from '../composables/useCoinIcon'
 import { CONTRACT_ASSET_LABELS, classifyContractAsset, contractAssetLabel } from '../utils/contract-assets'
+import { summarizeBreadth } from '../utils/market-breadth'
 import type { ContractAssetCategory } from '../utils/contract-assets'
 import type { MarketOverviewSymbol, MarketOverviewState } from '../../types/market-overview'
 
@@ -550,6 +559,7 @@ function startProgressPolling(query: Record<string, string | number | undefined>
 }
 const data = ref<TopSymbol[]>([])
 const assetType = ref<'all' | ContractAssetCategory>('all')
+const priceFilter = ref<'all' | 'up' | 'down'>('all')
 const search = ref('')
 const currentPage = ref(1)
 const pageSize = ref(20)
@@ -762,6 +772,7 @@ const sortedData = computed(() => {
   // 分类跟随官方标的元数据，避免把商品、外汇及各地区股票混为同类。
   const arr = modeRows.value.filter(row =>
     (assetType.value === 'all' || classifyContractAsset(row) === assetType.value) &&
+    matchesPriceFilter(row) &&
     (!keyword || normalizeSymbol(row.symbol).includes(keyword))
   )
   arr.sort((a, b) => {
@@ -783,13 +794,26 @@ const sortedData = computed(() => {
 const overviewRows = computed(() => modeRows.value.filter(row =>
   assetType.value === 'all' || classifyContractAsset(row) === assetType.value
 ))
+// 市场统计不跟随涨跌筛选，避免选中上涨后涨比固定变成100%。
+const marketBreadth = computed(() => summarizeBreadth(Object.fromEntries(overviewRows.value.map(row => [
+  row.symbol, typeof row.priceChangePercent === 'number' && Number.isFinite(row.priceChangePercent) ? row.priceChangePercent : null
+])), null))
+
+/** 涨跌过滤复用24h原始涨跌幅，持平与缺失只在全部中显示。 */
+function matchesPriceFilter(row: TopSymbol): boolean {
+  if (priceFilter.value === 'all') return true
+  const change = row.priceChangePercent
+  return typeof change === 'number' && Number.isFinite(change)
+    && (priceFilter.value === 'up' ? change > 0 : change < 0)
+}
+const directionRows = computed(() => overviewRows.value.filter(matchesPriceFilter))
 const overviewScope = computed(() => `${mode.value === 'hot' ? '全部行情' : mode.value === 'stable' ? '热门筛选结果' : mode.value === 'favorites' ? '收藏列表' : '配置列表'} · ${assetType.value === 'all' ? '全部资产' : CONTRACT_ASSET_LABELS[assetType.value]}`)
 // 热力图搜索仅定位区块，不裁切整个市场，也不隐藏当前选中交易对的详情。
 const detailSymbol = computed(() => {
-  const rows = props.embedded && viewMode.value === 'heatmap' ? overviewRows.value : sortedData.value
+  const rows = props.embedded && viewMode.value === 'heatmap' ? directionRows.value : sortedData.value
   return rows.find(row => row.symbol === detailSymbolKey.value) || rows[0]
 })
-const heatmapItems = computed(() => overviewRows.value.map(row => ({
+const heatmapItems = computed(() => directionRows.value.map(row => ({
   symbol: row.symbol, name: getSymbolDisplay(row.symbol),
   price: Number.isFinite(row.price) ? row.price : 0,
   volume: Number.isFinite(row.volume) && row.volume >= 0 ? row.volume : null,
@@ -818,6 +842,8 @@ let locateRequestId = 0
 /** 异动榜定位须等待翻页渲染，再同步高亮和表格内部滚动，保证目标实际可见。 */
 async function locateSymbol(symbol: string) {
   const currentLocate = ++locateRequestId
+  // 右侧异动榜保留完整市场样本，定位时清除可能隐藏目标的涨跌条件。
+  priceFilter.value = 'all'
   // 详情的默认选中不触发缩放，只有异动榜点击才发送独立定位请求。
   if (props.embedded && viewMode.value === 'heatmap') {
     search.value = ''
@@ -907,7 +933,7 @@ function rowIndex(index: number): number {
   return (props.embedded ? (currentPage.value - 1) * pageSize.value : 0) + index + 1
 }
 
-watch([assetType, search, pageSize, sortProp, sortOrder, data], () => {
+watch([assetType, priceFilter, search, pageSize, sortProp, sortOrder, data], () => {
   currentPage.value = 1
 })
 
@@ -1154,14 +1180,20 @@ watch(() => props.embedded || visible.value, (newVal) => {
 }
 .market-filters :deep(.el-radio-group), .mode-switch { flex-shrink: 0; }
 .symbol-search { flex: 0 0 120px; width: 120px; }
-.asset-type-select { flex: 0 0 100px; width: 100px; }
+.asset-type-select { flex: 0 0 60px; width: 60px; }
+.market-counts { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; font-size: 12px; white-space: nowrap; }
+.count-filter { padding: 1px 4px; border: 1px solid transparent; border-radius: 4px; background: transparent; color: inherit; font: inherit; cursor: pointer; }
+.count-filter:hover, .count-filter.is-active { border-color: currentColor; background: var(--el-fill-color-light); }
+.count-filter:focus-visible { outline: 2px solid var(--el-color-primary); outline-offset: 2px; }
+.count-up { color: var(--el-color-success); }
+.count-down { color: var(--el-color-danger); }
 .symbol-search :deep(.el-input__wrapper) { border-radius: 4px; padding: 0 8px; }
 .symbol-search :deep(.el-input__prefix) { font-size: 12px; }
 .market-pagination { margin-top: 16px; justify-content: flex-end; }
 .market-main { min-width: 0; }
 .market-heatmap { display: flex; flex: 1; flex-direction: column; min-height: 0; gap: 10px; }
 .heatmap-caption { font-size: 11px; color: var(--text-secondary); white-space: nowrap; }
-.heatmap-size-select { width: 130px; flex-shrink: 0; }
+.heatmap-size-select { width: 80px; flex-shrink: 0; }
 .market-heatmap-chart { flex: 1; min-height: 0; height: auto !important; }
 
 .top-symbols-toolbar {

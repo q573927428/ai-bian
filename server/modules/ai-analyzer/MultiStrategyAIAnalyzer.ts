@@ -827,6 +827,7 @@ ${promptConfig.userPrompt}
 --------------------------
 ## 五、置信度结果
 ${formatEnvironmentConfidence(environmentContext)}
+
 ## 输出（必须严格JSON）
 {
   "direction": "LONG | SHORT",

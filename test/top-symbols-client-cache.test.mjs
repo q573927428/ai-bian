@@ -6,6 +6,7 @@ import vm from 'node:vm'
 import ts from 'typescript'
 import * as vue from 'vue'
 import * as contractAssets from '../app/utils/contract-assets.ts'
+import { summarizeBreadth } from '../app/utils/market-breadth.ts'
 
 /** 执行组件实际脚本，注入请求和页面状态，验证真实加载流程。 */
 function component(fetcher, state = vue.ref({}), props = {}, storage = new Map(), curveFetcher = async () => ({ success: true, data: {} })) {
@@ -25,17 +26,44 @@ function component(fetcher, state = vue.ref({}), props = {}, storage = new Map()
       if (id === 'vue') return { ...vue, onMounted: callback => mounted.push(callback), onBeforeUnmount: () => {} }
       if (id === 'element-plus') return { ElDialog: {}, ElDrawer: {} }
       if (id === '../utils/contract-assets') return contractAssets
+      if (id === '../utils/market-breadth') return { summarizeBreadth }
       if (id === '../composables/useCoinIcon') return { useCoinIcon: () => ({ getCoinIconUrl: () => '' }) }
       throw new Error(`Unexpected import: ${id}`)
     },
   }
-  const expose = '\nglobalThis.api = { mode, data, loading, updatedAt, showingCachedResult, fetchData, stopProgressPolling, handleRowClick, detailSymbol, locateSymbol, currentPage, search, tableViewportHeight, rowPadding, pageSize, tableRef, viewMode, heatmapItems, selectHeatmapSymbol, assetType, toggleFavorite, isFavoriteSymbol, sortedData, pagedData, overviewRows, overviewScope, localCurves, curvePaths, handleModeChange, heatmapFocusRequest };'
+  const expose = '\nglobalThis.api = { mode, data, loading, updatedAt, showingCachedResult, fetchData, stopProgressPolling, handleRowClick, detailSymbol, locateSymbol, currentPage, search, tableViewportHeight, rowPadding, pageSize, tableRef, viewMode, heatmapItems, selectHeatmapSymbol, assetType, toggleFavorite, isFavoriteSymbol, sortedData, pagedData, overviewRows, overviewScope, localCurves, curvePaths, handleModeChange, heatmapFocusRequest, priceFilter, marketBreadth };'
   vm.runInNewContext(ts.transpile(source + expose, { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS }), context)
   mounted.forEach(callback => callback())
   return context.api
 }
 
 const result = { success: true, mode: 'stable', updatedAt: 12345, data: [{ symbol: 'BTCUSDT', volume: 100 }] }
+
+test('24h涨跌筛选同步表格及热力图，保留市场统计且异动定位可清除涨跌条件', async () => {
+  const rows = [
+    { symbol: 'UPUSDT', priceChangePercent: 2, volume: 100 },
+    { symbol: 'DOWNUSDT', priceChangePercent: -1, volume: 90 },
+    { symbol: 'FLATUSDT', priceChangePercent: 0, volume: 80 },
+    { symbol: 'MISSINGUSDT', priceChangePercent: null, volume: 70 },
+  ]
+  const api = component(async () => ({ ...result, data: rows }), vue.ref({}), { embedded: true })
+  api.data.value = rows
+  api.priceFilter.value = 'up'
+  assert.deepEqual(Array.from(api.sortedData.value, row => row.symbol), ['UPUSDT'])
+  assert.deepEqual(Array.from(api.heatmapItems.value, row => row.symbol), ['UPUSDT'])
+  assert.ok(Math.abs(api.marketBreadth.value.upRatioPct - 100 / 3) < 1e-10)
+  assert.equal(api.marketBreadth.value.missingCount, 1)
+  assert.equal(api.marketBreadth.value.medianChangePct, 0)
+  assert.equal(api.overviewRows.value.length, 4)
+  api.priceFilter.value = 'down'
+  assert.deepEqual(Array.from(api.sortedData.value, row => row.symbol), ['DOWNUSDT'])
+  assert.deepEqual(Array.from(api.heatmapItems.value, row => row.symbol), ['DOWNUSDT'])
+  api.viewMode.value = 'heatmap'
+  await api.locateSymbol('UPUSDT')
+  assert.equal(api.priceFilter.value, 'all')
+  assert.equal(api.heatmapItems.value.length, 4)
+  assert.equal(api.detailSymbol.value.symbol, 'UPUSDT')
+})
 
 test('标的分类区分商品、外汇、地区股票与加密指数，不将缺失元数据当作加密', () => {
   const { classifyContractAsset: classify } = contractAssets
@@ -45,8 +73,8 @@ test('标的分类区分商品、外汇、地区股票与加密指数，不将�
     assert.equal(classify({ symbol: 'TESTUSDT', underlyingType }), expected)
   }
   assert.equal(classify({ symbol: 'ALLUSDT', underlyingType: 'INDEX', underlyingSubType: ['Crypto'] }), 'crypto')
-  assert.equal(classify({ symbol: 'PAXGUSDT', underlyingType: 'COIN' }), 'commodity')
-  assert.equal(classify({ symbol: 'XAUTUSDT', underlyingType: 'COIN' }), 'commodity')
+  assert.equal(classify({ symbol: 'PAXGUSDT', underlyingType: 'COIN' }), 'crypto')
+  assert.equal(classify({ symbol: 'XAUTUSDT', underlyingType: 'COIN' }), 'crypto')
   assert.equal(classify({ symbol: 'UNKNOWNUSDT', contractType: 'PERPETUAL' }), 'unknown')
   assert.equal(classify({ symbol: 'NEWUSDT', contractType: 'TRADIFI_PERPETUAL' }), 'tradfi')
 })
@@ -56,18 +84,22 @@ test('细分类筛选同步表格、概览、热力图和详情，搜索不改�
   api.data.value = [
     { symbol: 'BTCUSDT', volume: 300, underlyingType: 'COIN' },
     { symbol: 'XAUUSDT', volume: 200, underlyingType: 'COMMODITY' },
+    { symbol: 'XAGUSDT', volume: 150, underlyingType: 'COMMODITY' },
     { symbol: 'PAXGUSDT', volume: 100, underlyingType: 'COIN' },
     { symbol: 'USDBRLUSDT', volume: 50, underlyingType: 'FX' },
   ]
   api.assetType.value = 'commodity'
-  assert.deepEqual(Array.from(api.sortedData.value, row => row.symbol), ['XAUUSDT', 'PAXGUSDT'])
+  assert.deepEqual(Array.from(api.sortedData.value, row => row.symbol), ['XAUUSDT', 'XAGUSDT'])
   assert.equal(api.overviewRows.value.length, 2)
   assert.ok(api.heatmapItems.value.every(item => item.group === '商品'))
   assert.match(api.overviewScope.value, /商品/)
-  api.search.value = 'PAXG'
+  api.search.value = 'XAG'
   assert.equal(api.sortedData.value.length, 1)
   assert.equal(api.overviewRows.value.length, 2)
-  assert.equal(api.detailSymbol.value.symbol, 'PAXGUSDT')
+  assert.equal(api.detailSymbol.value.symbol, 'XAGUSDT')
+  api.search.value = ''
+  api.assetType.value = 'crypto'
+  assert.deepEqual(Array.from(api.sortedData.value, row => row.symbol), ['BTCUSDT', 'PAXGUSDT'])
 })
 
 test('过期榜单先展示，后台计算完成后自动替换数据和时间', async () => {

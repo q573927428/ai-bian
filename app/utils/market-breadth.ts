@@ -6,11 +6,16 @@ export const BREADTH_CATEGORY_LABELS: Record<BreadthAssetCategory, string> = {
   crypto: '加密资产', tradfi: '传统金融资产', unknown: '分类未知'
 }
 
+export type BreadthScope = 'all' | 'crypto' | 'tradfi'
+
+/** 展示范围复用评分快照的分类；未知标的仅保留在全部范围，不猜测类别。 */
+export function filterBreadthSymbols(symbols: string[], categories: MarketBreadthSnapshot['assetCategories'], scope: BreadthScope): string[] {
+  return scope === 'all' ? symbols : symbols.filter(symbol => categories?.[symbol] === scope)
+}
+
 /** 官方标的类型优先于合约形式，避免把普通永续形式的传统资产当成加密资产。 */
 export function classifyBreadthAsset(metadata?: { symbol?: string; contractType: string; underlyingType?: unknown; underlyingSubType?: unknown }): BreadthAssetCategory {
   if (!metadata) return 'unknown'
-  // 黄金锚定代币按底层资产归入传统金融，避免其普通 COIN 合约形式掩盖市场驱动差异。
-  if (metadata.symbol === 'PAXGUSDT' || metadata.symbol === 'XAUTUSDT') return 'tradfi'
   const type = typeof metadata.underlyingType === 'string' ? metadata.underlyingType.toUpperCase() : ''
   const subtypes = Array.isArray(metadata.underlyingSubType) ? metadata.underlyingSubType : []
   if (metadata.contractType === 'TRADIFI_PERPETUAL' || subtypes.includes('TradFi')

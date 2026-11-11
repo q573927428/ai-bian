@@ -4,10 +4,10 @@ import test from 'node:test'
 import fs from 'node:fs'
 import vm from 'node:vm'
 import ts from 'typescript'
-import { summarizeBreadth, calculateLiveBreadth, classifyBreadthAsset, selectBreadthForSymbol, BREADTH_CATEGORY_LABELS } from '../app/utils/market-breadth.ts'
+import { summarizeBreadth, calculateLiveBreadth, classifyBreadthAsset, selectBreadthForSymbol, filterBreadthSymbols, BREADTH_CATEGORY_LABELS } from '../app/utils/market-breadth.ts'
 import { assessEnvironment, buildEnvironmentContext, relativeStrengthRanking, formatEnvironmentConfidence } from '../app/utils/environment-confidence.ts'
 
-test('分类优先识别底层资产、传统永续及黄金代币，未知标的不能默认算作加密', () => {
+test('分类遵循官方底层资产和传统永续类型，黄金代币无特例，未知不能默认算作加密', () => {
   assert.equal(classifyBreadthAsset({ contractType: 'PERPETUAL', underlyingType: 'COIN' }), 'crypto')
   for (const underlyingType of ['EQUITY', 'COMMODITY', 'FX', 'HK_EQUITY', 'PREMARKET']) {
     assert.equal(classifyBreadthAsset({ contractType: 'PERPETUAL', underlyingType }), 'tradfi')
@@ -16,7 +16,9 @@ test('分类优先识别底层资产、传统永续及黄金代币，未知标�
   assert.equal(classifyBreadthAsset({ contractType: 'PERPETUAL', underlyingType: 'INDEX', underlyingSubType: ['Crypto'] }), 'crypto')
   assert.equal(classifyBreadthAsset({ symbol: 'DEFIUSDT', contractType: 'PERPETUAL', underlyingType: 'INDEX' }), 'crypto')
   for (const symbol of ['PAXGUSDT', 'XAUTUSDT']) {
-    assert.equal(classifyBreadthAsset({ symbol, contractType: 'PERPETUAL', underlyingType: 'COIN' }), 'tradfi')
+    assert.equal(classifyBreadthAsset({ symbol, contractType: 'PERPETUAL', underlyingType: 'COIN' }), 'crypto')
+    assert.equal(classifyBreadthAsset({ symbol, contractType: 'PERPETUAL', underlyingType: 'COMMODITY' }), 'tradfi')
+    assert.equal(classifyBreadthAsset({ symbol, contractType: 'PERPETUAL' }), 'unknown')
   }
   assert.equal(classifyBreadthAsset({ contractType: 'PERPETUAL', underlyingType: 'INDEX' }), 'unknown')
   assert.equal(classifyBreadthAsset(undefined), 'unknown')
@@ -34,6 +36,23 @@ function mixedSnapshot() {
     }]))
   }
 }
+
+test('看板分类范围包含同类缺失行情，未知仅在全部展示，空组不回退全市场', () => {
+  const snapshot = mixedSnapshot()
+  snapshot.symbols.push('NEWUSDT')
+  assert.deepEqual(filterBreadthSymbols(snapshot.symbols, snapshot.assetCategories, 'all'), snapshot.symbols)
+  assert.deepEqual(filterBreadthSymbols(snapshot.symbols, snapshot.assetCategories, 'crypto'), ['BTCUSDT', 'ETHUSDT'])
+  const tradfi = filterBreadthSymbols(snapshot.symbols, snapshot.assetCategories, 'tradfi')
+  assert.deepEqual(tradfi, ['STOCKUSDT', 'OTHERUSDT'])
+  const stats = calculateLiveBreadth(tradfi, {
+    STOCKUSDT: { price: 110, timestamp: 1000 }
+  }, '1h', { STOCKUSDT: 100, OTHERUSDT: 100 }, 0, 1000)
+  assert.equal(stats.validCount, 1)
+  assert.equal(stats.missingCount, 1)
+  assert.equal(stats.upRatioPct, 100)
+  assert.deepEqual(filterBreadthSymbols(snapshot.symbols, undefined, 'tradfi'), [])
+  assert.deepEqual(filterBreadthSymbols(['BTCUSDT'], snapshot.assetCategories, 'tradfi'), [])
+})
 
 test('双向置信度仅使用同类市场、主周期排名和24h广度，改变其他组不改变结果', () => {
   const snapshot = mixedSnapshot()
