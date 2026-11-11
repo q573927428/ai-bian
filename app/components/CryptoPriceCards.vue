@@ -736,7 +736,7 @@ interface CryptoPrice {
   align-items: center;
   flex: 0 0 auto;
   flex-wrap: nowrap;
-  gap: 8px;
+  gap: 6px;
 }
 
 .price-cards-heading > * {
