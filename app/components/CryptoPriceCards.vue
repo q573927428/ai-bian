@@ -18,8 +18,8 @@
             v-model="symbolSearch"
             class="price-symbol-search"
             size="small"
-            placeholder="搜索代币"
-            aria-label="搜索代币"
+            placeholder="搜索"
+            aria-label="搜索"
             clearable
           >
             <template #prefix><el-icon><ElIconSearch /></el-icon></template>
@@ -44,7 +44,7 @@
             <span title="当前周期有效行情的涨跌幅中位数" :class="{ 'count-up': (priceCounts.median ?? 0) > 0, 'count-down': (priceCounts.median ?? 0) < 0 }">
               中位 {{ priceCounts.median === null ? '—' : formatPercent(priceCounts.median) }}
             </span>
-            <span v-if="priceCounts.pending" title="当前周期尚无有效行情的交易对数量">待更 {{ priceCounts.pending }}</span>
+            <span v-if="priceCounts.pending" title="当前周期尚无有效行情的交易对数量">待 {{ priceCounts.pending }}</span>
           </div>
         </div>
         <div class="price-board-actions">
