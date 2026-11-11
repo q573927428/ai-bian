@@ -10,6 +10,8 @@ export interface BinanceSymbolMetadata {
   contractType: string
   status: string
   onboardDate?: number
+  underlyingType?: string
+  underlyingSubType?: string[]
   [key: string]: unknown
 }
 

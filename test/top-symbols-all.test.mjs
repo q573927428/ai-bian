@@ -12,10 +12,10 @@ function fixture({ holdDaily = false, failDaily = false, localAge, localGap = fa
   let releaseDaily
   const dailyGate = new Promise(resolve => { releaseDaily = resolve })
   const metadata = Array.from({ length: 240 }, (_, index) => ({
-    symbol: `COIN${index}USDT`, contractType: 'PERPETUAL', status: 'TRADING', onboardDate: 1,
+    symbol: `COIN${index}USDT`, contractType: 'PERPETUAL', underlyingType: 'COIN', underlyingSubType: ['Crypto'], status: 'TRADING', onboardDate: 1,
   }))
   metadata.push(
-    { symbol: 'STOCKUSDT', contractType: 'TRADIFI_PERPETUAL', status: 'TRADING', onboardDate: Math.floor(Date.now() / 86400000) * 86400000 },
+    { symbol: 'STOCKUSDT', contractType: 'TRADIFI_PERPETUAL', underlyingType: 'EQUITY', underlyingSubType: ['TradFi'], status: 'TRADING', onboardDate: Math.floor(Date.now() / 86400000) * 86400000 },
     { symbol: 'HALTEDUSDT', contractType: 'PERPETUAL', status: 'SETTLING', onboardDate: 1 },
     { symbol: 'DELIVERYUSDT', contractType: 'CURRENT_QUARTER', status: 'TRADING', onboardDate: 1 },
     { symbol: 'BTCUSDC', contractType: 'PERPETUAL', status: 'TRADING', onboardDate: 1 },
@@ -70,6 +70,9 @@ test('过期缓存标记为旧数据，等待刷新接口复用任务并返回�
   const { handler, calls, advanceTime } = fixture()
   const query = { mode: 'stable', pool: 30 }
   const first = await handler(query)
+  const coin = first.data.find(item => item.symbol.startsWith('COIN'))
+  assert.equal(coin.underlyingType, 'COIN')
+  assert.deepEqual(Array.from(coin.underlyingSubType), ['Crypto'])
   advanceTime(31 * 60 * 1000)
   const stale = await handler(query)
   assert.equal(stale.stale, true)
@@ -89,6 +92,8 @@ test('热门返回超过 200 个合约，包含新上线股票 T，排除非交�
   assert.equal(result.success, true)
   assert.equal(result.data.length, 241)
   assert.equal(result.data[0].symbol, 'STOCKUSDT')
+  assert.equal(result.data[0].underlyingType, 'EQUITY')
+  assert.deepEqual(Array.from(result.data[0].underlyingSubType), ['TradFi'])
   assert.equal(result.data[0].contractType, 'TRADIFI_PERPETUAL')
   assert.equal(result.data[0].fundingRate, 0.01)
   assert.equal(result.data[0].high24h, 12)

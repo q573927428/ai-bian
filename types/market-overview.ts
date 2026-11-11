@@ -44,6 +44,8 @@ export interface MarketOverviewSymbol {
   priceChangePercent1h?: number
   fundingRate: number
   contractType?: string
+  underlyingType?: string
+  underlyingSubType?: string[]
   onboardDate: number
   high24h?: number
   low24h?: number

@@ -22,11 +22,10 @@
           <el-radio-button value="favorites">⭐ 收藏</el-radio-button>
         </el-radio-group>
         <div class="market-filters">
-          <el-radio-group v-model="assetType" size="small" aria-label="资产类型">
-            <el-radio-button value="all">全部</el-radio-button>
-            <el-radio-button value="crypto">加密货币</el-radio-button>
-            <el-radio-button value="tradfi">股票 T</el-radio-button>
-          </el-radio-group>
+          <el-select v-model="assetType" size="small" aria-label="资产类型" class="asset-type-select">
+            <el-option label="全部" value="all" />
+            <el-option v-for="(label, category) in CONTRACT_ASSET_LABELS" :key="category" :label="label" :value="category" />
+          </el-select>
           <el-input v-model="search" size="small" placeholder="交易对" clearable aria-label="搜索交易对" class="symbol-search">
             <template #prefix>
               <el-icon><ElIconSearch /></el-icon>
@@ -187,7 +186,7 @@
         <el-table-column
           prop="symbol"
           label="交易对"
-          min-width="170"
+          min-width="230"
         >
           <template #default="{ row }">
             <div class="symbol-cell">
@@ -207,7 +206,7 @@
               <el-link type="primary" underline="never" :style="{ cursor: selectable || embedded ? 'pointer' : 'default' }" @click.stop="handleRowClick(row as TopSymbol)">
                 {{ row.symbol.replace('USDT', '/USDT') }}
               </el-link>
-              <el-tag v-if="row.contractType === 'TRADIFI_PERPETUAL'" size="small" type="warning" effect="plain">T</el-tag>
+              <span v-if="classifyContractAsset(row as TopSymbol) !== 'crypto'" class="contract-asset-tag" :data-asset="classifyContractAsset(row as TopSymbol)">{{ contractAssetLabel(row as TopSymbol) }}</span>
               <span
                 v-if="isConfiguredSymbol(row.symbol)"
                 class="configured-dot"
@@ -391,6 +390,8 @@
 import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount, defineAsyncComponent } from 'vue'
 import { ElDialog, ElDrawer } from 'element-plus'
 import { useCoinIcon } from '../composables/useCoinIcon'
+import { CONTRACT_ASSET_LABELS, classifyContractAsset, contractAssetLabel } from '../utils/contract-assets'
+import type { ContractAssetCategory } from '../utils/contract-assets'
 import type { MarketOverviewSymbol, MarketOverviewState } from '../../types/market-overview'
 
 const { getCoinIconUrl } = useCoinIcon()
@@ -548,7 +549,7 @@ function startProgressPolling(query: Record<string, string | number | undefined>
   progressTimer = setTimeout(poll, 500)
 }
 const data = ref<TopSymbol[]>([])
-const assetType = ref<'all' | 'crypto' | 'tradfi'>('all')
+const assetType = ref<'all' | ContractAssetCategory>('all')
 const search = ref('')
 const currentPage = ref(1)
 const pageSize = ref(20)
@@ -758,9 +759,9 @@ const modeRows = computed(() => mode.value === 'favorites'
   : data.value)
 const sortedData = computed(() => {
   const keyword = normalizeSymbol(search.value)
-  // 使用官方合约类型区分 T 合约；未知类型不归入加密货币，避免误分类。
+  // 分类跟随官方标的元数据，避免把商品、外汇及各地区股票混为同类。
   const arr = modeRows.value.filter(row =>
-    (assetType.value === 'all' || row.contractType === (assetType.value === 'tradfi' ? 'TRADIFI_PERPETUAL' : 'PERPETUAL')) &&
+    (assetType.value === 'all' || classifyContractAsset(row) === assetType.value) &&
     (!keyword || normalizeSymbol(row.symbol).includes(keyword))
   )
   arr.sort((a, b) => {
@@ -780,9 +781,9 @@ const sortedData = computed(() => {
 
 // 概览跟随榜单和资产分类；搜索、排序和分页不改变市场样本范围。
 const overviewRows = computed(() => modeRows.value.filter(row =>
-  assetType.value === 'all' || row.contractType === (assetType.value === 'tradfi' ? 'TRADIFI_PERPETUAL' : 'PERPETUAL')
+  assetType.value === 'all' || classifyContractAsset(row) === assetType.value
 ))
-const overviewScope = computed(() => `${mode.value === 'hot' ? '全部行情' : mode.value === 'stable' ? '热门筛选结果' : mode.value === 'favorites' ? '收藏列表' : '配置列表'} · ${assetType.value === 'all' ? '全部资产' : assetType.value === 'crypto' ? '加密货币' : '股票 T'}`)
+const overviewScope = computed(() => `${mode.value === 'hot' ? '全部行情' : mode.value === 'stable' ? '热门筛选结果' : mode.value === 'favorites' ? '收藏列表' : '配置列表'} · ${assetType.value === 'all' ? '全部资产' : CONTRACT_ASSET_LABELS[assetType.value]}`)
 // 热力图搜索仅定位区块，不裁切整个市场，也不隐藏当前选中交易对的详情。
 const detailSymbol = computed(() => {
   const rows = props.embedded && viewMode.value === 'heatmap' ? overviewRows.value : sortedData.value
@@ -793,7 +794,7 @@ const heatmapItems = computed(() => overviewRows.value.map(row => ({
   price: Number.isFinite(row.price) ? row.price : 0,
   volume: Number.isFinite(row.volume) && row.volume >= 0 ? row.volume : null,
   change: typeof row.priceChangePercent === 'number' && Number.isFinite(row.priceChangePercent) ? row.priceChangePercent : null,
-  group: row.contractType === 'TRADIFI_PERPETUAL' ? '传统金融' : row.contractType === 'PERPETUAL' ? '加密资产' : '其他合约',
+  group: contractAssetLabel(row),
   icon: cryptoIconUrl(row.symbol),
 })))
 
@@ -1153,6 +1154,7 @@ watch(() => props.embedded || visible.value, (newVal) => {
 }
 .market-filters :deep(.el-radio-group), .mode-switch { flex-shrink: 0; }
 .symbol-search { flex: 0 0 120px; width: 120px; }
+.asset-type-select { flex: 0 0 100px; width: 100px; }
 .symbol-search :deep(.el-input__wrapper) { border-radius: 4px; padding: 0 8px; }
 .symbol-search :deep(.el-input__prefix) { font-size: 12px; }
 .market-pagination { margin-top: 16px; justify-content: flex-end; }
@@ -1279,7 +1281,7 @@ watch(() => props.embedded || visible.value, (newVal) => {
   gap: 6px;
 }
 
-.symbol-cell .el-tag {
+.symbol-cell .contract-asset-tag {
   margin-left: 2px;
   flex-shrink: 0;
 }

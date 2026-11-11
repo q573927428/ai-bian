@@ -1,5 +1,39 @@
 /* ==================== 前端公共样式与主题变量 ==================== */
 
+/* 分类使用低饱和色，避开涨跌的红绿语义；表格与详情共享，文字仍是主要识别依据。 */
+.contract-asset-tag {
+  --asset-hue: 215;
+  --asset-saturation: 10%;
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  padding: 0 5px;
+  height: 19px;
+  box-sizing: border-box;
+  border: 1px solid hsl(var(--asset-hue) var(--asset-saturation) 45% / 30%);
+  border-radius: 4px;
+  font-size: 10px;
+  line-height: 17px;
+  white-space: nowrap;
+  color: hsl(var(--asset-hue) var(--asset-saturation) 36%);
+  background: hsl(var(--asset-hue) var(--asset-saturation) 50% / 9%);
+}
+.contract-asset-tag[data-asset='crypto'] { --asset-hue: 220; --asset-saturation: 18%; }
+.contract-asset-tag[data-asset='equity'] { --asset-hue: 215; --asset-saturation: 65%; }
+.contract-asset-tag[data-asset='hk_equity'] { --asset-hue: 270; --asset-saturation: 48%; }
+.contract-asset-tag[data-asset='kr_equity'] { --asset-hue: 190; --asset-saturation: 65%; }
+.contract-asset-tag[data-asset='cn_equity'] { --asset-hue: 240; --asset-saturation: 55%; }
+.contract-asset-tag[data-asset='commodity'] { --asset-hue: 36; --asset-saturation: 80%; }
+.contract-asset-tag[data-asset='fx'] { --asset-hue: 175; --asset-saturation: 65%; }
+.contract-asset-tag[data-asset='premarket'] { --asset-hue: 305; --asset-saturation: 45%; }
+.contract-asset-tag[data-asset='index'] { --asset-hue: 205; --asset-saturation: 45%; }
+/* 暗色背景提高文字亮度，保留淡底和细边框，避免标签抢过行情信息。 */
+:root.dark .contract-asset-tag {
+  color: hsl(var(--asset-hue) var(--asset-saturation) 72%);
+  background: hsl(var(--asset-hue) var(--asset-saturation) 55% / 12%);
+  border-color: hsl(var(--asset-hue) var(--asset-saturation) 65% / 30%);
+}
+
 /* ─────────── CSS 变量定义 ─────────── */
 :root {
   /* 主背景 */

@@ -5,6 +5,7 @@ import fs from 'node:fs'
 import vm from 'node:vm'
 import ts from 'typescript'
 import * as vue from 'vue'
+import * as contractAssets from '../app/utils/contract-assets.ts'
 
 /** 执行组件实际脚本，注入请求和页面状态，验证真实加载流程。 */
 function component(fetcher, state = vue.ref({}), props = {}, storage = new Map(), curveFetcher = async () => ({ success: true, data: {} })) {
@@ -23,6 +24,7 @@ function component(fetcher, state = vue.ref({}), props = {}, storage = new Map()
     require(id) {
       if (id === 'vue') return { ...vue, onMounted: callback => mounted.push(callback), onBeforeUnmount: () => {} }
       if (id === 'element-plus') return { ElDialog: {}, ElDrawer: {} }
+      if (id === '../utils/contract-assets') return contractAssets
       if (id === '../composables/useCoinIcon') return { useCoinIcon: () => ({ getCoinIconUrl: () => '' }) }
       throw new Error(`Unexpected import: ${id}`)
     },
@@ -34,6 +36,39 @@ function component(fetcher, state = vue.ref({}), props = {}, storage = new Map()
 }
 
 const result = { success: true, mode: 'stable', updatedAt: 12345, data: [{ symbol: 'BTCUSDT', volume: 100 }] }
+
+test('标的分类区分商品、外汇、地区股票与加密指数，不将缺失元数据当作加密', () => {
+  const { classifyContractAsset: classify } = contractAssets
+  for (const [underlyingType, expected] of Object.entries({ COIN: 'crypto', EQUITY: 'equity',
+    HK_EQUITY: 'hk_equity', KR_EQUITY: 'kr_equity', CN_EQUITY: 'cn_equity',
+    COMMODITY: 'commodity', FX: 'fx', PREMARKET: 'premarket', INDEX: 'index' })) {
+    assert.equal(classify({ symbol: 'TESTUSDT', underlyingType }), expected)
+  }
+  assert.equal(classify({ symbol: 'ALLUSDT', underlyingType: 'INDEX', underlyingSubType: ['Crypto'] }), 'crypto')
+  assert.equal(classify({ symbol: 'PAXGUSDT', underlyingType: 'COIN' }), 'commodity')
+  assert.equal(classify({ symbol: 'XAUTUSDT', underlyingType: 'COIN' }), 'commodity')
+  assert.equal(classify({ symbol: 'UNKNOWNUSDT', contractType: 'PERPETUAL' }), 'unknown')
+  assert.equal(classify({ symbol: 'NEWUSDT', contractType: 'TRADIFI_PERPETUAL' }), 'tradfi')
+})
+
+test('细分类筛选同步表格、概览、热力图和详情，搜索不改变概览样本', () => {
+  const api = component(async () => result)
+  api.data.value = [
+    { symbol: 'BTCUSDT', volume: 300, underlyingType: 'COIN' },
+    { symbol: 'XAUUSDT', volume: 200, underlyingType: 'COMMODITY' },
+    { symbol: 'PAXGUSDT', volume: 100, underlyingType: 'COIN' },
+    { symbol: 'USDBRLUSDT', volume: 50, underlyingType: 'FX' },
+  ]
+  api.assetType.value = 'commodity'
+  assert.deepEqual(Array.from(api.sortedData.value, row => row.symbol), ['XAUUSDT', 'PAXGUSDT'])
+  assert.equal(api.overviewRows.value.length, 2)
+  assert.ok(api.heatmapItems.value.every(item => item.group === '商品'))
+  assert.match(api.overviewScope.value, /商品/)
+  api.search.value = 'PAXG'
+  assert.equal(api.sortedData.value.length, 1)
+  assert.equal(api.overviewRows.value.length, 2)
+  assert.equal(api.detailSymbol.value.symbol, 'PAXGUSDT')
+})
 
 test('过期榜单先展示，后台计算完成后自动替换数据和时间', async () => {
   let release
@@ -163,9 +198,9 @@ test('收藏标准化且刷新后恢复，损坏存储或写入失败不阻断�
 test('收藏列表加载全量行情，筛选搜索排序与概览仅包含收藏', async () => {
   const queries = []
   const rows = [
-    { symbol: 'BTCUSDT', volume: 100, contractType: 'PERPETUAL' },
-    { symbol: 'ETHUSDT', volume: 300, contractType: 'PERPETUAL' },
-    { symbol: 'STOCKUSDT', volume: 200, contractType: 'TRADIFI_PERPETUAL' },
+    { symbol: 'BTCUSDT', volume: 100, contractType: 'PERPETUAL', underlyingType: 'COIN' },
+    { symbol: 'ETHUSDT', volume: 300, contractType: 'PERPETUAL', underlyingType: 'COIN' },
+    { symbol: 'STOCKUSDT', volume: 200, contractType: 'TRADIFI_PERPETUAL', underlyingType: 'EQUITY' },
   ]
   const api = component(async (url, options) => {
     if (url === '/api/market/config') return { success: true, data: { symbols: [] } }
@@ -182,7 +217,7 @@ test('收藏列表加载全量行情，筛选搜索排序与概览仅包含收�
   api.search.value = 'btc/usdt'
   assert.equal(api.sortedData.value.length, 1)
   assert.equal(api.overviewRows.value.length, 2)
-  api.assetType.value = 'tradfi'
+  api.assetType.value = 'equity'
   assert.equal(api.sortedData.value.length, 0)
   assert.equal(api.heatmapItems.value[0].symbol, 'STOCKUSDT')
   api.search.value = ''
@@ -214,7 +249,7 @@ test('热力图复用全量榜单，搜索不截断区块，选择及切换视�
     await new Promise(resolve => setImmediate(resolve))
     const before = requests
     api.data.value = [
-      { symbol: 'BTCUSDT', volume: 100, price: 10, priceChangePercent: 2, contractType: 'PERPETUAL' },
+      { symbol: 'BTCUSDT', volume: 100, price: 10, priceChangePercent: 2, contractType: 'PERPETUAL', underlyingType: 'COIN' },
       { symbol: 'STOCKUSDT', volume: 200, price: 20, priceChangePercent: null, contractType: 'TRADIFI_PERPETUAL' },
     ]
     api.viewMode.value = 'heatmap'

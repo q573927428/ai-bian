@@ -342,7 +342,7 @@ async function fetchStableTopSymbols(options: StableFilterOptions, progress: Sta
     initKLineDb().catch(() => {}),
   ])
   // 1. 获取全市场合约信息（含上线时间与合约类型）
-  let onboardMap = new Map<string, { onboardDate: number; contractType: string }>()
+  let onboardMap = new Map<string, { onboardDate: number; contractType: string; underlyingType?: string; underlyingSubType?: string[] }>()
   try {
     for (const s of (exchangeInfo.symbols || [])) {
       if (
@@ -354,6 +354,8 @@ async function fetchStableTopSymbols(options: StableFilterOptions, progress: Sta
         onboardMap.set(s.symbol, {
           onboardDate: s.onboardDate ? Number(s.onboardDate) : 0,
           contractType: s.contractType,
+          underlyingType: s.underlyingType,
+          underlyingSubType: s.underlyingSubType,
         })
       }
     }
@@ -372,6 +374,8 @@ async function fetchStableTopSymbols(options: StableFilterOptions, progress: Sta
       priceChangePercent: parseFloat(t.priceChangePercent || '0'),
       referenceTime: Number(t.closeTime) || Date.now(),
       contractType: onboardMap.get(t.symbol)?.contractType || 'PERPETUAL',
+      underlyingType: onboardMap.get(t.symbol)?.underlyingType,
+      underlyingSubType: onboardMap.get(t.symbol)?.underlyingSubType,
     }))
     .sort((a, b) => b.quoteVolume - a.quoteVolume)
     .slice(0, options.pool)
@@ -449,6 +453,8 @@ async function fetchStableTopSymbols(options: StableFilterOptions, progress: Sta
     minMaxRatio: Number(item.minRatio.toFixed(4)),
     activeDays: `${item.activeDays}/${item.totalDays}`,
     contractType: item.contractType,
+    underlyingType: item.underlyingType,
+    underlyingSubType: item.underlyingSubType,
     score: Number(item.score.toFixed(2)),
   }))
 }
@@ -586,7 +592,7 @@ export default defineEventHandler(async (event) => {
  */
 async function fallbackHotMode() {
   // 1. 获取所有合约的 exchangeInfo（含上线时间和合约类型）
-  const onboardMap = new Map<string, { onboardDate: number; contractType: string }>()
+  const onboardMap = new Map<string, { onboardDate: number; contractType: string; underlyingType?: string; underlyingSubType?: string[] }>()
   const hotSymbols = new Set<string>()
   try {
     const exchangeInfo = await getBinanceExchangeInfo()
@@ -595,7 +601,8 @@ async function fallbackHotMode() {
       if ((s.contractType === 'PERPETUAL' || s.contractType === 'TRADIFI_PERPETUAL') && s.symbol.endsWith('USDT') && !s.symbol.endsWith('USDCUSDT')) {
         if (s.status === 'TRADING') hotSymbols.add(s.symbol)
         const onboardDate = s.onboardDate ? Number(s.onboardDate) : 0
-        onboardMap.set(s.symbol, { onboardDate, contractType: s.contractType })
+        onboardMap.set(s.symbol, { onboardDate, contractType: s.contractType,
+          underlyingType: s.underlyingType, underlyingSubType: s.underlyingSubType })
       }
     }
   } catch {
@@ -613,7 +620,7 @@ async function fallbackHotMode() {
   const symbols = [...tickers]
     .sort((a: any, b: any) => parseFloat(b.quoteVolume || '0') - parseFloat(a.quoteVolume || '0'))
     .map((t: any) => {
-      const { onboardDate = 0, contractType } = onboardMap.get(t.symbol) || {}
+      const { onboardDate = 0, contractType, underlyingType, underlyingSubType } = onboardMap.get(t.symbol) || {}
       const klineCount4h = onboardDate > 0
         ? Math.floor((Date.now() - onboardDate) / KLINE_4H_MS)
         : 0
@@ -628,6 +635,8 @@ async function fallbackHotMode() {
         klineCount4h,
         onboardDate,
         contractType,
+        underlyingType,
+        underlyingSubType,
       }
     })
 

@@ -6,6 +6,7 @@ import vm from 'node:vm'
 import ts from 'typescript'
 import * as vue from 'vue'
 import { parse, compileScript, compileTemplate } from 'vue/compiler-sfc'
+import * as contractAssets from '../app/utils/contract-assets.ts'
 
 /** 运行侧栏真实脚本并替换网络，测试不访问币安或本地数据库。 */
 function panel(rows, fetcher = async () => ({ success: true, data: { data: [] } })) {
@@ -16,7 +17,7 @@ function panel(rows, fetcher = async () => ({ success: true, data: { data: [] } 
   const context = {
     exports: {}, console, AbortController, setInterval, clearInterval,
     defineProps: () => props, defineEmits: () => () => {}, $fetch: fetcher,
-    require: () => ({ ...vue, onMounted: () => {}, onBeforeUnmount: callback => cleanup.push(callback) }),
+    require: id => id === '../utils/contract-assets' ? contractAssets : ({ ...vue, onMounted: () => {}, onBeforeUnmount: callback => cleanup.push(callback) }),
   }
   vm.runInNewContext(ts.transpile(source + '\nglobalThis.api = { summary, hourly, movers, rangePosition, candles, chartLoading, chartBars };', {
     target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS,

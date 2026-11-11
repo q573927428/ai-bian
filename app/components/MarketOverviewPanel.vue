@@ -32,7 +32,7 @@
     <section class="overview-card detail-card">
       <div class="card-heading"><h3>交易对详情</h3><span>点击左侧行切换</span></div>
       <template v-if="selected">
-        <div class="detail-title"><strong>{{ displaySymbol(selected.symbol) }}<small> / USDT</small></strong><span class="asset-tag">{{ selected.contractType === 'TRADIFI_PERPETUAL' ? '股票 T' : selected.contractType === 'PERPETUAL' ? '加密货币' : '其他合约' }}</span></div>
+        <div class="detail-title"><strong>{{ displaySymbol(selected.symbol) }}<small> / USDT</small></strong><span class="contract-asset-tag" :data-asset="classifyContractAsset(selected)">{{ contractAssetLabel(selected) }}</span></div>
         <div class="detail-price"><strong>{{ price(selected.price) }}</strong><span :class="tone(selected.priceChangePercent)">{{ percent(selected.priceChangePercent) }} <small>24h</small></span></div>
         <div class="mini-heading"><span>近 30 天 · 日 K 线</span><span>{{ chartLoading ? '加载中…' : candles.length ? `${candles.length} 根` : '暂无本地数据' }}</span></div>
         <svg v-if="chartBars.length" class="mini-chart" viewBox="0 0 360 100" role="img" :aria-label="`${selected.symbol} 最近30天本地日K线`">
@@ -55,6 +55,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch, onBeforeUnmount } from 'vue'
+import { classifyContractAsset, contractAssetLabel } from '../utils/contract-assets'
 import type { MarketOverviewSymbol } from '../../types/market-overview'
 import type { SimpleKLineData, KLineApiResponse } from '../../types/kline-simple'
 
@@ -172,7 +173,6 @@ h4 { margin: 10px 0 5px; font-size: 12px; font-weight: 500; }
 .mover-row span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.mover-row b { flex-shrink: 0; font-weight: 500; font-variant-numeric: tabular-nums; }
 .mover-row:hover, .mover-row.active { background: var(--el-fill-color-light); }.mover-row:focus-visible { outline: 2px solid var(--el-color-primary); }
 .detail-title { margin-top: 12px; }.detail-title strong { font-size: 19px; }.detail-title small { font-size: 12px; color: var(--el-text-color-secondary); font-weight: 400; }
-.asset-tag { font-size: 10px; color: var(--el-color-primary); background: color-mix(in srgb, var(--el-color-primary) 15%, transparent); border-radius: 4px; padding: 3px 6px; }
 .detail-price { margin: 8px 0 12px; }.detail-price strong { font-size: 25px; font-variant-numeric: tabular-nums; }.detail-price span { font-size: 13px; }.detail-price small { font-size: 10px; }
 .mini-chart { display: block; width: 100%; height: 84px; margin-top: 6px; }.chart-grid { stroke: var(--el-border-color-lighter); stroke-dasharray: 3 4; }
 .candle-up { stroke: var(--el-color-success); fill: var(--el-color-success); }.candle-down { stroke: var(--el-color-danger); fill: var(--el-color-danger); }
