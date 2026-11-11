@@ -1,5 +1,6 @@
 // ==================== 已选交易对市场广度快照 ====================
 export type BreadthPeriod = '5m' | '15m' | '1h' | '4h' | '24h'
+export type BreadthAssetCategory = 'crypto' | 'tradfi' | 'unknown'
 
 /** 单周期统计；占比以有效样本（含持平）为分母，缺失行情不按零处理。 */
 export interface BreadthStatistics {
@@ -29,6 +30,10 @@ export interface MarketBreadthSnapshot {
   scope: 'selected_symbols'
   selectedCount: number
   symbols: string[]
+  /** 固定快照中的资产分类；旧快照允许缺失，新评分不使用未分类样本。 */
+  assetCategories?: Record<string, BreadthAssetCategory>
+  /** 分组视图的类别；整体快照不设置。 */
+  assetCategory?: BreadthAssetCategory
   computedAt: number
   expiresAt: number
   periods: Record<BreadthPeriod, BreadthStatistics>

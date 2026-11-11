@@ -1,6 +1,7 @@
 // ==================== 多周期趋势结构与环境置信度共享规则 ====================
-import type { MarketBreadthSnapshot } from '../../types/market-breadth'
+import type { BreadthAssetCategory, MarketBreadthSnapshot } from '../../types/market-breadth'
 import type { TechnicalIndicators } from '../../types'
+import { selectBreadthForSymbol, BREADTH_CATEGORY_LABELS } from './market-breadth.ts'
 
 /** 社区置信度修正结果；记录原分、修正值及原因，供分析快照复算。 */
 export interface CommunityConfidenceAdjustment {
@@ -70,7 +71,9 @@ export interface EnvironmentAssessment {
 
 /** 本次请求固定快照，包含双方向评分，防止 AI 自由调整分数。 */
 export interface EnvironmentContext {
-  version: 'environment-v1' | 'environment-v2' | 'environment-v3' | 'environment-v4' | 'environment-v5'
+  version: 'environment-v1' | 'environment-v2' | 'environment-v3' | 'environment-v4' | 'environment-v5' | 'environment-v6'
+  /** 记录本次比较的资产组和已选同类样本数，便于复盘小样本与缺失问题。 */
+  marketScope?: { category: BreadthAssetCategory; selectedCount: number }
   /** 计算该置信度时使用的策略或看板主周期；历史档案允许缺失。 */
   mainTimeframe?: TrendPeriod
   periods: PeriodSignals
@@ -95,6 +98,7 @@ export function formatEnvironmentConfidence(context?: EnvironmentContext): strin
     ? `${name}：置信度${assessment.confidence}分，${describe(assessment.confidence!)}${breadth(assessment)}${community(assessment)}。\n\t\t（分项：市场支持${score(assessment.market)}×30% + 五周期支持${score(assessment.structure)}×40% + 相对强弱${score(assessment.relativeStrength)}×30%）`
     : `${name}：暂无可用分数，环境数据不足。市场支持：${score(assessment.market)}；五周期方向支持：${score(assessment.structure)}；相对强弱：${score(assessment.relativeStrength)}。`
   return [
+    ...(context.marketScope ? [`市场比较范围：${BREADTH_CATEGORY_LABELS[context.marketScope.category]}，已选同类${context.marketScope.selectedCount}个交易对。`] : []),
     `五周期结构：${context.structure.label}；${TREND_PERIODS.map(period => `${period} ${context.periods[period] ?? '暂无数据'}`).join('，')}。`,
     direction('LONG做多', context.long), direction('SHORT做空', context.short)
   ].join('\n')
@@ -277,9 +281,10 @@ function structureSupport(signals: PeriodSignals, side: number): number | null {
 
 /** 固定30/40/30权重；任何关键维度缺失均不可用，不靠剩余维度补分。 */
 export function assessEnvironment(
-  periods: PeriodSignals, breadth: MarketBreadthSnapshot | undefined, symbol: string,
+  periods: PeriodSignals, snapshot: MarketBreadthSnapshot | undefined, symbol: string,
   side: number, now = Date.now(), mainTimeframe: TrendPeriod = '15m'
 ): EnvironmentAssessment {
+  const breadth = selectBreadthForSymbol(snapshot, symbol)
   const validBreadth = breadth && now < breadth.expiresAt && breadth.computedAt <= now
   const windows = ['5m', '15m', '1h', '4h', '24h'] as const
   // 短中周期为主，滚动24h提供背景；缺失时不重新分配权重。
@@ -291,7 +296,7 @@ export function assessEnvironment(
   // 相对强弱只取交易主周期；日线对应滚动24h，缺失不借用其他窗口补分。
   const relativeWindow = mainTimeframe === '1d' ? '24h' : mainTimeframe
   const relativeStrength = validBreadth
-    ? relativeRank(breadth.periods[relativeWindow], symbol.replace('/', '').toUpperCase(), side) : null
+    ? relativeRank(breadth.periods[relativeWindow], symbol.replace('/', '').trim().toUpperCase(), side) : null
   const structure = structureSupport(periods, side)
   const breadthAdjustment = validBreadth ? marketBreadthAdjustment(breadth.periods['24h'], side) : null
   const available = market !== null && structure !== null && relativeStrength !== null && breadthAdjustment !== null
@@ -307,9 +312,11 @@ export function assessEnvironment(
 /** 同一份事实预先计算多空两方向，AI只能选用策略确定方向对应的固定结果。 */
 export function buildEnvironmentContext(periods: PeriodSignals, breadth: MarketBreadthSnapshot | undefined, symbol: string, mainTimeframe: TrendPeriod = '15m'): EnvironmentContext {
   const now = Date.now()
+  const scoped = selectBreadthForSymbol(breadth, symbol)
   return {
-    version: 'environment-v5', mainTimeframe, periods, structure: classifyTrendStructure(periods),
-    long: assessEnvironment(periods, breadth, symbol, 1, now, mainTimeframe),
-    short: assessEnvironment(periods, breadth, symbol, -1, now, mainTimeframe)
+    version: 'environment-v6', mainTimeframe, periods, structure: classifyTrendStructure(periods),
+    marketScope: { category: scoped?.assetCategory ?? 'unknown', selectedCount: scoped?.selectedCount ?? 0 },
+    long: assessEnvironment(periods, scoped, symbol, 1, now, mainTimeframe),
+    short: assessEnvironment(periods, scoped, symbol, -1, now, mainTimeframe)
   }
 }

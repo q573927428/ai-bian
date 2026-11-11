@@ -1,7 +1,8 @@
 // ==================== 已选交易对市场广度统一计算与缓存 ====================
 import type { BotConfig } from '../../types'
 import type { MarketBreadthSnapshot } from '../../types/market-breadth'
-import { summarizeBreadth } from '../../app/utils/market-breadth'
+import { summarizeBreadth, classifyBreadthAsset, selectBreadthForSymbol, BREADTH_CATEGORY_LABELS } from '../../app/utils/market-breadth'
+import { getBinanceExchangeInfo } from './binance-exchange-info'
 import { getSimpleKLineData, initKLineDb } from './kline-simple-storage'
 import { marketPriceHub } from './market-price-hub'
 import type { IndicatorsHub } from '../modules/indicators/IndicatorsHub'
@@ -23,11 +24,15 @@ export { summarizeBreadth } from '../../app/utils/market-breadth'
 /** 完整快照沿用预计算有效期，缺失排名每30秒允许惰性重试，并合并并发请求。 */
 export async function getMarketBreadth(config: BotConfig, force = false, hub?: BreadthIndicatorsHub): Promise<MarketBreadthSnapshot> {
   const symbols = [...new Set((config.symbols || []).map(symbol => symbol.replace('/', '').trim().toUpperCase()).filter(Boolean))].sort()
+  // 复用持久化元数据，失败保留未知分类，避免把传统资产默认算成加密资产。
+  const metadata = await getBinanceExchangeInfo().catch(() => undefined)
+  const metadataBySymbol = new Map(metadata?.symbols.map(item => [item.symbol, item]))
+  const assetCategories = Object.fromEntries(symbols.map(symbol => [symbol, classifyBreadthAsset(metadataBySymbol.get(symbol))]))
   const intervalMs = config.indicatorPrecompute?.enabled === false ? 60000
     : Math.max(60000, Number(config.indicatorPrecompute?.intervalMs ?? 300000))
-  const key = JSON.stringify([symbols, intervalMs])
+  const key = JSON.stringify([symbols, intervalMs, assetCategories])
   if (pending?.key === key && pending.hub === hub) return pending.promise
-  if (!force && cached && cachedHub === hub && JSON.stringify([cached.symbols, cached.expiresAt - cached.computedAt]) === key
+  if (!force && cached && cachedHub === hub && JSON.stringify([cached.symbols, cached.expiresAt - cached.computedAt, cached.assetCategories]) === key
     && Date.now() < Math.min(cached.expiresAt, cachedRetryAt)) return cached
   const promise = (async (): Promise<MarketBreadthSnapshot> => {
     await initKLineDb()
@@ -111,7 +116,7 @@ export async function getMarketBreadth(config: BotConfig, force = false, hub?: B
       }
       periods[period] = { ...summarizeBreadth(changes, referenceTime, bases), atrs, atrPercents, normalizedChanges, rankingUnavailableReasons }
     }
-    const result: MarketBreadthSnapshot = { scope: 'selected_symbols', selectedCount: symbols.length, symbols, computedAt: now, expiresAt: now + intervalMs, periods }
+    const result: MarketBreadthSnapshot = { scope: 'selected_symbols', selectedCount: symbols.length, symbols, assetCategories, computedAt: now, expiresAt: now + intervalMs, periods }
     return result
   })()
   pending = { key, hub, promise }
@@ -136,6 +141,11 @@ export async function getMarketBreadth(config: BotConfig, force = false, hub?: B
 /** AI 接收市场聚合值及当前交易对涨跌幅，不展开其他交易对明细。 */
 export function formatMarketBreadth(snapshot?: MarketBreadthSnapshot, symbol?: string, mainTimeframe: TrendPeriod = '15m'): string {
   if (!snapshot) return '市场广度：暂无可用快照。'
+  if (symbol) {
+    const scoped = selectBreadthForSymbol(snapshot, symbol)
+    if (!scoped) return `市场广度：当前交易对 ${symbol.replace('/', '').trim().toUpperCase()} 分类未知或不在已选范围，暂无可用同类市场快照。`
+    snapshot = scoped
+  }
   const lines = (['5m', '15m', '1h', '4h', '24h'] as const).map(period => {
     const stats = snapshot.periods[period]
     // 缺失数据明确标注，不能格式化为 0% 而被误解为持平。
@@ -161,7 +171,7 @@ export function formatMarketBreadth(snapshot?: MarketBreadthSnapshot, symbol?: s
     ? `${ranking.tiedCount > 1 ? '并列' : ''}第${ranking.position}名 / ${ranking.sampleCount}个`
     : '暂无可用排名'}。` : null
   return [
-    `市场广度（已筛选${snapshot.selectedCount}个币安近30日交易量高且稳定交易对，供市场方向参考）：`,
+    `市场广度（${snapshot.assetCategory ? BREADTH_CATEGORY_LABELS[snapshot.assetCategory] + '，' : '全部资产，'}已选${snapshot.selectedCount}个交易对，供市场方向参考）：`,
     `更新时间：${updatedAt}${Date.now() >= snapshot.expiresAt ? '（数据已过期）' : ''}。`,
     ...lines,
     ...(currentSymbolLine ? [currentSymbolLine] : []),

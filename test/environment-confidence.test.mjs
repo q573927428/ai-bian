@@ -153,6 +153,8 @@ test('完整分析链路使用社区修正后的置信度，开关与反向数�
 /** 同一市场快照包含强势、弱势与持平币，避免仅有单币时伪造排名。 */
 function breadth() {
   return {
+    symbols: ['BTCUSDT', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I'],
+    assetCategories: Object.fromEntries(['BTCUSDT', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I'].map(symbol => [symbol, 'crypto'])),
     selectedCount: 10, computedAt: Date.now() - 1000, expiresAt: Date.now() + 60000,
     periods: Object.fromEntries(['5m', '15m', '1h', '4h', '24h'].map(period => [period, {
       validCount: 10, upCount: 7, downCount: 2, flatCount: 1, missingCount: 0,
@@ -190,7 +192,7 @@ test('多空九种强弱组合及互补评分完整覆盖，持平不丢失原�
       assert.equal(periodSupport(trend, sign), scores[i][j])
       assert.equal(periodSupport(trend, -sign), 100 - scores[i][j])
       const context = buildEnvironmentContext(all(trend), breadth(), 'BTCUSDT')
-      assert.equal(context.version, 'environment-v5')
+      assert.equal(context.version, 'environment-v6')
       assert.equal(sign > 0 ? context.long.structure : context.short.structure, scores[i][j])
       assert.equal(context.long.confidence, Math.round(48 + context.long.structure * 0.4))
       assert.ok(formatEnvironmentConfidence(context).includes(`5m ${trend}`))
@@ -351,6 +353,9 @@ test('SOXL快照使用50起点和30/40/30权重后置信度为69，名次和原�
   }
   // 由强到弱第76名：75个标的更强、5个更弱；保留原始百分位以验证展示名次未被收缩。
   const values = { SOXLUSDT: 5, ...Object.fromEntries(Array.from({ length: 80 }, (_, i) => [`S${i}`, i < 5 ? i : i + 1])) }
+  snapshot.symbols = Object.keys(values)
+  snapshot.selectedCount = snapshot.symbols.length
+  snapshot.assetCategories = Object.fromEntries(snapshot.symbols.map(symbol => [symbol, 'tradfi']))
   Object.assign(snapshot.periods['15m'], { changes: { ...values }, normalizedChanges: { ...values } })
   const ranking = relativeStrengthRanking(snapshot.periods['15m'], 'SOXLUSDT')
   assert.equal(ranking.position, 76)

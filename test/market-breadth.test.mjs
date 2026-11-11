@@ -4,8 +4,86 @@ import test from 'node:test'
 import fs from 'node:fs'
 import vm from 'node:vm'
 import ts from 'typescript'
-import { summarizeBreadth, calculateLiveBreadth } from '../app/utils/market-breadth.ts'
-import { assessEnvironment, relativeStrengthRanking } from '../app/utils/environment-confidence.ts'
+import { summarizeBreadth, calculateLiveBreadth, classifyBreadthAsset, selectBreadthForSymbol, BREADTH_CATEGORY_LABELS } from '../app/utils/market-breadth.ts'
+import { assessEnvironment, buildEnvironmentContext, relativeStrengthRanking, formatEnvironmentConfidence } from '../app/utils/environment-confidence.ts'
+
+test('分类优先识别底层资产、传统永续及黄金代币，未知标的不能默认算作加密', () => {
+  assert.equal(classifyBreadthAsset({ contractType: 'PERPETUAL', underlyingType: 'COIN' }), 'crypto')
+  for (const underlyingType of ['EQUITY', 'COMMODITY', 'FX', 'HK_EQUITY', 'PREMARKET']) {
+    assert.equal(classifyBreadthAsset({ contractType: 'PERPETUAL', underlyingType }), 'tradfi')
+  }
+  assert.equal(classifyBreadthAsset({ contractType: 'TRADIFI_PERPETUAL' }), 'tradfi')
+  assert.equal(classifyBreadthAsset({ contractType: 'PERPETUAL', underlyingType: 'INDEX', underlyingSubType: ['Crypto'] }), 'crypto')
+  assert.equal(classifyBreadthAsset({ symbol: 'DEFIUSDT', contractType: 'PERPETUAL', underlyingType: 'INDEX' }), 'crypto')
+  for (const symbol of ['PAXGUSDT', 'XAUTUSDT']) {
+    assert.equal(classifyBreadthAsset({ symbol, contractType: 'PERPETUAL', underlyingType: 'COIN' }), 'tradfi')
+  }
+  assert.equal(classifyBreadthAsset({ contractType: 'PERPETUAL', underlyingType: 'INDEX' }), 'unknown')
+  assert.equal(classifyBreadthAsset(undefined), 'unknown')
+})
+
+/** 两组走势相反，检验市场支持、排名与24h修正均不受其他资产组影响。 */
+function mixedSnapshot() {
+  const changes = { BTCUSDT: 2, ETHUSDT: 1, STOCKUSDT: -1, OTHERUSDT: -2, UNKNOWN: 100 }
+  return {
+    scope: 'selected_symbols', symbols: Object.keys(changes), selectedCount: 5,
+    assetCategories: { BTCUSDT: 'crypto', ETHUSDT: 'crypto', STOCKUSDT: 'tradfi', OTHERUSDT: 'tradfi', UNKNOWN: 'unknown' },
+    computedAt: Date.now() - 1000, expiresAt: Date.now() + 60000,
+    periods: Object.fromEntries(['5m', '15m', '1h', '4h', '24h'].map(period => [period, {
+      ...summarizeBreadth({ ...changes }, 100), normalizedChanges: { ...changes }, atrs: { BTCUSDT: 1, STOCKUSDT: 2 }
+    }]))
+  }
+}
+
+test('双向置信度仅使用同类市场、主周期排名和24h广度，改变其他组不改变结果', () => {
+  const snapshot = mixedSnapshot()
+  const signals = Object.fromEntries(['5m', '15m', '1h', '4h', '1d'].map(period => [period, '中性']))
+  const crypto = buildEnvironmentContext(signals, snapshot, ' btc/usdt ')
+  const stock = buildEnvironmentContext(signals, snapshot, 'STOCKUSDT')
+  assert.equal(crypto.long.market, 100)
+  assert.equal(stock.long.market, 0)
+  assert.equal(stock.long.relativeStrength, 85)
+  assert.equal(stock.short.relativeStrength, 15)
+  assert.equal(stock.long.marketBreadthAdjustment.adjustment, -8)
+  assert.equal(stock.short.marketBreadthAdjustment.adjustment, 0)
+  assert.equal(stock.long.coverage, 100)
+  assert.deepEqual(stock.marketScope, { category: 'tradfi', selectedCount: 2 })
+  assert.match(formatEnvironmentConfidence(stock), /传统金融资产，已选同类2个/)
+  for (const stats of Object.values(snapshot.periods)) {
+    stats.changes.BTCUSDT = -100
+    stats.normalizedChanges.BTCUSDT = -100
+    stats.changes.UNKNOWN = -999
+  }
+  assert.deepEqual(buildEnvironmentContext(signals, snapshot, 'STOCKUSDT'), stock)
+  assert.equal(snapshot.selectedCount, 5)
+  assert.equal(Object.keys(snapshot.periods['5m'].changes).length, 5)
+})
+
+test('同组单样本、未知分类、旧快照缺分类及同组主周期ATR缺失均不借其他组补分', () => {
+  const snapshot = mixedSnapshot()
+  const signals = Object.fromEntries(['5m', '15m', '1h', '4h', '1d'].map(period => [period, '中性']))
+  snapshot.assetCategories.OTHERUSDT = 'unknown'
+  assert.equal(buildEnvironmentContext(signals, snapshot, 'STOCKUSDT').long.available, false)
+  assert.equal(buildEnvironmentContext(signals, snapshot, 'UNKNOWN').long.market, null)
+  snapshot.assetCategories.OTHERUSDT = 'tradfi'
+  snapshot.periods['15m'].normalizedChanges.OTHERUSDT = null
+  assert.equal(buildEnvironmentContext(signals, snapshot, 'STOCKUSDT').long.relativeStrength, null)
+  assert.equal(buildEnvironmentContext(signals, snapshot, 'STOCKUSDT', '5m').long.available, true)
+  delete snapshot.assetCategories
+  assert.equal(buildEnvironmentContext(signals, snapshot, 'BTCUSDT').long.available, false)
+})
+
+test('分组覆盖率只使用本组已选数量，缺失同类价格仍保留为缺失', () => {
+  const snapshot = mixedSnapshot()
+  snapshot.periods['5m'].changes.OTHERUSDT = null
+  const scoped = selectBreadthForSymbol(snapshot, 'STOCKUSDT')
+  assert.equal(scoped.selectedCount, 2)
+  assert.equal(scoped.periods['5m'].validCount, 1)
+  assert.equal(scoped.periods['5m'].missingCount, 1)
+  assert.deepEqual(scoped.periods['5m'].atrs, { STOCKUSDT: 2 })
+  const signals = Object.fromEntries(['5m', '15m', '1h', '4h', '1d'].map(period => [period, '中性']))
+  assert.equal(buildEnvironmentContext(signals, snapshot, 'STOCKUSDT').long.coverage, 95)
+})
 
 /** 隔离行情和数据库依赖，验证业务计算而不访问真实数据库或网络。 */
 function fixture() {
@@ -17,6 +95,8 @@ function fixture() {
   const atrReads = []
   const atrValues = new Map()
   const stalePeriods = new Set()
+  const metadata = ['BTCUSDT', 'ETHUSDT'].map(symbol => ({ symbol, contractType: 'PERPETUAL', underlyingType: 'COIN' }))
+  const metadataState = { unavailable: false }
   const hub = {
     getKlines(symbol, timeframe) {
       const seconds = { '5m': 300, '15m': 900, '1h': 3600, '4h': 14400, '1d': 86400 }[timeframe]
@@ -35,7 +115,11 @@ function fixture() {
   const context = {
     exports: {}, Date: class extends Date { static now() { return time } },
     require(id) {
-      if (id === '../../app/utils/market-breadth') return { summarizeBreadth }
+      if (id === '../../app/utils/market-breadth') return { summarizeBreadth, classifyBreadthAsset, selectBreadthForSymbol, BREADTH_CATEGORY_LABELS }
+      if (id === './binance-exchange-info') return { getBinanceExchangeInfo: async () => {
+        if (metadataState.unavailable) throw new Error('元数据不可用')
+        return { symbols: metadata }
+      } }
       if (id === '../../app/utils/environment-confidence') return { relativeStrengthRanking }
       if (id === './market-price-hub') return { marketPriceHub: { getSnapshot: () => prices } }
       if (id === './kline-simple-storage') return {
@@ -59,7 +143,7 @@ function fixture() {
   vm.runInContext(ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText, context)
   const rawGetMarketBreadth = context.exports.getMarketBreadth
   const api = { ...context.exports, getMarketBreadth: (config, force = false) => rawGetMarketBreadth(config, force, hub) }
-  return { api, rawGetMarketBreadth, hub, prices, bars, atrReads, atrValues, stalePeriods, now, reads: () => reads, advance: ms => { time += ms } }
+  return { api, rawGetMarketBreadth, hub, prices, bars, atrReads, atrValues, stalePeriods, metadata, metadataState, now, reads: () => reads, advance: ms => { time += ms } }
 }
 
 /** 为恢复测试提供两个完整排名样本，避免将单样本配置误当成可恢复缺失。 */
@@ -75,6 +159,40 @@ function completeRankingFixture() {
   f.hub.getIndicators = (symbol, ...args) => original('BTCUSDT', ...args)
   return f
 }
+
+test('元数据变化立即隔离快照缓存，元数据失败保留未知且恢复后可重新评分', async () => {
+  const f = completeRankingFixture()
+  const config = { symbols: ['BTCUSDT', 'ETHUSDT'] }
+  const initial = await f.api.getMarketBreadth(config)
+  f.metadata[1].contractType = 'TRADIFI_PERPETUAL'
+  const changed = await f.api.getMarketBreadth(config)
+  assert.notEqual(changed, initial)
+  assert.equal(changed.assetCategories.ETHUSDT, 'tradfi')
+  assert.equal(selectBreadthForSymbol(changed, 'BTCUSDT').selectedCount, 1)
+  f.metadataState.unavailable = true
+  const unavailable = await f.api.getMarketBreadth(config)
+  assert.equal(unavailable.assetCategories.BTCUSDT, 'unknown')
+  assert.equal(selectBreadthForSymbol(unavailable, 'BTCUSDT'), undefined)
+  f.metadataState.unavailable = false
+  f.metadata[1].contractType = 'PERPETUAL'
+  const recovered = await f.api.getMarketBreadth(config)
+  const signals = Object.fromEntries(['5m', '15m', '1h', '4h', '1d'].map(period => [period, '中性']))
+  assert.equal(assessEnvironment(signals, recovered, 'BTCUSDT', 1, f.now).available, true)
+})
+
+test('AI市场文本与评分使用相同资产组和名次，整体展示仍可查看全部资产', () => {
+  const f = fixture()
+  const snapshot = mixedSnapshot()
+  snapshot.computedAt = f.now
+  snapshot.expiresAt = f.now + 60000
+  const prompt = f.api.formatMarketBreadth(snapshot, 'STOCKUSDT')
+  assert.match(prompt, /传统金融资产，已选2个交易对/)
+  assert.match(prompt, /5m：涨0，跌2，平0/)
+  assert.match(prompt, /当前主周期 15m 相对强弱排名：第1名 \/ 2个/)
+  assert.doesNotMatch(prompt, /BTCUSDT|ETHUSDT|UNKNOWN/)
+  assert.match(f.api.formatMarketBreadth(snapshot), /全部资产，已选5个交易对/)
+  assert.match(f.api.formatMarketBreadth(snapshot, 'UNKNOWN'), /分类未知/)
+})
 
 for (const timeframe of ['5m', '15m', '1h', '4h', '1d']) {
   test(`${timeframe}整批排名缺失后，K线补齐经30秒重试恢复双向分数且并发共享快照`, async () => {
@@ -193,7 +311,7 @@ test('提示词包含范围、统计时间及五周期聚合值，不传入逐�
   const f = fixture()
   const snapshot = await f.api.getMarketBreadth({ symbols: ['BTCUSDT'] })
   const prompt = f.api.formatMarketBreadth(snapshot)
-  assert.ok(prompt.includes('已筛选1个币安') && prompt.includes('更新时间：') && prompt.includes('4h'))
+  assert.ok(prompt.includes('全部资产，已选1个交易对') && prompt.includes('更新时间：') && prompt.includes('4h'))
   assert.ok(prompt.includes('1h：涨1，跌0，平0；上涨占比100.00%，涨跌幅中位数+10.00%；有效1，缺失0。'))
   assert.ok(prompt.includes('24h：涨1，跌0，平0；上涨占比100.00%，涨跌幅中位数+10.00%'))
   assert.ok(!prompt.includes('changes') && !prompt.includes('BTCUSDT'))
@@ -215,7 +333,7 @@ test('提示词仅补充当前交易对五周期涨跌幅，兼容交易对格�
   assert.ok(prompt.includes('当前交易对 BTCUSDT：5m涨跌幅暂无数据；15m涨跌幅暂无数据；1h涨跌幅+10.00%；4h涨跌幅-1.23%；24h涨跌幅暂无数据。'))
   assert.ok(!prompt.includes('ETHUSDT'))
   assert.ok(!f.api.formatMarketBreadth(snapshot).includes('当前交易对'))
-  assert.ok(f.api.formatMarketBreadth(snapshot, 'UNKNOWN').includes('1h涨跌幅暂无数据'))
+  assert.ok(f.api.formatMarketBreadth(snapshot, 'UNKNOWN').includes('分类未知或不在已选范围'))
 })
 
 test('实时价格变化立即更新涨跌数量和中位数，不改变 AI 固定快照且不读取数据库', async () => {
@@ -313,6 +431,8 @@ test('要求中心包含当前未收盘K线，无中心的快照不能阻止初�
 test('提示词仅简要展示主周期名次和样本数，同值并列且缺失不兜底', async () => {
   const f = fixture()
   const snapshot = await f.api.getMarketBreadth({ symbols: ['BTCUSDT'] })
+  snapshot.symbols = ['BTCUSDT', 'A', 'B', 'C', 'D']
+  snapshot.assetCategories = Object.fromEntries(snapshot.symbols.map(symbol => [symbol, 'crypto']))
   for (const period of ['5m', '15m', '24h']) {
     Object.assign(snapshot.periods[period], {
       changes: { BTCUSDT: 1, A: 2, B: 3, C: 4, D: null },

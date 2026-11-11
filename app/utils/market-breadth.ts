@@ -1,6 +1,47 @@
 // ==================== 市场广度聚合与看板实时计算 ====================
-import type { BreadthPeriod, BreadthStatistics } from '../../types/market-breadth'
+import type { BreadthPeriod, BreadthStatistics, BreadthAssetCategory, MarketBreadthSnapshot } from '../../types/market-breadth'
 import type { PriceData } from '../../types/websocket'
+
+export const BREADTH_CATEGORY_LABELS: Record<BreadthAssetCategory, string> = {
+  crypto: '加密资产', tradfi: '传统金融资产', unknown: '分类未知'
+}
+
+/** 官方标的类型优先于合约形式，避免把普通永续形式的传统资产当成加密资产。 */
+export function classifyBreadthAsset(metadata?: { symbol?: string; contractType: string; underlyingType?: unknown; underlyingSubType?: unknown }): BreadthAssetCategory {
+  if (!metadata) return 'unknown'
+  // 黄金锚定代币按底层资产归入传统金融，避免其普通 COIN 合约形式掩盖市场驱动差异。
+  if (metadata.symbol === 'PAXGUSDT' || metadata.symbol === 'XAUTUSDT') return 'tradfi'
+  const type = typeof metadata.underlyingType === 'string' ? metadata.underlyingType.toUpperCase() : ''
+  const subtypes = Array.isArray(metadata.underlyingSubType) ? metadata.underlyingSubType : []
+  if (metadata.contractType === 'TRADIFI_PERPETUAL' || subtypes.includes('TradFi')
+    || ['EQUITY', 'CN_EQUITY', 'HK_EQUITY', 'KR_EQUITY', 'COMMODITY', 'FX', 'PREMARKET'].includes(type)) return 'tradfi'
+  // INDEX 可能属于加密或传统市场；要求明确 Crypto 标签，或已知的 DEFI 加密指数。
+  if (metadata.contractType === 'PERPETUAL' && (type === 'COIN' || subtypes.includes('Crypto')
+    || (type === 'INDEX' && metadata.symbol === 'DEFIUSDT'))) return 'crypto'
+  return 'unknown'
+}
+
+/** 从同一固定快照筛选当前标的同类样本；未知分类不混排，也不回退到全市场。 */
+export function selectBreadthForSymbol(snapshot: MarketBreadthSnapshot | undefined, symbol: string): MarketBreadthSnapshot | undefined {
+  if (!snapshot?.assetCategories) return undefined
+  const normalized = symbol.replace('/', '').trim().toUpperCase()
+  const category = snapshot.assetCategories[normalized]
+  if (!category || category === 'unknown' || !snapshot.symbols.includes(normalized)) return undefined
+  const symbols = snapshot.symbols.filter(item => snapshot.assetCategories![item] === category)
+  // 同类完整快照可直接复用，保留原始计数校验；混合快照才需要重新聚合。
+  if (symbols.length === snapshot.symbols.length) return { ...snapshot, assetCategory: category }
+  const periods = {} as MarketBreadthSnapshot['periods']
+  for (const period of ['5m', '15m', '1h', '4h', '24h'] as const) {
+    const stats = snapshot.periods[period]
+    const pick = <T>(values: Record<string, T> | undefined): Record<string, T> => Object.fromEntries(
+      symbols.filter(item => values && Object.hasOwn(values, item)).map(item => [item, values![item]!]))
+    const changes = Object.fromEntries(symbols.map(item => [item, stats.changes[item] ?? null]))
+    periods[period] = { ...summarizeBreadth(changes, stats.referenceTime, pick(stats.bases)),
+      atrs: pick(stats.atrs), atrPercents: pick(stats.atrPercents), normalizedChanges: pick(stats.normalizedChanges),
+      rankingUnavailableReasons: pick(stats.rankingUnavailableReasons) }
+  }
+  return { ...snapshot, symbols, selectedCount: symbols.length, assetCategory: category, periods }
+}
 
 /** 有效样本包含持平，缺失行情不按零处理，空样本的占比和中位数返回 null。 */
 export function summarizeBreadth(changes: Record<string, number | null>, referenceTime: number | null, bases: Record<string, number> = {}): BreadthStatistics {
