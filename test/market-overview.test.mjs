@@ -18,7 +18,7 @@ function panel(rows, fetcher = async () => ({ success: true, data: { data: [] } 
     defineProps: () => props, defineEmits: () => () => {}, $fetch: fetcher,
     require: () => ({ ...vue, onMounted: () => {}, onBeforeUnmount: callback => cleanup.push(callback) }),
   }
-  vm.runInNewContext(ts.transpile(source + '\nglobalThis.api = { summary, hourly, movers, rangePosition, candles, chartLoading };', {
+  vm.runInNewContext(ts.transpile(source + '\nglobalThis.api = { summary, hourly, movers, rangePosition, candles, chartLoading, chartBars };', {
     target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS,
   }), context)
   return { ...context.api, props, dispose: () => cleanup.forEach(callback => callback()) }
@@ -55,6 +55,10 @@ test('快速切换交易对后，旧本地K线响应不能覆盖新详情', asyn
     assert.equal(requests[0].options.signal.aborted, true)
     assert.equal(requests[1].url, '/api/kline-simple')
     assert.equal(requests[1].options.query.symbol, 'B')
+    assert.equal(requests[1].options.query.timeframe, '1d')
+    assert.equal(requests[1].options.query.limit, 30)
+    assert.equal(requests[1].options.query.to - requests[1].options.query.from, 29 * 86400)
+    assert.equal(requests[1].options.query.to % 86400, 0)
     const bar = { t: requests[1].options.query.from, o: 10, c: 11, h: 12, l: 9, v: 1 }
     requests[1].resolve({ success: true, data: { data: [bar] } })
     await new Promise(resolve => setImmediate(resolve))
@@ -62,6 +66,23 @@ test('快速切换交易对后，旧本地K线响应不能覆盖新详情', asyn
     await new Promise(resolve => setImmediate(resolve))
     assert.equal(api.candles.value[0].c, 11)
     assert.equal(api.chartLoading.value, false)
+  } finally { api.dispose() }
+})
+
+test('30日日线保留缺失日期空白，按日期排序并剔除窗口外数据', async () => {
+  const api = panel([row('A', 1, 1)], async (_url, { query }) => {
+    const candle = t => ({ t, o: 10, c: 11, h: 12, l: 9, v: 1 })
+    return { success: true, data: { data: [
+      candle(query.to), candle(query.from + 2 * 86400), candle(query.from), candle(query.from - 86400),
+    ] } }
+  })
+  try {
+    await new Promise(resolve => setImmediate(resolve))
+    assert.equal(api.candles.value.length, 3)
+    const bars = api.chartBars.value
+    assert.equal(bars[0].x, 8)
+    assert.equal(bars[1].x, 8 + 2 * 344 / 29)
+    assert.equal(bars[2].x, 352)
   } finally { api.dispose() }
 })
 

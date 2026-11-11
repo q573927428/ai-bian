@@ -7,6 +7,7 @@ import ts from 'typescript'
 
 /** 模拟币安行情和元数据，避免测试访问网络或本地交易配置。 */
 function fixture({ holdDaily = false, failDaily = false, localAge, localGap = false, localMissingToday = false } = {}) {
+  let timeOffset = 0
   let configuredSymbols = ['HALTED/USDT', 'MISSINGUSDT']
   let releaseDaily
   const dailyGate = new Promise(resolve => { releaseDaily = resolve })
@@ -26,6 +27,7 @@ function fixture({ holdDaily = false, failDaily = false, localAge, localGap = fa
   const calls = []
   const context = {
     exports: {}, console,
+    Date: class extends Date { static now() { return Date.now() + timeOffset } },
     defineEventHandler: handler => handler,
     getQuery: event => event,
     require(id) {
@@ -61,8 +63,25 @@ function fixture({ holdDaily = false, failDaily = false, localAge, localGap = fa
   }
   const source = fs.readFileSync(new URL('../server/api/binance/top-symbols.get.ts', import.meta.url), 'utf8')
   vm.runInNewContext(ts.transpile(source, { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS }), context)
-  return { handler: context.exports.default, calls, releaseDaily, setConfiguredSymbols: symbols => { configuredSymbols = symbols } }
+  return { handler: context.exports.default, calls, releaseDaily, setConfiguredSymbols: symbols => { configuredSymbols = symbols }, advanceTime: ms => { timeOffset += ms } }
 }
+
+test('过期缓存标记为旧数据，等待刷新接口复用任务并返回最新时间', async () => {
+  const { handler, calls, advanceTime } = fixture()
+  const query = { mode: 'stable', pool: 30 }
+  const first = await handler(query)
+  advanceTime(31 * 60 * 1000)
+  const stale = await handler(query)
+  assert.equal(stale.stale, true)
+  assert.equal(stale.updatedAt, first.updatedAt)
+  const [fresh, shared] = await Promise.all([
+    handler({ ...query, awaitFresh: '1' }), handler({ ...query, awaitFresh: '1' }),
+  ])
+  assert.equal(fresh.stale, false)
+  assert.ok(fresh.updatedAt > first.updatedAt)
+  assert.equal(fresh.updatedAt, shared.updatedAt)
+  assert.equal(calls.filter(key => key.startsWith('stableKlines:')).length, 60)
+})
 
 test('热门返回超过 200 个合约，包含新上线股票 T，排除非交易及非 USDT 永续合约', async () => {
   const { handler, calls } = fixture()
@@ -158,22 +177,23 @@ test('日线失败的候选仍计入已处理数，进度不会卡在未完成�
   assert.equal(progress.completed, progress.total)
 })
 
-test('默认 150 个候选复用完整新鲜的本地日线，结果与远端分析一致', async () => {
+test('默认 200 个候选复用完整新鲜的本地日线，结果与远端分析一致', async () => {
   const local = fixture({ localAge: 0 })
   const remote = fixture()
   const query = { mode: 'stable' }
   const actual = await local.handler(query)
   const expected = await remote.handler(query)
-  assert.equal(actual.params.pool, 150)
-  assert.equal(actual.params.minDaily, 20_000_000)
-  assert.equal(actual.params.top, 80)
-  assert.equal(actual.data.length, 80)
+  assert.equal(actual.params.pool, 200)
+  assert.equal(actual.params.minDaily, 10_000_000)
+  assert.equal(actual.params.activeDaysRatio, 0.6)
+  assert.equal(actual.params.top, 100)
+  assert.equal(actual.data.length, 100)
   assert.deepEqual(JSON.parse(JSON.stringify(actual.data)), JSON.parse(JSON.stringify(expected.data)))
   assert.equal(local.calls.filter(key => key.startsWith('stableKlines:')).length, 0)
-  assert.equal(remote.calls.filter(key => key.startsWith('stableKlines:')).length, 150)
+  assert.equal(remote.calls.filter(key => key.startsWith('stableKlines:')).length, 200)
   const { progress } = await local.handler({ ...query, progress: '1' })
-  assert.equal(progress.total, 150)
-  assert.equal(progress.completed, 150)
+  assert.equal(progress.total, 200)
+  assert.equal(progress.completed, 200)
 })
 
 for (const [name, options] of [

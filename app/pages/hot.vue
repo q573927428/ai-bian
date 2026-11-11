@@ -19,7 +19,7 @@ import { ref } from 'vue'
 import type { MarketOverviewState } from '../../types/market-overview'
 
 const table = ref<InstanceType<typeof TopSymbolsTable>>()
-const overview = ref<MarketOverviewState>({ rows: [], scopeLabel: '热门全量 · 全部资产' })
+const overview = ref<MarketOverviewState>({ rows: [], scopeLabel: '全部行情 · 全部资产' })
 
 definePageMeta({ name: 'hot' })
 </script>

@@ -35,6 +35,65 @@ function component(fetcher, state = vue.ref({}), props = {}, storage = new Map()
 
 const result = { success: true, mode: 'stable', updatedAt: 12345, data: [{ symbol: 'BTCUSDT', volume: 100 }] }
 
+test('过期榜单先展示，后台计算完成后自动替换数据和时间', async () => {
+  let release
+  const fresh = new Promise(resolve => { release = resolve })
+  const queries = []
+  const api = component((url, options) => {
+    if (url === '/api/market/config') return Promise.resolve({ success: true })
+    queries.push(options.query)
+    return options.query.awaitFresh ? fresh : Promise.resolve({ ...result, stale: true })
+  })
+  api.mode.value = 'stable'
+  try {
+    const pending = api.fetchData()
+    await new Promise(resolve => setImmediate(resolve))
+    assert.equal(api.data.value[0].symbol, 'BTCUSDT')
+    assert.equal(api.updatedAt.value, 12345)
+    assert.equal(api.loading.value, true)
+    assert.equal(api.showingCachedResult.value, true)
+    assert.equal(queries.length, 2)
+    release({ ...result, updatedAt: 54321, data: [{ symbol: 'ETHUSDT', volume: 200 }] })
+    await pending
+    assert.equal(api.data.value[0].symbol, 'ETHUSDT')
+    assert.equal(api.updatedAt.value, 54321)
+    assert.equal(api.loading.value, false)
+  } finally { api.stopProgressPolling() }
+})
+
+test('后台刷新失败保留旧结果，切换榜单后取消等待且忽略迟到结果', async () => {
+  let release
+  let signal
+  const api = component((url, options) => {
+    if (url === '/api/market/config') return Promise.resolve({ success: true })
+    if (options.query.mode === 'hot') return Promise.resolve({ success: true, data: [{ symbol: 'HOTUSDT' }] })
+    if (options.query.awaitFresh) {
+      signal = options.signal
+      return new Promise(resolve => { release = resolve })
+    }
+    return Promise.resolve({ ...result, stale: true })
+  })
+  api.mode.value = 'stable'
+  try {
+    let pending = api.fetchData()
+    await new Promise(resolve => setImmediate(resolve))
+    release({ success: false, message: '刷新失败', data: [] })
+    await pending
+    assert.equal(api.data.value[0].symbol, 'BTCUSDT')
+    assert.equal(api.updatedAt.value, 12345)
+    assert.equal(api.loading.value, false)
+    pending = api.fetchData()
+    await new Promise(resolve => setImmediate(resolve))
+    api.mode.value = 'hot'
+    await api.handleModeChange()
+    assert.equal(signal.aborted, true)
+    release({ ...result, updatedAt: 99999 })
+    await pending
+    assert.equal(api.data.value[0].symbol, 'HOTUSDT')
+    assert.equal(api.updatedAt.value, null)
+  } finally { api.stopProgressPolling() }
+})
+
 test('切换四个榜单清除热力图旧搜索和定位请求，主动定位仍可再次使用', async () => {
   const api = component(async () => ({ success: true, data: [] }), vue.ref({}), { embedded: true })
   await new Promise(resolve => setImmediate(resolve))

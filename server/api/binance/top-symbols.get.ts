@@ -56,10 +56,10 @@ interface StableFilterOptions {
 const FILTER_DEFAULTS: StableFilterOptions = {
   days: 30,
   minDataRatio: 0.6,
-  pool: 150,
-  top: 80,
-  minDaily: 20_000_000,
-  activeDaysRatio: 0.8,
+  pool: 200,
+  top: 100,
+  minDaily: 10_000_000,
+  activeDaysRatio: 0.6,
   minRatio: 0.02,
   cvMax: 1.0,
   segmentRatio: 0.2,
@@ -546,12 +546,22 @@ export default defineEventHandler(async (event) => {
     }
     const cached = stableCache.get(cacheKey)
     if (cached) {
-      if (Date.now() - cached.timestamp >= TOP_SYMBOLS_CACHE_TTL) {
+      const stale = Date.now() - cached.timestamp >= TOP_SYMBOLS_CACHE_TTL
+      // 页面已展示旧结果时，允许等待同一轮刷新，避免反复读到旧缓存。
+      if (stale && query.awaitFresh === '1') {
+        try {
+          const data = await refreshStableTopSymbols(cacheKey, options)
+          return { success: true, mode, params: options, data, updatedAt: stableCache.get(cacheKey)?.timestamp, stale: false }
+        } catch {
+          return { success: false, mode, data: cached.data, message: '放量数据更新失败，已保留上次结果，请重试' }
+        }
+      }
+      if (stale) {
         void refreshStableTopSymbols(cacheKey, options).catch(error => {
           console.error('后台刷新持续放量榜单失败:', error)
         })
       }
-      return { success: true, mode, params: options, data: cached.data, updatedAt: cached.timestamp }
+      return { success: true, mode, params: options, data: cached.data, updatedAt: cached.timestamp, stale }
     }
 
     try {

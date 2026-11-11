@@ -16,8 +16,8 @@
       <!-- 模式切换与工具栏 -->
       <div class="top-symbols-toolbar">
         <el-radio-group v-model="mode" class="mode-switch" size="small" aria-label="榜单模式" @change="handleModeChange">
-          <el-radio-button value="hot">🔥 热门</el-radio-button>
-          <el-radio-button value="stable">📈 放量</el-radio-button>
+          <el-radio-button value="hot">全部</el-radio-button>
+          <el-radio-button value="stable" title="按近期成交额、活跃天数和成交量稳定性筛选">🔥 热门</el-radio-button>
           <el-radio-button value="configured">📋 已配</el-radio-button>
           <el-radio-button value="favorites">⭐ 收藏</el-radio-button>
         </el-radio-group>
@@ -34,6 +34,7 @@
           </el-input>
           <span v-if="mode === 'stable' && updatedAt" class="data-updated-at">
             数据更新于 {{ new Date(updatedAt).toLocaleString('zh-CN') }}
+            <span v-if="loading && showingCachedResult"> · 正在更新…</span>
           </span>
         </div>
         <div class="toolbar-actions">
@@ -445,6 +446,8 @@ interface TopSymbolsResponse {
   mode?: string
   message?: string
   updatedAt?: number
+  // 过期结果仍可展示，但必须等待服务端刷新后自动替换。
+  stale?: boolean
   params?: FilterParams
   data: TopSymbol[]
 }
@@ -461,10 +464,10 @@ interface LocalPriceCurve {
 const DEFAULT_FILTER_PARAMS: FilterParams = {
   days: 30,
   minDataRatio: 0.6,
-  pool: 150,
-  top: 80,
-  minDaily: 20_000_000,
-  activeDaysRatio: 0.8,
+  pool: 200,
+  top: 100,
+  minDaily: 10_000_000,
+  activeDaysRatio: 0.6,
   minRatio: 0.02,
   cvMax: 1.0,
   segmentRatio: 0.2,
@@ -501,6 +504,7 @@ let requestId = 0
 const progress = ref<StableProgress | null>(null)
 let progressTimer: ReturnType<typeof setTimeout> | undefined
 let progressController: AbortController | undefined
+let refreshController: AbortController | undefined
 const progressPercent = computed(() => {
   if (!progress.value) return 0
   if (progress.value.stage === 'completed') return 100
@@ -521,6 +525,8 @@ function stopProgressPolling() {
   clearTimeout(progressTimer)
   progressController?.abort()
   progressController = undefined
+  refreshController?.abort()
+  refreshController = undefined
 }
 
 /** 串行轮询真实进度；失败不影响主行情请求，也不自动发起新的计算。 */
@@ -686,7 +692,7 @@ const dataCoveragePercent = computed({
 // 前端以百分数输入，接口统一使用 0–1 的比例。
 const activeDaysPercent = computed({
   get: () => Math.round(filterParams.value.activeDaysRatio * 100),
-  set: (val: number) => { filterParams.value.activeDaysRatio = (val ?? 80) / 100 }
+  set: (val: number) => { filterParams.value.activeDaysRatio = (val ?? DEFAULT_FILTER_PARAMS.activeDaysRatio * 100) / 100 }
 })
 
 const isMobile = computed(() => windowWidth.value < 768)
@@ -694,7 +700,7 @@ const isMobile = computed(() => windowWidth.value < 768)
 const dialogTitle = computed(() =>
   mode.value === 'favorites' ? `⭐ 收藏列表（${favoriteSymbols.value.length}）`
     : mode.value === 'configured' ? `📋 配置列表（${data.value.length}）`
-    : mode.value === 'stable' ? '📈 持续放量交易对 Top' + filterParams.value.top : '🔥 热门交易对 · 全部'
+    : mode.value === 'stable' ? '🔥 热门交易对 Top' + filterParams.value.top : '全部交易对'
 )
 
 const defaultSort = computed<{ prop: string; order: 'ascending' | 'descending' }>(() =>
@@ -776,7 +782,7 @@ const sortedData = computed(() => {
 const overviewRows = computed(() => modeRows.value.filter(row =>
   assetType.value === 'all' || row.contractType === (assetType.value === 'tradfi' ? 'TRADIFI_PERPETUAL' : 'PERPETUAL')
 ))
-const overviewScope = computed(() => `${mode.value === 'hot' ? '热门全量' : mode.value === 'stable' ? '持续放量结果' : mode.value === 'favorites' ? '收藏列表' : '配置列表'} · ${assetType.value === 'all' ? '全部资产' : assetType.value === 'crypto' ? '加密货币' : '股票 T'}`)
+const overviewScope = computed(() => `${mode.value === 'hot' ? '全部行情' : mode.value === 'stable' ? '热门筛选结果' : mode.value === 'favorites' ? '收藏列表' : '配置列表'} · ${assetType.value === 'all' ? '全部资产' : assetType.value === 'crypto' ? '加密货币' : '股票 T'}`)
 // 热力图搜索仅定位区块，不裁切整个市场，也不隐藏当前选中交易对的详情。
 const detailSymbol = computed(() => {
   const rows = props.embedded && viewMode.value === 'heatmap' ? overviewRows.value : sortedData.value
@@ -963,7 +969,25 @@ const fetchData = async () => {
     } else if (mode.value === 'stable') {
       startProgressPolling(query, currentRequest)
     }
-    const res = await $fetch<TopSymbolsResponse>('/api/binance/top-symbols', { query })
+    let res = await $fetch<TopSymbolsResponse>('/api/binance/top-symbols', { query })
+    if (currentRequest !== requestId) return
+    if (res.success && res.mode === 'stable' && res.stale) {
+      // 旧榜单保持可读；等待已启动的同参数任务，完成后在本次加载中自动替换。
+      stableResults.value[cacheKey] = res
+      data.value = res.data
+      updatedAt.value = res.updatedAt || null
+      if (res.params) {
+        loadedDays.value = res.params.days
+        loadedActiveDaysRatio.value = res.params.activeDaysRatio
+      }
+      sortProp.value = 'avgDailyVolume'
+      showingCachedResult.value = true
+      const controller = new AbortController()
+      refreshController = controller
+      res = await $fetch<TopSymbolsResponse>('/api/binance/top-symbols', {
+        query: { ...query, awaitFresh: '1' }, signal: controller.signal, retry: 0,
+      })
+    }
     if (currentRequest !== requestId) return
     if (res.success) {
       if (res.mode === 'stable') {
@@ -978,7 +1002,7 @@ const fetchData = async () => {
       }
       updatedAt.value = res.updatedAt || null
       if (res.mode === 'hot-fallback') {
-        message.value = res.message || '持续放量筛选失败，已降级为 24h 热门'
+        message.value = '热门筛选失败，已展示全部行情，请重试'
       }
       // 切换回默认排序基准列
       sortProp.value = mode.value === 'stable' ? 'avgDailyVolume' : 'volume'

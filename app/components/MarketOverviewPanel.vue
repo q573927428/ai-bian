@@ -34,15 +34,15 @@
       <template v-if="selected">
         <div class="detail-title"><strong>{{ displaySymbol(selected.symbol) }}<small> / USDT</small></strong><span class="asset-tag">{{ selected.contractType === 'TRADIFI_PERPETUAL' ? '股票 T' : selected.contractType === 'PERPETUAL' ? '加密货币' : '其他合约' }}</span></div>
         <div class="detail-price"><strong>{{ price(selected.price) }}</strong><span :class="tone(selected.priceChangePercent)">{{ percent(selected.priceChangePercent) }} <small>24h</small></span></div>
-        <div class="mini-heading"><span>近 24h · 1h K 线</span><span>{{ chartLoading ? '加载中…' : candles.length ? `${candles.length} 根` : '暂无本地数据' }}</span></div>
-        <svg v-if="chartBars.length" class="mini-chart" viewBox="0 0 360 100" role="img" :aria-label="`${selected.symbol} 最近24小时本地1小时K线`">
+        <div class="mini-heading"><span>近 30 天 · 日 K 线</span><span>{{ chartLoading ? '加载中…' : candles.length ? `${candles.length} 根` : '暂无本地数据' }}</span></div>
+        <svg v-if="chartBars.length" class="mini-chart" viewBox="0 0 360 100" role="img" :aria-label="`${selected.symbol} 最近30天本地日K线`">
           <line x1="0" y1="50" x2="360" y2="50" class="chart-grid" />
           <g v-for="bar in chartBars" :key="bar.t" :class="bar.up ? 'candle-up' : 'candle-down'">
             <line :x1="bar.x" :x2="bar.x" :y1="bar.high" :y2="bar.low" />
             <rect :x="bar.x - 4" :y="bar.top" width="8" :height="bar.height" />
           </g>
         </svg>
-        <div v-else class="chart-empty">{{ chartLoading ? '正在读取 K 线…' : '暂无近 24h K 线' }}</div>
+        <div v-else class="chart-empty">{{ chartLoading ? '正在读取 K 线…' : '暂无近 30 天日 K 线' }}</div>
         <p v-if="candles.length" class="muted footnote">末根 {{ new Date(candles[candles.length - 1]!.t * 1000).toLocaleString('zh-CN') }} · 缺失时段留空</p>
         <div class="mini-heading"><span>24h 价格区间</span><b>{{ rangePosition == null ? '--' : `位于 ${rangePosition.toFixed(0)}%` }}</b></div>
         <div class="price-range"><span v-if="rangePosition != null" :style="{ left: `${rangePosition}%` }" /></div>
@@ -87,7 +87,7 @@ const rangePosition = computed(() => {
 const candles = ref<SimpleKLineData[]>([])
 const chartLoading = ref(false)
 let chartController: AbortController | undefined
-/** 只读取选中币本地日内 K 线；快速切换时取消旧请求，防止旧图覆盖新交易对。 */
+/** 四个榜单共用选中币的本地日线；快速切换时取消旧请求，防止旧图覆盖新交易对。 */
 watch(() => props.selected, async (selected) => {
   chartController?.abort()
   candles.value = []
@@ -97,16 +97,19 @@ watch(() => props.selected, async (selected) => {
   const controller = new AbortController()
   chartController = controller
   chartLoading.value = true
-  const from = Math.floor(Date.now() / 3600000) * 3600 - 23 * 3600
+  // 按 UTC 日线开盘时间定位 30 个日期，保留新合约上市前及断档日期的空白。
+  const to = Math.floor(now.value / 86400000) * 86400
+  const from = to - 29 * 86400
   try {
     const result = await $fetch<KLineApiResponse>('/api/kline-simple', {
-      query: { symbol: selected.symbol, timeframe: '1h', limit: 24, from, to: from + 23 * 3600 },
+      query: { symbol: selected.symbol, timeframe: '1d', limit: 30, from, to },
       signal: controller.signal, timeout: 5000, retry: 0,
     })
     if (!controller.signal.aborted && result.success) {
       candles.value = (result.data?.data || []).filter(candle =>
-        [candle.t, candle.o, candle.h, candle.l, candle.c].every(finite) && candle.l > 0 && candle.h >= Math.max(candle.o, candle.c) && candle.l <= Math.min(candle.o, candle.c)
-      )
+        [candle.t, candle.o, candle.h, candle.l, candle.c].every(finite) && candle.t >= from && candle.t <= to &&
+        candle.l > 0 && candle.h >= Math.max(candle.o, candle.c) && candle.l <= Math.min(candle.o, candle.c)
+      ).sort((a, b) => a.t - b.t)
     }
   } catch {
     // 详情缺少历史不影响行情榜，不向交易所发起补数。
@@ -119,10 +122,10 @@ const chartBars = computed(() => {
   const low = Math.min(...candles.value.map(candle => candle.l))
   const high = Math.max(...candles.value.map(candle => candle.h))
   const span = high - low || high * 0.01 || 1
-  const end = Math.floor(now.value / 3600000) * 3600
+  const end = Math.floor(now.value / 86400000) * 86400
   const y = (value: number) => 92 - (value - low) / span * 84
   return candles.value.map(candle => ({
-    t: candle.t, x: 8 + (candle.t - (end - 23 * 3600)) / 3600 * 14.9,
+    t: candle.t, x: 8 + (candle.t - (end - 29 * 86400)) / 86400 * (344 / 29),
     high: y(candle.h), low: y(candle.l), top: Math.min(y(candle.o), y(candle.c)),
     height: Math.max(1, Math.abs(y(candle.o) - y(candle.c))), up: candle.c >= candle.o,
   }))
