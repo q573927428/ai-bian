@@ -5,7 +5,7 @@
       <PasswordDialog v-model="showPasswordDialog" @success="handlePasswordSuccess" />
       <!-- 锁定时卸载看板和图表，直接访问页面也不能展示或继续请求指标。 -->
       <div v-if="passwordVerified" class="dashboard-grid">
-        <IndicatorsList ref="listRef" class="board" :model-value="true" :selected-symbol="selected" :auto-height="isMobile" embedded coordinated-refresh environment-panel @refresh-request="refreshDashboard" @symbols-ready="initializeSymbol" @select-symbol="selectSymbol" @show-environment="showEnvironment" @timeframe-change="chartTimeframe = $event" />
+        <IndicatorsList ref="listRef" class="board" :model-value="true" :selected-symbol="selected" :auto-height="isMobile" :refreshing="refreshing" embedded coordinated-refresh environment-panel @refresh-request="refreshDashboard" @symbols-ready="initializeSymbol" @select-symbol="selectSymbol" @show-environment="showEnvironment" @timeframe-change="chartTimeframe = $event" />
         <aside v-if="!isMobile">
           <IndicatorSidePanel ref="sidePanelRef" v-model:view="panelView" :symbol="selected" :timeframe="chartTimeframe" :details="environmentDetails" @refresh-request="refreshDashboard" @timeframe-change="chartTimeframe = $event" />
         </aside>
@@ -67,16 +67,16 @@ const { passwordVerified, showPasswordDialog, handleUnlock, handlePasswordSucces
     chartDialogVisible.value = false
   }
 })
-let refreshing = false
+const refreshing = ref(false)
 
 /** 同一计时器同时发起两侧刷新，整轮结束前不重入；列表刷新全部指标而非仅更新结构。 */
 async function refreshDashboard() {
-  if (!passwordVerified.value || refreshing) return
-  refreshing = true
+  if (!passwordVerified.value || refreshing.value) return
+  refreshing.value = true
   try {
     await Promise.allSettled([listRef.value?.refresh(), sidePanelRef.value?.refresh()])
   } finally {
-    refreshing = false
+    refreshing.value = false
   }
 }
 // 初次加载及切换交易对仍立即请求；后续复用全局状态轮询的 60 秒节拍。

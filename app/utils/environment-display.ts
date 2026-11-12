@@ -20,6 +20,12 @@ export interface PeriodTrendDisplay {
   fallback?: string
 }
 
+/** 按所选方向展示名次；做空按归一化表现从低到高排，并保留同值并列。 */
+export function directionalRankPosition(ranking: NonNullable<MarketBreadthSummary['ranking']>, direction: 'long' | 'short'): number {
+  // 反向名次等于比当前标的更弱的样本数加1，必须扣除整个同值组而非仅扣自身。
+  return direction === 'long' ? ranking.position : ranking.sampleCount - ranking.position - ranking.tiedCount + 2
+}
+
 /** 拆分服务端组合标签，仅调整展示，不重新计算趋势或环境分数。 */
 export function periodTrendDisplay(trend?: PeriodTrend): PeriodTrendDisplay {
   if (!trend || trend === '--') return { direction: '暂无数据' }

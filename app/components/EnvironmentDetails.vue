@@ -43,7 +43,11 @@
     </section>
 
     <section class="detail-section breadth-section" v-if="summary">
-      <div class="section-heading"><span>市场广度</span><span class="secondary">分析时固定快照</span></div>
+      <div class="section-heading"><span>市场广度</span>
+        <el-button-group v-if="hasPeriodRankings || summary.ranking" class="ranking-switch" size="small" aria-label="排名方向">
+          <el-button v-for="direction in rankingDirections" :key="direction.key" size="small" plain :type="rankingDirection === direction.key ? (direction.key === 'long' ? 'success' : 'danger') : 'default'" :aria-pressed="rankingDirection === direction.key" @click="selectedRankingDirection = direction.key">{{ direction.label }}</el-button>
+        </el-button-group>
+      </div>
       <div class="table-scroll">
         <table class="breadth-table" aria-label="五周期市场广度及当前交易对涨跌幅">
           <thead><tr><th scope="col">周期</th><th scope="col">涨</th><th scope="col">跌</th><th scope="col">平</th><th scope="col">上涨占比</th><th scope="col">中位涨跌幅</th><th scope="col">涨跌幅</th><th v-if="hasPeriodRankings" scope="col" title="按当前周期同类资产的ATR归一化表现排名">排名</th><template v-if="!uniformCounts"><th scope="col">有效</th><th scope="col">缺失</th></template></tr></thead>
@@ -53,7 +57,7 @@
             <td><div class="ratio-cell"><span v-if="stats.upRatioPct != null" class="ratio-track" aria-hidden="true"><span :style="{ width: `${stats.upRatioPct}%` }"></span></span><span class="ratio-value">{{ percent(stats.upRatioPct) }}</span></div></td>
             <td :class="changeTone(stats.medianChangePct)">{{ percent(stats.medianChangePct, true) }}</td>
             <td :class="changeTone(stats.changePct)">{{ percent(stats.changePct, true) }}</td>
-            <td v-if="hasPeriodRankings"><template v-if="stats.ranking && !expired">{{ stats.ranking.tiedCount > 1 ? '并列 ' : '' }}{{ stats.ranking.position }} / {{ stats.ranking.sampleCount }}</template><span v-else class="secondary">--</span></td>
+            <td v-if="hasPeriodRankings"><template v-if="stats.ranking && !expired">{{ stats.ranking.tiedCount > 1 ? '并列 ' : '' }}{{ directionalRankPosition(stats.ranking, rankingDirection) }} / {{ stats.ranking.sampleCount }}</template><span v-else class="secondary">--</span></td>
             <template v-if="!uniformCounts"><td>{{ stats.validCount }}</td><td>{{ stats.missingCount }}</td></template>
           </tr></tbody>
         </table>
@@ -61,7 +65,7 @@
       <div class="table-footer"><span v-if="uniformCounts">各周期有效 {{ summary.rows[0]?.validCount ?? 0 }} 个 · 缺失 {{ summary.rows[0]?.missingCount ?? 0 }} 个</span><span>24h 为滚动窗口</span></div>
       <div class="ranking">
         <div>相对强弱排名 <span class="secondary">{{ mainPeriod }} · ATR 归一化</span></div>
-        <div v-if="summary.ranking && !expired" class="rank-number">{{ summary.ranking.tiedCount > 1 ? '并列' : '' }}第 {{ summary.ranking.position }} 名 <small>/ {{ summary.ranking.sampleCount }} 个</small></div>
+        <div v-if="summary.ranking && !expired" class="rank-number" aria-live="polite">{{ summary.ranking.tiedCount > 1 ? '并列' : '' }}第 {{ directionalRankPosition(summary.ranking, rankingDirection) }} 名 <small>/ {{ summary.ranking.sampleCount }} 个</small></div>
         <span v-else class="secondary">暂无可用排名</span>
       </div>
     </section>
@@ -71,9 +75,9 @@
 
 <script setup lang="ts">
 // ==================== 环境详情数据展示，不在前端重新评分 ====================
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { TREND_PERIODS, type EnvironmentContext, type TrendStrength } from '../utils/environment-confidence'
-import { periodTrendDisplay } from '../utils/environment-display'
+import { directionalRankPosition, periodTrendDisplay } from '../utils/environment-display'
 import { BREADTH_CATEGORY_LABELS } from '../utils/market-breadth'
 import type { MarketBreadthSummary } from '../../types/market-breadth'
 
@@ -95,6 +99,12 @@ const breadthPeriod = computed(() => mainPeriod.value === '1d' ? '24h' : mainPer
 const expired = computed(() => !!props.summary && props.now >= props.summary.expiresAt)
 // 只有快照提供至少一个周期的有效排名才展示该列，旧响应不增加空列。
 const hasPeriodRankings = computed(() => props.summary?.rows.some(row => row.ranking != null) ?? false)
+const rankingDirections = [{ key: 'long', label: '做多排名' }, { key: 'short', label: '做空排名' }] as const
+const selectedRankingDirection = ref<'long' | 'short' | null>(null)
+// 默认展示环境分更高方向的排名；用户手动切换后保持选择，快照刷新不抢回方向。
+const rankingDirection = computed(() => selectedRankingDirection.value ?? (
+  props.context?.short.available && (!props.context.long.available || props.context.short.confidence! > props.context.long.confidence!) ? 'short' : 'long'
+))
 const scopeLabel = computed(() => BREADTH_CATEGORY_LABELS[props.context?.marketScope?.category ?? 'unknown'])
 const updatedAt = computed(() => props.summary ? new Date(props.summary.computedAt).toLocaleString('zh-CN', {
   timeZone: 'Asia/Shanghai', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false
@@ -174,6 +184,8 @@ function changeTone(value: number | null): string { return value == null || valu
 /* 固定数值列可容纳100.00%，个位数占比不再挤动进度条；缺失时也保持列位。 */
 .ratio-cell { display: grid; grid-template-columns: 42px 7ch; align-items: center; justify-content: end; gap: 8px; }.ratio-value { grid-column: 2; text-align: right; font-variant-numeric: tabular-nums; }.ratio-track { grid-column: 1; grid-row: 1; width: 42px; height: 4px; border-radius: 3px; background: color-mix(in srgb, var(--bg-card) 85%, var(--text-primary)); overflow: hidden; }.ratio-track > span { display: block; height: 100%; background: var(--el-color-success); }
 .table-footer { margin-top: 7px; font-size: 12px; color: var(--text-secondary); }
+.ranking-switch { margin-left: auto; }
+.ranking-switch :deep(.el-button) { height: 22px; padding: 0 7px; font-size: 12px; font-weight: 400; }
 .ranking { margin-top: 8px; padding: 7px 10px; background: var(--bg-hover); border-radius: 8px; }.ranking .secondary { font-size: 12px; }
 .rank-number { font-size: 20px; font-weight: 500; font-variant-numeric: tabular-nums; }.rank-number small { font-size: 12px; font-weight: 400; color: var(--text-secondary); }
 .empty-breadth { margin-top: 16px; white-space: pre-wrap; }

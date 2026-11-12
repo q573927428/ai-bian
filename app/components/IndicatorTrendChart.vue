@@ -4,7 +4,8 @@
   <section ref="panel" class="trend-card" :class="{ expanded }" v-loading="loading && !currentBars.length" :aria-busy="loading">
     <header>
       <strong>{{ symbol }}</strong>
-      <span v-if="loading" class="refresh-status" role="status">更新中…</span>
+      <!-- 指标页的加载反馈统一放在列表头部，避免刷新时图表标题反复跳动。 -->
+      <span v-if="loading && !coordinatedRefresh" class="refresh-status" role="status">更新中…</span>
       <div class="period-buttons" role="group" aria-label="图表周期">
         <button v-for="period in timeframes" :key="period" type="button" :class="{ active: selectedTimeframe === period }" :aria-pressed="selectedTimeframe === period" @click="selectedTimeframe = period">{{ period }}</button>
       </div>

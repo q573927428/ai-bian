@@ -1,7 +1,24 @@
 // ==================== 环境详情趋势标签展示回归 ====================
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { periodTrendDisplay } from '../app/utils/environment-display.ts'
+import { directionalRankPosition, periodTrendDisplay } from '../app/utils/environment-display.ts'
+
+test('多空排名反向展示：43名切做空为1名，首名切做空为末名', () => {
+  const last = { position: 43, sampleCount: 43, tiedCount: 1 }
+  assert.equal(directionalRankPosition(last, 'long'), 43)
+  assert.equal(directionalRankPosition(last, 'short'), 1)
+  assert.equal(directionalRankPosition({ ...last, position: 1 }, 'short'), 43)
+  assert.deepEqual(last, { position: 43, sampleCount: 43, tiedCount: 1 })
+})
+
+test('反向排名按整个并列组处理，全体同值时多空均为并列第1', () => {
+  assert.equal(directionalRankPosition({ position: 41, sampleCount: 43, tiedCount: 3 }, 'short'), 1)
+  assert.equal(directionalRankPosition({ position: 1, sampleCount: 43, tiedCount: 3 }, 'short'), 41)
+  assert.equal(directionalRankPosition({ position: 2, sampleCount: 6, tiedCount: 2 }, 'short'), 4)
+  for (const direction of ['long', 'short']) {
+    assert.equal(directionalRankPosition({ position: 1, sampleCount: 43, tiedCount: 43 }, direction), 1)
+  }
+})
 
 test('多空方向的DI和MACD九种强弱组合均保留独立状态', () => {
   for (const direction of ['多头', '空头']) {

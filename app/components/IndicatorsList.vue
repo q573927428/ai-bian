@@ -54,7 +54,7 @@
       >
         <el-option v-for="symbol in symbolOptions" :key="symbol" :label="symbol.replace(/USDT$/, '')" :value="symbol" />
       </el-select>
-      <el-button class="refresh-button" size="small" :loading="loading" @click="requestRefresh">
+      <el-button class="refresh-button" size="small" :loading="loading || refreshing" @click="requestRefresh">
         <el-icon><ElIconRefresh /></el-icon>刷新
       </el-button>
       <el-button v-if="showNumericFilters" size="small" text @click="resetNumericFilters">重置</el-button>
@@ -144,7 +144,8 @@
     </div>
 
     <el-alert v-if="errorMessage" type="warning" :closable="false" show-icon>{{ errorMessage }}</el-alert>
-    <el-table ref="tableRef" v-loading="loading" class="indicators-table" :height="autoHeight ? undefined : '100%'" :data="filteredRows" row-key="symbol" :current-row-key="selectedSymbol" :row-class-name="selectedRowClass" :highlight-current-row="embedded" :empty-text="rows.length ? '当前筛选下暂无交易对' : '暂无已配置交易对或指标数据'" stripe size="small" style="width: 100%" @sort-change="handleSortChange" @row-click="handleRowClick">
+    <!-- 已有数据时保留表格供浏览，整轮刷新仅由头部按钮反馈；无数据时才显示加载遮罩。 -->
+    <el-table ref="tableRef" v-loading="loading && !rows.length" class="indicators-table" :height="autoHeight ? undefined : '100%'" :data="filteredRows" row-key="symbol" :current-row-key="selectedSymbol" :row-class-name="selectedRowClass" :highlight-current-row="embedded" :empty-text="rows.length ? '当前筛选下暂无交易对' : '暂无已配置交易对或指标数据'" stripe size="small" style="width: 100%" @sort-change="handleSortChange" @row-click="handleRowClick">
       <el-table-column label="" type="index" align="center" header-align="center" width="35" fixed="left" />
       <el-table-column prop="symbol" label="交易对" fixed min-width="110">
         <template #default="{ row }">
@@ -394,6 +395,8 @@ interface Props {
   autoHeight?: boolean
   /** 独立指标页由父组件统一调度列表和图表。 */
   coordinatedRefresh?: boolean
+  /** 父页整轮刷新状态，图表尚未返回时头部按钮继续显示加载效果。 */
+  refreshing?: boolean
   /** 独立指标页改在右侧展示环境详情，首页抽屉仍使用浮层。 */
   environmentPanel?: boolean
 }
