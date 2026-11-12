@@ -101,17 +101,17 @@
           </div>
           <div class="param-item">
             <label>候选池数量</label>
-            <el-input-number v-model="filterParams.pool" :min="5" :max="200" size="small" controls-position="right" />
+            <el-input-number v-model="filterParams.pool" :min="5" :max="300" size="small" controls-position="right" />
             <span class="param-desc">24h 成交额前 N 名进入分析</span>
           </div>
           <div class="param-item">
             <label>输出数量</label>
-            <el-input-number v-model="filterParams.top" :min="5" :max="100" size="small" controls-position="right" />
+            <el-input-number v-model="filterParams.top" :min="5" :max="200" size="small" controls-position="right" />
             <span class="param-desc">榜单最终展示数量</span>
           </div>
           <div class="param-item">
             <label>日均成交额下限 (万USDT)</label>
-            <el-input-number v-model="minDailyWan" :min="0" :step="1000" size="small" controls-position="right" />
+            <el-input-number v-model="minDailyWan" :min="0" :step="200" size="small" controls-position="right" />
             <span class="param-desc">日均及活跃日单日成交额须 ≥ 此值</span>
           </div>
           <div class="param-item">
