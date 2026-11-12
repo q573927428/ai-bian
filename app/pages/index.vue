@@ -327,6 +327,8 @@ onMounted(async () => {
 /* 页面只控制三列及图表高度，组件内部样式分别由各组件维护。 */
 @media (min-width: 992px) {
   .main {
+    /* 底部行情与快讯统一为截图红框高度，剩余内容在面板内滚动。 */
+    --home-bottom-panel-height: 260px;
     min-height: 0;
     overflow: hidden;
   }
@@ -375,6 +377,32 @@ onMounted(async () => {
 
   .overview-column :deep(.chart-card > .el-card__header) {
     flex-shrink: 0;
+  }
+
+  .market-column > :deep(.price-grid-card:not(.price-grid-card-expanded)) {
+    display: flex;
+    flex-direction: column;
+    flex: 0 0 var(--home-bottom-panel-height);
+    height: var(--home-bottom-panel-height);
+    min-height: 0;
+    box-sizing: border-box;
+  }
+
+  .market-column :deep(.price-grid-card:not(.price-grid-card-expanded) > .el-card__header) {
+    flex-shrink: 0;
+  }
+
+  .market-column :deep(.price-grid-card:not(.price-grid-card-expanded) > .el-card__body) {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+  }
+
+  .market-column :deep(.price-grid-card:not(.price-grid-card-expanded) .price-board-content) {
+    flex: 1;
+    min-height: 0;
+    height: auto;
   }
 
   .overview-column :deep(.chart-card > .el-card__body) {
@@ -446,14 +474,17 @@ onMounted(async () => {
   }
 
   .positions-news-column :deep(.active-positions-card) {
-    flex: 0 1 auto;
-    /* 较矮屏幕也要为快讯保留空间，持仓过多时在正文内滚动。 */
-    max-height: min(486px, 65%);
+    /* 与 K 线一起填满底部固定面板之外的空间，持仓过多时仍在正文内滚动。 */
+    flex: 1;
+    max-height: none;
+    min-height: 0;
     margin-bottom: 0;
   }
 
   .positions-news-column :deep(.latest-news-card) {
-    flex: 1;
+    flex: 0 0 var(--home-bottom-panel-height);
+    height: var(--home-bottom-panel-height);
+    box-sizing: border-box;
     min-height: 0;
     margin-bottom: 0;
   }
