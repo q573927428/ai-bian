@@ -149,7 +149,7 @@ function openProtectedPanel(panel: HomeProtectedPanel) {
   else void navigateTo(`/${panel}`)
 }
 
-/** 将导航事件映射到面板开关，指标、订单和日志入口均经过解锁门禁。 */
+/** 将导航事件映射到面板开关；指标公开浏览，管理入口仍需解锁。 */
 function handleNavigate(target: HomeNavigationTarget) {
   // 首页参数也能请求打开日志，必须复用按钮的验证流程。
   if (target === 'logs') {
@@ -157,7 +157,7 @@ function handleNavigate(target: HomeNavigationTarget) {
     return
   }
   if (target === 'indicators') {
-    handleOpenProtectedPanel('indicators')
+    void navigateTo('/indicators')
     return
   }
   if (target === 'home') {

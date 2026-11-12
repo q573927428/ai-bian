@@ -8,6 +8,7 @@ import { performance } from 'node:perf_hooks'
 import ts from 'typescript'
 import * as technicalIndicators from 'technicalindicators'
 import * as efficiencyRatio from '../app/utils/efficiency-ratio.ts'
+import { calculateMoneyFlow } from '../server/utils/money-flow.ts'
 import { diTrend, applyCommunityConfidence } from '../app/utils/environment-confidence.ts'
 import { calculateStopLoss, calculateTakeProfit } from '../server/utils/indicators-risk.ts'
 
@@ -68,8 +69,16 @@ function createFixture() {
     ['1h', makeKlines(clock.now, 3600000, 30)]
   ])
   const versions = new Map([['15m', 'main-1'], ['1h', 'volume-1']])
+  const computations = { er: 0, moneyFlow: 0 }
   const { IndicatorsHub } = loadModule('../server/modules/indicators/IndicatorsHub.ts', {
-    '../../../app/utils/efficiency-ratio': efficiencyRatio,
+    '../../../app/utils/efficiency-ratio': { ...efficiencyRatio, calculateEfficiencyRatio: (...args) => {
+      computations.er++
+      return efficiencyRatio.calculateEfficiencyRatio(...args)
+    } },
+    '../../utils/money-flow': { calculateMoneyFlow: (...args) => {
+      computations.moneyFlow++
+      return calculateMoneyFlow(...args)
+    } },
     technicalindicators: technicalIndicators,
     '../../utils/stable-hash': hashes,
     '../../utils/logger': { logger },
@@ -130,8 +139,83 @@ function createFixture() {
     aiAnalyzer: { async analyze(...args) { calls.push(args); return null } }
   })
   const instance = { strategy }
-  return { clock, globals, config, source, versions, hub, strategy, registry, precompute, scheduler, engine, instance, calls, screener }
+  return { clock, globals, config, source, versions, hub, strategy, registry, precompute, scheduler, engine, instance, calls, screener, computations }
 }
+
+test('ER和资金流复用相同行情，盘中更新及参数变化失效，响应修改不污染缓存', async () => {
+  const f = createFixture()
+  const bars = f.source.get('15m')
+  for (const bar of bars) { bar.quoteVolume = 100; bar.takerBuyQuoteVolume = 65 }
+  const er = () => f.hub.getIndicators('BTCUSDT', '15m', 'ER', { snapshotTimestamp: f.clock.now }, bars)
+  const flow = () => f.hub.getIndicators('BTCUSDT', '15m', 'MoneyFlow', undefined, bars)
+  const firstER = await er()
+  const firstFlow = await flow()
+  f.clock.now += 1000
+  const secondER = await er()
+  await flow()
+  assert.deepEqual(f.computations, { er: 1, moneyFlow: 1 })
+  assert.equal(secondER.values.calculatedAt, f.clock.now)
+  assert.notEqual(firstER.values.calculatedAt, secondER.values.calculatedAt)
+  secondER.values.er = -999
+  firstFlow.values.netInflow = -999
+  assert.notEqual((await er()).values.er, -999)
+  assert.equal((await flow()).values.netInflow, 30)
+  bars.at(-1).close += 10
+  bars.at(-1).takerBuyQuoteVolume = 70
+  assert.equal((await er()).values.endClose, bars.at(-1).close)
+  assert.equal((await flow()).values.netInflow, 40)
+  assert.deepEqual(f.computations, { er: 2, moneyFlow: 2 })
+  await f.hub.getIndicators('BTCUSDT', '15m', 'ER', { erPeriod: 10, snapshotTimestamp: f.clock.now }, bars)
+  assert.equal(f.computations.er, 3)
+})
+
+test('行情未变时跨收盘和过期边界仍更新状态，历史扫描时刻可独立回读', async () => {
+  const f = createFixture()
+  const bars = f.source.get('15m')
+  const closeTime = bars.at(-1).timestamp + 900000
+  const read = async () => ({
+    er: await f.hub.getIndicators('BTCUSDT', '15m', 'ER', { snapshotTimestamp: f.clock.now }, bars),
+    flow: await f.hub.getIndicators('BTCUSDT', '15m', 'MoneyFlow', undefined, bars)
+  })
+  f.clock.now = closeTime - 1
+  const before = await read()
+  f.clock.now = closeTime
+  const after = await read()
+  assert.equal(before.flow.values.includesUnclosed, true)
+  assert.equal(after.flow.values.includesUnclosed, false)
+  assert.equal(after.er.values.availableClosedCandles, before.er.values.availableClosedCandles + 1)
+  const historical = await f.hub.getIndicators('BTCUSDT', '15m', 'ER', { snapshotTimestamp: closeTime - 1 }, bars)
+  assert.equal(historical.values.availableClosedCandles, before.er.values.availableClosedCandles)
+  f.clock.now = closeTime + 900000
+  assert.equal((await read()).er.values.status, 'stale_data')
+  assert.equal(before.er.values.status, 'ready', '历史结果不应被新的过期状态覆盖')
+})
+
+test('看板OI只读缓存且保留展示基准，缓存缺失不触发补采，策略仍可预热', async () => {
+  const f = createFixture()
+  let bootstraps = 0
+  let ready = true
+  f.hub.oiSnapshotService = {
+    bootstrapSymbol: async () => { bootstraps++ },
+    calculateChange: () => ready ? {
+      current: { value: 110, timestamp: f.clock.now },
+      baseline: { openInterest: 100, timestamp: f.clock.now - 3600000 },
+      changePercent: 10
+    } : undefined
+  }
+  const data = await f.hub.getIndicators('BTCUSDT', '1h', 'OI', { oiCacheOnly: true })
+  assert.equal(bootstraps, 0)
+  assert.equal(data.values.changePercent, 10)
+  assert.equal(data.values.value - data.values.context.baselineValue, 10)
+  assert.equal(data.values.context.baselineTimestamp, f.clock.now - 3600000)
+  assert.equal(data.values.context.updatedAt, f.clock.now)
+  ready = false
+  await assert.rejects(f.hub.getIndicators('BTCUSDT', '1h', 'OI', { oiCacheOnly: true }), /OI数据未初始化/)
+  assert.equal(bootstraps, 0)
+  ready = true
+  await f.hub.getIndicators('BTCUSDT', '1h', 'OI')
+  assert.equal(bootstraps, 1)
+})
 
 test('AI 通信失败明确记录分析不可用，不生成观望信号或缓存失败结果', async () => {
   const entries = []
@@ -607,7 +691,8 @@ test('ER 包含盘中价并隔离扫描快照，新快照更新且不被旧缓�
   bars.at(-1).close = 5000
   const data = new Map([['15m_ER', { values: { er: 0.1234 } }]])
   await f.engine.hydrateIndicatorsForStrategy(f.strategy, 'BTCUSDT', '5m', data, snapshot)
-  assert.deepEqual(data.get('15m_ER').values, expected)
+  // 缓存返回独立副本；将 VM 对象展开到当前上下文，比较业务字段而非跨上下文原型。
+  assert.deepEqual({ ...data.get('15m_ER').values }, expected)
   assert.equal(data.get('15m_ER').values.endClose, 1)
   assert.ok(data.get('15m_ER').values.er < 1)
   f.versions.set('15m', 'main-2')

@@ -1,7 +1,7 @@
 // ==================== 指标统一获取与缓存中心 ====================
 
 import { calculateMoneyFlow } from '../../utils/money-flow'
-import { calculateEfficiencyRatio } from '../../../app/utils/efficiency-ratio'
+import { calculateEfficiencyRatio, normalizeERPeriod } from '../../../app/utils/efficiency-ratio'
 import { EMA, RSI, ADX, ATR, MACD } from 'technicalindicators'
 import { calculateSupportResistance, type SupportResistanceOptions } from './SupportResistanceCalculator'
 import { SupportResistanceCache } from './SupportResistanceCache'
@@ -28,6 +28,12 @@ import { getSquareHeat, cleanExpiredSquareHeatCache } from '../../utils/square-h
 import { shortHash } from '../../utils/stable-hash'
 import { binanceApiGateway } from '../../utils/binance-api-gateway'
 import { OISnapshotService } from './OISnapshotService'
+
+/** 时间敏感指标的内部缓存；有效区间防止相同行情跨收盘或过期边界后继续命中。 */
+interface TimeAwareIndicatorData extends IndicatorData {
+  timeValidFrom: number
+  timeValidUntil: number
+}
 
 /**
  * 统一数据缓存条目
@@ -529,6 +535,7 @@ export class IndicatorsHub {
     options?: SupportResistanceOptions & {
       refreshSupportResistance?: boolean
       lookbackMinutes?: number
+      oiCacheOnly?: boolean // 公开看板只读已有OI快照，不允许访客触发外部补采
       trendThresholdPercent?: number
       adxPeriod?: number // ADX计算周期，默认14
       rsiPeriod?: number // RSI计算周期，默认14
@@ -543,13 +550,42 @@ export class IndicatorsHub {
   ): Promise<IndicatorData> {
     const symbolData = this.getOrCreateSymbolData(symbol)
 
-    if (type === 'ER') {
-      const now = options?.snapshotTimestamp ?? Date.now()
+    if (type === 'ER' || type === 'MoneyFlow') {
+      const now = type === 'ER' ? options?.snapshotTimestamp ?? Date.now() : Date.now()
       const klines = snapshotKlines ?? this.getKlines(symbol, timeframe) ?? []
-      // ER 含盘中价，按扫描快照即时计算，不能复用数分钟前的预计算结果。
+      const intervalMs = this.timeframeToMinutes(timeframe) * 60_000
+      const period = type === 'ER' ? normalizeERPeriod(options?.erPeriod) : undefined
+      // 不把每次不同的 snapshotTimestamp 放入缓存键，避免同一份行情反复计算或无限扩展缓存。
+      const key = `${symbol}_${timeframe}_${type}_${period ?? 'default'}`
+      const sourceKlineHash = shortHash(klines)
+      let cached = symbolData.indicators.get(key) as TimeAwareIndicatorData | undefined
+      if (!this.isKlineCacheValid(cached, sourceKlineHash)
+        || !(now >= cached.timeValidFrom && now < cached.timeValidUntil)) {
+        let timeValidFrom = -Infinity
+        let timeValidUntil = Infinity
+        // ER 会排除未来K线、统计已收盘根数并判断过期；资金流只在末根收盘时改变状态。
+        // 以实际K线时间建立区间，兼容历史快照回看及不对齐整周期的输入。
+        const boundaries = type === 'ER'
+          ? klines.flatMap(bar => [bar.timestamp, bar.timestamp + intervalMs, bar.timestamp + 2 * intervalMs])
+          : klines.length ? [klines.at(-1)!.timestamp + intervalMs] : []
+        for (const boundary of boundaries) {
+          if (boundary <= now) timeValidFrom = Math.max(timeValidFrom, boundary)
+          else if (boundary > now) timeValidUntil = Math.min(timeValidUntil, boundary)
+        }
+        cached = {
+          symbol, timeframe, timestamp: Date.now(), sourceKlineHash, timeValidFrom, timeValidUntil,
+          values: type === 'ER'
+            ? calculateEfficiencyRatio(klines, timeframe, { period, now })
+            : calculateMoneyFlow(klines, intervalMs, now)
+        }
+        // 非法快照时刻交由算法返回无效状态，不污染正常时刻的缓存。
+        if (Number.isFinite(now)) symbolData.indicators.set(key, cached)
+      }
       return {
-        symbol, timeframe, timestamp: now,
-        values: calculateEfficiencyRatio(klines, timeframe, { period: options?.erPeriod, now })
+        symbol, timeframe, sourceKlineHash,
+        timestamp: type === 'ER' ? now : cached.timestamp,
+        // ER仍标记本轮扫描时刻；复制字段，不能让后续请求回写已被策略持有的快照。
+        values: type === 'ER' ? { ...cached.values, calculatedAt: now } : { ...cached.values }
       }
     }
 
@@ -572,21 +608,13 @@ export class IndicatorsHub {
       }
     }
 
-    if (type === 'MoneyFlow') {
-      // 从已加载 K 线计算，沿用 K 线事件驱动更新，避免另建易失效缓存。
-      return {
-        symbol, timeframe, timestamp: Date.now(),
-        values: calculateMoneyFlow(snapshotKlines ?? this.getKlines(symbol, timeframe) ?? [], this.timeframeToMinutes(timeframe) * 60_000)
-      }
-    }
-
     if (type === 'EMA') {
       throw new Error(`${symbol} ${timeframe} EMA 需通过 getEMAByPeriods(symbol, timeframe, periods) 获取`)
     }
 
     if (type === 'OI') {
       // 热重载新增的交易对可能未经过全量初始化；幂等启动确保首次使用前只回填一次历史。
-      await this.oiSnapshotService.bootstrapSymbol(symbol)
+      if (!options?.oiCacheOnly) await this.oiSnapshotService.bootstrapSymbol(symbol)
       const defaultLookbackMinutes = this.timeframeToMinutes(timeframe)
       const lookbackMinutes = Math.max(1, Math.floor(options?.lookbackMinutes ?? defaultLookbackMinutes))
       const oi = this.oiSnapshotService.calculateChange(symbol, lookbackMinutes)

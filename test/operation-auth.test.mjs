@@ -173,28 +173,16 @@ test('公开浏览、密码 Cookie、敏感路由与副作用边界', async t =>
     assert.ok(!full.includes(secret), '所有层级历史密钥均需脱敏')
   })
 
-  await t.test('指标直连和路径变体均要求有效登录，GET 与 HEAD 不可绕过', async () => {
+  await t.test('公开指标读取不要求登录，仍禁止缓存私人响应', async () => {
     // 使用兜底响应验证门禁是否放行，避免加载真实行情或触发外部统计请求。
     const paths = ['/api/bot/indicators?symbol=BTCUSDT&timeframe=1h', '/api//bot/indicators', '/api/bot/%69ndicators', '/API/BOT/INDICATORS', '/api/bot/indicators/']
-    const forgedCookie = cookie.slice(0, -1) + (cookie.endsWith('A') ? 'B' : 'A')
     for (const path of paths) {
       for (const method of ['GET', 'HEAD']) {
-        assert.equal((await fetch(base + path, { method })).status, 401, `${method} ${path}`)
-        assert.equal((await fetch(base + path, { method, headers: { cookie: forgedCookie } })).status, 401)
-        const response = await fetch(base + path, { method, headers: { cookie } })
+        const response = await fetch(base + path, { method })
         assert.equal(response.status, 200)
         assert.match(response.headers.get('cache-control'), /no-store/)
       }
     }
-    const originalNow = Date.now
-    Date.now = () => originalNow() + 86400001
-    try {
-      assert.equal((await fetch(base + paths[0], { headers: { cookie } })).status, 401)
-    } finally { Date.now = originalNow }
-    process.env.CONFIG_EDIT_PASSWORD = ''
-    try {
-      assert.equal((await fetch(base + paths[0])).status, 503)
-    } finally { process.env.CONFIG_EDIT_PASSWORD = 'test-operation-password' }
   })
 
   await t.test('跨站、缺来源、伪造 Cookie 与异常请求不产生副作用', async () => {

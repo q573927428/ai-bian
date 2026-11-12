@@ -2,19 +2,14 @@
 <template>
   <main class="indicator-page">
     <ClientOnly>
-      <PasswordDialog v-model="showPasswordDialog" @success="handlePasswordSuccess" />
-      <!-- 锁定时卸载看板和图表，直接访问页面也不能展示或继续请求指标。 -->
-      <div v-if="passwordVerified" class="dashboard-grid">
+      <div class="dashboard-grid">
         <IndicatorsList ref="listRef" class="board" :model-value="true" :selected-symbol="selected" :auto-height="isMobile" :refreshing="refreshing" embedded coordinated-refresh environment-panel @refresh-request="refreshDashboard" @symbols-ready="initializeSymbol" @select-symbol="selectSymbol" @show-environment="showEnvironment" @timeframe-change="chartTimeframe = $event" />
         <aside v-if="!isMobile">
           <IndicatorSidePanel ref="sidePanelRef" v-model:view="panelView" :symbol="selected" :timeframe="chartTimeframe" :details="environmentDetails" @refresh-request="refreshDashboard" @timeframe-change="chartTimeframe = $event" />
         </aside>
       </div>
-      <el-empty v-else description="解锁后查看指标看板">
-        <el-button type="primary" @click="handleUnlock">解锁指标</el-button>
-      </el-empty>
       <el-dialog
-        v-if="passwordVerified && isMobile"
+        v-if="isMobile"
         v-model="chartDialogVisible"
         :title="`${selected} ${panelView === 'chart' ? '指标图表' : '环境详情'}`"
         fullscreen
@@ -32,8 +27,6 @@
 import { computed, ref, onMounted, onBeforeUnmount } from 'vue'
 import IndicatorsList from '../components/IndicatorsList.vue'
 import IndicatorSidePanel from '../components/IndicatorSidePanel.vue'
-import PasswordDialog from '../components/PasswordDialog.vue'
-import { usePageUnlock } from '../composables/usePageUnlock'
 import { useGlobalPolling } from '../composables/useGlobalPolling'
 import { useIndicatorPanelView } from '../composables/useIndicatorPanelView'
 const selected = ref('')
@@ -58,20 +51,11 @@ onMounted(() => {
   mobileQuery.addEventListener('change', updateLayout)
 })
 onBeforeUnmount(() => mobileQuery?.removeEventListener('change', updateLayout))
-const { passwordVerified, showPasswordDialog, handleUnlock, handlePasswordSuccess } = usePageUnlock({
-  onOpen: () => {},
-  onLock: () => {
-    // 退出后清除查看状态，重新解锁时由新挂载的看板初始化交易对。
-    selected.value = ''
-    chartTimeframe.value = '1h'
-    chartDialogVisible.value = false
-  }
-})
 const refreshing = ref(false)
 
 /** 同一计时器同时发起两侧刷新，整轮结束前不重入；列表刷新全部指标而非仅更新结构。 */
 async function refreshDashboard() {
-  if (!passwordVerified.value || refreshing.value) return
+  if (refreshing.value) return
   refreshing.value = true
   try {
     await Promise.allSettled([listRef.value?.refresh(), sidePanelRef.value?.refresh()])
@@ -80,7 +64,7 @@ async function refreshDashboard() {
   }
 }
 // 初次加载及切换交易对仍立即请求；后续复用全局状态轮询的 60 秒节拍。
-useGlobalPolling(refreshDashboard, () => passwordVerified.value)
+useGlobalPolling(refreshDashboard)
 /** 首次取表格第一行；刷新保留用户选择，移除的交易对自动回退。 */
 function initializeSymbol(symbols: string[]) {
   if (!symbols.includes(selected.value)) selected.value = symbols[0] || ''

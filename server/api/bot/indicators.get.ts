@@ -16,6 +16,10 @@ import { normalizeERPeriod } from '../../../app/utils/efficiency-ratio'
 import { normalizeSupportResistanceConfig } from '../../../types/support-resistance'
 import { latestCvdDivergence } from '../../../app/utils/cvd-divergence'
 import { normalizeSquareHeatWindows, SQUARE_HEAT_MAX_WINDOW_MINUTES } from '../../../types/square-heat-config'
+import { operationSession } from '../../utils/operation-auth'
+import { createPublicIndicatorAccess, publicIndicatorQuery } from '../../utils/public-indicator-access'
+
+const publicAccess = createPublicIndicatorAccess()
 
 const VALID_TIMEFRAMES: Timeframe[] = ['5m', '15m', '1h', '4h', '1d']
 const TIMEFRAME_MINUTES: Record<Timeframe, number> = {
@@ -64,9 +68,30 @@ function normalizeSymbol(symbol: string): string {
   return symbol.trim().toUpperCase().replace('/', '')
 }
 
+/** 公开看板共用固定参数快照；管理员登录后仍可执行有边界的诊断试算。 */
 export default defineEventHandler(async (event) => {
+  if (operationSession(event)) return calculateIndicators(getQuery(event), false)
+  publicAccess.limit(event)
+  const query = publicIndicatorQuery(getQuery(event))
+  const manager = getStrategyManagerIfAvailable()
+  if (!manager) return { success: false, initializing: true, message: '行情初始化中，请稍候', data: null }
+  // 缓存入口前校验配置名单，任意伪造的 symbol 不占用计算或快照槽位。
+  if (!manager.getIndicatorsHub().getCacheStatus().symbols.some(item => normalizeSymbol(item) === query.symbol)) {
+    throw createError({ statusCode: 400, message: '交易对未配置或指标中心尚未初始化' })
+  }
+  return publicAccess.snapshot(`${query.symbol}:${query.timeframe}`, () => calculateIndicators(query, true))
+})
+
+/** 计算指标；匿名请求的计算参数只从服务端配置读取，不使用客户端覆盖值。 */
+async function calculateIndicators(query: Record<string, any>, publicView: boolean) {
   const requestedAt = Date.now()
-  const query = getQuery(event)
+  const botConfig = await getBotConfig()
+  if (publicView) {
+    const periods = botConfig.emaPeriods
+    const validPeriods = Array.isArray(periods) && periods.length === 2
+      && periods.every(value => Number.isInteger(value) && value >= 2 && value <= 500) && periods[0] !== periods[1]
+    query = { ...query, emaPeriods: validPeriods ? periods.join(',') : '20,60' }
+  }
   const symbol = String(query.symbol || '').trim().toUpperCase()
   const timeframe = String(query.timeframe || '1h') as Timeframe
   // 看板首屏先跳过外部慢统计，等表格可见后再单独补齐。
@@ -108,7 +133,6 @@ export default defineEventHandler(async (event) => {
     .slice(0, 5)
   const effectiveEmaPeriods = emaPeriods.length > 0 ? emaPeriods : [14, 50]
   const erPeriod = normalizeERPeriod(query.erPeriod)
-  const botConfig = await getBotConfig()
   // 看板窗口按当前 K 线周期读取；显式诊断参数仍可覆盖，但不影响策略配置。
   const squareHeatWindowMinutes = parseBoundedInteger(query.squareHeatWindowMinutes,
     normalizeSquareHeatWindows(botConfig.squareHeatWindows)[timeframe], 5, SQUARE_HEAT_MAX_WINDOW_MINUTES)
@@ -163,7 +187,7 @@ export default defineEventHandler(async (event) => {
     try {
       indicators[name] = toDiagnosticResult(await loader(), requestedAt)
     } catch (error: any) {
-      errors[name] = error?.message || String(error)
+      errors[name] = publicView ? '指标暂不可用' : error?.message || String(error)
     }
   }
 
@@ -178,10 +202,12 @@ export default defineEventHandler(async (event) => {
       macdSlowPeriod: 26,
       macdSignalPeriod: 9
     })),
-    ...(includeSlowStats ? [collect('oi', () => indicatorsHub.getIndicators(indicatorSymbol, timeframe, 'OI', {
+    // 跳过慢采集不等于隐藏已有OI；匿名看板只从后台维护的内存序列读取。
+    collect('oi', () => indicatorsHub.getIndicators(indicatorSymbol, timeframe, 'OI', {
       lookbackMinutes,
-      trendThresholdPercent: 0.4
-    }))] : []),
+      trendThresholdPercent: 0.4,
+      oiCacheOnly: !includeSlowStats
+    })),
     collect('moneyFlow', () => indicatorsHub.getIndicators(indicatorSymbol, timeframe, 'MoneyFlow')),
     collect('volume', () => indicatorsHub.getIndicators(indicatorSymbol, timeframe, 'Volume')),
     collect('supportResistance', () => indicatorsHub.getIndicators(indicatorSymbol, timeframe, 'SupportResistance', structureParams)),
@@ -293,7 +319,7 @@ export default defineEventHandler(async (event) => {
         previous: previousKline
       },
       indicators,
-      oiMemory: {
+      oiMemory: publicView ? undefined : {
         ...oiDiagnostics,
         currentDataAgeMs: oiDiagnostics.current
           ? Math.max(0, requestedAt - oiDiagnostics.current.fetchedAt)
@@ -305,4 +331,4 @@ export default defineEventHandler(async (event) => {
       errors
     }
   }
-})
+}

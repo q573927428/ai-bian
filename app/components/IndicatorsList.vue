@@ -104,7 +104,7 @@
             <el-option v-for="count in [1, 3, 5, 10]" :key="count" :label="`近 ${count} 根确认`" :value="count" />
           </el-select>
         </div>
-        <div class="numeric-filter-item" role="group" aria-label="支撑阻力试算参数">
+        <div v-if="passwordVerified" class="numeric-filter-item" role="group" aria-label="支撑阻力试算参数">
           <span class="numeric-filter-label">支撑阻力</span>
           <div class="structure-controls">
             <label>
@@ -349,6 +349,8 @@ import { useBotStore } from '../stores/bot'
 import { useCoinIcon } from '../composables/useCoinIcon'
 import { useSupportResistancePreview } from '../composables/useSupportResistancePreview'
 import { useGlobalPolling } from '../composables/useGlobalPolling'
+import { usePageUnlock } from '../composables/usePageUnlock'
+import { normalizeSupportResistanceConfig } from '../../types/support-resistance'
 import type { SupportResistanceSnapshot } from '../../types/support-resistance'
 import SupportResistanceInfo from './SupportResistanceInfo.vue'
 import EnvironmentDetails from './EnvironmentDetails.vue'
@@ -437,6 +439,10 @@ const { getCoinIconUrl } = useCoinIcon()
 const iconFailed = ref<Record<string, boolean>>({})
 const timeframe = ref('1h')
 const structurePreview = useSupportResistancePreview()
+// 匿名看板使用服务端统一参数，只有登录后的诊断界面展示试算控件。
+const { passwordVerified } = usePageUnlock({ onOpen: () => {}, onLock: () => {
+  structurePreview.value = normalizeSupportResistanceConfig(botStore.botConfig?.supportResistanceConfig)
+} })
 const structurePresets = [
   { label: '默认 3/3', left: 3, right: 3 },
   { label: '5/3', left: 5, right: 3 },
@@ -921,8 +927,9 @@ function toRow(data: any): IndicatorRow {
   // 诊断响应已按同一回看窗口计算内存 OI 比例，直接复用后端快照。
   // 历史基准未就绪时继续保留缺失状态，不能把未知变化展示为零。
   const oiChangePercent = finiteNumber(oi.changePercent) ?? finiteNumber(oiMemory?.calculatedChangePercent)
-  const oiValue = oiMemory?.current?.value ?? oi.value
-  const oiBaseline = finiteNumber(oiMemory?.baseline?.openInterest)
+  const oiValue = oi.value ?? oiMemory?.current?.value
+  // 公开响应不含内部诊断，展示字段优先复用OI指标自身携带的同一基准快照。
+  const oiBaseline = finiteNumber(oi.context?.baselineValue) ?? finiteNumber(oiMemory?.baseline?.openInterest)
   const oiCurrent = finiteNumber(oiValue)
   // 与变化率使用同一回看基准；缺少任一快照时不将未知变化显示为零。
   const oiChange = oiCurrent != null && oiBaseline != null ? oiCurrent - oiBaseline : undefined
@@ -937,9 +944,9 @@ function toRow(data: any): IndicatorRow {
   const oiTooltip = [
     `回看窗口：${oiWindowLabel}`,
     `当前 OI：${formatOIValue(oiValue)}（额：${oiCurrentAmountLabel}）`,
-    `基准 OI：${formatOIValue(oiMemory?.baseline?.openInterest)}（额：${oiBaselineAmount}）`,
-    `基准时间：${formatOITime(oiMemory?.baseline?.timestamp)}`,
-    `更新时间：${formatOITime(oiMemory?.current?.timestamp)}`
+    `基准 OI：${formatOIValue(oiBaseline)}（额：${oiBaselineAmount}）`,
+    `基准时间：${formatOITime(oi.context?.baselineTimestamp ?? oiMemory?.baseline?.timestamp)}`,
+    `更新时间：${formatOITime(oi.context?.updatedAt ?? oiMemory?.current?.timestamp)}`
   ].join('\n')
   const bullishCount = finiteNumber(heat.bullishCount)
   const bearishCount = finiteNumber(heat.bearishCount)

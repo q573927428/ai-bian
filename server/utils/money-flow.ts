@@ -32,8 +32,8 @@ function validAmounts(bar: OHLCV): boolean {
     && typeof b === 'number' && Number.isFinite(b) && b >= 0 && b <= q
 }
 
-/** 按统一窗口计算末根及累计实际成交数据；窗口必须连续，禁止按进度放大净流入。 */
-export function calculateMoneyFlow(klines: OHLCV[], intervalMs: number) {
+/** 按统一窗口计算实际成交数据；now 固定本轮收盘判定时刻，窗口必须连续，禁止放大净流入。 */
+export function calculateMoneyFlow(klines: OHLCV[], intervalMs: number, now = Date.now()) {
   const latest = klines.at(-1)
   const currentValid = !!latest && validAmounts(latest)
   const netInflow = currentValid ? 2 * latest.takerBuyQuoteVolume! - latest.quoteVolume! : null
@@ -56,6 +56,6 @@ export function calculateMoneyFlow(klines: OHLCV[], intervalMs: number) {
     windowBars: MONEY_FLOW_WINDOW_BARS,
     startTimestamp: window[0]?.timestamp ?? null,
     endTimestamp: latest?.timestamp ?? null,
-    includesUnclosed: !!latest && latest.timestamp + intervalMs > Date.now()
+    includesUnclosed: !!latest && latest.timestamp + intervalMs > now
   }
 }

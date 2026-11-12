@@ -130,9 +130,9 @@ const navigationItems: NavigationItem[] = [
   { id: 'hot', label: '行情', description: '全量行情', icon: ElIconStar }
 ]
 
-// 桌面与移动端共用登录状态过滤，退出或凭证到期后同步隐藏受保护入口。
+// 桌面与移动端均展示公开指标入口，订单入口仍随登录状态隐藏。
 const visibleNavigationItems = computed(() => navigationItems.filter(item =>
-  props.passwordVerified || (item.id !== 'indicators' && item.id !== 'orders')
+  props.passwordVerified || item.id !== 'orders'
 ))
 
 /** 预设入口先提示待开放，只有退出命令会清除解锁状态。 */

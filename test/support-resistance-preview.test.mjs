@@ -10,6 +10,7 @@ import { normalizeSupportResistanceConfig } from '../types/support-resistance.ts
 import { normalizeSquareHeatWindows, SQUARE_HEAT_MAX_WINDOW_MINUTES } from '../types/square-heat-config.ts'
 import { latestCvdDivergence } from '../app/utils/cvd-divergence.ts'
 import { diTrend } from '../app/utils/environment-confidence.ts'
+import { createRequire } from 'node:module'
 import { getCandleVolume } from '../server/utils/candle-volume.ts'
 
 /** 执行实际源码，仅隔离 Nuxt 上下文、网络和图表挂载。 */
@@ -22,7 +23,7 @@ function evaluate(source, dependencies = {}, globals = {}) {
 }
 
 /** 不启动交易进程，记录只读接口传给指标中心的实际参数。 */
-function createHandler(config = {}, hubOverrides = {}) {
+function createHandler(config = {}, hubOverrides = {}, authenticated = true) {
   const calls = []
   const hub = {
     getCacheStatus: () => ({ symbols: ['BTC/USDT'] }),
@@ -35,10 +36,14 @@ function createHandler(config = {}, hubOverrides = {}) {
   }
   const source = readFileSync(new URL('../server/api/bot/indicators.get.ts', import.meta.url), 'utf8')
   const handler = evaluate(source, {
+    '../../utils/operation-auth': { operationSession: () => authenticated },
+    '../../utils/public-indicator-access': publicAccessModule,
     '../../modules/strategy-manager': { getStrategyManagerIfAvailable: () => ({ getIndicatorsHub: () => hub }) },
     '../../utils/strategy-indicators-normalizer': { getMaxOIChangePeriod: () => 10 },
     '../../utils/kline-simple-storage': { getSimpleKLineLastUpdatedAt: () => 0 },
-    '../../utils/market-breadth': { getMarketBreadth: async () => ({}) },
+    '../../utils/market-breadth': { getMarketBreadth: async () => ({}), formatMarketBreadth: () => '' },
+    '../../../app/utils/market-breadth': { selectBreadthForSymbol: () => undefined },
+    '../../utils/square-heat': { getCachedSquareHeat: () => undefined },
     '../../utils/storage': { getBotConfig: async () => config },
     '../../utils/candle-volume': { getCandleVolume },
     '../../../types/support-resistance': { normalizeSupportResistanceConfig },
@@ -47,9 +52,70 @@ function createHandler(config = {}, hubOverrides = {}) {
     '../../utils/environment-context': { loadEnvironmentContext: async () => undefined },
     '../../../app/utils/environment-confidence': { diTrend, formatEnvironmentConfidence: () => '' },
     '../../../app/utils/efficiency-ratio': { normalizeERPeriod: () => 20 }
-  }, { defineEventHandler: fn => fn, getQuery: event => event }).default
-  return { handler: query => handler({ symbol: 'BTCUSDT', structureOnly: 'true', includeSlowStats: 'false', ...query }), calls }
+  }, { defineEventHandler: fn => fn, getQuery: event => event, createError: nuxtRequire('h3').createError }).default
+  return { handler: query => handler({ node: { req: { socket: { remoteAddress: '127.0.0.1' } } }, symbol: 'BTCUSDT', structureOnly: 'true', includeSlowStats: 'false', ...query }), calls }
 }
+
+const nuxtRequire = createRequire(createRequire(import.meta.url).resolve('nuxt/package.json'))
+const publicAccessModule = evaluate(readFileSync(new URL('../server/utils/public-indicator-access.ts', import.meta.url), 'utf8'), {
+  h3: nuxtRequire('h3')
+}, { Date })
+
+test('匿名指标忽略所有试算参数并合并请求，非法交易对和周期不可触发计算', async () => {
+  const { handler, calls } = createHandler({ emaPeriods: [20, 60], supportResistanceConfig: { pivotLeft: 4, pivotRight: 6 } }, {
+    getEMAByPeriods: async (_symbol, _timeframe, periods) => ({ timestamp: Date.now(), values: { periods } })
+  }, false)
+  const [first, second] = await Promise.all([
+    handler({ pivotLeft: '10', pivotRight: '1', emaPeriods: '2,500', changePeriod: '999', erPeriod: '999', includeSlowStats: 'true', squareHeatWindowMinutes: '5' }),
+    handler({ pivotLeft: '1', emaPeriods: '3,499', structureOnly: 'true', signalOnly: 'true' })
+  ])
+  assert.equal(first, second, '不同覆盖参数应命中相同快照')
+  assert.equal(first.data.parameters.pivotLeft, 4)
+  assert.equal(first.data.parameters.pivotRight, 6)
+  assert.equal(first.data.parameters.emaPeriods.join(','), '20,60')
+  assert.equal(first.data.parameters.changePeriod, 1)
+  assert.equal(first.data.parameters.erPeriod, 20)
+  assert.equal(first.data.parameters.squareHeatWindowMinutes, 1440)
+  assert.equal(first.data.oiMemory, undefined)
+  assert.ok(!calls.some(call => call.type === 'SquareHeat'), '匿名请求不触发外部情绪采集')
+  const oiCall = calls.find(call => call.type === 'OI')
+  assert.equal(oiCall.options.oiCacheOnly, true, '匿名OI只读后台快照')
+  assert.equal(first.data.indicators.oi.values.oiCacheOnly, true)
+  assert.equal(calls.filter(call => call.type === 'SupportResistance').length, 1)
+  const count = calls.length
+  for (const query of [{ symbol: 'ETHUSDT' }, { timeframe: '1m' }, { symbol: ['BTCUSDT', 'ETHUSDT'] }, { timeframe: ['1h', '4h'] }]) {
+    await assert.rejects(handler(query), error => error.statusCode === 400)
+  }
+  assert.equal(calls.length, count)
+})
+
+test('公开指标限流不相信转发头，缓存到期更新、失败可重试且计算最多8路', async () => {
+  const access = publicAccessModule.createPublicIndicatorAccess()
+  const event = { node: { req: { socket: { remoteAddress: '127.0.0.1' } }, res: { setHeader() {} } } }
+  for (let i = 0; i < 1200; i++) access.limit(event)
+  assert.throws(() => access.limit(event), error => error.statusCode === 429)
+  let active = 0
+  let peak = 0
+  const tasks = Array.from({ length: 20 }, (_, i) => access.snapshot(String(i), async () => {
+    peak = Math.max(peak, ++active)
+    await new Promise(setImmediate)
+    active--
+    return i
+  }))
+  assert.deepEqual(await Promise.all(tasks), Array.from({ length: 20 }, (_, i) => i))
+  assert.equal(peak, 8)
+  assert.equal(await access.snapshot('0', async () => 99), 0)
+  const originalNow = Date.now
+  const snapshotCheckTime = originalNow()
+  try {
+    Date.now = () => snapshotCheckTime + 59_000
+    assert.equal(await access.snapshot('0', async () => 99), 0, '60秒内仍复用快照')
+    Date.now = () => snapshotCheckTime + 61_000
+    assert.equal(await access.snapshot('0', async () => 99), 99, '超过60秒后重新生成快照')
+  } finally { Date.now = originalNow }
+  await assert.rejects(access.snapshot('failure', async () => { throw new Error('failed') }))
+  assert.equal(await access.snapshot('failure', async () => 1), 1)
+})
 
 test('指标接口预量比使用整根预估量除以EMA，保留原始累计量比', async () => {
   for (const [progress, emaAverage] of [[0.5, 100], [1, 100], [0, 100], [0.5, 0]]) {

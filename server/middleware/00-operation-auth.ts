@@ -6,8 +6,6 @@ import { assertOperationOrigin, limitOperationRequests, operationPassword, opera
 const sensitiveReads = [
   /^\/api\/strategies\/[^/]+(?:\/.*)?$/,
   /^\/api\/bot\/(?:config|history)(?:\/.*)?$/,
-  // 指标页面的前端锁不能保护直连接口，完整诊断数据必须校验服务端登录凭证。
-  /^\/api\/bot\/indicators$/,
   /^\/api\/ai\/(?:prompt|prompts|rules|trade-decision)$/,
   /^\/api\/scripts(?:\/.*)?$/,
   /^\/api\/scan-results$/,
