@@ -75,8 +75,7 @@
           <span class="numeric-filter-label">置信度排序</span>
           <el-select :model-value="confidenceSort" size="small" placeholder="当前按列排序" aria-label="交易对置信度排序" @change="handleConfidenceSortChange">
             <el-option label="默认排序" value="default" />
-            <el-option :label="`多头置信度 ${confidenceSort === 'longConfidence' && sortOrder === 'ascending' ? '↑' : '↓'}`" value="longConfidence" />
-            <el-option :label="`空头置信度 ${confidenceSort === 'shortConfidence' && sortOrder === 'ascending' ? '↑' : '↓'}`" value="shortConfidence" />
+            <el-option :label="`置信度 ${confidenceSort === 'confidence' && sortOrder === 'ascending' ? '↑' : '↓'}`" value="confidence" />
           </el-select>
         </div>
         <div class="numeric-filter-item">
@@ -147,13 +146,12 @@
     <!-- 已有数据时保留表格供浏览，整轮刷新仅由头部按钮反馈；无数据时才显示加载遮罩。 -->
     <el-table ref="tableRef" v-loading="loading && !rows.length" class="indicators-table" :height="autoHeight ? undefined : '100%'" :data="filteredRows" row-key="symbol" :current-row-key="selectedSymbol" :row-class-name="selectedRowClass" :highlight-current-row="embedded" :empty-text="rows.length ? '当前筛选下暂无交易对' : '暂无已配置交易对或指标数据'" stripe size="small" style="width: 100%" @sort-change="handleSortChange" @row-click="handleRowClick">
       <el-table-column label="" type="index" align="center" header-align="center" width="35" fixed="left" />
-      <el-table-column prop="symbol" label="名称" fixed min-width="110">
+      <el-table-column prop="confidence" label="交易对" fixed min-width="110">
         <template #header>
           <!-- 标签循环切换排序，上下箭头可直接选择方向，与筛选面板共用状态。 -->
           <span class="confidence-sort-header">
-            名称
+            <button type="button" class="confidence-sort-button" title="按多空较高置信度排序：降序 → 升序 → 默认" @click.stop="toggleConfidenceSort('confidence')">交易对</button>
             <span v-for="option in confidenceSortOptions" :key="option.value" class="confidence-sort-control">
-              <button type="button" class="confidence-sort-button" :class="{ 'is-active': confidenceSort === option.value }" :aria-pressed="confidenceSort === option.value" :title="`${option.label}置信度：降序 → 升序 → 默认`" @click.stop="toggleConfidenceSort(option.value)">{{ option.label }}</button>
               <span class="confidence-sort-arrows">
                 <button type="button" class="confidence-sort-arrow ascending" :class="{ 'is-active': confidenceSort === option.value && sortOrder === 'ascending' }" :aria-label="`${option.label}置信度升序`" :title="`${option.label}置信度升序`" @click.stop="handleConfidenceSortChange(option.value, 'ascending')"></button>
                 <button type="button" class="confidence-sort-arrow descending" :class="{ 'is-active': confidenceSort === option.value && sortOrder === 'descending' }" :aria-label="`${option.label}置信度降序`" :title="`${option.label}置信度降序`" @click.stop="handleConfidenceSortChange(option.value, 'descending')"></button>
@@ -710,17 +708,16 @@ async function refreshStructure() {
   }
 }
 type SortOrder = 'ascending' | 'descending' | null
-type ConfidenceSort = 'default' | 'longConfidence' | 'shortConfidence'
+type ConfidenceSort = 'default' | 'confidence'
 const confidenceSortOptions = [
-  { value: 'longConfidence', label: '多' },
-  { value: 'shortConfidence', label: '空' },
+  { value: 'confidence', label: '' },
 ] as const
-type SortProp = 'rsi' | 'er' | 'macdHistogram' | 'atrPercent' | 'oiChangePercent' | 'volumeRatio' | 'netInflowPercent' | 'cumulativeNetInflow' | 'longConfidence' | 'shortConfidence' | null
+type SortProp = 'rsi' | 'er' | 'macdHistogram' | 'atrPercent' | 'oiChangePercent' | 'volumeRatio' | 'netInflowPercent' | 'cumulativeNetInflow' | 'confidence' | null
 const tableRef = ref<TableInstance>()
 const sortProp = ref<SortProp>(null)
 const sortOrder = ref<SortOrder>(null)
 // 共用一份排序状态；列排序生效时显示占位提示，避免误示为默认顺序。
-const confidenceSort = computed(() => sortProp.value === 'longConfidence' || sortProp.value === 'shortConfidence'
+const confidenceSort = computed(() => sortProp.value === 'confidence'
   ? sortProp.value : sortProp.value && sortOrder.value ? '' : 'default')
 const sortedRows = computed(() => {
   const prop = sortProp.value
@@ -729,8 +726,8 @@ const sortedRows = computed(() => {
   // 保留接口返回的配置顺序，取消排序可直接恢复；同分按原顺序稳定展示。
   // 评分轮询更新时自动重算排序，缺失值始终置底。
   return [...rows.value].sort((left, right) => {
-    const leftValue = left[prop]
-    const rightValue = right[prop]
+    const leftValue = prop === 'confidence' ? getConfidenceSortValue(left) : left[prop]
+    const rightValue = prop === 'confidence' ? getConfidenceSortValue(right) : right[prop]
     const leftValid = typeof leftValue === 'number' && Number.isFinite(leftValue)
     const rightValid = typeof rightValue === 'number' && Number.isFinite(rightValue)
     if (!leftValid || !rightValid) return leftValid === rightValid ? 0 : leftValid ? -1 : 1
@@ -854,7 +851,13 @@ function handleConfidenceSortChange(value: ConfidenceSort, order: Exclude<SortOr
   sortOrder.value = value === 'default' ? null : order
 }
 
-/** 标签按降序、升序、默认循环；切换多空时优先展示高置信度交易对。 */
+/** 统一使用多空中较高的有效置信度；两侧均缺失时保持置底。 */
+function getConfidenceSortValue(row: IndicatorRow): number | undefined {
+  const values = [row.longConfidence, row.shortConfidence].filter((value): value is number => typeof value === 'number' && Number.isFinite(value))
+  return values.length ? Math.max(...values) : undefined
+}
+
+/** 标签按降序、升序、默认循环。 */
 function toggleConfidenceSort(value: Exclude<ConfidenceSort, 'default'>) {
   if (sortProp.value !== value || !sortOrder.value) handleConfidenceSortChange(value)
   else if (sortOrder.value === 'descending') handleConfidenceSortChange(value, 'ascending')
