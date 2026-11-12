@@ -212,7 +212,7 @@
               >{{ getSymbolDisplay(row.symbol).substring(0, 1).toUpperCase() }}</span>
               <!-- Element Plus 的插槽行类型为 DefaultRow；实际数据来自 TopSymbol[]，在事件边界明确类型。 -->
               <el-link type="primary" underline="never" :style="{ cursor: selectable || embedded ? 'pointer' : 'default' }" @click.stop="handleRowClick(row as TopSymbol)">
-                {{ row.symbol.replace('USDT', '/USDT') }}
+                {{ getSymbolDisplay(row.symbol) }}
               </el-link>
               <span v-if="classifyContractAsset(row as TopSymbol) !== 'crypto'" class="contract-asset-tag" :data-asset="classifyContractAsset(row as TopSymbol)">{{ contractAssetLabel(row as TopSymbol) }}</span>
               <span
@@ -1087,8 +1087,9 @@ function cryptoIconUrl(symbol: string): string {
   return getCoinIconUrl(symbol) || ''
 }
 
+/** 行情名称仅显示基础资产，完整交易对仍用于查询、收藏和选中。 */
 function getSymbolDisplay(symbol: string): string {
-  return symbol.replace('USDT', '')
+  return symbol.replace(/\/?USDT$/, '')
 }
 
 // 为币种生成稳定的随机颜色
