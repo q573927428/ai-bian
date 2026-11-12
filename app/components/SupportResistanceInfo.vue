@@ -13,8 +13,8 @@
         <div><span class="support">支撑</span> {{ nearestOnly ? nearestPrice(snapshot.nearestSupport) : zone(snapshot.nearestSupport) }}{{ !nearestOnly && snapshot.nearestSupport ? `（${snapshot.nearestSupport.touches}）` : '' }}<span v-if="nearestOnly && snapshot.nearestSupport" class="distance">{{ number(snapshot.supportDistanceATR) }}</span></div>
         </div>
       </div>
-    <!-- 状态始终放在价位下方，区域之间等常态也能直接查看。 -->
-    <div class="structure-status">{{ statusLabel }}</div>
+    <!-- 区域之间是常态，不占用提示行；突破、跌破及其他状态仍保留。 -->
+    <div v-if="snapshot.status !== 'between_levels'" class="structure-status">{{ statusLabel }}</div>
     <div v-if="detailed" class="distance">
       {{ snapshot.timeframe }} · 决策参考价 {{ price(snapshot.referencePrice) }}
     </div>
