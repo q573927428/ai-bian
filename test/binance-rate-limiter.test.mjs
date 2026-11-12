@@ -11,6 +11,38 @@ const source = readFileSync(new URL('../server/utils/binance-rate-limiter.ts', i
 const compiled = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } })
 const { BinanceRateLimiter } = await import(`data:text/javascript;base64,${Buffer.from(compiled.outputText).toString('base64')}`)
 
+test('权重峰值在采集时记录，跨分钟和较低读数不覆盖，新的限流器重新统计', () => {
+  const originalNow = Date.now
+  let now = 179998
+  Date.now = () => now
+  try {
+    const limiter = new BinanceRateLimiter()
+    limiter.updateFromHeaders(new Headers({ 'x-mbx-used-weight-1m': '120' }))
+    limiter.updateFromHeaders(new Headers({ 'x-mbx-used-weight-1m': '100' }))
+    limiter.recordLocalWeight('marketData', 'depth:BTCUSDT:1000')
+    limiter.recordLocalWeight('marketData', 'depth:BTCUSDT:1000')
+    // 跨分钟之前不读取快照，验证峰值不依赖面板轮询。
+    now = 180000
+    const snapshot = limiter.getSnapshot()
+    assert.equal(snapshot.usedWeight1m, 0)
+    assert.equal(snapshot.localEstimatedWeight1m, 0)
+    assert.equal(snapshot.peakUsedWeight1m, 120)
+    assert.equal(snapshot.peakLocalEstimatedWeight1m, 40)
+    limiter.recordLocalWeight('marketData', 'depth:BTCUSDT:1000')
+    assert.equal(limiter.getSnapshot().peakLocalEstimatedWeight1m, 40)
+    limiter.recordLocalWeight('marketData', 'depth:BTCUSDT:1000')
+    limiter.recordLocalWeight('marketData', 'depth:BTCUSDT:1000')
+    limiter.updateFromHeaders(new Headers({ 'x-mbx-used-weight-1m': '150' }))
+    assert.equal(limiter.getSnapshot().peakUsedWeight1m, 150)
+    assert.equal(limiter.getSnapshot().peakLocalEstimatedWeight1m, 60)
+    const fresh = new BinanceRateLimiter().getSnapshot()
+    assert.equal(fresh.peakUsedWeight1m, 0)
+    assert.equal(fresh.peakLocalEstimatedWeight1m, 0)
+  } finally {
+    Date.now = originalNow
+  }
+})
+
 test('缺失响应头不会清空已观测权重及订单数', () => {
   const limiter = new BinanceRateLimiter()
   limiter.updateFromHeaders(new Headers({ 'x-mbx-used-weight-1m': '1684', 'x-mbx-order-count-1m': '12' }))

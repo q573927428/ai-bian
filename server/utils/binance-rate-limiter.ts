@@ -24,6 +24,9 @@ interface QueueTask<T> {
 export interface BinanceRateLimitSnapshot {
   usedWeight1m: number
   localEstimatedWeight1m: number
+  /** 当前服务进程运行以来的分钟权重峰值，跨分钟保留，重启归零。 */
+  peakUsedWeight1m: number
+  peakLocalEstimatedWeight1m: number
   orderCount10s?: number
   orderCount1m?: number
   queues: Record<BinanceRequestGroup, number>
@@ -89,6 +92,8 @@ export class BinanceRateLimiter {
   private queueWakeTimer: NodeJS.Timeout | null = null
   private pendingRequests = new Map<string, Promise<any>>()
   private usedWeight1m = 0
+  private peakUsedWeight1m = 0
+  private peakLocalEstimatedWeight1m = 0
   private orderCount10s: number | undefined
   private orderCount1m: number | undefined
   private orderCount10sUpdatedAt: number | undefined
@@ -173,6 +178,8 @@ export class BinanceRateLimiter {
     const usedWeight = Number(weightHeader)
     if (weightHeader !== null && Number.isFinite(usedWeight)) {
       this.usedWeight1m = usedWeight
+      // 在响应到达时记录，避免面板轮询遗漏两次刷新之间的峰值。
+      this.peakUsedWeight1m = Math.max(this.peakUsedWeight1m, usedWeight)
       this.usedWeightUpdatedAt = Date.now()
     }
 
@@ -255,6 +262,8 @@ export class BinanceRateLimiter {
     return {
       usedWeight1m: this.usedWeight1m,
       localEstimatedWeight1m: this.getLocalEstimatedWeight1m(),
+      peakUsedWeight1m: this.peakUsedWeight1m,
+      peakLocalEstimatedWeight1m: this.peakLocalEstimatedWeight1m,
       // Binance 使用固定时间窗口；跨窗口后旧计数失效，缺少新响应头时不能推断为零。
       orderCount10s: this.getObservedOrderCount(this.orderCount10s, this.orderCount10sUpdatedAt, 10000),
       orderCount1m: this.getObservedOrderCount(this.orderCount1m, this.orderCount1mUpdatedAt, 60000),
@@ -404,7 +413,8 @@ export class BinanceRateLimiter {
       timestamp: Date.now(),
       weight
     })
-    this.pruneLocalWeightEvents()
+    // 发起请求时记录峰值，面板关闭期间也持续累计。
+    this.peakLocalEstimatedWeight1m = Math.max(this.peakLocalEstimatedWeight1m, this.getLocalEstimatedWeight1m())
   }
 
   private getLocalEstimatedWeight1m(): number {

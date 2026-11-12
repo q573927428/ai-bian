@@ -37,6 +37,11 @@
       <div class="section-title">
         <el-icon><ElIconConnection /></el-icon>
         Binance API 限流状态
+        <div v-if="rateLimitData && !botStore.rateLimitError" class="api-errors">
+          <el-tag size="small" type="warning" v-if="rateLimitData.recent429 > 0">限流 429×{{ rateLimitData.recent429 }}</el-tag>
+          <el-tag size="small" type="danger" v-if="rateLimitData.recent418 > 0">封禁 418×{{ rateLimitData.recent418 }}</el-tag>
+          <span v-if="!rateLimitData.recent429 && !rateLimitData.recent418" class="api-normal"><span class="refresh-dot" />无限流错误</span>
+        </div>
       </div>
       <div v-if="botStore.rateLimitLoading && !rateLimitData" class="loading-text">加载中...</div>
       <div v-else-if="botStore.rateLimitError" class="error-text">{{ botStore.rateLimitError }}</div>
@@ -46,21 +51,18 @@
             <div class="weight-stat">
               <span class="info-label">1分钟 API 权重</span>
               <strong :class="['weight-value', weightStatus]">{{ rateLimitData.usedWeight1m || 0 }}</strong>
+              <span class="weight-peak" title="服务启动以来记录的最高分钟 API 权重，跨分钟保留，服务重启后归零">峰值 {{ rateLimitData.peakUsedWeight1m ?? '-' }}</span>
             </div>
             <div class="weight-stat weight-estimate" title="根据本系统当前整分钟内发起的请求估算权重，每逢整分钟重置；接口权重估算与 Binance 返回值可能不同">
               <span class="info-label">本地估算</span>
               <strong class="estimate-value">{{ rateLimitData.localEstimatedWeight1m ?? '-' }}</strong>
+              <span class="weight-peak" title="服务启动以来记录的最高分钟本地估算权重，跨分钟保留，服务重启后归零">峰值 {{ rateLimitData.peakLocalEstimatedWeight1m ?? '-' }}</span>
             </div>
             <div class="weight-stat order-metric" title="Binance 当前10秒 / 1分钟固定窗口内的订单计数，并非额度上限或成交笔数；统计缺失或跨窗口过期时显示 -">
               <span class="info-label">下单次数</span>
               <strong class="estimate-value">{{ rateLimitData.orderCount10s ?? '-' }} / {{ rateLimitData.orderCount1m ?? '-' }}</strong>
+              <span class="weight-peak">10秒 / 1分钟</span>
             </div>
-          </div>
-          <!-- 正常状态弱化，出现限流或封禁时仍保留醒目的告警色。 -->
-          <div class="api-errors">
-            <el-tag size="small" type="warning" v-if="rateLimitData.recent429 > 0">限流 429×{{ rateLimitData.recent429 }}</el-tag>
-            <el-tag size="small" type="danger" v-if="rateLimitData.recent418 > 0">封禁 418×{{ rateLimitData.recent418 }}</el-tag>
-            <span v-if="!rateLimitData.recent429 && !rateLimitData.recent418" class="api-normal"><span class="refresh-dot" />无限流错误</span>
           </div>
         </div>
         <div class="request-pools">
@@ -305,10 +307,13 @@ onUnmounted(() => {
 }
 .api-headline { justify-content: space-between; }
 .weight-value { font-size: 28px; line-height: 1.15; font-weight: 600; }
-/* 返回权重与本地估算采用对齐的标签和数值，避免说明挤在主数值旁。 */
-.weight-metric { gap: 24px; }
-.weight-stat { display: flex; flex-direction: column; gap: 4px; }
-.weight-estimate, .order-metric { padding-left: 24px; border-left: 1px solid var(--stat-card-border); }
+/* 三列共享标题、数值和辅助信息的行高，避免峰值令下单次数和分隔线错位。 */
+.weight-metric { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0; width: 100%; }
+.weight-stat { min-width: 0; display: flex; flex-direction: column; align-self: stretch; gap: 6px; padding: 2px 16px; }
+.weight-stat:first-child { padding-left: 0; }
+.weight-peak { font-size: 11px; line-height: 1.5; color: var(--text-secondary); }
+.weight-estimate, .order-metric { border-left: 1px solid var(--stat-card-border); }
+.api-errors { margin-left: auto; font-weight: 400; }
 .estimate-value { font-size: 28px; line-height: 1.15; font-weight: 500; color: var(--text-regular); }
 .api-normal {
   display: inline-flex;
@@ -492,5 +497,8 @@ onUnmounted(() => {
   .overview-grid .info-item:nth-child(3) { border-left: 0; }
   .stats-table th, .stats-table td { padding: 7px 4px; }
   .request-pool { padding: 2px 8px; }
+  .weight-stat { padding: 2px 10px; }
+  .weight-value, .estimate-value { font-size: 24px; }
+  .section-title { flex-wrap: wrap; }
 }
 </style>
