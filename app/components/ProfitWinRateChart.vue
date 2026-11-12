@@ -125,6 +125,7 @@ import { CanvasRenderer } from 'echarts/renderers'
 import { graphic, init, use, type ECharts } from 'echarts/core'
 import { useStrategiesStore } from '../stores/strategies'
 import { useTheme } from '../composables/useTheme'
+import { useGlobalPolling } from '../composables/useGlobalPolling'
 import { getChartTooltipTheme } from '../utils/chart-tooltip-theme'
 
 use([LineChart, GridComponent, TooltipComponent, CanvasRenderer])
@@ -237,6 +238,11 @@ const loadData = async ({ fallbackToYesterday = false } = {}) => {
 const refreshData = async () => {
   await loadData()
 }
+
+// 沿用全局每分钟刷新节拍和当前筛选；已有请求进行时跳过，避免慢请求被轮询反复抢占。
+useGlobalPolling(() => {
+  if (!loading.value) return loadData()
+})
 
 /** 按当前指标重绘最新筛选结果，切换指标时重置坐标范围和曲线配置。 */
 const renderChart = () => {
