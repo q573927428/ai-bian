@@ -40,7 +40,7 @@
             </template>
           </el-input>
           <span v-if="mode === 'stable' && updatedAt" class="data-updated-at">
-            数据更新于 {{ new Date(updatedAt).toLocaleString('zh-CN') }}
+            更新 {{ new Date(updatedAt).toLocaleString('zh-CN') }}
             <span v-if="loading && showingCachedResult"> · 正在更新…</span>
           </span>
         </div>
