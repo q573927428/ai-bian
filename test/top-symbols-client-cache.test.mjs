@@ -31,13 +31,60 @@ function component(fetcher, state = vue.ref({}), props = {}, storage = new Map()
       throw new Error(`Unexpected import: ${id}`)
     },
   }
-  const expose = '\nglobalThis.api = { mode, data, loading, updatedAt, showingCachedResult, fetchData, stopProgressPolling, handleRowClick, detailSymbol, locateSymbol, currentPage, search, tableViewportHeight, rowPadding, pageSize, tableRef, viewMode, heatmapItems, selectHeatmapSymbol, assetType, toggleFavorite, isFavoriteSymbol, sortedData, pagedData, overviewRows, overviewScope, localCurves, curvePaths, handleModeChange, heatmapFocusRequest, priceFilter, marketBreadth };'
+  const expose = '\nglobalThis.api = { mode, data, loading, updatedAt, showingCachedResult, fetchData, stopProgressPolling, handleRowClick, detailSymbol, locateSymbol, currentPage, search, tableViewportHeight, rowPadding, pageSize, tableRef, viewMode, heatmapItems, selectHeatmapSymbol, assetType, toggleFavorite, isFavoriteSymbol, sortedData, pagedData, overviewRows, overviewScope, localCurves, curvePaths, handleModeChange, heatmapFocusRequest, priceFilter, marketBreadth, handleSortChange, sortProp, sortOrder, defaultSort, tableKey };'
   vm.runInNewContext(ts.transpile(source + expose, { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS }), context)
   mounted.forEach(callback => callback())
   return context.api
 }
 
 const result = { success: true, mode: 'stable', updatedAt: 12345, data: [{ symbol: 'BTCUSDT', volume: 100 }] }
+
+test('切换排序列不重建表格，箭头同步升降序、取消排序和刷新后的默认排序', async () => {
+  const rows = [
+    { symbol: 'AUSDT', volume: 100, price: 1 },
+    { symbol: 'BUSDT', volume: 200, price: 3 },
+    { symbol: 'CUSDT', volume: 300, price: 2 },
+  ]
+  const api = component(async () => ({ success: true, data: rows }))
+  const headers = []
+  // 模拟 Element Plus 的 sort 方法回发事件，验证同步不会形成响应式循环。
+  const table = {
+    sort(prop, order) {
+      headers.push([prop, order])
+      api.handleSortChange({ prop, order })
+    },
+    clearSort() { headers.push([null, null]) },
+    clearSelection() {},
+  }
+  api.data.value = rows
+  api.tableRef.value = table
+  const key = api.tableKey.value
+  try {
+    for (const [order, expected] of [
+      ['ascending', ['AUSDT', 'CUSDT', 'BUSDT']],
+      ['descending', ['BUSDT', 'CUSDT', 'AUSDT']],
+      [null, ['AUSDT', 'BUSDT', 'CUSDT']],
+    ]) {
+      api.handleSortChange({ prop: 'price', order })
+      await vue.nextTick()
+      assert.equal(api.tableKey.value, key)
+      assert.deepEqual(Array.from(api.sortedData.value, row => row.symbol), expected)
+      assert.deepEqual(headers.at(-1), order ? ['price', order] : [null, null])
+    }
+    api.handleSortChange({ prop: 'price', order: 'ascending' })
+    await vue.nextTick()
+    api.tableRef.value = undefined
+    await vue.nextTick()
+    assert.equal(api.defaultSort.value.prop, 'price')
+    assert.equal(api.defaultSort.value.order, 'ascending')
+    api.tableRef.value = table
+    await vue.nextTick()
+    await api.fetchData()
+    await vue.nextTick()
+    assert.deepEqual(headers.at(-1), ['volume', 'descending'])
+    assert.deepEqual(Array.from(api.sortedData.value, row => row.symbol), ['CUSDT', 'BUSDT', 'AUSDT'])
+  } finally { api.stopProgressPolling() }
+})
 
 test('24h涨跌筛选同步表格及热力图，保留市场统计且异动定位可清除涨跌条件', async () => {
   const rows = [
@@ -353,6 +400,8 @@ test('跨页和同页定位均显式高亮并滚动，重复点击仍能重新�
     const viewport = { scrollTop: 100, clientHeight: 200, getBoundingClientRect: () => ({ top: 100 }), scrollTo: options => scrolls.push(options.top) }
     const rows = Array.from({ length: 50 }, (_, index) => ({ getBoundingClientRect: () => ({ top: 100 + index * 30 - viewport.scrollTop, height: 30 }) }))
     api.tableRef.value = {
+      sort() {},
+      clearSort() {},
       setCurrentRow: row => highlighted.push(row.symbol),
       $el: { querySelector: () => viewport, querySelectorAll: () => rows },
     }

@@ -75,8 +75,8 @@
           <span class="numeric-filter-label">置信度排序</span>
           <el-select :model-value="confidenceSort" size="small" placeholder="当前按列排序" aria-label="交易对置信度排序" @change="handleConfidenceSortChange">
             <el-option label="默认排序" value="default" />
-            <el-option label="多头置信度 ↓" value="longConfidence" />
-            <el-option label="空头置信度 ↓" value="shortConfidence" />
+            <el-option :label="`多头置信度 ${confidenceSort === 'longConfidence' && sortOrder === 'ascending' ? '↑' : '↓'}`" value="longConfidence" />
+            <el-option :label="`空头置信度 ${confidenceSort === 'shortConfidence' && sortOrder === 'ascending' ? '↑' : '↓'}`" value="shortConfidence" />
           </el-select>
         </div>
         <div class="numeric-filter-item">
@@ -147,7 +147,20 @@
     <!-- 已有数据时保留表格供浏览，整轮刷新仅由头部按钮反馈；无数据时才显示加载遮罩。 -->
     <el-table ref="tableRef" v-loading="loading && !rows.length" class="indicators-table" :height="autoHeight ? undefined : '100%'" :data="filteredRows" row-key="symbol" :current-row-key="selectedSymbol" :row-class-name="selectedRowClass" :highlight-current-row="embedded" :empty-text="rows.length ? '当前筛选下暂无交易对' : '暂无已配置交易对或指标数据'" stripe size="small" style="width: 100%" @sort-change="handleSortChange" @row-click="handleRowClick">
       <el-table-column label="" type="index" align="center" header-align="center" width="35" fixed="left" />
-      <el-table-column prop="symbol" label="交易对" fixed min-width="110">
+      <el-table-column prop="symbol" label="名称" fixed min-width="110">
+        <template #header>
+          <!-- 标签循环切换排序，上下箭头可直接选择方向，与筛选面板共用状态。 -->
+          <span class="confidence-sort-header">
+            名称
+            <span v-for="option in confidenceSortOptions" :key="option.value" class="confidence-sort-control">
+              <button type="button" class="confidence-sort-button" :class="{ 'is-active': confidenceSort === option.value }" :aria-pressed="confidenceSort === option.value" :title="`${option.label}置信度：降序 → 升序 → 默认`" @click.stop="toggleConfidenceSort(option.value)">{{ option.label }}</button>
+              <span class="confidence-sort-arrows">
+                <button type="button" class="confidence-sort-arrow ascending" :class="{ 'is-active': confidenceSort === option.value && sortOrder === 'ascending' }" :aria-label="`${option.label}置信度升序`" :title="`${option.label}置信度升序`" @click.stop="handleConfidenceSortChange(option.value, 'ascending')"></button>
+                <button type="button" class="confidence-sort-arrow descending" :class="{ 'is-active': confidenceSort === option.value && sortOrder === 'descending' }" :aria-label="`${option.label}置信度降序`" :title="`${option.label}置信度降序`" @click.stop="handleConfidenceSortChange(option.value, 'descending')"></button>
+              </span>
+            </span>
+          </span>
+        </template>
         <template #default="{ row }">
           <button type="button" class="symbol-cell symbol-link" :title="`查看 ${row.symbol} ${timeframe} 图表`" @click.stop="selectChart(row.symbol)">
             <img
@@ -692,6 +705,10 @@ async function refreshStructure() {
 }
 type SortOrder = 'ascending' | 'descending' | null
 type ConfidenceSort = 'default' | 'longConfidence' | 'shortConfidence'
+const confidenceSortOptions = [
+  { value: 'longConfidence', label: '多' },
+  { value: 'shortConfidence', label: '空' },
+] as const
 type SortProp = 'rsi' | 'er' | 'macdHistogram' | 'atrPercent' | 'oiChangePercent' | 'volumeRatio' | 'netInflowPercent' | 'cumulativeNetInflow' | 'longConfidence' | 'shortConfidence' | null
 const tableRef = ref<TableInstance>()
 const sortProp = ref<SortProp>(null)
@@ -825,10 +842,17 @@ function signalClass(signal: SignalTone) {
 }
 
 /** 选择评分排序时清除列头箭头，默认选项恢复接口返回的交易对顺序。 */
-function handleConfidenceSortChange(value: ConfidenceSort) {
+function handleConfidenceSortChange(value: ConfidenceSort, order: Exclude<SortOrder, null> = 'descending') {
   tableRef.value?.clearSort()
   sortProp.value = value === 'default' ? null : value
-  sortOrder.value = value === 'default' ? null : 'descending'
+  sortOrder.value = value === 'default' ? null : order
+}
+
+/** 标签按降序、升序、默认循环；切换多空时优先展示高置信度交易对。 */
+function toggleConfidenceSort(value: Exclude<ConfidenceSort, 'default'>) {
+  if (sortProp.value !== value || !sortOrder.value) handleConfidenceSortChange(value)
+  else if (sortOrder.value === 'descending') handleConfidenceSortChange(value, 'ascending')
+  else handleConfidenceSortChange('default')
 }
 
 /** 接收 Element Plus 的自定义排序事件，并在当前已加载数据上即时排序。 */
@@ -1268,6 +1292,17 @@ onUnmounted(() => {
 .current-candle { width: 24px; height: 48px; flex: 0 0 24px; }
 .candle-unavailable { width: 24px; flex: 0 0 24px; text-align: center; }
 /* 与趋势背景左边缘对齐，将综合评分收在交易对信息末行。 */
+.confidence-sort-header { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+.confidence-sort-button { padding: 2px 0; border: 0; background: transparent; color: var(--el-text-color-secondary); font: inherit; font-size: 11px; cursor: pointer; }
+.confidence-sort-button.is-active, .confidence-sort-button:hover { color: var(--el-color-primary); }
+.confidence-sort-button:focus-visible { outline: 2px solid var(--el-color-primary); outline-offset: 2px; }
+.confidence-sort-control { display: inline-flex; align-items: center; gap: 2px; }
+.confidence-sort-arrows { display: inline-flex; flex-direction: column; gap: 2px; }
+.confidence-sort-arrow { width: 10px; height: 7px; padding: 0; border: 0; background: var(--el-text-color-placeholder); cursor: pointer; }
+.confidence-sort-arrow.ascending { clip-path: polygon(50% 0, 0 100%, 100% 100%); }
+.confidence-sort-arrow.descending { clip-path: polygon(0 0, 100% 0, 50% 100%); }
+.confidence-sort-arrow.is-active, .confidence-sort-arrow:hover { background: var(--el-color-primary); }
+.confidence-sort-arrow:focus-visible { background: var(--el-color-primary); }
 .symbol-confidence { border: 0; background: transparent; color: inherit; font: inherit; cursor: pointer; }
 .symbol-confidence { display: flex; align-items: center; gap: 5px; margin-top: 6px; padding-left: 25px; line-height: 1.5; white-space: nowrap; font-variant-numeric: tabular-nums; }
 /* 背离提示与上方多空评分共用缩进，保持交易对列的信息层级。 */

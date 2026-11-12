@@ -589,7 +589,7 @@ const heatmapFocusRequest = ref<{ symbol: string; id: number }>()
 const message = ref('')
 const updatedAt = ref<number | null>(null)
 const sortProp = ref('volume')
-const sortOrder = ref<'ascending' | 'descending'>('descending')
+const sortOrder = ref<'ascending' | 'descending' | null>('descending')
 const windowWidth = ref(typeof window !== 'undefined' ? window.innerWidth : 1200)
 const tableRef = ref()
 const tableViewportHeight = ref(0)
@@ -714,14 +714,19 @@ const dialogTitle = computed(() =>
     : mode.value === 'stable' ? '🔥 热门交易对 Top' + filterParams.value.top : '全部交易对'
 )
 
-const defaultSort = computed<{ prop: string; order: 'ascending' | 'descending' }>(() =>
-  mode.value === 'stable'
-    ? { prop: 'avgDailyVolume', order: 'descending' }
-    : { prop: 'volume', order: 'descending' }
-)
+// default-sort 仅在表格挂载时生效；从热力图返回时也应恢复当前排序。
+const defaultSort = computed(() => sortOrder.value
+  ? { prop: sortProp.value, order: sortOrder.value }
+  : undefined)
 
-// 表格 key：模式切换时强制重渲染以重置默认排序
-const tableKey = computed(() => `${mode.value}-${sortProp.value}-${sortOrder.value}`)
+// 仅切换榜单时重建；排序时重建会丢失表头箭头和勾选状态。
+const tableKey = computed(() => mode.value)
+
+// 刷新、缓存回填等程序更新也要同步表头，避免数据顺序与箭头各自保留旧状态。
+watch([tableRef, sortProp, sortOrder], ([table, prop, order]) => {
+  if (order) table?.sort(prop, order)
+  else table?.clearSort()
+}, { flush: 'post' })
 
 const handleModeChange = () => {
   // 新榜单从全景开始，不能把上一榜单的搜索或异动定位带入重新挂载的热力图。
@@ -732,7 +737,7 @@ const handleModeChange = () => {
   message.value = ''
   updatedAt.value = null
   showFilterParams.value = false
-  sortProp.value = 'volume'
+  sortProp.value = mode.value === 'stable' ? 'avgDailyVolume' : 'volume'
   sortOrder.value = 'descending'
   return fetchData()
 }
@@ -775,6 +780,8 @@ const sortedData = computed(() => {
     matchesPriceFilter(row) &&
     (!keyword || normalizeSymbol(row.symbol).includes(keyword))
   )
+  // 第三次点击取消排序时，恢复源数据顺序，与无高亮箭头的表头一致。
+  if (!sortOrder.value) return arr
   arr.sort((a, b) => {
     let aVal = a[sortProp.value as keyof TopSymbol] as number
     let bVal = b[sortProp.value as keyof TopSymbol] as number
@@ -942,11 +949,10 @@ watch(() => sortedData.value.length, (count) => {
   currentPage.value = Math.min(currentPage.value, Math.max(1, Math.ceil(count / pageSize.value)))
 })
 
+/** 接收表头排序（含取消排序），保持分页前的数据排序与表头一致。 */
 const handleSortChange = (sortData: { prop: string | null; order: 'ascending' | 'descending' | null }) => {
-  if (sortData.prop && sortData.order) {
-    sortProp.value = sortData.prop
-    sortOrder.value = sortData.order
-  }
+  if (sortData.prop) sortProp.value = sortData.prop
+  sortOrder.value = sortData.order
 }
 
 // 记录加载失败的图标（true=加载失败，显示占位符）

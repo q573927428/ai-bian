@@ -1,7 +1,7 @@
 // ==================== 历史订单服务端筛选排序与汇总 ====================
 import type { TradeHistory } from "../../types"
 type SortField = keyof TradeHistory | 'holdingMinutes' | 'oiChangePercent' | 'estimatedVolumeEmaRatioPercent'
-const SORT_FIELDS: SortField[] = ['openTime', 'closeTime', 'holdingMinutes', 'entryPrice', 'exitPrice', 'pnl', 'pnlPercentage', 'quantity', 'leverage', 'oiChangePercent', 'estimatedVolumeEmaRatioPercent']
+const SORT_FIELDS: SortField[] = ['openTime', 'closeTime', 'holdingMinutes', 'entryPrice', 'exitPrice', 'pnl', 'pnlPercentage', 'quantity', 'leverage', 'entryScore', 'entryConfidence', 'oiChangePercent', 'estimatedVolumeEmaRatioPercent']
 
 /** 按真实时间差计算分钟数；缺失或异常时间不能作为零时长参与筛选和排序。 */
 function getHoldingMinutes(order: TradeHistory): number | undefined {
@@ -14,6 +14,13 @@ function getHoldingMinutes(order: TradeHistory): number | undefined {
  * 获取历史订单字段对应的可排序值，统一处理持仓时间和嵌套入场指标。
  */
 function getSortValue(order: TradeHistory, field: SortField): number | string | undefined {
+  // 与表格及区间筛选采用同一评分口径；缺失或无效值置底，真实零分保留。
+  if (field === 'entryScore' || field === 'entryConfidence') {
+    const value = field === 'entryScore'
+      ? order.entryScoreBreakdown?.finalScore ?? order.entryScore
+      : order.entryConfidence
+    return typeof value === 'number' && Number.isFinite(value) ? value : undefined
+  }
   if (field === 'holdingMinutes') {
     return getHoldingMinutes(order)
   }

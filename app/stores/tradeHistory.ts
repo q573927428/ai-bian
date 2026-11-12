@@ -78,6 +78,8 @@ export const SORT_FIELDS: { key: SortConfig['field']; label: string }[] = [
   { key: 'pnlPercentage', label: '盈亏%' },
   { key: 'quantity', label: '数量' },
   { key: 'leverage', label: '杠杆' },
+  { key: 'entryScore', label: '评分' },
+  { key: 'entryConfidence', label: '置信度' },
   { key: 'oiChangePercent', label: 'OI' },
   { key: 'estimatedVolumeEmaRatioPercent', label: '预量比' },
 ]

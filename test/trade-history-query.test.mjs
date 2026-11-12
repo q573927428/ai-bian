@@ -196,6 +196,29 @@ test('网格汇总按全量筛选结果计算平均盈亏和盈亏比，保本�
   assert.equal(empty.summary.payoffRatio, null)
 })
 
+test('评分和置信度按展示值在分页前排序，兼容旧评分、零值和缺失数据', () => {
+  const trades = [
+    { ...records[0], id: 'final', entryScore: 99, entryScoreBreakdown: { finalScore: 40.5 }, entryConfidence: 90 },
+    { ...records[0], id: 'legacy', entryScore: 60, entryScoreBreakdown: undefined, entryConfidence: 50.5 },
+    { ...records[0], id: 'zero', entryScore: 80, entryScoreBreakdown: { finalScore: 0 }, entryConfidence: 0 },
+    { ...records[0], id: 'missing', entryScore: undefined, entryScoreBreakdown: undefined },
+    { ...records[0], id: 'null', entryScore: null, entryScoreBreakdown: undefined, entryConfidence: null },
+    { ...records[0], id: 'invalid', entryScore: NaN, entryScoreBreakdown: undefined, entryConfidence: NaN },
+  ]
+  for (const [sortField, asc, desc] of [
+    ['entryScore', ['zero', 'final', 'legacy'], ['legacy', 'final', 'zero']],
+    ['entryConfidence', ['zero', 'legacy', 'final'], ['final', 'legacy', 'zero']],
+  ]) {
+    for (const [sortDirection, expected] of [['asc', asc], ['desc', desc]]) {
+      const query = { sortField, sortDirection }
+      assert.deepEqual(queryTradeHistory(trades, query).data.map(row => row.id), [...expected, 'missing', 'null', 'invalid'])
+      const page = queryTradeHistory(trades, { ...query, page: 2, pageSize: 1 })
+      assert.equal(page.data[0].id, expected[1])
+      assert.equal(page.pagination.total, trades.length)
+    }
+  }
+})
+
 test('缺失排序值双向置底，空结果汇总为零，越界分页回落到最后一页', () => {
   for (const sortDirection of ['asc', 'desc']) {
     const result = queryTradeHistory(records.slice(0, 4), { sortField: 'oiChangePercent', sortDirection })
