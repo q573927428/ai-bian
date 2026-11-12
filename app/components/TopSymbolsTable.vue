@@ -175,7 +175,7 @@
         :key="tableKey"
         :empty-text="mode === 'favorites' ? '暂无符合条件的收藏，点击交易对前的星标添加收藏' : '暂无数据'"
       >
-        <el-table-column label="" width="50" align="center" fixed="left">
+        <el-table-column label="" width="40" align="center" fixed="left">
           <template #default="{ row }">
             <button
               type="button"
@@ -194,7 +194,7 @@
         <el-table-column
           prop="symbol"
           label="交易对"
-          min-width="230"
+          min-width="138"
         >
           <template #default="{ row }">
             <div class="symbol-cell">
@@ -249,7 +249,7 @@
             </template>
           </el-table-column>
 
-          <el-table-column
+          <!-- <el-table-column
             prop="volumeCv"
             label="稳定性CV"
             sortable="custom"
@@ -271,7 +271,7 @@
             <template #default="{ row }">
               {{ row.minMaxRatio !== undefined ? (row.minMaxRatio * 100).toFixed(0) + '%' : '--' }}
             </template>
-          </el-table-column>
+          </el-table-column> -->
 
           <el-table-column
             prop="activeDays"
