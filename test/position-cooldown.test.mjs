@@ -11,6 +11,7 @@ import ts from 'typescript'
 
 const require = createRequire(import.meta.url)
 const hour = 60 * 60 * 1000
+const cooldownMs = 120 * 60 * 1000
 
 /** 执行真实源码；以临时目录隔离磁盘状态，以固定时钟验证冷却边界。 */
 function loadModule(path, dependencies, globals) {
@@ -48,7 +49,7 @@ async function fixture() {
   return { directory, clock, storage, manager, PositionManager }
 }
 
-test('完整平仓释放仓位与锁，但一小时内所有策略禁止开仓，到期自动恢复', async () => {
+test('完整平仓释放仓位与锁，但 120 分钟内所有策略禁止开仓，到期自动恢复', async () => {
   const f = await fixture()
   try {
     const symbol = 'BTC/USDT'
@@ -60,12 +61,14 @@ test('完整平仓释放仓位与锁，但一小时内所有策略禁止开仓�
     assert.equal(f.manager.hasPosition(symbol), false)
     assert.equal(f.manager.getLockHolder(symbol), undefined)
     assert.equal(f.manager.getStrategyPositionCount('a'), 0)
-    assert.equal(f.manager.getCooldownRemainingMs(symbol), hour)
+    assert.equal(f.manager.getCooldownRemainingMs(symbol), cooldownMs)
     for (const strategy of ['a', 'b']) assert.equal(await f.manager.canOpenPosition(symbol, strategy), false)
     assert.equal(await f.manager.canOpenPosition('ETH/USDT', 'a'), true)
     assert.equal(f.manager.getCooldownRemainingMs(symbol, 'other-account'), 0)
-    assert.equal(f.manager.getCooldownRemainingMs('BTC/USDT:USDT'), hour)
-    assert.throws(() => f.manager.assertNotCoolingDown(symbol), /冷却.*60 分钟/)
+    assert.equal(f.manager.getCooldownRemainingMs('BTC/USDT:USDT'), cooldownMs)
+    assert.throws(() => f.manager.assertNotCoolingDown(symbol), /冷却.*120 分钟/)
+    f.clock.now += hour
+    assert.equal(await f.manager.hasConflict(symbol, 'b'), true)
     f.clock.now += hour - 1
     assert.equal(await f.manager.hasConflict(symbol, 'b'), true)
     f.clock.now++
@@ -85,12 +88,12 @@ test('冷却持久化后重启恢复，清空持仓文件不清除冷却，过�
     f.clock.now += 10 * 60000
     const restarted = new f.PositionManager()
     await restarted.init()
-    assert.equal(restarted.getCooldownRemainingMs('BTC/USDT'), 50 * 60000)
+    assert.equal(restarted.getCooldownRemainingMs('BTC/USDT'), 110 * 60000)
     // 重复清理空仓和开仓失败解锁都不能重置冷却时间。
     await restarted.clearPosition('BTC/USDT')
     restarted.unlockSymbol('BTC/USDT')
-    assert.equal(restarted.getCooldownRemainingMs('BTC/USDT'), 50 * 60000)
-    f.clock.now += 50 * 60000
+    assert.equal(restarted.getCooldownRemainingMs('BTC/USDT'), 110 * 60000)
+    f.clock.now += 110 * 60000
     const expired = new f.PositionManager()
     await expired.init()
     assert.equal(await expired.canOpenPosition('BTC/USDT', 'a'), true)
@@ -124,7 +127,7 @@ test('保存冷却失败时保留仓位和锁，内存门禁仍生效', async ()
     await assert.rejects(f.manager.clearPosition(symbol), /磁盘写入失败/)
     assert.equal(f.manager.hasPosition(symbol), true)
     assert.equal(f.manager.getLockHolder(symbol), 'a')
-    assert.equal(f.manager.getCooldownRemainingMs(symbol), hour)
+    assert.equal(f.manager.getCooldownRemainingMs(symbol), cooldownMs)
   } finally {
     await rm(f.directory, { recursive: true, force: true })
   }

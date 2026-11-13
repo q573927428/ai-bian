@@ -13,7 +13,7 @@ import {
 } from '../../utils/storage'
 
 const DEFAULT_ACCOUNT_ID = 'default'
-// 同账户、同交易对的所有策略和方向共享一小时冷却。
+// 同账户、同交易对的所有策略和方向共享 120 分钟冷却。
 const CLOSE_COOLDOWN_MS = 120 * 60 * 1000
 
 /**

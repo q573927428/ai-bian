@@ -568,7 +568,7 @@ ScoreBreakdown = {
 | `data/bot-config.json` | Bot 全局配置 | 配置修改时 |
 | `data/bot-state.json` | Bot 运行状态 | 状态变化时 |
 | `data/active-positions.json` | 活跃持仓列表 | 开仓/平仓时 |
-| `data/symbol-locks.json` | 交易对状态：字符串为持仓锁策略 ID，数字为平仓后一小时冷却截止时间（毫秒），重启继续生效 | 锁定/释放及平仓时 |
+| `data/symbol-locks.json` | 交易对状态：字符串为持仓锁策略 ID，数字为平仓后 120 分钟冷却截止时间（毫秒），重启继续生效 | 锁定/释放及平仓时 |
 | `data/strategies/*.json` | 策略 + 版本历史 | 策略 CRUD 时 |
 | `data/trade-history-analysis.json` | 交易分析数据 | 平仓时 |
 | `data/square-heat-history.json` | 社交媒体热度 | 定期更新 |
