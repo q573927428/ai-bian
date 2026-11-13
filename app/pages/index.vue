@@ -328,7 +328,7 @@ onMounted(async () => {
 @media (min-width: 992px) {
   .main {
     /* 底部行情与快讯统一为截图红框高度，剩余内容在面板内滚动。 */
-    --home-bottom-panel-height: 260px;
+    --home-bottom-panel-height: 250px;
     min-height: 0;
     overflow: hidden;
   }
