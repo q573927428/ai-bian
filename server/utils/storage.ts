@@ -134,9 +134,9 @@ export async function loadActivePositions(): Promise<PositionInfo[]> {
 }
 
 /**
- * 保存交易对锁
+ * 保存交易对状态：字符串为持仓锁的策略 ID，数字为平仓冷却截止时间。
  */
-export async function saveSymbolLocks(locks: Record<string, string>): Promise<void> {
+export async function saveSymbolLocks(locks: Record<string, string | number>): Promise<void> {
   try {
     await ensureDataDir()
     await safeWriteFile(SYMBOL_LOCKS_FILE, JSON.stringify(locks, null, 2))
@@ -147,9 +147,9 @@ export async function saveSymbolLocks(locks: Record<string, string>): Promise<vo
 }
 
 /**
- * 加载交易对锁
+ * 加载交易对状态，兼容旧版仅包含字符串锁的文件。
  */
-export async function loadSymbolLocks(): Promise<Record<string, string>> {
+export async function loadSymbolLocks(): Promise<Record<string, string | number>> {
   try {
     if (!existsSync(SYMBOL_LOCKS_FILE)) {
       return {}
@@ -168,7 +168,11 @@ export async function loadSymbolLocks(): Promise<Record<string, string>> {
 export async function clearActiveState(): Promise<void> {
   try {
     await saveActivePositions([])
-    await saveSymbolLocks({})
+    // 清空持仓时保留未到期冷却，避免全平操作绕过开仓保护。
+    const state = await loadSymbolLocks()
+    await saveSymbolLocks(Object.fromEntries(Object.entries(state).filter(([, value]) =>
+      typeof value === 'number' && value > Date.now()
+    )))
   } catch (error: any) {
     console.error('清除活跃状态失败:', error.message)
   }

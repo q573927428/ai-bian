@@ -88,10 +88,15 @@ function createFixture(now = Date.now()) {
     async waitForOrderExecutionSummary() { return null }
   })
   const positionManager = {
-    async hasConflict() { return false },
+    assertNotCoolingDown() {
+      if (hooks.cooldown) throw new Error('BTCUSDT 平仓冷却中，禁止开仓')
+    },
+    async startCloseCooldown() { hooks.cooldown = true },
+    async hasConflict() { return hooks.cooldown === true },
     lockSymbol(symbol) { calls.locked.push(symbol) },
     unlockSymbol(symbol) { calls.unlocked.push(symbol) },
     recordPosition(symbol, position) { positions.set(symbol, position) },
+    updatePosition(symbol, patch) { if (positions.has(symbol)) Object.assign(positions.get(symbol), patch) },
     getPosition(symbol) { return positions.get(symbol) },
     clearPosition(symbol) { positions.delete(symbol) }
   }
@@ -200,6 +205,35 @@ test('不需要全局运行字段即可正常开仓，各策略通过自身实�
   assert.equal(f.positions.size, 1)
   assert.equal(f.instance.totalTrades, 1)
   assert.deepEqual(f.calls.released, [])
+})
+
+test('冷却同时阻止自动信号和手动多空开仓，且不消耗每日开仓名额', async () => {
+  const f = createFixture()
+  f.hooks.cooldown = true
+  for (const direction of ['long', 'short']) {
+    await assert.rejects(f.engine.executeSignal(f.instance, { ...f.signal, direction }, new Map()), /平仓冷却/)
+    await assert.rejects(f.engine.forceOpenPosition(f.instance.strategy.id, f.signal.symbol, direction), /平仓冷却/)
+  }
+  assert.equal(f.calls.reserved, 0)
+  assert.equal(f.calls.orders.length, 0)
+})
+
+test('交易所队列等待期间进入冷却，发送前拦截并释放开仓名额和锁', async () => {
+  const f = createFixture()
+  f.hooks.beforeDispatch = () => { f.hooks.cooldown = true }
+  await assert.rejects(f.engine.executeSignal(f.instance, f.signal, new Map()), /平仓冷却/)
+  assert.equal(f.calls.orders.length, 0)
+  assert.deepEqual(f.calls.released, ['reservation'])
+  assert.deepEqual(f.calls.unlocked, [f.signal.symbol])
+})
+
+test('冷却中的交易对在扫描阶段跳过，不构建行情快照或请求 AI', async () => {
+  const f = createFixture()
+  f.hooks.cooldown = true
+  f.engine.analyzeSymbol = async () => assert.fail('冷却时不应分析交易对')
+  await f.engine.globalStrategyLoop()
+  assert.equal(f.calls.snapshots, 0)
+  assert.equal(f.calls.reserved, 0)
 })
 
 test('开仓资金基数最多 120 USDT，较低余额按实际值计算，两个仓位约束均受限', async () => {

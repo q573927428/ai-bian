@@ -221,10 +221,11 @@ export class StrategyEngine {
     }
   }
 
-  /** 开仓入口与实际提交订单前均须检查，防止异步等待期间触及每日亏损上限后继续开仓。 */
-  private assertOpeningAllowed(strategyId: StrategyId, maxDailyLoss: unknown): void {
+  /** 开仓入口与实际提交前共用风控及冷却检查，防止异步等待期间门禁变化。 */
+  private assertOpeningAllowed(strategyId: StrategyId, maxDailyLoss: unknown, symbol: string): void {
     const status = this.getDailyLossStatus(strategyId, maxDailyLoss)
     if (status.dailyLossLimitReached) throw new Error(`策略熔断，禁止开仓：${status.reason}`)
+    this.positionManager.assertNotCoolingDown(symbol)
   }
 
   setIndicatorPrecomputeService(service: IndicatorPrecomputeService | null): void {
@@ -854,7 +855,7 @@ export class StrategyEngine {
 
     // 1. 检查是否已有仓位（同交易对互斥）
     if (await this.positionManager.hasConflict(symbol, strategy.id)) {
-      logger.info('🔍扫描结果', ` ${symbol}，已有仓位`)
+      logger.info('🔍扫描结果', ` ${symbol}，已有仓位、被锁定或处于平仓冷却期`)
       return
     }
 
@@ -894,7 +895,7 @@ export class StrategyEngine {
 
     // 8. 再次检查仓位冲突（防止并发问题）
     if (await this.positionManager.hasConflict(symbol, strategy.id)) {
-      logger.info('🔍扫描结果', ` ${symbol} 已有仓位 [策略 ${strategy.id}] 信号被忽略 `)
+      logger.info('🔍扫描结果', ` ${symbol} 已有仓位、被锁定或处于平仓冷却期 [策略 ${strategy.id}] 信号被忽略 `)
       return
     }
 
@@ -1391,7 +1392,7 @@ export class StrategyEngine {
       const strategy = instance.strategy
 
       // 自动信号和手动强制开仓共用门禁，熔断时不预占每日次数或锁定交易对。
-      this.assertOpeningAllowed(strategy.id, strategy.riskManagement.maxDailyLoss)
+      this.assertOpeningAllowed(strategy.id, strategy.riskManagement.maxDailyLoss, signal.symbol)
 
       logger.info('开仓信号', `执行信号: ${signal.symbol} ${signal.direction} (${signal.reasoning})`)
 
@@ -1413,7 +1414,7 @@ export class StrategyEngine {
 
       // 1. 获取账户余额
       const account = await this.binance.fetchBalance()
-      this.assertOpeningAllowed(strategy.id, strategy.riskManagement.maxDailyLoss)
+      this.assertOpeningAllowed(strategy.id, strategy.riskManagement.maxDailyLoss, signal.symbol)
       logger.info('账户', `余额: ${account.availableBalance} USDT`)
 
       // 余额检查
@@ -1565,13 +1566,13 @@ export class StrategyEngine {
         logger.info('交易决策归档', `${signal.symbol} [${strategy.id}] analysisId=${entryAnalysisId}`)
       }
       const side = getOrderSide(signal.direction.toUpperCase() as 'LONG' | 'SHORT', true)
-      this.assertOpeningAllowed(strategy.id, strategy.riskManagement.maxDailyLoss)
+      this.assertOpeningAllowed(strategy.id, strategy.riskManagement.maxDailyLoss, signal.symbol)
       const order = await this.binance.marketOrder(
         signal.symbol,
         side,
         quantity,
         // 交易所限流队列可能继续等待，真正发送前必须再次通过门禁。
-        () => this.assertOpeningAllowed(strategy.id, strategy.riskManagement.maxDailyLoss)
+        () => this.assertOpeningAllowed(strategy.id, strategy.riskManagement.maxDailyLoss, signal.symbol)
       )
       openedOrder = order
       // 订单已被交易所接受，先记录下单数量；即使后续查询持仓超时，也要尝试保护性平仓。
@@ -1798,6 +1799,7 @@ export class StrategyEngine {
         try {
           const closeSide = getOrderSide(signal.direction.toUpperCase() as 'LONG' | 'SHORT', false)
           const closeOrder = await this.binance.marketOrder(signal.symbol, closeSide, openedQuantity)
+          await this.positionManager.startCloseCooldown(signal.symbol)
           logger.warn('开仓保护', `止损设置失败，已执行反向平仓: ${signal.symbol}`, {
             entryOrderId: openedOrder.orderId,
             closeOrderId: closeOrder.orderId,
@@ -1873,7 +1875,7 @@ export class StrategyEngine {
       throw new Error(`策略未运行: ${strategyId}`)
     }
 
-    this.assertOpeningAllowed(strategyId, instance.strategy.riskManagement.maxDailyLoss)
+    this.assertOpeningAllowed(strategyId, instance.strategy.riskManagement.maxDailyLoss, symbol)
 
     logger.info('手动开仓', `手动触发分析: ${symbol}`)
 
@@ -1900,7 +1902,7 @@ export class StrategyEngine {
       throw new Error(`策略未运行: ${strategyId}`)
     }
 
-    this.assertOpeningAllowed(strategyId, instance.strategy.riskManagement.maxDailyLoss)
+    this.assertOpeningAllowed(strategyId, instance.strategy.riskManagement.maxDailyLoss, symbol)
 
     logger.info('强制开仓', `手动开仓: ${symbol} ${direction} [策略: ${strategyId}]`)
 

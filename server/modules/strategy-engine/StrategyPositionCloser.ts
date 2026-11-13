@@ -248,7 +248,7 @@ export class StrategyPositionCloser {
       await saveBotState(this.state)
 
       // 10. 清除仓位记录
-      this.positionManager.clearPosition(symbol)
+      await this.positionManager.clearPosition(symbol)
 
       logger.success('平仓', `平仓完成: ${symbol}, 原因: ${reason}`)
     } catch (error: any) {
@@ -485,7 +485,7 @@ export class StrategyPositionCloser {
       await this.updateRiskStateAfterClose(position.strategyId, netPnl, settlement.closeTime ?? closeTime)
 
       // 清除仓位记录
-      this.positionManager.clearPosition(position.symbol)
+      await this.positionManager.clearPosition(position.symbol)
 
       await saveBotState(this.state)
 
@@ -583,7 +583,7 @@ export class StrategyPositionCloser {
       } catch (error: any) {
         logger.error('持仓一致性检查', '处理平仓流程失败', error.message)
         // 即使处理失败，也要清空本地状态
-        this.positionManager.clearPosition(symbol)
+        await this.positionManager.clearPosition(symbol)
       }
   
       return false 
@@ -704,7 +704,7 @@ export class StrategyPositionCloser {
       await this.updateRiskStateAfterClose(position.strategyId, netPnl, settlement.closeTime ?? closeTime)
 
       // 清除仓位记录
-      this.positionManager.clearPosition(position.symbol)
+      await this.positionManager.clearPosition(position.symbol)
 
       await saveBotState(this.state)
 

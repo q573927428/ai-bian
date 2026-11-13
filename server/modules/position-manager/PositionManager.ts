@@ -13,6 +13,8 @@ import {
 } from '../../utils/storage'
 
 const DEFAULT_ACCOUNT_ID = 'default'
+// 同账户、同交易对的所有策略和方向共享一小时冷却。
+const CLOSE_COOLDOWN_MS = 60 * 60 * 1000
 
 /**
  * 仓位信息
@@ -91,6 +93,9 @@ export class PositionManager {
   // 策略锁映射: accountId:symbol -> strategyId (哪个策略锁定了该交易对)
   private symbolLocks: Map<string, StrategyId> = new Map()
 
+  // 冷却与持仓锁分离，平仓释放锁后仍阻止新开仓。
+  private symbolCooldowns: Map<string, number> = new Map()
+
   // 策略的仓位列表: strategyId -> Set<symbol>
   private strategyPositions: Map<StrategyId, Set<string>> = new Map()
 
@@ -115,6 +120,39 @@ export class PositionManager {
   /** 统一 CCXT 永续合约符号，避免 SYMBOL/USDT 与 SYMBOL/USDT:USDT 无法匹配。 */
   private normalizeSymbol(symbol: string): string {
     return String(symbol || '').split(':')[0] || ''
+  }
+
+  /** 查询剩余冷却毫秒数；到期按需删除，无需额外定时器。 */
+  getCooldownRemainingMs(symbol: string, accountId = DEFAULT_ACCOUNT_ID): number {
+    const key = this.getPositionKey(this.normalizeSymbol(symbol), accountId)
+    const until = this.symbolCooldowns.get(key)
+    if (until === undefined) return 0
+    const remaining = Math.max(0, until - Date.now())
+    if (remaining === 0) this.symbolCooldowns.delete(key)
+    return remaining
+  }
+
+  /** 下单前同步检查，确保交易所限流队列等待期间发生的平仓也会生效。 */
+  assertNotCoolingDown(symbol: string, accountId = DEFAULT_ACCOUNT_ID): void {
+    const remaining = this.getCooldownRemainingMs(symbol, accountId)
+    if (remaining > 0) {
+      throw new Error(`${symbol} 平仓冷却中，剩余 ${Math.ceil(remaining / 60000)} 分钟，禁止开仓`)
+    }
+  }
+
+  /** 确认平仓后立即在内存设门禁，并在释放持仓前保存，避免重启绕过冷却。 */
+  async startCloseCooldown(symbol: string, accountId = DEFAULT_ACCOUNT_ID): Promise<void> {
+    const key = this.getPositionKey(this.normalizeSymbol(symbol), accountId)
+    this.symbolCooldowns.set(key, Date.now() + CLOSE_COOLDOWN_MS)
+    await this.persistSymbolState()
+  }
+
+  /** 复用原有锁文件；冷却时间优先写入，同键持仓仍由活跃仓位文件恢复。 */
+  private async persistSymbolState(): Promise<void> {
+    for (const [key, until] of this.symbolCooldowns) {
+      if (until <= Date.now()) this.symbolCooldowns.delete(key)
+    }
+    await saveSymbolLocks({ ...Object.fromEntries(this.symbolLocks), ...Object.fromEntries(this.symbolCooldowns) })
   }
 
   private normalizeLockKey(key: string): string {
@@ -174,12 +212,7 @@ export class PositionManager {
         const positions = this.getActivePositions()
         await saveActivePositions(positions)
 
-        // 保存交易对锁
-        const locks: Record<string, string> = {}
-        for (const [key, strategyId] of this.symbolLocks.entries()) {
-          locks[key] = strategyId
-        }
-        await saveSymbolLocks(locks)
+        await this.persistSymbolState()
       } catch (error: any) {
         logger.error('PositionManager', '持久化状态失败:', error.message)
       }
@@ -220,6 +253,11 @@ export class PositionManager {
       const persistedLocks = await loadSymbolLocks()
       for (const [rawKey, strategyId] of Object.entries(persistedLocks)) {
         const key = this.normalizeLockKey(rawKey)
+        // 数字记录是冷却截止时间，不计入持仓锁和策略仓位统计。
+        if (typeof strategyId === 'number') {
+          if (Number.isFinite(strategyId) && strategyId > Date.now()) this.symbolCooldowns.set(key, strategyId)
+          continue
+        }
         if (!this.symbolLocks.has(key)) {
           this.symbolLocks.set(key, strategyId)
           if (!this.strategyPositions.has(strategyId)) {
@@ -273,6 +311,7 @@ export class PositionManager {
    * 检查交易对是否可开仓
    */
   async canOpenPosition(symbol: string, strategyId: StrategyId): Promise<boolean> {
+    if (this.getCooldownRemainingMs(symbol) > 0) return false
     const key = this.getPositionKey(symbol)
     // 1. 检查是否有其他策略已锁定该交易对
     const lockHolder = this.symbolLocks.get(key)
@@ -375,10 +414,13 @@ export class PositionManager {
   /**
    * 清除仓位记录
    */
-  clearPosition(symbol: string): void {
+  async clearPosition(symbol: string): Promise<void> {
     const defaultKey = this.getPositionKey(symbol)
     const positionInfo = this.positions.get(defaultKey) || Array.from(this.positions.values()).find(pos => pos.symbol === symbol)
     const key = positionInfo ? this.getPositionKey(symbol, positionInfo.accountId) : defaultKey
+
+    // 只有实际仓位被清除才开始冷却；重复清理和单纯释放开仓锁不延长冷却。
+    if (positionInfo) await this.startCloseCooldown(symbol, positionInfo.accountId)
 
     // 先释放锁
     this.unlockSymbol(symbol, positionInfo?.accountId || DEFAULT_ACCOUNT_ID)
