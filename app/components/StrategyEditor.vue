@@ -325,13 +325,13 @@
                 </el-form-item>
               </el-col>
             </el-row>
-            <el-form-item label="思考模式">
+            <!-- <el-form-item label="思考模式">
               <el-switch
                 v-model="form.aiPrompt.thinkingEnabled"
                 active-text="开启"
                 inactive-text="关闭"
               />
-            </el-form-item>
+            </el-form-item> -->
             <!-- OpenAI 兼容自定义配置 -->
             <template v-if="form.aiPrompt.provider === 'openai'">
               <el-divider content-position="left">OpenAI 兼容自定义配置</el-divider>
@@ -342,7 +342,7 @@
                 <el-input v-model="form.aiPrompt.apiKey" type="password" show-password placeholder="sk-..." />
               </el-form-item>
             </template>
-            <el-row :gutter="12">
+            <!-- <el-row :gutter="12">
               <el-col :xs="24" :span="12">
                 <el-form-item label="温度">
                   <el-slider v-model="form.aiPrompt.temperature" :min="0" :max="1" :step="0.1" />
@@ -353,7 +353,7 @@
                   <el-input-number v-model="form.aiPrompt.maxTokens" :min="500" :max="4000" :step="500" style="width: 100%" />
                 </el-form-item>
               </el-col>
-            </el-row>
+            </el-row> -->
           </el-card>
 
           <!-- 规则 DSL（简易编辑） -->
@@ -395,19 +395,19 @@
               </el-col>
               <el-col :xs="24" :span="12">
                 <el-form-item label="止损ATR倍">
-                  <el-input-number v-model="form.riskManagement.stopLossATRMultiplier" :min="1" :max="5" :step="0.1" /> <small class="unitf">R</small>
+                  <el-input-number v-model="form.riskManagement.stopLossATRMultiplier" :min="0.2" :max="5" :step="0.1" /> <small class="unitf">R</small>
                 </el-form-item>
               </el-col>
             </el-row>
             <el-row :gutter="12">
               <el-col :xs="24" :span="12">
                 <el-form-item label="TP1止盈">
-                  <el-input-number v-model="form.riskManagement.takeProfitRatios[0]" :min="1" :max="10" :step="0.1" /> <small class="unitf">R</small>
+                  <el-input-number v-model="form.riskManagement.takeProfitRatios[0]" :min="0.2" :max="10" :step="0.1" /> <small class="unitf">R</small>
                 </el-form-item>
               </el-col>
               <el-col :xs="24" :span="12">
                 <el-form-item label="TP2止盈">
-                  <el-input-number v-model="form.riskManagement.takeProfitRatios[1]" :min="1" :max="10" :step="0.1" /> <small class="unitf">R</small>
+                  <el-input-number v-model="form.riskManagement.takeProfitRatios[1]" :min="0.2" :max="10" :step="0.1" /> <small class="unitf">R</small>
                 </el-form-item>
               </el-col>
             </el-row>
