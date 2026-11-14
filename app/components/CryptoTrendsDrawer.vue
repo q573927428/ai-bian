@@ -59,7 +59,7 @@ const loading = ref(false)
 const error = ref('')
 const days = ref(90)
 // 只改变图表容器尺寸，保留已加载数据与当前周期；图表自身通过 ResizeObserver 适配。
-const layout = ref<'compact' | 'comfortable'>('comfortable')
+const layout = ref<'compact' | 'comfortable'>('compact')
 const refreshVersion = ref(0)
 let controller: AbortController | undefined
 let requestVersion = 0
@@ -220,7 +220,7 @@ onUnmounted(() => { controller?.abort() })
 /* 四列三行均分可用空间；低矮窗口允许滚动，保留图表的可读高度。 */
 .trends-grid { display: grid; flex: 1; min-height: 552px; grid-template-columns: repeat(4, minmax(0, 1fr)); grid-template-rows: repeat(3, minmax(180px, 1fr)); gap: 6px; }
 /* 舒适模式让每行保持可读高度，由外层滚动；紧凑模式沿用三行均分。 */
-.trends-grid--comfortable { flex: none; min-height: 0; grid-template-rows: none; grid-auto-rows: clamp(300px, 34vh, 380px); }
+.trends-grid--comfortable { flex: none; min-height: 0; grid-template-columns: repeat(3, minmax(0, 1fr)); grid-template-rows: none; grid-auto-rows: clamp(380px, 42vh, 460px); }
 .trend-panel { display: flex; flex-direction: column; min-width: 0; min-height: 0; border: 1px solid var(--el-border-color); border-radius: 6px; background: var(--bg-card); overflow: hidden; }
 header { display: flex; flex: 0 0 auto; flex-wrap: wrap; align-items: baseline; gap: 4px 6px; padding: 5px 8px 2px; color: var(--text-primary); font-size: 12px; }
 header strong { flex-shrink: 0; cursor: help; }
@@ -249,7 +249,7 @@ small { color: var(--text-secondary); font-size: 10px; }
 @media(max-width: 1100px) {
   .trends-content, :global(.crypto-trends-drawer .el-drawer__body) { overflow-y: auto; }
   .trends-grid { flex: none; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: none; grid-auto-rows: 280px; }
-  .trends-grid--comfortable { grid-auto-rows: clamp(300px, 34vh, 380px); }
+  .trends-grid--comfortable { grid-auto-rows: clamp(380px, 42vh, 460px); }
 }
 @media(max-width: 680px) { .trends-grid { grid-template-columns: minmax(0, 1fr); } .toolbar-actions { flex-wrap: wrap; } }
 </style>
