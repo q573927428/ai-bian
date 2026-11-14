@@ -107,3 +107,9 @@ export async function getBinanceExchangeInfo(): Promise<BinanceExchangeInfo> {
   if (Date.now() < retryAfter) throw new Error('合约元数据暂不可用，请稍后重试')
   return refreshExchangeInfo()
 }
+
+/** 趋势统计只读取已有元数据；缺失时留空，不因访问历史页触发下载。 */
+export async function getCachedBinanceExchangeInfo(): Promise<BinanceExchangeInfo | null> {
+  await (loadPromise ??= loadPersistedCache())
+  return cached?.data ?? null
+}

@@ -2,10 +2,10 @@
 <template>
   <section class="ratio-panel" v-loading="loading">
     <header>
-      <strong :title="`同一时刻的合约收盘价相除，上涨表示分子更强；本周期未结束时使用盘中价格。滚轮缩放，放大后拖动平移；底部滑块选择范围。\n${lastTime ? `末点周期起始 ${formatTime(lastTime)}` : '暂无数据'}`">币种相对强弱</strong>
+      <strong :title="`同一时刻的合约收盘价相除，上涨表示分子更强；当前盘中快照按北京时间显示，原周期起点保留。滚轮缩放，放大后拖动平移；底部滑块选择范围。\n${lastTime ? `末点时间 ${formatBeijingDateTime(lastTime * 1000)} 北京时间` : '暂无数据'}`">币种相对强弱</strong>
       <div class="ratio-summary">
         <span>{{ coin(numerator) }} / {{ coin(denominator) }} <strong>{{ lastRatio }}</strong></span>
-        <small>{{ unfinished ? '本根未收盘' : '已收盘' }}{{ stale ? ' · 行情较旧' : '' }}</small>
+        <small>{{ unfinished ? '盘中' : '已收盘' }}{{ stale ? ' · 行情较旧' : '' }}</small>
         <small v-if="points.length" class="history-range">{{ historyRange }} · {{ points.length }}点</small>
       </div>
     </header>
@@ -30,8 +30,10 @@ import { computed, onMounted, onBeforeUnmount, ref, watch } from 'vue'
 import * as echarts from 'echarts'
 import type { KLineTimeframe } from '../../types/kline-simple'
 import type { RatioPoint } from '../utils/relative-market-calculations'
+import { ratioDisplayPoints } from '../utils/relative-market-calculations'
 import { useTheme } from '../composables/useTheme'
 import { getChartTooltipTheme } from '../utils/chart-tooltip-theme'
+import { BEIJING_TIME_ZONE, beijingDayStart, formatBeijingDateTime } from '../utils/beijing-time'
 
 const props = defineProps<{ refreshVersion: number; days: number }>()
 const periods: { value: KLineTimeframe; label: string; seconds: number }[] = [
@@ -46,11 +48,12 @@ const symbols = computed(() => [...new Set([...available.value, numerator.value,
 const element = ref<HTMLDivElement>()
 const loading = ref(false), error = ref('')
 const sourcePoints = ref<RatioPoint[]>([])
-// 与其余趋势图采用相同的 UTC 自然日窗口；采样周期独立，切换全局范围不重复请求行情。
+const displayNow = ref(Date.now() / 1000)
+// 与顶部范围一致，按北京时间自然日筛选；不依赖浏览器所在时区。
 const points = computed(() => {
-  const end = Date.parse(new Date().toISOString().slice(0, 10)) / 1000
+  const end = beijingDayStart(displayNow.value * 1000) / 1000
   const start = end - (props.days - 1) * 86400
-  return sourcePoints.value.filter(point => point.t >= start && point.t < end + 86400)
+  return ratioDisplayPoints(sourcePoints.value, step.value, displayNow.value).filter(point => point.t >= start && point.t < end + 86400)
 })
 const displayError = computed(() => error.value || (!loading.value && sourcePoints.value.length && !points.value.length ? '所选时间范围内暂无共同行情' : ''))
 const { theme } = useTheme()
@@ -60,16 +63,17 @@ let controller: AbortController | undefined
 const optionsController = new AbortController()
 let version = 0, disposed = false
 const coin = (symbol: string) => symbol.replace(/USDT$/, '')
-const formatTime = (time: number) => new Date(time * 1000).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false })
+const formatTime = (time: number) => new Date(time * 1000).toLocaleString('zh-CN', { timeZone: BEIJING_TIME_ZONE, month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
 const historyRange = computed(() => {
-  const date = (time: number) => new Date(time * 1000).toLocaleDateString('zh-CN')
+  const date = (time: number) => new Date(time * 1000).toLocaleDateString('zh-CN', { timeZone: BEIJING_TIME_ZONE })
   return points.value.length ? `${date(points.value[0]!.t)} — ${date(points.value.at(-1)!.t)}` : ''
 })
 const lastTime = computed(() => points.value.at(-1)?.t)
 const lastRatio = computed(() => points.value.at(-1)?.value.toPrecision(7) ?? '—')
 const step = computed(() => periods.find(entry => entry.value === timeframe.value)!.seconds)
-const unfinished = computed(() => lastTime.value !== undefined && lastTime.value + step.value > Date.now() / 1000)
-const stale = computed(() => lastTime.value !== undefined && Date.now() / 1000 - lastTime.value - step.value > 2 * step.value)
+const lastPeriodStart = computed(() => points.value.at(-1)?.periodStart ?? lastTime.value)
+const unfinished = computed(() => lastPeriodStart.value !== undefined && lastPeriodStart.value + step.value > displayNow.value)
+const stale = computed(() => lastPeriodStart.value !== undefined && displayNow.value - lastPeriodStart.value - step.value > 2 * step.value)
 
 /** 交换整个比较方向，Vue 同轮更新合并为一次行情加载。 */
 function swap() { [numerator.value, denominator.value] = [denominator.value, numerator.value] }
@@ -79,9 +83,13 @@ function render() {
   if (!chart || !element.value) return
   if (!points.value.length) { chart.clear(); return }
   const bars = points.value
-  const end = bars.at(-1)!.t
-  const start = Math.max(bars[0]!.t, end - 494 * step.value)
-  const times = Array.from({ length: Math.floor((end - start) / step.value) + 1 }, (_, i) => start + i * step.value)
+  const regular = bars.filter(bar => bar.periodStart === undefined)
+  const preview = bars.find(bar => bar.periodStart !== undefined)
+  const end = regular.at(-1)?.t ?? 0
+  const start = Math.max(regular[0]?.t ?? 0, end - 494 * step.value)
+  const times = regular.length ? Array.from({ length: Math.floor((end - start) / step.value) + 1 }, (_, i) => start + i * step.value) : []
+  // 盘中快照不是整根周期，必须单独加入末尾，不能被等步长日历网格丢弃。
+  if (preview) times.push(preview.t)
   const lookup = new Map(bars.map(bar => [bar.t, bar]))
   // 自动刷新和主题切换保留用户选择的区间；切换币种或周期清图后才恢复完整历史。
   const zoom = (chart.getOption()?.dataZoom as { start?: number; end?: number }[] | undefined)?.[0]
@@ -95,7 +103,7 @@ function render() {
         const entry = Array.isArray(params) ? params[0] : params
         const time = times[entry?.dataIndex]
         const bar = time === undefined ? undefined : lookup.get(time)
-        return bar ? `${new Date(bar.t * 1000).getFullYear()}/${formatTime(bar.t)}<br>比值 ${bar.value.toPrecision(7)}${bar.t + step.value > Date.now() / 1000 ? '（本周期未结束）' : ''}` : '该时刻缺少共同行情'
+        return bar ? `${formatBeijingDateTime(bar.t * 1000)} 北京时间<br>比值 ${bar.value.toPrecision(7)}${(bar.periodStart ?? bar.t) + step.value > displayNow.value ? '（盘中）' : ''}` : '该时刻缺少共同行情'
       } },
     xAxis: { type: 'category', data: times.map(formatTime), axisLabel: { color: text, fontSize: 9, hideOverlap: true }, axisLine: { lineStyle: { color: text, opacity: .25 } } },
     yAxis: { type: 'value', position: 'right', scale: true, splitNumber: 3, axisLabel: { color: text, fontSize: 9, formatter: (value: number) => Number(value.toPrecision(5)).toString() }, splitLine: { lineStyle: { color: text, opacity: .12 } } },
@@ -114,6 +122,7 @@ function render() {
 /** 只读取本站行情；切换选择即取消旧请求，避免慢响应覆盖新组合。 */
 async function load() {
   const request = ++version
+  displayNow.value = Date.now() / 1000
   controller?.abort()
   error.value = ''
   if (numerator.value === denominator.value) { loading.value = false; error.value = '请选择不同的两个币种'; sourcePoints.value = []; render(); return }
@@ -124,6 +133,7 @@ async function load() {
       query: { left: numerator.value, right: denominator.value, timeframe: timeframe.value }, signal: controller.signal, timeout: 15000, retry: 0,
     })
     if (disposed || request !== version) return
+    displayNow.value = Date.now() / 1000
     sourcePoints.value = response.points
     if (!sourcePoints.value.length) error.value = '所选币种在此周期没有共同行情，请更换币种或周期'
     render()

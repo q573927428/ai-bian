@@ -1,8 +1,23 @@
 // ==================== 趋势看板派生指标计算 ====================
 import type { TrendPoint } from '../../types/crypto-trends'
+import { beijingDate } from './beijing-time.ts'
+
+/**
+ * 北京时间凌晨为仍在更新的币安日线追加今日盘中快照，保留原柱及全部历史。
+ * 只投影仍在交易的前一日柱；外部日频指标须显式标记为沿用最近披露值。
+ * 此函数仅用于显示，不参与收益、波动率、均线或累计流量的计算。
+ */
+export function trendDisplayPoints(points: TrendPoint[], now = Date.now(), latestDisclosure = false): TrendPoint[] {
+  const last = points.at(-1)
+  const today = beijingDate(now)
+  if (!last || last.date >= today) return points
+  if (latestDisclosure) return [...points, { date: today, value: last.value, disclosedDate: last.date }]
+  const yesterday = new Date(Date.parse(today) - 86400000).toISOString().slice(0, 10)
+  return last.provisional && last.date === yesterday ? [...points, { date: today, value: last.value, provisional: true }] : points
+}
 
 /** 在可视区间内取共同有效日期作为零点，避免不同起点造成 BTC / ETH 强弱误判。 */
-export function relativePriceChanges(btc: TrendPoint[], eth: TrendPoint[], days: number, end = new Date().toISOString().slice(0, 10)): [TrendPoint[], TrendPoint[]] {
+export function relativePriceChanges(btc: TrendPoint[], eth: TrendPoint[], days: number, end = beijingDate()): [TrendPoint[], TrendPoint[]] {
   const start = Date.parse(end) - (days - 1) * 86400000
   const valid = (rows: TrendPoint[]) => rows.filter(p => Date.parse(p.date) >= start && p.date <= end && Number.isFinite(p.value) && p.value > 0).sort((a, b) => a.date.localeCompare(b.date))
   const left = valid(btc), right = valid(eth)
@@ -12,7 +27,7 @@ export function relativePriceChanges(btc: TrendPoint[], eth: TrendPoint[], days:
   // 基准日必须双方都有实际价格；缺失日继续留空，不以前值填补。
   const changes = (rows: TrendPoint[]) => {
     const initial = rows.find(p => p.date === base)!.value
-    return rows.filter(p => p.date >= base).map(p => ({ date: p.date, value: (p.value / initial - 1) * 100 }))
+    return rows.filter(p => p.date >= base).map(p => ({ ...p, value: (p.value / initial - 1) * 100 }))
   }
   return [changes(left), changes(right)]
 }

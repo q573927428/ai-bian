@@ -372,6 +372,15 @@ export function getSimpleStoredSymbols(): Array<{
   }))
 }
 
+/** 市场广度批量读取日线收盘价；限定时间范围，避免逐币查询和全库传输。 */
+export function getDailyBreadthRows(from: number, to: number): Array<{ symbol: string; t: number; c: number }> {
+  return queryAll<{ symbol: string; t: number; c: number }>(
+    `SELECT symbol, timestamp AS t, close AS c FROM kline_data
+     WHERE timeframe = '1d' AND timestamp >= ? AND timestamp <= ? ORDER BY symbol, timestamp`,
+    [from, to],
+  )
+}
+
 /**
  * 获取指定交易对/周期的 K线数量
  */

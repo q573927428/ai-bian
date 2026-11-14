@@ -1,9 +1,20 @@
 // ==================== 同期价格比值与实现波动率计算 ====================
 import type { SimpleKLineData } from '../../types/kline-simple'
 import type { TrendPoint } from '../../types/crypto-trends'
+import { beijingDate } from './beijing-time.ts'
 
-/** 同期收盘价格比值；t为周期起始秒数，未结束周期的value使用本地盘中收盘价。 */
-export interface RatioPoint { t: number; value: number }
+/** 同期收盘价比值；t为周期起始秒数，盘中展示快照的t为当前时刻，periodStart保留原周期起点。 */
+export interface RatioPoint { t: number; value: number; periodStart?: number }
+
+/**
+ * 未结束的日周线跨北京时间零点后，追加当前时刻的盘中快照供展示。
+ * 保留原周期起点，历史值不改写；已结束或未来的行情不能投影为实时行情。
+ */
+export function ratioDisplayPoints(points: RatioPoint[], periodSeconds: number, now = Date.now() / 1000): RatioPoint[] {
+  const last = points.at(-1)
+  if (!last || last.t > now || last.t + periodSeconds <= now || beijingDate(last.t * 1000) >= beijingDate(now * 1000)) return points
+  return [...points, { t: Math.floor(now), value: last.value, periodStart: last.t }]
+}
 
 /** 仅比较时间完全一致的有效收盘价；缺失点不插值，零分母和未来行情不参与。 */
 export function ratioClosingPrices(left: SimpleKLineData[], right: SimpleKLineData[], now = Date.now() / 1000): RatioPoint[] {
@@ -28,12 +39,12 @@ export function realizedVolatility(bars: SimpleKLineData[], now = Date.now() / 1
     const returns = window.slice(1).map((row, i) => Math.log(row.c / window[i]!.c))
     const mean = returns.reduce((sum, value) => sum + value, 0) / windowDays
     const variance = returns.reduce((sum, value) => sum + (value - mean) ** 2, 0) / (windowDays - 1)
-    return [{ date: new Date(bar.t * 1000).toISOString().slice(0, 10), value: Math.sqrt(variance * 365) * 100, provisional: bar.t + 86400 > now }]
+    return [{ date: beijingDate(bar.t * 1000), value: Math.sqrt(variance * 365) * 100, provisional: bar.t + 86400 > now }]
   })
 }
 
 /** 真实计价资产成交额；当天为累计值，缺失字段不补零，也不用成交量乘收盘价代替。 */
 export function dailyQuoteVolumes(bars: SimpleKLineData[], now = Date.now() / 1000): TrendPoint[] {
   return bars.filter(row => row.t <= now && typeof row.q === 'number' && Number.isFinite(row.q) && row.q >= 0)
-    .map(row => ({ date: new Date(row.t * 1000).toISOString().slice(0, 10), value: row.q!, provisional: row.t + 86400 > now }))
+    .map(row => ({ date: beijingDate(row.t * 1000), value: row.q!, provisional: row.t + 86400 > now }))
 }

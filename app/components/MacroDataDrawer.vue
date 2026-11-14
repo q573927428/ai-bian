@@ -2,7 +2,7 @@
 <template>
   <component :is="embedded ? 'section' : ElDrawer" v-model="visible" :class="embedded ? 'macro-content' : 'macro-drawer'" title="宏观数据" direction="rtl" size="90%" destroy-on-close>
     <div class="macro-toolbar" :inert="!marketsInitialized">
-      <span class="overview-title">全球流动性+市场风险偏好总览</span>
+      <span class="overview-title">全球流动性+市场风险偏好总览 · 北京时间</span>
       <div class="macro-toolbar-actions">
       <el-select v-model="marketToAdd" class="add-market-selector" size="small" filterable placeholder="添加图表" :disabled="markets.length >= 12" :loading="loadingMarkets" aria-label="添加图表" @visible-change="open => { if (open) loadLocalMarkets() }" @change="addMarket">
         <el-option v-for="option in addableMarkets" :key="option.id" :value="option.id" :label="`${option.name} · ${option.symbol}`" />
@@ -379,7 +379,7 @@ function setGlobalPeriod(period: Period) {
 function chartUrl(symbol: string, period: Period): string {
   const params = new URLSearchParams({
     symbol, interval: { '15m': '15', '1h': '60', '4h': '240', '1d': 'D', '1w': 'W' }[period], theme: theme.value, style: '1', locale: 'zh_CN',
-    timezone: 'Etc/UTC', hidesidetoolbar: '1', hide_legend: '1',
+    timezone: 'Asia/Shanghai', hidesidetoolbar: '1', hide_legend: '1',
     symboledit: '0', saveimage: '0', toolbarbg: theme.value === 'dark' ? '#111111' : '#ffffff',
   })
   return `https://s.tradingview.com/widgetembed/?${params.toString()}`

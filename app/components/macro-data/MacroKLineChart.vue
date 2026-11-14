@@ -25,6 +25,8 @@ import { useTheme } from '../../composables/useTheme'
 import { useGlobalPolling } from '../../composables/useGlobalPolling'
 import { maxCloseDrawdown, formatMacroDuration } from '../../utils/macro-performance'
 import { resolveMacroComparison } from '../../utils/macro-comparison'
+import { macroDisplayTime } from '../../utils/macro-time'
+import { formatBeijingDateTime } from '../../utils/beijing-time'
 
 const { theme } = useTheme()
 // Canvas 不会继承 CSS 主题变量，主题切换时仅更新配色，不重建图表或重置视区。
@@ -46,6 +48,7 @@ const props = defineProps<{ market: MacroMarket; period: MacroPeriod }>()
 const emit = defineEmits<{ 'pinned-summary': [summary: MacroPinnedSummary] }>()
 const DEFAULT_VISIBLE_BARS = 366
 const RIGHT_OFFSET_BARS = 22
+const displayNow = ref(Date.now())
 // 仅格式化显示，保留原始时间戳，避免影响跨市场光标匹配及交易日期归属。
 const beijingClock = new Intl.DateTimeFormat('zh-CN', { timeZone: 'Asia/Shanghai', hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' })
 const beijingCrosshairTime = new Intl.DateTimeFormat('zh-CN', { timeZone: 'Asia/Shanghai', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
@@ -62,6 +65,23 @@ function chartTimeDate(time: Time): Date {
   if (typeof time === 'number') return new Date(time * 1000)
   if (typeof time === 'string') return new Date(`${time}T00:00:00Z`)
   return new Date(Date.UTC(time.year, time.month - 1, time.day))
+}
+
+/** 横轴与光标使用同一显示规则，盘中标签不能再把周期起点当成当前日期。 */
+function displayTimeDate(time: Time): Date {
+  const date = chartTimeDate(time)
+  return new Date(macroDisplayTime(date.getTime() / 1000, latestBar.value?.time, periodSeconds(), props.market.source, displayNow.value) * 1000)
+}
+
+/** 每次读取后重新绑定格式化函数，清理图表库缓存的旧末柱刻度文字。 */
+function chartTimeOptions() {
+  return {
+    localization: { locale: 'zh-CN', timeFormatter: (time: Time) => {
+      const original = chartTimeDate(time), display = displayTimeDate(time)
+      return `${formatBeijingDateTime(display.getTime())} 北京时间${display.getTime() !== original.getTime() ? ' · 盘中' : ''}`
+    } },
+    timeScale: { tickMarkFormatter: (time: Time, type: TickMarkType) => beijingTicks[type].format(displayTimeDate(time)) },
+  }
 }
 const container = ref<HTMLDivElement>()
 const loading = ref(false)
@@ -307,6 +327,8 @@ async function load() {
     dataVersion.value++
     const last = result.data[result.data.length - 1]
     latestBar.value = last ? { time: last.t as UTCTimestamp, close: last.c } : null
+    displayNow.value = Date.now()
+    chart?.applyOptions(chartTimeOptions())
     // 定时刷新后更新比较基准，已移出缓存的光标数据不再继续显示。
     if (selectedBar.value) selectedBar.value = crosshairBars.get(crosshairTimeKey(selectedBar.value.time, props.period, props.market.id)) ?? null
     // 更新数据前保存日期窗口，新增 K 线或历史扩充时也不会挤走用户观察位置。
@@ -358,11 +380,11 @@ onMounted(() => {
   chart = createChart(container.value, {
     autoSize: true,
     ...chartThemeOptions.value,
-    localization: { locale: 'zh-CN', timeFormatter: (time: Time) => `${beijingCrosshairTime.format(chartTimeDate(time))} 北京时间` },
+    localization: chartTimeOptions().localization,
     timeScale: {
       ...chartThemeOptions.value.timeScale,
       timeVisible: true, secondsVisible: false, rightOffset: RIGHT_OFFSET_BARS,
-      tickMarkFormatter: (time: Time, type: TickMarkType) => beijingTicks[type].format(chartTimeDate(time)),
+      tickMarkFormatter: chartTimeOptions().timeScale.tickMarkFormatter,
     },
   })
   series = chart.addSeries(CandlestickSeries, {

@@ -1,7 +1,8 @@
 // ==================== 市场概览定时同步与缓存 ====================
 import type { MarketOverview } from '../../types/market-overview'
 import { fetchMarketData, MARKET_AMOUNT_KEYS } from './market-data'
-import { markTrendStale, persistTrendHistories } from './crypto-trends'
+import { markTrendStale, persistTrendHistories, replaceTrendHistory } from './crypto-trends'
+import { parseFearGreed, parseOptionSkew } from './crypto-sentiment'
 
 export const MARKET_REFRESH_MS = 60 * 60_000
 const cache: MarketOverview = {
@@ -77,17 +78,37 @@ export function refreshMarketOverview(): Promise<void> {
     }),
     (async () => {
       try {
-        const data = await readJson('https://api.alternative.me/fng/?limit=1')
-        const row = data?.data?.[0]
-        const score = Number(row?.value)
-        const timestamp = Number(row?.timestamp)
-        if (!row || !Number.isInteger(score) || score < 0 || score > 100 || !Number.isFinite(timestamp) || timestamp <= 0) throw new Error('恐慌贪婪数据格式异常')
+        const data = await readJson('https://api.alternative.me/fng/?limit=400')
+        const history = parseFearGreed(data)
+        const latest = history.at(-1)!
+        const score = latest.value
+        const timestamp = Date.parse(latest.date) / 1000
+        replaceTrendHistory('fearGreed', history, ['Alternative.me'])
         cache.fearGreed = { value: { score, timestamp }, updatedAt: new Date().toISOString(), stale: false }
       } catch (error) {
         cache.fearGreed.stale = true
+        markTrendStale('fearGreed')
         console.warn('[MarketOverview] Alternative.me 同步失败:', error instanceof Error ? error.message : error)
       }
     })(),
+    ...(['btc', 'eth'] as const).map(async asset => {
+      const tenors = [7, 30, 90] as const
+      try {
+        // 同一资产的三个期限共享一份公开历史，页面刷新不触发上游请求。
+        const data = await readJson(`https://data.tbstat.com/dashboard/markets_options_${asset}twentyfivedeltaoptionskew_daily_other.json`)
+        for (const tenor of tenors) {
+          try {
+            replaceTrendHistory(`${asset}Skew${tenor}`, parseOptionSkew(data, asset, tenor), [`${tenor} Day Exp`])
+          } catch (error) {
+            markTrendStale(`${asset}Skew${tenor}`)
+            console.warn(`[CryptoTrends] ${asset} ${tenor}日期权偏斜同步失败:`, error)
+          }
+        }
+      } catch (error) {
+        for (const tenor of tenors) markTrendStale(`${asset}Skew${tenor}`)
+        console.warn(`[CryptoTrends] ${asset} 期权偏斜同步失败:`, error)
+      }
+    }),
     (async () => {
       try {
         const data = await readJson('https://api.coingecko.com/api/v3/global')
