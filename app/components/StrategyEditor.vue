@@ -477,8 +477,15 @@
             <el-form-item label="扫描间隔">
               <el-input-number v-model="form.executionConfig.scanInterval" :min="5" :max="120" :step="5" /> <small class="unitf">分钟</small>
             </el-form-item>
-            <el-form-item label="杠杆">
-              <el-select v-model="form.executionConfig.leverage" style="width: 100%">
+            <el-form-item label="杠杆" :error="leverageError">
+              <el-select
+                v-model="leverageInput"
+                filterable
+                allow-create
+                default-first-option
+                placeholder="选择或输入杠杆倍数"
+                style="width: 100%"
+              >
                 <el-option label="动态" value="dynamic" />
                 <el-option label="2" :value="2" />
                 <el-option label="3" :value="3" />
@@ -487,6 +494,7 @@
                 <el-option label="20" :value="20" />
                 <el-option label="50" :value="50" />
               </el-select>
+              <div class="form-tip">支持输入 1–125 的整数，按回车确认；实际杠杆受交易对上限限制。</div>
             </el-form-item>
             <el-row :gutter="12" v-if="form.executionConfig.leverage === 'dynamic'">
               <el-col :xs="24" :span="12">
@@ -776,6 +784,29 @@ const form = ref<CreateStrategyInput>({
   maxRiskLevel: 'MEDIUM'
 })
 
+const leverageError = ref('')
+
+// 自建选项返回字符串，必须转为数字，交易引擎才能识别为固定杠杆。
+const leverageInput = computed<number | string>({
+  get: () => form.value.executionConfig.leverage,
+  set: (value) => {
+    if (value === 'dynamic') {
+      leverageError.value = ''
+      form.value.executionConfig.leverage = 'dynamic'
+      return
+    }
+
+    const leverage = Number(value)
+    if (!Number.isInteger(leverage) || leverage < 1 || leverage > 125) {
+      leverageError.value = '请输入 1–125 之间的整数杠杆倍数'
+      return
+    }
+
+    leverageError.value = ''
+    form.value.executionConfig.leverage = leverage
+  }
+})
+
 /**
  * 根据策略最小周期计算 OI 最大回看周期数，确保总窗口不超过 24 小时。
  */
@@ -930,6 +961,7 @@ watch([selectedStatistics, () => form.value.marketData.timeframes, () => oiParam
 
 // 如果有编辑的策略，加载数据
 watch(() => props.strategy, (newVal) => {
+  leverageError.value = ''
   if (newVal) {
     Object.assign(form.value, {
       name: newVal.name,
@@ -1017,6 +1049,9 @@ watch(() => props.strategy, (newVal) => {
 
 // 保存
 const handleSave = async () => {
+  // 无效输入需重新选择或输入，避免误以为已按自定义倍数保存。
+  if (leverageError.value) return
+
   try {
     saving.value = true
     structuredRulesDslError.value = ''
