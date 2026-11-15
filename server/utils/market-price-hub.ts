@@ -125,6 +125,17 @@ export class MarketPriceHub {
     return webSocketManager.getWebSocketState()
   }
 
+  /** 后端服务关闭时统一清理广播定时器、价格快照和 Binance 连接。 */
+  close(): void {
+    if (this.broadcastTimer) clearTimeout(this.broadcastTimer)
+    this.broadcastTimer = null
+    this.clients.clear()
+    this.pendingUpdates.clear()
+    this.latestPrices.clear()
+    this.subscribedSymbols.clear()
+    webSocketManager.disconnect()
+  }
+
   /**
    * 注册浏览器 SSE 客户端。
    *

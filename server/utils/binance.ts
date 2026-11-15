@@ -281,13 +281,13 @@ export class BinanceService {
     symbol: string,
     side: 'buy' | 'sell',
     amount: number,
-    beforeSubmit?: () => void,
+    beforeSubmit?: () => void | Promise<void>,
     params?: { reduceOnly: boolean },
   ): Promise<Order> {
     try {
-      const order = await binanceApiGateway.trade(`marketOrder:${symbol}:${side}`, () => {
+      const order = await binanceApiGateway.trade(`marketOrder:${symbol}:${side}`, async () => {
         // 排队等待期间可能触发熔断，必须在实际请求前检查最新状态。
-        beforeSubmit?.()
+        await beforeSubmit?.()
         return this.privateExchange.createOrder(
           symbol, 
           'market', 

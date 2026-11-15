@@ -98,12 +98,19 @@ function createFixture(now = Date.now()) {
     recordPosition(symbol, position) { positions.set(symbol, position) },
     updatePosition(symbol, patch) { if (positions.has(symbol)) Object.assign(positions.get(symbol), patch) },
     getPosition(symbol) { return positions.get(symbol) },
+    getAllPositions() { return [...positions.values()] },
     clearPosition(symbol) { positions.delete(symbol) }
   }
   const { StrategyEngine } = loadModule('../server/modules/strategy-engine/StrategyEngine.ts', {
     '../../../app/utils/efficiency-ratio': efficiencyRatio,
     './SnapshotIndicatorCalculator': { SnapshotIndicatorCalculator },
     '../../utils/logger': { logger },
+    '../market-data/PriceCacheService': {
+      priceCacheService: { async getPrice(_binance, symbol) {
+        if (hooks.priceError) throw new Error('行情不可用')
+        return hooks.prices?.[symbol] ?? 100
+      } }
+    },
     '../../utils/storage': storage,
     '../risk-control/DailyRiskState': dailyRiskState,
     '../../utils/indicators-risk': riskCalculations,
@@ -895,6 +902,69 @@ test('策略熔断当日保持，次日与其余策略的盈亏统计一并清�
   assert.equal(f.state.strategyDailyRisk['strategy-a'].dailyPnL, 0)
   assert.equal(f.state.strategyDailyRisk['strategy-a'].circuitBreaker.isTriggered, false)
   assert.equal(f.state.strategyDailyRisk['strategy-b'], undefined)
+})
+
+test('同方向跨策略净浮亏达到 1 USDT 阻止开仓，不预占名额或锁仓', async () => {
+  const f = createFixture()
+  f.positions.set('ETHUSDT', { strategyId: 'strategy-b', symbol: 'ETHUSDT', direction: 'long', entryPrice: 101, quantity: 2 })
+  f.positions.set('SOLUSDT', { strategyId: 'strategy-c', symbol: 'SOLUSDT', direction: 'long', entryPrice: 99, quantity: 1 })
+  // 两个策略合计 -2 + 1 = -1，盈利仓参与抵消，边界也必须拦截。
+  assert.equal(await f.engine.executeSignal(f.instance, f.signal, new Map()), false)
+  assert.equal(f.calls.reserved, 0)
+  assert.equal(f.calls.locked.length, 0)
+  assert.equal(f.calls.orders.length, 0)
+  const result = await f.engine.forceOpenPosition('strategy-a', 'BTCUSDT', 'long')
+  assert.equal(result.success, false)
+})
+
+test('小于门槛的浮亏、反向亏损和方向浮亏恢复后均可开仓', async () => {
+  for (const direction of ['long', 'short']) {
+    const f = createFixture()
+    f.signal.direction = direction
+    f.positions.set('ETHUSDT', { symbol: 'ETHUSDT', direction, entryPrice: direction === 'long' ? 101 : 99, quantity: 1 })
+    assert.equal(await f.engine.executeSignal(f.instance, f.signal, new Map()), false)
+    // 仅剩 0.5 USDT 浮亏自动恢复；反方向的大额亏损不能影响本方向。
+    f.positions.get('ETHUSDT').quantity = 0.5
+    f.positions.set('SOLUSDT', { symbol: 'SOLUSDT', direction: direction === 'long' ? 'short' : 'long', entryPrice: direction === 'long' ? 1 : 200, quantity: 10 })
+    assert.equal(await f.engine.executeSignal(f.instance, f.signal, new Map()), true)
+    assert.equal(f.calls.committed, 1)
+  }
+})
+
+test('同方向取价失败或价格非法时不开仓，空仓时不依赖持仓取价', async () => {
+  for (const price of [0, NaN, Infinity, 'error']) {
+    const f = createFixture()
+    f.positions.set('ETHUSDT', { symbol: 'ETHUSDT', direction: 'long', entryPrice: 100, quantity: 1 })
+    f.hooks.prices = { ETHUSDT: price }
+    f.hooks.priceError = price === 'error'
+    assert.equal(await f.engine.executeSignal(f.instance, f.signal, new Map()), false)
+    assert.equal(f.calls.orders.length, 0)
+    f.positions.clear()
+    assert.equal(await f.engine.executeSignal(f.instance, f.signal, new Map()), true)
+  }
+})
+
+test('决策落盘后新建的同向亏损仓仍在提交前拦截，释放预占名额和锁', async () => {
+  const f = createFixture()
+  f.signal.decisionSnapshot = { requestedAt: Date.now() }
+  f.hooks.afterDecisionSaved = () => {
+    f.positions.set('ETHUSDT', { symbol: 'ETHUSDT', direction: 'long', entryPrice: 101, quantity: 1 })
+  }
+  assert.equal(await f.engine.executeSignal(f.instance, f.signal, new Map()), false)
+  assert.equal(f.calls.orders.length, 0)
+  assert.equal(f.calls.released.length, 1)
+  assert.equal(f.calls.unlocked.length, 1)
+})
+
+test('订单排队期间同向浮亏达到门槛，真正发送前仍拦截', async () => {
+  const f = createFixture()
+  f.hooks.beforeDispatch = () => {
+    f.positions.set('ETHUSDT', { symbol: 'ETHUSDT', direction: 'long', entryPrice: 101, quantity: 1 })
+  }
+  await assert.rejects(f.engine.executeSignal(f.instance, f.signal, new Map()), /同方向持仓浮亏/)
+  assert.equal(f.calls.orders.length, 0)
+  assert.equal(f.calls.released.length, 1)
+  assert.equal(f.calls.unlocked.length, 1)
 })
 
 test('旧配置缺失或非法时回退 10 USDT，有效的小数金额按实际数值判断', () => {

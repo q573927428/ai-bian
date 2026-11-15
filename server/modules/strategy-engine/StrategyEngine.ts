@@ -30,9 +30,13 @@ import { saveBotState } from '../../utils/storage'
 import { getAnalysisMonth, saveTradeDecision } from '../../utils/trade-decision-store'
 import { normalizeERPeriod, normalizeERTimeframes } from '../../../app/utils/efficiency-ratio'
 import { SnapshotIndicatorCalculator } from './SnapshotIndicatorCalculator'
+import { priceCacheService } from '../market-data/PriceCacheService'
 
 // 开仓仅以最多 120 USDT 作为资金基数，避免账户余额增长时自动放大仓位。
 const POSITION_SIZING_BALANCE_CAP_USDT = 120
+
+// 跨策略共享方向浮亏门槛；使用价格浮盈亏，不混入历史已实现盈亏、手续费或资金费。
+const SAME_DIRECTION_FLOATING_LOSS_LIMIT_USDT = 1
 
 /**
  * 计算首次策略扫描距离当前时间的等待毫秒数。
@@ -1376,9 +1380,45 @@ export class StrategyEngine {
   // ==================== 信号执行 ====================
 
   /**
+   * 同方向仓位合计浮亏达到门槛时禁止加仓，避免连续扫描在不利行情中不断累积风险。
+   * 每次重新读取全部策略持仓，价格复用最多 5 秒的行情缓存；数据不完整时不放行。
+   */
+  private async checkSameDirectionFloatingLoss(signal: TradeSignal): Promise<boolean> {
+    const positions = this.positionManager.getAllPositions()
+      .filter(position => position.direction === signal.direction)
+    if (positions.length === 0) return true
+
+    try {
+      const profits = await Promise.all(positions.map(async position => {
+        const price = await priceCacheService.getPrice(this.binance, position.symbol)
+        if (!Number.isFinite(price) || price <= 0 || !Number.isFinite(position.entryPrice)
+          || position.entryPrice <= 0 || !Number.isFinite(position.quantity) || position.quantity <= 0) {
+          throw new Error(`${position.symbol} 持仓或价格数据无效`)
+        }
+        return (signal.direction === 'long' ? price - position.entryPrice : position.entryPrice - price)
+          * position.quantity
+      }))
+      const floatingPnl = profits.reduce((total, profit) => total + profit, 0)
+      if (!Number.isFinite(floatingPnl)) throw new Error('同方向合计浮盈亏无效')
+
+      if (floatingPnl <= -SAME_DIRECTION_FLOATING_LOSS_LIMIT_USDT) {
+        logger.warn('同方向浮亏限制', `${signal.symbol} [${signal.strategyId}] 跳过开仓：` +
+          `${signal.direction} 方向 ${positions.length} 个持仓合计浮盈亏 ${floatingPnl.toFixed(4)} USDT，` +
+          `达到浮亏 ${SAME_DIRECTION_FLOATING_LOSS_LIMIT_USDT} USDT 门槛`)
+        return false
+      }
+      return true
+    } catch (error: any) {
+      // 不能把取价失败的仓位当作零盈亏，否则可能在组合已亏损时继续加仓。
+      logger.warn('同方向浮亏限制', `${signal.symbol} 跳过开仓：无法确认同方向持仓盈亏，${error.message}`)
+      return false
+    }
+  }
+
+  /**
    * 执行交易信号
    */
-  public async executeSignal(instance: StrategyInstance, signal: TradeSignal, indicatorsData: Map<string, any>): Promise<void> {
+  public async executeSignal(instance: StrategyInstance, signal: TradeSignal, indicatorsData: Map<string, any>): Promise<boolean> {
     let symbolLocked = false
     let positionRecorded = false
     // 市价单成交后，即使后续止损失败，也必须尝试反向平仓，避免遗留无保护仓位。
@@ -1394,6 +1434,9 @@ export class StrategyEngine {
       // 自动信号和手动强制开仓共用门禁，熔断时不预占每日次数或锁定交易对。
       this.assertOpeningAllowed(strategy.id, strategy.riskManagement.maxDailyLoss, signal.symbol)
 
+      // 自动扫描和手动强制开仓共用检查；被拦截时不预占每日次数、不锁定交易对。
+      if (!await this.checkSameDirectionFloatingLoss(signal)) return false
+
       logger.info('开仓信号', `执行信号: ${signal.symbol} ${signal.direction} (${signal.reasoning})`)
 
       // 必须在任何下单操作前原子预占名额，防止同一轮并发信号突破每日上限。
@@ -1408,7 +1451,7 @@ export class StrategyEngine {
           `${dailyTradeReservation.reservedCount > 0 ? `，另有 ${dailyTradeReservation.reservedCount} 笔正在开仓` : ''}` +
           `，达到上限 ${dailyTradeReservation.limit} 笔，今日禁止继续开仓`
         )
-        return
+        return false
       }
       dailyTradeReservationId = dailyTradeReservation.reservationId
 
@@ -1420,7 +1463,7 @@ export class StrategyEngine {
       // 余额检查
       if (account.availableBalance < 30) {
         logger.warn('开仓', `账户余额（${account.availableBalance} USDT）不足30 USDT，无法开仓`)
-        return
+        return false
       }
 
       // 余额检查通过后再锁定交易对，避免“未开仓先锁仓”
@@ -1567,12 +1610,21 @@ export class StrategyEngine {
       }
       const side = getOrderSide(signal.direction.toUpperCase() as 'LONG' | 'SHORT', true)
       this.assertOpeningAllowed(strategy.id, strategy.riskManagement.maxDailyLoss, signal.symbol)
+      // 前面的账户请求和决策落盘可能耗时，提交前重新读取持仓，纳入同轮已建立的新仓。
+      if (!await this.checkSameDirectionFloatingLoss(signal)) return false
+      this.assertOpeningAllowed(strategy.id, strategy.riskManagement.maxDailyLoss, signal.symbol)
       const order = await this.binance.marketOrder(
         signal.symbol,
         side,
         quantity,
         // 交易所限流队列可能继续等待，真正发送前必须再次通过门禁。
-        () => this.assertOpeningAllowed(strategy.id, strategy.riskManagement.maxDailyLoss, signal.symbol)
+        async () => {
+          this.assertOpeningAllowed(strategy.id, strategy.riskManagement.maxDailyLoss, signal.symbol)
+          if (!await this.checkSameDirectionFloatingLoss(signal)) {
+            throw new Error('同方向持仓浮亏达到门槛或盈亏数据不可用，禁止开仓')
+          }
+          this.assertOpeningAllowed(strategy.id, strategy.riskManagement.maxDailyLoss, signal.symbol)
+        }
       )
       openedOrder = order
       // 订单已被交易所接受，先记录下单数量；即使后续查询持仓超时，也要尝试保护性平仓。
@@ -1791,6 +1843,7 @@ export class StrategyEngine {
       instance.totalTrades++
 
       logger.success('开仓信号', `信号执行完成: ${signal.symbol}`)
+      return true
     } catch (error: any) {
       logger.error('开仓信号', `信号执行失败 ${signal.symbol}: ${error.message}`)
 
@@ -1960,11 +2013,11 @@ export class StrategyEngine {
 
     // 5. 调用 executeSignal 执行开仓（内部会用策略的 riskManagement 计算止盈止损）
 
-    await this.executeSignal(instance, signal, indicatorsData)
+    const opened = await this.executeSignal(instance, signal, indicatorsData)
 
     return {
-      success: true,
-      message: `强制开仓成功: ${symbol} ${direction}`,
+      success: opened,
+      message: opened ? `强制开仓成功: ${symbol} ${direction}` : `未开仓: ${symbol} ${direction}，请查看开仓限制日志`,
       price,
       timestamp: new Date().toISOString()
     }
