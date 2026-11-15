@@ -53,6 +53,7 @@
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import type { MarketOverview, MarketMetric, MarketAmount } from '../../types/market-overview'
 import { useGlobalPolling } from '../composables/useGlobalPolling'
+import { beijingDate, formatBeijingDateTime } from '../utils/beijing-time'
 
 const overview = ref<MarketOverview | null>(null)
 const failed = ref(false)
@@ -101,7 +102,7 @@ const etfItems = computed(() => [
 ])
 const amountGroups = computed(() => [
   { label: '主要交易所持仓', note: '主要交易所期货未平仓名义美元价值合计，仅包含下列来源覆盖交易所，非全市场总持仓', items: [{ label: 'BTC', metric: overview.value?.btcOi }, { label: 'ETH', metric: overview.value?.ethOi }] },
-  { label: '日清算', note: '来源日频统计，以 UTC 16:00 为日界；可能尚未结算完整一天，非滚动24小时金额', items: [{ label: '多头', metric: overview.value?.longLiquidations }, { label: '空头', metric: overview.value?.shortLiquidations }] },
+  { label: '日清算', note: '来源日频统计，数据日期按原始时间戳转换为北京时间；统计区间以来源口径为准，非滚动24小时金额', items: [{ label: '多头', metric: overview.value?.longLiquidations }, { label: '空头', metric: overview.value?.shortLiquidations }] },
   { label: '稳定币总供应', note: '来源覆盖的美元锚定稳定币供应量合计，按美元面值计；非资金净流入', items: [{ label: '', metric: overview.value?.stablecoinSupply }] },
 ])
 
@@ -127,10 +128,10 @@ function formatFlow(value?: number) {
 
 /** 来源与同步时间放在提示中，避免占用头部空间。 */
 function sourceTitle(source: string, metric?: MarketMetric<unknown>) {
-  const time = metric?.updatedAt ? new Date(metric.updatedAt).toLocaleString() : '尚未同步'
+  const time = metric?.updatedAt ? `${formatBeijingDateTime(Date.parse(metric.updatedAt))}（北京时间）` : '尚未同步'
   const date = source === 'Alternative.me' && overview.value?.fearGreed.value
-    ? `；指数日期：${new Date(overview.value.fearGreed.value.timestamp * 1000).toLocaleDateString()}` : ''
-  return `来源：${source}；同步时间：${time}${date}${metric?.stale ? '；暂未更新，保留上次数据' : ''}${failed.value ? '；本站接口连接异常' : ''}`
+    ? `；指数日期：${beijingDate(overview.value.fearGreed.value.timestamp * 1000)}` : ''
+  return `来源：${source}；同步时间：${time}${date}${metric?.stale ? (metric.value == null ? '；暂未取得有效数据，等待同步' : '；暂未更新，保留上次数据') : ''}${failed.value ? '；本站接口连接异常' : ''}`
 }
 
 let refreshing = false

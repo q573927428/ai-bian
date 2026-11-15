@@ -8,6 +8,8 @@ export const CRYPTO_TREND_KEYS: CryptoTrendKey[] = ['btcEtf', 'ethEtf', 'btcOi',
 const empty = (): TrendHistory => ({ points: [], updatedAt: null, stale: true, coverage: [] })
 const cache = Object.fromEntries(CRYPTO_TREND_KEYS.map(key => [key, empty()])) as Record<CryptoTrendKey, TrendHistory>
 const file = join(process.cwd(), 'data', 'crypto-trends.json')
+// 旧版曾把清算日期统一加一天；日期字符串无法还原原始时刻，必须重新下载验证。
+const LIQUIDATION_DATE_VERSION = 2
 
 /** 时间戳统一按北京时间归日；ETF保留来源交易日，不把交易日视作时间戳偏移。 */
 export function parseTrendSeries(data: any, name: string, absolute = false, totalOnly = false): { points: TrendPoint[]; coverage: string[] } {
@@ -57,10 +59,10 @@ export async function restoreTrendHistories() {
     const saved = JSON.parse(await readFile(file, 'utf8'))
     for (const key of CRYPTO_TREND_KEYS) {
       const row = saved[key]
+      // 旧文件可能混有已成功同步的数据，统一减一天仍会造错，仅重建清算历史。
+      if (key.endsWith('Liquidations') && saved._liquidationDateVersion !== LIQUIDATION_DATE_VERSION) continue
       if (row && Array.isArray(row.points) && row.points.every((p: any) => typeof p.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(p.date) && Number.isFinite(p.value)) && Array.isArray(row.coverage)) {
-        // 旧清算缓存按UTC16:00标日，转换到北京时间为次日00:00；只迁移一次。
-        const points = row.points.slice(-400).map((point: TrendPoint) => !saved._beijingDates && key.endsWith('Liquidations')
-          ? { ...point, date: new Date(Date.parse(point.date) + 86400000).toISOString().slice(0, 10) } : point)
+        const points = row.points.slice(-400)
         cache[key] = { points, coverage: row.coverage.filter((x: unknown) => typeof x === 'string'), updatedAt: typeof row.updatedAt === 'string' ? row.updatedAt : null, stale: true }
       }
     }
@@ -73,7 +75,7 @@ export async function restoreTrendHistories() {
 export async function persistTrendHistories() {
   try {
     await mkdir(join(process.cwd(), 'data'), { recursive: true })
-    await writeFile(`${file}.tmp`, JSON.stringify({ ...cache, _beijingDates: true }), 'utf8')
+    await writeFile(`${file}.tmp`, JSON.stringify({ ...cache, _beijingDates: true, _liquidationDateVersion: LIQUIDATION_DATE_VERSION }), 'utf8')
     await rename(`${file}.tmp`, file)
   } catch (error: any) { console.warn('[CryptoTrends] 历史缓存保存失败:', error.message) }
 }

@@ -25,6 +25,13 @@ test('空头清算图表负数转换为金额绝对值，持仓不接受负数',
   assert.throws(() => parseAmountSeries({ ...input, Frequency: 'Monthly' }, 'Liquidations', true), /格式异常/)
 })
 
+test('概览金额与趋势均按真实时间戳转北京时间，UTC午夜不多加一天', () => {
+  const input = { Description: 'Liquidations', Frequency: 'Daily', Series: { exchange: series([[Date.parse('2026-10-17T00:00:00Z') / 1000, 1200]]) } }
+  assert.equal(parseAmountSeries(input, 'Liquidations', true).date, '2026-10-17')
+  input.Series.exchange = series([[Date.parse('2026-10-17T16:00:00Z') / 1000, 1200]])
+  assert.equal(parseAmountSeries(input, 'Liquidations', true).date, '2026-10-18')
+})
+
 test('持仓保留公开覆盖范围，零值有效，错误页不能当成零', () => {
   const item = { '@type': 'DataFeedItem', dateModified: '2026-10-17', item: { name: 'OI', variableMeasured: [{ name: 'A', value: 20 }, { name: 'B', value: 0 }] } }
   const html = `<script type="application/ld+json">${JSON.stringify(item)}</script>`

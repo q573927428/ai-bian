@@ -1,6 +1,7 @@
 // ==================== The Block 日频市场数据来源与解析 ====================
 import type { MarketAmount, EtfNetFlow } from '../../types/market-overview'
 import { recordTrendHistory } from './crypto-trends'
+import { beijingDate } from '../../app/utils/beijing-time.ts'
 
 export const MARKET_AMOUNT_KEYS = ['btcOi', 'ethOi', 'longLiquidations', 'shortLiquidations', 'stablecoinSupply'] as const
 export type MarketAmountKey = typeof MARKET_AMOUNT_KEYS[number]
@@ -41,7 +42,7 @@ function aggregateLatest(rows: Array<{ name: string; value: number; timestamp: n
   if (!selected.length || new Set(selected.map(row => row.name)).size !== selected.length) throw new Error('市场数据为空或存在重复系列')
   const usd = selected.reduce((sum, row) => sum + row.value, 0)
   if (!Number.isFinite(usd)) throw new Error('市场汇总金额异常')
-  return { usd, date: new Date(latest).toISOString().slice(0, 10), coverage: selected.map(row => row.name) }
+  return { usd, date: beijingDate(latest), coverage: selected.map(row => row.name) }
 }
 
 /** OI 公开元数据仅为已披露交易所快照，刻意不把它标为完整全市场总量。 */
