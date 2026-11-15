@@ -60,7 +60,7 @@
       <div class="stat-item">
         <div class="stat-label" title="历史已平仓交易的净盈亏合计，已包含记录中结算的手续费和资金费">累计盈亏</div>
         <div :class="['stat-value', stats.totalPnl >= 0 ? 'text-success' : 'text-danger']">
-          {{ stats.totalPnl >= 0 ? '+' : '' }}{{ stats.totalPnl.toFixed(2) }} U
+          ${{ stats.totalPnl >= 0 ? '+' : '' }}{{ stats.totalPnl.toFixed(2) }}
         </div>
       </div>
       <div class="stat-item">
@@ -69,7 +69,7 @@
       </div>
       <div class="stat-item">
         <div class="stat-label" title="已计入累计盈亏的交易手续费，仅单独展示，不重复扣除">总手续费</div>
-        <div class="stat-value">{{ stats.totalFee.toFixed(2) }} U</div>
+        <div class="stat-value">${{ stats.totalFee.toFixed(2) }}</div>
       </div>
       <div class="stat-item">
         <div class="stat-label" title="平均盈利 ÷ 平均亏损绝对值，按已结算净盈亏计算；保本交易不参与，仅有盈利时显示 ∞，无盈利时显示 0.00">盈亏比</div>
@@ -79,12 +79,12 @@
       </div>
       <div class="stat-item">
         <div class="stat-label" title="按逐笔已结算净盈亏计算历史峰值到随后低点的最大跌幅，包含起始零收益">最大回撤</div>
-        <div class="stat-value text-danger">{{ stats.maxDrawdown.toFixed(2) }} U</div>
+        <div class="stat-value text-danger">${{ stats.maxDrawdown.toFixed(2) }}</div>
       </div>
       <div class="stat-item">
         <div class="stat-label" title="当前筛选范围内已平仓交易的净盈亏合计 ÷ 交易次数，已包含结算费用">单均盈亏</div>
         <div :class="['stat-value', stats.averagePnl >= 0 ? 'text-success' : 'text-danger']">
-          {{ stats.averagePnl >= 0 ? '+' : '' }}{{ stats.averagePnl.toFixed(2) }} U
+          ${{ stats.averagePnl >= 0 ? '+' : '' }}{{ stats.averagePnl.toFixed(2) }}
         </div>
       </div>
       <div class="stat-item">
@@ -101,11 +101,11 @@
       </div>
       <div class="stat-item">
         <div class="stat-label" title="当前筛选范围内单笔已结算净盈利的最大值，无盈利交易时为 0">最大盈利</div>
-        <div class="stat-value text-success">{{ stats.maxTradeProfit.toFixed(2) }} U</div>
+        <div class="stat-value text-success">${{ stats.maxTradeProfit.toFixed(2) }}</div>
       </div>
       <div class="stat-item">
         <div class="stat-label" title="当前筛选范围内单笔已结算净亏损的最大绝对值，无亏损交易时为 0">最大亏损</div>
-        <div class="stat-value text-danger">{{ stats.maxTradeLoss.toFixed(2) }} U</div>
+        <div class="stat-value text-danger">${{ stats.maxTradeLoss.toFixed(2) }}</div>
       </div>
     </div>
 

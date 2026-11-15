@@ -122,9 +122,9 @@ function formatWinRate(value: number): string {
   return `${value.toFixed(2)}%`
 }
 
-/** 小额余额保留更多精度，避免有效资产被显示为零。 */
+/** 零余额统一显示两位小数，小额余额保留更多精度，避免有效资产被显示为零。 */
 function formatBalance(value: number): string {
-  if (value === 0) return '0'
+  if (value === 0) return '0.00'
   
   // 根据数值大小格式化显示
   if (value < 0.001) {
