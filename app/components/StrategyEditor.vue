@@ -490,6 +490,7 @@
                 <el-option label="2" :value="2" />
                 <el-option label="3" :value="3" />
                 <el-option label="5" :value="5" />
+                <el-option label="8" :value="8" />
                 <el-option label="10" :value="10" />
                 <el-option label="20" :value="20" />
                 <el-option label="50" :value="50" />

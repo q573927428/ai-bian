@@ -79,7 +79,7 @@
             <span v-else>—</span>
           </template>
         </el-table-column>
-        <el-table-column label="今日亏损" width="100">
+        <el-table-column label="今日亏损" width="110">
           <template #default="{ row }">
             <el-tag
               v-if="dailyLossStatuses[row.id]"
