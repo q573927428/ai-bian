@@ -23,6 +23,23 @@ function loadModule(path, dependencies, globals = {}) {
   return context.exports
 }
 
+test('ticker 广播传递真实 24h 涨跌额并区分缺失和零', () => {
+  const { BinanceWebSocketService } = loadModule('../server/utils/websocket.ts', {
+    '../../types/websocket': { WebSocketStatus },
+    ws: {}
+  })
+  const ws = new BinanceWebSocketService()
+  ws.symbolMapping.set('btcusdt', 'BTCUSDT')
+  const data = []
+  ws.on('price', event => data.push(event.data))
+
+  ws.handleTickerMessage({ s: 'BTCUSDT', c: '57860.2', p: '-4359.7', P: '-7.007' })
+  ws.handleTickerMessage({ s: 'BTCUSDT', c: '57860.2', p: '0', P: '0' })
+  ws.handleTickerMessage({ s: 'BTCUSDT', c: '57860.2' })
+  assert.deepEqual(data.map(price => price.change24hAmount), [-4359.7, 0, undefined])
+  assert.equal(data[0].change24hPercent, -7.007)
+})
+
 /** 模拟可控的 WS 状态、事件时间和 REST 补充价格。 */
 function priceFixture() {
   let now = 100_000

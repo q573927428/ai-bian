@@ -475,6 +475,7 @@ export class BinanceWebSocketService {
       ask: parseFloat(data.a),
       bidSize: parseFloat(data.B),
       askSize: parseFloat(data.A),
+      change24hAmount: data.p !== undefined ? parseFloat(data.p) : undefined,
       change24hPercent: data.P !== undefined ? parseFloat(data.P) : undefined,
       volume24h: data.q !== undefined ? parseFloat(data.q) : undefined
     }

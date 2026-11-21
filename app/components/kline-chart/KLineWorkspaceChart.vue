@@ -1,6 +1,7 @@
 <!-- ==================== 首页 K 线主图与共享时间轴副图 ==================== -->
 <template>
-  <KLineChartSimple v-if="symbol" :symbol="symbol" :timeframe="timeframe" :indicator="indicator"
+  <KLineChartSimple v-if="symbol" :symbol="symbol" :timeframe="timeframe" :indicator="indicator" :market-quote="marketQuote"
+    :price-cards-open="priceCardsOpen" @open-price-cards="emit('open-price-cards')"
     @timeframe-change="emit('timeframe-change', $event)" @toolbar-height-change="emit('toolbar-height-change', $event)">
     <template #indicator-controls>
       <div class="indicator-buttons" role="group" aria-label="副图指标">
@@ -14,13 +15,25 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import KLineChartSimple from './KLineChartSimple.vue'
+import { useBotStore } from '../../stores/bot'
+import type { PriceData } from '../../../types/websocket'
 import { DEFAULT_KLINE_INDICATOR, KLINE_INDICATORS, type KlineIndicator, type KlineWorkspacePeriod } from '../../utils/kline-indicators'
 
 /** 首页主图只接受与副图兼容的 K 线周期。 */
-defineProps<{ symbol: string; timeframe: KlineWorkspacePeriod }>()
-const emit = defineEmits<{ 'timeframe-change': [timeframe: string]; 'toolbar-height-change': [height: number] }>()
+const props = defineProps<{ symbol: string; timeframe: KlineWorkspacePeriod; priceCardsOpen?: boolean }>()
+const emit = defineEmits<{
+  'timeframe-change': [timeframe: string]
+  'toolbar-height-change': [height: number]
+  'open-price-cards': []
+}>()
+
+const botStore = useBotStore()
+// 复用图表已订阅的实时行情；切换交易对时只读取新标的，未到数据则显示占位。
+const marketQuote = computed<PriceData | null>(() =>
+  botStore.prices[props.symbol.replace(/\//g, '').trim().toUpperCase()] ?? null
+)
 
 // 指标选择独立于交易对、主图周期和右侧面板，查看其他行情时保留当前副图。
 const indicator = ref<KlineIndicator>(DEFAULT_KLINE_INDICATOR)

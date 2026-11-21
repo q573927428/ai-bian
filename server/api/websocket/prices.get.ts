@@ -18,6 +18,7 @@ async function fetchTickerFallback(symbols: string[]): Promise<Map<string, any>>
     {
       symbol: ticker.symbol,
       price: parseFloat(ticker.lastPrice || '0'),
+      change24hAmount: ticker.priceChange != null ? parseFloat(ticker.priceChange) : undefined,
       change24hPercent: parseFloat(ticker.priceChangePercent || '0'),
       volume24h: parseFloat(ticker.quoteVolume || '0'),
       timestamp: ticker.closeTime || Date.now()
@@ -58,6 +59,7 @@ export default defineEventHandler(async (event) => {
           filteredPrices[symbol] = {
             symbol,
             price: wsPrice.price ?? 0,
+            change24hAmount: wsPrice.change24hAmount,
             change24hPercent: wsPrice.change24hPercent ?? 0,
             volume24h: wsPrice.volume24h ?? 0,
             timestamp: wsPrice.timestamp || Date.now()

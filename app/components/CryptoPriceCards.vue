@@ -1,5 +1,5 @@
 <template>
-  <Teleport to="body" :disabled="!isBoardExpanded">
+  <Teleport :to="dialogTarget || 'body'" :disabled="!dialogTarget && !isBoardExpanded">
   <el-card class="price-grid-card price-grid-card-standalone" :class="{ 'price-grid-card-expanded': isBoardExpanded }" shadow="hover">
     <template #header>
       <div class="price-cards-header price-cards-header-compact" :class="{ 'is-heatmap': viewMode === 'heatmap' }">
@@ -69,6 +69,7 @@
           </el-select>
         </div>
         <button
+          v-if="!dialogTarget"
           ref="boardExpandButton"
           type="button"
           class="board-expand-button"
@@ -215,6 +216,8 @@ import { useMarketScope } from '../composables/useMarketScope'
 
 /** 看板只同步交易对选择，主图由首页渲染。 */
 const props = defineProps<{
+  /** 弹窗与右栏共用一个看板实例，移动时保留筛选、热力图状态和行情订阅。 */
+  dialogTarget?: HTMLElement | null
   /** 标签隐藏时延迟滚动定位，重新显示后再读取卡片尺寸。 */
   inactive?: boolean
   /** 由外部指定要展示的交易对，例如点击当前持仓时传入。 */
@@ -433,7 +436,7 @@ async function locateSelectedCard() {
 }
 
 // 只监听选择、模式及结果成员变化，实时价格刷新不能反复拉回用户的滚动位置。
-watch([selectedSymbol, viewMode, () => props.inactive, () => filteredCryptoPrices.value.map(item => item.symbol).join(',')],
+watch([selectedSymbol, viewMode, () => props.inactive, () => props.dialogTarget, () => filteredCryptoPrices.value.map(item => item.symbol).join(',')],
   () => { void locateSelectedCard() }, { flush: 'post' })
 
 /** 仅保存独立基准网格的节点，展示网格的增删不会影响高度测量。 */

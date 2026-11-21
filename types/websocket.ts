@@ -9,7 +9,7 @@ export enum WebSocketStatus {
   ERROR = 'ERROR'
 }
 
-// 价格数据
+/** 实时成交价和交易所滚动 24h ticker 指标。 */
 export interface PriceData {
   symbol: string
   price: number
@@ -19,6 +19,7 @@ export interface PriceData {
   ask?: number
   bidSize?: number
   askSize?: number
+  change24hAmount?: number   // 24h 绝对涨跌额（来自币安 ticker 的 p 字段）
   change24hPercent?: number  // 24h涨跌幅（来自币安ticker的P字段）
   volume24h?: number         // 24h成交量（来自币安ticker的q字段）
 }

@@ -1,7 +1,35 @@
 <template>
   <div class="chart-controls">
     <div class="controls-left">
-      <div class="symbol-badge">{{ displaySymbol }}</div>
+      <div v-if="marketQuote !== undefined" class="market-quote">
+        <button type="button" class="market-quote-pair" aria-haspopup="dialog"
+          :aria-label="`${displaySymbol}，打开价格卡片`" title="打开价格卡片" @click="emit('open-price-cards')">
+          <img v-if="coinIconUrl && coinIconUrl !== failedIconUrl" :src="coinIconUrl" alt="" class="market-quote-icon"
+            @error="failedIconUrl = coinIconUrl">
+          <span v-else class="market-quote-icon market-quote-icon-placeholder" aria-hidden="true">{{ displaySymbol[0] }}</span>
+          <strong>{{ displaySymbol }}</strong>
+          <svg class="market-quote-caret" viewBox="0 0 12 12" fill="currentColor" aria-hidden="true">
+            <path d="M2 4h8L6 9z" />
+          </svg>
+        </button>
+        <dl class="market-quote-values">
+          <div class="market-quote-price-block" :class="{ 'quote-up': quoteChange > 0, 'quote-down': quoteChange < 0 }">
+            <dt class="market-quote-sr-only">最新价格与 24 小时涨跌</dt>
+            <dd>
+              <span class="market-quote-price">{{ quotePrice }}</span>
+              <span class="market-quote-change" title="24 小时涨跌额和涨跌幅">
+                <span v-if="quoteChangeAmountLabel">{{ quoteChangeAmountLabel }}</span>
+                <span>{{ quoteChangeLabel }}</span>
+              </span>
+            </dd>
+          </div>
+          <div class="market-quote-volume" title="24 小时成交额（USDT）">
+            <dt>24h 成交量</dt>
+            <dd>{{ quoteVolume }}</dd>
+          </div>
+        </dl>
+      </div>
+      <div v-else class="symbol-badge">{{ displaySymbol }}</div>
 
       <!-- 与价格看板共用默认小尺寸单选按钮样式，分时仍作为独立显示模式。 -->
       <el-radio-group
@@ -192,7 +220,10 @@
 
 <script setup lang="ts">
 import { ref, watch, computed } from 'vue'
+import type { PriceData } from '../../../types/websocket'
+import { useCoinIcon } from '../../composables/useCoinIcon'
 import { KLINE_WORKSPACE_PERIODS } from '../../utils/kline-indicators'
+import { formatTradePrice } from './utils/kline-formatters'
 
 /**
  * K线控制栏属性，包含图表状态、标记开关和周期过滤配置。
@@ -204,6 +235,8 @@ interface Props {
   expanded?: boolean
   timeline?: boolean
   symbol?: string
+  /** undefined 保留原徽章，null 表示当前交易对的行情尚未到达。 */
+  marketQuote?: PriceData | null
   timeframe?: string
   theme?: 'light' | 'dark'
   loading?: boolean
@@ -245,6 +278,7 @@ const emit = defineEmits<{
   'refresh': []
   'toggle-theme': []
   'toggle-fullscreen': []
+  'open-price-cards': []
   'ema-markers-change': [show: boolean]
   'order-markers-change': [show: boolean]
   'order-timeframe-filter-change': [filter: boolean]
@@ -287,6 +321,29 @@ const scanDateRange = ref<[number, number] | null>(props.scanTimeRange ? [...pro
 // 计算显示的symbol
 const displaySymbol = computed(() => {
   return props.symbol || 'BTCUSDT'
+})
+
+const { getCoinIconUrl } = useCoinIcon()
+const coinIconUrl = computed(() => getCoinIconUrl(displaySymbol.value))
+const failedIconUrl = ref<string | null>(null)
+const quotePrice = computed(() => {
+  const price = props.marketQuote?.price
+  return price != null && price > 0 ? formatTradePrice(price) : '--'
+})
+// 涨跌额、涨跌幅和成交额均来自滚动 24h 行情，不随 K 线周期改变。
+const quoteChange = computed(() => props.marketQuote?.change24hPercent ?? NaN)
+const quoteChangeLabel = computed(() => Number.isFinite(quoteChange.value)
+  ? `${quoteChange.value > 0 ? '+' : ''}${quoteChange.value.toFixed(2)}%` : '--')
+const quoteChangeAmountLabel = computed(() => {
+  const amount = props.marketQuote?.change24hAmount
+  // 缺失绝对涨跌额时只显示百分比，避免从已经舍入的百分比反推价格差。
+  if (amount == null || !Number.isFinite(amount)) return ''
+  return `${amount > 0 ? '+' : ''}${formatTradePrice(amount)}`
+})
+const volumeFormatter = new Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 2 })
+const quoteVolume = computed(() => {
+  const volume = props.marketQuote?.volume24h
+  return volume != null && Number.isFinite(volume) && volume >= 0 ? volumeFormatter.format(volume) : '--'
 })
 
 // 分时不传给 K 线接口；退出分时时，即使选中原周期也需要通知父组件切换模式。
@@ -560,6 +617,108 @@ watch(
   box-shadow: 0 2px 4px rgba(64, 158, 255, 0.2);
 }
 
+.market-quote {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 16px;
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+
+.market-quote-pair {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 17px;
+  line-height: 1.2;
+  cursor: pointer;
+}
+
+.market-quote-pair:hover,
+.market-quote-pair:focus-visible {
+  background: var(--bg-hover);
+}
+
+.market-quote-caret {
+  width: 12px;
+  height: 12px;
+}
+
+.market-quote-icon {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  object-fit: contain;
+}
+
+.market-quote-icon-placeholder {
+  display: grid;
+  place-items: center;
+  background: var(--border-color);
+  font-size: 12px;
+}
+
+.market-quote-values {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 14px;
+  margin: 0;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+}
+
+.market-quote-values dd {
+  margin: 0;
+}
+
+.market-quote-volume {
+  padding-inline-start: 12px;
+  border-inline-start: 1px solid var(--border-color);
+}
+
+.market-quote-volume dt {
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+
+.market-quote-volume dd {
+  margin-top: 2px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.market-quote-price {
+  display: block;
+  font-size: 19px;
+  font-weight: 700;
+}
+
+.market-quote-change {
+  display: flex;
+  gap: 4px;
+  margin-top: 1px;
+  font-size: 11px;
+}
+
+.market-quote-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+
+.market-quote-values .quote-up { color: var(--color-success); }
+.market-quote-values .quote-down { color: var(--color-danger); }
+
 /* 略微收紧周期按钮宽度，保留与价格看板一致的高度和选中样式。 */
 .timeframe-buttons :deep(.el-radio-button__inner) {
   padding-right: 8px;
@@ -605,6 +764,10 @@ watch(
     padding: 4px 8px;
     font-size: 13px;
     border-radius: 12px;
+  }
+
+  .market-quote {
+    justify-content: center;
   }
   
   .timeframe-buttons {

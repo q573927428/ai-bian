@@ -5,6 +5,7 @@
     <div ref="controlsWrapperRef" class="chart-controls-wrapper">
       <KLineChartControls
         :symbol="displaySymbol"
+        :market-quote="marketQuote"
         :timeline="timeline"
         @timeline-change="setTimeline"
         :timeframe="selectedTimeframe"
@@ -27,6 +28,7 @@
         @refresh="refreshChart"
         @toggle-theme="toggleTheme"
         @toggle-fullscreen="toggleFullscreen"
+        @open-price-cards="emit('open-price-cards')"
         @ema-markers-change="handleEMAMarkersChange"
         @order-markers-change="handleOrderMarkersChange"
         @order-timeframe-filter-change="handleOrderTimeframeFilterChange"
@@ -120,6 +122,7 @@ import type { SimpleKLineData, KLineApiResponse } from '../../../types/kline-sim
 import type { KlineIndicator } from '../../utils/kline-indicators'
 import type { TradeHistory } from '../../../types'
 import type { ScanResultApiResponse, StrategyScanResult } from '../../../types/scan-result'
+import type { PriceData } from '../../../types/websocket'
 
 // 导入子组件
 import KLineChartControls from './KLineChartControls.vue'
@@ -186,6 +189,10 @@ interface Props {
   height?: number
   /** 首页在主图的共享时间轴中挂载副图。 */
   indicator?: KlineIndicator
+  /** 首页行情摘要；复盘不传入，继续使用原交易对徽章。 */
+  marketQuote?: PriceData | null
+  /** 价格卡片弹窗优先处理 Esc，关闭后保留图表的展开状态。 */
+  priceCardsOpen?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -198,6 +205,7 @@ const props = withDefaults(defineProps<Props>(), {
 const emit = defineEmits<{
   'timeframe-change': [timeframe: string]
   'toolbar-height-change': [height: number]
+  'open-price-cards': []
 }>()
 
 // 计算显示的symbol
@@ -672,7 +680,7 @@ const toggleFullscreen = () => {
 
 /** 按 Esc 还原布局，优先尊重弹窗、下拉框对按键的处理。 */
 const handleExpandedEscape = (event: KeyboardEvent) => {
-  if (event.key === 'Escape' && !event.defaultPrevented && isExpanded.value) toggleFullscreen()
+  if (event.key === 'Escape' && !event.defaultPrevented && isExpanded.value && !props.priceCardsOpen) toggleFullscreen()
 }
 
 /** 普通模式沿用父级分配高度，展开时画布填满工具栏下方剩余空间。 */

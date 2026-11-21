@@ -38,7 +38,8 @@
           <el-col class="home-chart-column" :xs="24" :sm="24" :md="12" :lg="12">
             <section class="home-chart" aria-label="K 线和副图指标">
               <ClientOnly>
-                <KLineWorkspaceChart :symbol="chartSymbol" :timeframe="chartTimeframe" @timeframe-change="selectChartTimeframe" @toolbar-height-change="chartToolbarHeight = $event" />
+                <KLineWorkspaceChart :symbol="chartSymbol" :timeframe="chartTimeframe" :price-cards-open="priceCardsInDialog"
+                  @open-price-cards="openPriceCardsDialog" @timeframe-change="selectChartTimeframe" @toolbar-height-change="chartToolbarHeight = $event" />
               </ClientOnly>
             </section>
           </el-col>
@@ -47,8 +48,13 @@
             <aside class="workspace-panel" aria-label="行情与交易面板">
               <ClientOnly>
                 <el-tabs v-model="activeMarketTab" class="workspace-tabs" :style="chartToolbarHeight ? { '--home-chart-toolbar-height': `${chartToolbarHeight}px` } : undefined" stretch>
+                  <el-tab-pane label="环境详情" name="environment" lazy>
+                    <KLineEnvironmentPanel :symbol="chartSymbol" :timeframe="chartTimeframe" :active="activeMarketTab === 'environment'" />
+                  </el-tab-pane>
                   <el-tab-pane label="价格卡片" name="prices">
-                    <CryptoPriceCards :chart-symbol="chartSymbol" :chart-focus-request="chartFocusRequest" :inactive="activeMarketTab !== 'prices'" @update:chart-symbol="handlePriceChartSelect" />
+                    <CryptoPriceCards :chart-symbol="chartSymbol" :chart-focus-request="chartFocusRequest"
+                      :dialog-target="activePriceCardsTarget" :inactive="!activePriceCardsTarget && activeMarketTab !== 'prices'"
+                      @update:chart-symbol="handlePriceChartSelect" />
                   </el-tab-pane>
                   <el-tab-pane label="当前持仓" name="positions" lazy>
                     <!-- 查看持仓沿用原有公开模式，不改变左侧解锁规则。 -->
@@ -56,9 +62,6 @@
                   </el-tab-pane>
                   <el-tab-pane label="重要快讯" name="news" lazy>
                     <LatestNews />
-                  </el-tab-pane>
-                  <el-tab-pane label="环境详情" name="environment" lazy>
-                    <KLineEnvironmentPanel :symbol="chartSymbol" :timeframe="chartTimeframe" :active="activeMarketTab === 'environment'" />
                   </el-tab-pane>
                 </el-tabs>
               </ClientOnly>
@@ -69,6 +72,10 @@
 
       <!-- 抽屉和对话框独立于三栏，切换标签不影响顶部导航和解锁流程。 -->
       <ClientOnly>
+        <el-dialog v-model="showPriceCardsDialog" title="价格卡片" width="min(960px, calc(100vw - 24px))"
+          append-to-body align-center @closed="priceCardsInDialog = false">
+          <div ref="priceCardsDialogTarget" class="price-cards-dialog-content"></div>
+        </el-dialog>
         <IndicatorsList v-model="showIndicatorsDrawer" @select-symbol="handlePositionChartSelect" />
         <MacroDataDrawer v-model="showMacroDataDrawer" />
         <CryptoTrendsDrawer v-model="showCryptoTrendsDrawer" />
@@ -181,8 +188,12 @@ function handleNavigate(target: HomeNavigationTarget) {
 // 与全局通知共享图表目标，跨页面返回时仍能定位到通知中的交易对及周期。
 const selectedChartSymbol = useState<string>('home-chart-symbol', () => '')
 const selectedChartTimeframe = useState<string>('home-chart-timeframe', () => '')
-const activeMarketTab = ref('prices')
+const activeMarketTab = ref('environment')
 const chartToolbarHeight = ref(0)
+const showPriceCardsDialog = ref(false)
+const priceCardsInDialog = ref(false)
+const priceCardsDialogTarget = ref<HTMLElement | null>(null)
+const activePriceCardsTarget = computed(() => priceCardsInDialog.value ? priceCardsDialogTarget.value : null)
 const chartSymbol = computed(() => {
   const selected = normalizeChartSymbol(selectedChartSymbol.value)
   if (selected) return selected
@@ -203,10 +214,17 @@ function normalizeChartSymbol(symbol: string) {
   return symbol.replace('/', '').trim().toUpperCase()
 }
 
+/** 打开当前看板，关闭动画结束后再把同一个实例移回右栏。 */
+function openPriceCardsDialog() {
+  priceCardsInDialog.value = true
+  showPriceCardsDialog.value = true
+}
+
 /** 选择价格卡片只切换交易对，不把价格涨跌筛选周期带到主图。 */
 function handlePriceChartSelect(symbol: string) {
   selectedChartSymbol.value = normalizeChartSymbol(symbol)
   chartFocusRequest.value = undefined
+  if (activePriceCardsTarget.value) showPriceCardsDialog.value = false
 }
 
 /** 同步主图周期给右栏，并拒绝分时等不属于 K 线的周期。 */
@@ -348,6 +366,10 @@ onMounted(async () => {
   min-height: 0;
 }
 .main { padding: 20px; }
+
+.price-cards-dialog-content {
+  height: min(540px, 68dvh);
+}
 
 .home-chart,
 .workspace-panel {
