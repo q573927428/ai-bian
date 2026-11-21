@@ -37,10 +37,19 @@
     <section class="detail-section">
       <div class="section-heading"><span>五周期结构</span><span :class="tone(context?.structure.tone)">{{ context?.structure.label ?? '数据不足观望' }}</span></div>
       <div class="trend-grid">
-        <div v-for="item in trends" :key="item.period" class="trend-cell" :class="[{ 'is-main': item.period === mainPeriod }, `direction-${tone(item.direction)}`]">
+        <div v-for="item in trends" :key="item.period" class="trend-cell" :class="[
+          {
+            'is-main': item.period === mainPeriod,
+            'is-weakening': item.di === '减弱' && item.macd === '减弱',
+            'is-strengthening': item.di === '增强' && item.macd === '增强',
+            'is-mixed-strength': (item.di === '增强' && item.macd === '减弱') || (item.di === '减弱' && item.macd === '增强')
+          },
+          `direction-${tone(item.direction)}`
+        ]">
           <div class="trend-heading"><span class="secondary">{{ item.period }}{{ item.period === mainPeriod ? ' · 主' : '' }}</span><span class="trend-direction" :class="tone(item.direction)">{{ item.direction === '方向分歧' ? '分歧' : item.direction }}</span></div>
           <div class="trend-signals" v-if="item.di && item.macd">
-            <div class="trend-indicator"><span>DI</span><span><b>{{ strengthMark(item.di) }}</b>{{ item.di }}</span></div><div class="trend-indicator"><span>MACD</span><span><b>{{ strengthMark(item.macd) }}</b>{{ item.macd }}</span></div>
+            <div class="trend-indicator"><span>DI</span><span><b :class="{ 'weakening-mark': item.di === '减弱' }">{{ strengthMark(item.di) }}</b>{{ item.di }}</span></div>
+            <div class="trend-indicator"><span>MACD</span><span><b :class="{ 'weakening-mark': item.macd === '减弱' }">{{ strengthMark(item.macd) }}</b>{{ item.macd }}</span></div>
           </div>
           <div v-else-if="item.fallback" class="trend-signals trend-status"><span>历史趋势</span><span>{{ item.fallback }}</span></div>
           <div v-else class="trend-signals"><span>DI</span><span>MACD</span><span class="trend-shared-state">{{ item.direction === '方向分歧' ? '方向不一致' : item.direction === '中性' ? '方向中性' : '等待更新' }}</span></div>
@@ -169,12 +178,16 @@ function changeTone(value: number | null): string { return value == null || valu
 .detail-section { margin-top: 10px; }.section-heading { margin-bottom: 6px; font-weight: 500; }.section-heading .secondary { font-size: 12px; font-weight: 400; }
 .trend-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
 .trend-cell { padding: 0 6px 6px; border-radius: 6px; overflow: hidden; background: var(--bg-hover); font-size: 12px; }
-/* 顶部细色条只表达总方向；所有周期保留相同边框高度，主周期仍由蓝色底色标记。 */
-.trend-cell { border-top: 2px solid var(--text-secondary); }
-.trend-cell.direction-positive { border-top-color: var(--el-color-success); }
-.trend-cell.direction-negative { border-top-color: var(--el-color-danger); }
+/* 顶边保留多空色相；只有两项都减弱时才淡化整卡边框，保留混合状态中增强项的提示。 */
+.trend-cell { --trend-border-color: var(--text-secondary); border-top: 3px solid var(--trend-border-color); }
+.trend-cell.direction-positive { --trend-border-color: var(--el-color-success); }
+.trend-cell.direction-negative { --trend-border-color: var(--el-color-danger); }
+.trend-cell.is-weakening { border-top-color: color-mix(in srgb, var(--trend-border-color) 70%, transparent); }
 /* 顶部用轻微底色差异建立层级，红绿仅表达方向，不将指标减弱误读为空头。 */
 .trend-heading { display: flex; justify-content: space-between; align-items: center; gap: 4px; margin: 0 -6px; padding: 5px 6px; background: color-mix(in srgb, var(--bg-hover) 86%, var(--text-primary)); border-bottom: 1px solid var(--border-color); }
+/* 在 3px 顶边基础上向标题内加厚：双增强为 5px，一强一弱为 4px，不改变卡片对齐。 */
+.trend-cell.is-strengthening .trend-heading { box-shadow: inset 0 2px 0 var(--trend-border-color); }
+.trend-cell.is-mixed-strength .trend-heading { box-shadow: inset 0 1px 0 var(--trend-border-color); }
 /* 从当前主题底色混合蓝色，避免自定义暗色主题中 light-8 仍呈现接近白色。 */
 .trend-cell.is-main { background: color-mix(in srgb, var(--el-color-primary) 15%, var(--bg-hover)); }
 .trend-cell.is-main .trend-heading { background: color-mix(in srgb, var(--el-color-primary) 25%, color-mix(in srgb, var(--bg-hover) 86%, var(--text-primary))); }
@@ -183,6 +196,7 @@ function changeTone(value: number | null): string { return value == null || valu
 .trend-indicator { display: grid; grid-template-rows: repeat(2, 16px); justify-items: center; grid-row: 1 / -1; }
 .trend-shared-state { grid-column: 1 / -1; }.trend-status { grid-template-columns: 1fr; }
 .trend-signals span { white-space: nowrap; }.trend-signals b { color: var(--text-primary); font-size: 12px; font-weight: 500; margin-right: 1px; }
+.trend-signals .weakening-mark { color: var(--text-secondary); }
 .is-main { background: color-mix(in srgb, var(--color-primary) 15%, var(--bg-card)); }
 .table-scroll { overflow-x: auto; }.breadth-table { width: 100%; border-collapse: collapse; white-space: nowrap; font-size: 12px; font-variant-numeric: tabular-nums; }
 .breadth-table th, .breadth-table td { padding: 6px; border-bottom: 1px solid var(--border-color); text-align: right; font-weight: 400; }
