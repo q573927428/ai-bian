@@ -1,8 +1,5 @@
 <!-- ==================== 可见K线估算成交分布与主密集区 ==================== -->
 <template>
-  <button ref="toggleButton" class="profile-toggle" type="button" :aria-pressed="enabled" title="历史成交分布，与实时盘口互斥显示" @click="$emit('toggle')">
-    {{ enabled ? '隐藏成交分布' : '成交分布' }}
-  </button>
   <svg v-if="enabled && !loading && geometry" ref="overlay" class="profile-overlay" :width="geometry.width" :height="geometry.height" aria-label="可见K线估算成交分布：条长为成交额，青色净买占比至少5%，红色净卖占比至少5%，灰色差额不足5%，斜纹表示方向数据缺失">
     <defs>
       <pattern :id="patternId" width="6" height="6" patternUnits="userSpaceOnUse">
@@ -34,6 +31,7 @@ interface Props {
   timeframe?: string
   klines: SimpleKLineData[]
   loading?: boolean
+  getContainer: () => HTMLElement | null
   getChart: () => IChartApi | null
   getSeries: () => ISeriesApi<'Candlestick'> | null
 }
@@ -47,12 +45,10 @@ interface Geometry {
   bars: { index: number; y: number; height: number; width: number; color: string; missing: boolean; opacity: number; title: string }[]
 }
 const props = defineProps<Props>()
-defineEmits<{ toggle: [] }>()
 // 每张图使用独立的斜纹ID，避免多交易对面板之间引用到其他图的定义。
 const patternId = `profile-missing-${useId().replace(/:/g, '-')}`
 const directionThreshold = 0.05
 const geometry = shallowRef<Geometry | null>(null)
-const toggleButton = shallowRef<HTMLButtonElement | null>(null)
 const overlay = shallowRef<SVGSVGElement | null>(null)
 const pointer = shallowRef<{ x: number; y: number } | null>(null)
 // 虚线上下各留 5px 容差，便于命中细线，同时不因经过整个密集带而显示文字。
@@ -63,7 +59,6 @@ const zoneHovered = computed(() => {
     && point.x >= 0 && point.x <= area.width && point.y >= 0 && point.y <= area.height
     && Math.abs(point.y - area.peakY) <= 5)
 })
-let hoverContainer: HTMLElement | null = null
 
 /** 旁听图表容器的鼠标移动，不让虚线拦截图表拖动及十字光标操作。 */
 function trackPointer(event: PointerEvent) {
@@ -157,21 +152,21 @@ watch(() => props.enabled, () => { dirty = true; geometry.value = null; profile.
 watch([() => props.symbol, () => props.timeframe], () => {
   dirty = true; geometry.value = null; profile.value = null; previous = ''
 }, { flush: 'sync' })
-onMounted(() => {
-  hoverContainer = toggleButton.value?.parentElement ?? null
-  hoverContainer?.addEventListener('pointermove', trackPointer, { passive: true })
-  hoverContainer?.addEventListener('pointerleave', clearPointer)
-  frame = requestAnimationFrame(draw)
-})
-onBeforeUnmount(() => {
-  hoverContainer?.removeEventListener('pointermove', trackPointer)
-  hoverContainer?.removeEventListener('pointerleave', clearPointer)
-  cancelAnimationFrame(frame)
-})
+// 不依赖图层是否已画出，等父画布的元素引用就绪再注册悬停事件。
+watch(() => props.getContainer(), (container, _, onCleanup) => {
+  if (!container) return
+  container.addEventListener('pointermove', trackPointer, { passive: true })
+  container.addEventListener('pointerleave', clearPointer)
+  onCleanup(() => {
+    container.removeEventListener('pointermove', trackPointer)
+    container.removeEventListener('pointerleave', clearPointer)
+  })
+}, { immediate: true, flush: 'post' })
+onMounted(() => { frame = requestAnimationFrame(draw) })
+onBeforeUnmount(() => cancelAnimationFrame(frame))
 </script>
 
 <style scoped>
-.profile-toggle { position: absolute; left: 12px; bottom: 114px; z-index: 3; border: 1px solid var(--border-color); border-radius: 4px; background: var(--bg-card, #141414); color: var(--text-secondary); cursor: pointer; font-size: 11px; padding: 3px 6px; }
 .profile-overlay { position: absolute; top: 0; left: 0; pointer-events: none; overflow: hidden; z-index: 2; }
 .profile-bar { pointer-events: auto; }
 text { font-size: 11px; fill: var(--text-primary, #e5eaf3); paint-order: stroke; stroke: var(--bg-card, #141414); stroke-width: 3px; }

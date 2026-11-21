@@ -3,7 +3,6 @@
   <div v-if="enabled && !loading && klines.length" class="structure-summary">
     <SupportResistanceInfo :snapshot="summary" compact :historical="!!historicalOrder" />
   </div>
-  <button class="structure-toggle" type="button" :aria-pressed="enabled" @click="enabled = !enabled">{{ enabled ? '隐藏支撑阻力' : '支撑阻力' }}</button>
   <svg v-if="enabled && geometry" class="structure-overlay" :width="geometry.width" :height="geometry.height" aria-label="支撑阻力区域">
     <g v-for="item in geometry.zones" :key="item.label">
       <rect :x="item.left" :y="item.top" :width="geometry.width - item.left" :height="item.height" :fill="item.color" :fill-opacity="item.touches === 1 ? 0.035 : 0.08" :stroke="item.color" :stroke-dasharray="item.touches === 1 ? '4 4' : undefined" />
@@ -14,7 +13,6 @@
 
 <script setup lang="ts">
 import { computed, shallowRef, watch, onMounted, onBeforeUnmount } from 'vue'
-import { useChartOverlayPreference } from '../../composables/useChartOverlayPreference'
 import { useSupportResistancePreview } from '../../composables/useSupportResistancePreview'
 import SupportResistanceInfo from '../SupportResistanceInfo.vue'
 import type { IChartApi, ISeriesApi } from 'lightweight-charts'
@@ -24,6 +22,7 @@ import type { SupportResistanceSnapshot } from '../../../types/support-resistanc
 
 /** 图表实例通过函数获取，兼容重建；历史订单只显示入场快照。 */
 interface Props {
+  enabled: boolean
   symbol?: string
   timeframe?: string
   klines: SimpleKLineData[]
@@ -34,8 +33,6 @@ interface Props {
 }
 const props = defineProps<Props>()
 const structurePreview = useSupportResistancePreview()
-// 已保存的显示偏好优先，切换历史订单时也不覆盖用户的选择。
-const enabled = useChartOverlayPreference('chart-support-resistance-enabled', !!props.historicalOrder)
 const snapshot = shallowRef<SupportResistanceSnapshot | null>(null)
 // 历史模式只读入场快照，切换到其他周期不把原周期快照当作当前周期结构。
 const summary = computed(() => {
@@ -57,7 +54,7 @@ let pending = false
 
 /** 每15秒读取盘中区域距离，避免关键位提示落后一分钟；切换交易对时丢弃旧请求结果。 */
 async function refresh() {
-  if (!enabled.value || props.historicalOrder || pending || !props.symbol || !['5m', '15m', '1h', '4h', '1d'].includes(props.timeframe || '')) return
+  if (!props.enabled || props.historicalOrder || pending || !props.symbol || !['5m', '15m', '1h', '4h', '1d'].includes(props.timeframe || '')) return
   const current = version
   pending = true
   try {
@@ -81,7 +78,7 @@ function draw() {
   let next: Geometry | null = null
   const order = props.historicalOrder
   const data = order ? order.entrySupportResistance : snapshot.value
-  if (enabled.value && !props.loading && chart && series && data && props.klines.length
+  if (props.enabled && !props.loading && chart && series && data && props.klines.length
     && data.timeframe === props.timeframe) {
     const scale = chart.timeScale()
     const width = scale.width()
@@ -123,7 +120,7 @@ watch([() => props.symbol, () => props.timeframe, () => props.historicalOrder, (
   void refresh()
 })
 // 开启后立即获取摘要，关闭时连同区域一起隐藏并停止后续轮询请求。
-watch(enabled, (visible) => { if (visible) void refresh() })
+watch(() => props.enabled, (visible) => { if (visible) void refresh() })
 onMounted(() => {
   void refresh()
   timer = setInterval(() => { void refresh() }, 15_000)
@@ -140,7 +137,6 @@ onBeforeUnmount(() => {
 /* 紧接两行行情指标展示，避免额外留出一行空白；透明摘要不拦截图表操作。 */
 .structure-summary { position: absolute; top: 56px; left: 20px; right: 90px; z-index: 2; pointer-events: none; }
 .structure-overlay { position: absolute; top: 0; left: 0; pointer-events: none; overflow: hidden; z-index: 1; }
-.structure-toggle { position: absolute; left: 12px; bottom: 30px; z-index: 3; border: 1px solid var(--border-color); border-radius: 4px; background: var(--bg-card, #141414); color: var(--text-secondary); cursor: pointer; font-size: 11px; padding: 3px 6px; }
 text { font-size: 11px; paint-order: stroke; stroke: var(--bg-card, #141414); stroke-width: 3px; }
 @media (max-width: 768px) {
   /* 手机端行情指标会折行，隐藏顶部重复摘要，避免遮挡涨跌与 EMA 差；区域标记和开关仍可使用。 */

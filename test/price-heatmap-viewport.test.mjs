@@ -8,7 +8,7 @@ import { init, use } from 'echarts/core'
 import { TreemapChart } from 'echarts/charts'
 import { SVGRenderer } from 'echarts/renderers'
 import { computed, reactive, ref, watch, nextTick } from 'vue'
-import { compileTemplate, parse } from 'vue/compiler-sfc'
+import { compileStyle, compileTemplate, parse } from 'vue/compiler-sfc'
 import { KLINE_WORKSPACE_PERIODS } from '../app/utils/kline-indicators.ts'
 import { formatTradePrice } from '../app/components/kline-chart/utils/kline-formatters.ts'
 
@@ -37,6 +37,50 @@ test('首页行情区将环境详情放在最左侧并默认选中', () => {
   const order = [...tabs.matchAll(/<el-tab-pane[^>]*\bname="([^"]+)"/g)].map(([, name]) => name)
   assert.deepEqual(order, ['environment', 'prices', 'positions', 'news'])
   assert.match(home, /const activeMarketTab = ref\('environment'\)/)
+})
+
+test('K 线工具栏桌面单行，手机保留完整交易对和周期选项', () => {
+  const filename = 'KLineChartControls.vue'
+  const source = fs.readFileSync(new URL(`../app/components/kline-chart/${filename}`, import.meta.url), 'utf8')
+  const { descriptor } = parse(source, { filename })
+  const template = descriptor.template.content
+  const [quickTools, popoverAndActions] = template.split('<el-popover')
+  const [settings, actionsTemplate] = popoverAndActions.split('</el-popover>')
+  assert.match(quickTools, /market-quote-values[\s\S]*timeframe-buttons/)
+  assert.doesNotMatch(quickTools, /handleEMALinesChange|handleScanMarkersChange|handleOrderMarkersChange|toggleEmaPeriod/)
+  assert.match(settings, /title="图表设置"/)
+  assert.match(settings, /class="settings-button"[^>]*aria-label="图表设置"[^>]*>\s*<el-icon aria-hidden="true"><ElIconSetting \/><\/el-icon>\s*<\/button>/)
+  assert.match(settings, /handleEMALinesChange[\s\S]*toggleEmaPeriod[\s\S]*handleScanMarkersChange[\s\S]*applyScanTimeRange[\s\S]*handleOrderMarkersChange/)
+  assert.match(settings, /class="settings-refresh" @click="refreshFromSettings"/)
+  assert.match(actionsTemplate, /toolbar-refresh[\s\S]*toggle-fullscreen/)
+  const styles = descriptor.styles[0].content
+  assert.match(styles, /\.chart-controls\s*\{[^}]*flex-wrap:\s*nowrap;[^}]*overflow-x:\s*auto;/)
+  assert.match(styles, /\.controls-tools\s*\{[^}]*flex:\s*none;[^}]*margin-inline-start:\s*auto;/)
+  const mobileStyles = styles.slice(styles.indexOf('@media (max-width: 576px)'))
+  assert.match(mobileStyles, /grid-template-areas:\s*"quote actions"\s*"tools tools";/)
+  assert.match(mobileStyles, /overflow-x:\s*visible;/)
+  assert.match(mobileStyles, /\.has-chart-settings \.toolbar-refresh\s*\{\s*display:\s*none;/)
+  assert.match(mobileStyles, /\.market-quote-pair strong\s*\{[^}]*white-space:\s*normal;[^}]*text-overflow:\s*clip;/)
+  assert.doesNotMatch(mobileStyles, /\.market-quote-volume\s*\{[^}]*display:\s*(?:inline-)?flex;/)
+  assert.match(mobileStyles, /\.timeframe-buttons\s*\{[^}]*grid-auto-columns:\s*minmax\(0,\s*1fr\);/)
+  assert.deepEqual(compileStyle({ filename, id: 'chart-toolbar', source: styles, scoped: true }).errors, [])
+
+  const logic = descriptor.scriptSetup.content
+  const menuActions = logic.slice(logic.indexOf('function handleSettingsEscape'), logic.indexOf('// 切换EMA周期'))
+  const settingsVisible = ref(true)
+  const events = []
+  const event = { defaultPrevented: false, preventDefault() { this.defaultPrevented = true }, stopPropagation() { events.push('stop') } }
+  const actions = vm.runInNewContext(ts.transpile(`${menuActions}; ({ handleSettingsEscape, refreshFromSettings })`), {
+    settingsVisible, settingsButton: ref({ focus: () => events.push('focus') }), emit: name => events.push(name)
+  })
+  actions.handleSettingsEscape(event)
+  assert.equal(settingsVisible.value, false)
+  assert.equal(event.defaultPrevented, true, 'Esc 只关闭菜单，不同时退出全屏')
+  assert.deepEqual(events, ['stop', 'focus'])
+  settingsVisible.value = true
+  actions.refreshFromSettings()
+  assert.equal(settingsVisible.value, false)
+  assert.deepEqual(events.slice(-2), ['focus', 'refresh'])
 })
 
 test('K 线报价按两行显示实际 24h 涨跌额和涨跌幅，缺失金额不反推', () => {

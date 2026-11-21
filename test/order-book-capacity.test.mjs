@@ -25,7 +25,6 @@ test('满额事件关闭 EventSource，迟到错误不覆盖提示；手动重�
   let source = file.match(/<script setup lang="ts">([\s\S]*?)<\/script>/)[1]
     .replace(/import \{[^}]+\} from 'vue'/, 'const {computed,onBeforeUnmount,onMounted,shallowRef,watch} = globalThis.__capacityFixture')
     .replace('const props = defineProps<Props>()', 'const props = globalThis.__capacityFixture.props')
-    .replace('defineEmits<{ toggle: [] }>()', '')
     .replace('new EventSource(', 'new globalThis.__capacityFixture.EventSource(')
   source += '\nexport function start() { mounted = true; reconnect() }\nexport { reconnect, connectionStatus, statusLabel };'
   globalThis.__capacityFixture = fixture

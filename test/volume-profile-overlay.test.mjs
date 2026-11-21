@@ -7,8 +7,15 @@ import { ref, watch } from 'vue'
 import { parse, compileScript, compileTemplate } from 'vue/compiler-sfc'
 import { calculateVolumeProfile } from '../app/utils/volume-profile.ts'
 
-test('新增图层及父子组件通过Vue脚本和模板编译', () => {
-  for (const name of ['VolumeProfileOverlay', 'OrderBookOverlay', 'KLineChartCanvas']) {
+test('四个图层只通过设置开关控制，且图层和父子组件均可编译', () => {
+  const overlays = {
+    VolumeProfileOverlay: ['volumeProfileEnabled', 'volume-profile-enabled', '成交分布'],
+    OrderBookOverlay: ['orderBookEnabled', 'order-book-enabled', '盘口挂单'],
+    PositionRiskOverlay: ['positionRiskEnabled', 'position-risk-enabled', '止盈止损'],
+    SupportResistanceOverlay: ['supportResistanceEnabled', 'support-resistance-enabled', '支撑阻力']
+  }
+  const templates = {}
+  for (const name of [...Object.keys(overlays), 'KLineChartCanvas', 'KLineChartControls', 'KLineChartSimple']) {
     const filename = `${name}.vue`
     const source = readFileSync(new URL(`../app/components/kline-chart/${filename}`, import.meta.url), 'utf8')
     const { descriptor, errors } = parse(source, { filename })
@@ -16,15 +23,25 @@ test('新增图层及父子组件通过Vue脚本和模板编译', () => {
     const script = compileScript(descriptor, { id: name })
     const template = compileTemplate({ source: descriptor.template.content, filename, id: name, compilerOptions: { bindingMetadata: script.bindings } })
     assert.deepEqual(template.errors, [])
+    templates[name] = descriptor.template.content
   }
+  const settings = templates.KLineChartControls.split('<el-popover')[1].split('</el-popover>')[0]
+  for (const [name, [model, prop, label]] of Object.entries(overlays)) {
+    assert.doesNotMatch(templates[name], /aria-pressed|class="[^"]*-toggle"/)
+    assert.match(settings, new RegExp(`<el-switch v-model="${model}" aria-label="${label}"`))
+    assert.match(templates.KLineChartSimple, new RegExp(`v-model:${prop}="${model}"`))
+    assert.match(templates.KLineChartSimple, new RegExp(`<KLineChartCanvas\\b[^>]*:${prop}="${model}"`))
+    assert.match(templates.KLineChartCanvas, new RegExp(`<${name}\\b[^>]*:enabled="${model}"`))
+  }
+  assert.match(settings, /v-model="orderBookEnabled"[^>]*:disabled="orderBookUnavailable"/)
+  assert.match(templates.KLineChartSimple, /:order-book-unavailable="!!overlayHistoricalOrder"/)
 })
 
 test('盘口与成交分布在恢复偏好及双向切换时保持互斥', () => {
-  const source = readFileSync(new URL('../app/components/kline-chart/KLineChartCanvas.vue', import.meta.url), 'utf8')
-  const logic = source.slice(source.indexOf('const orderBookEnabled ='), source.indexOf('const selectedRiskPosition ='))
-  const preferences = []
+  const source = readFileSync(new URL('../app/components/kline-chart/KLineChartSimple.vue', import.meta.url), 'utf8')
+  const logic = source.slice(source.indexOf('const orderBookEnabled ='), source.indexOf('const positionRiskEnabled ='))
   const setup = new Function('useChartOverlayPreference', 'watch', `${logic}; return { orderBookEnabled, volumeProfileEnabled }`)
-  const state = setup(() => { const value = ref(false); preferences.push(value); return value }, watch)
+  const state = setup((_, defaultValue) => ref(defaultValue), watch)
   state.orderBookEnabled.value = true
   assert.equal(state.volumeProfileEnabled.value, false)
   // 模拟后恢复的本地成交分布偏好，必须先关掉已启用的盘口。
@@ -57,9 +74,8 @@ test('真实绘制逻辑随可见时间和价格缩放更新，关闭/加载/数
     .replace(/import \{[^}]+\} from 'vue'/, 'const {computed,onBeforeUnmount,onMounted,shallowRef,useId,watch,calculateVolumeProfile} = globalThis.__profileFixture')
     .replace(/import \{ calculateVolumeProfile \} from '[^']+'/, '')
     .replace('const props = defineProps<Props>()', 'const props = globalThis.__profileFixture.props')
-    .replace('defineEmits<{ toggle: [] }>()', '')
     .replace('requestAnimationFrame(draw)', '0')
-  source += '\nexport { draw, profile, geometry };'
+  source += '\nexport { draw, profile, geometry, overlay, zoneHovered };'
   globalThis.__profileFixture = fixture
   try {
     const compiled = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } })
@@ -68,6 +84,20 @@ test('真实绘制逻辑随可见时间和价格缩放更新，关闭/加载/数
     assert.equal(component.profile.value.totalBars, 1)
     assert.equal(component.profile.value.bins.reduce((sum, bin) => sum + bin.amount, 0).toFixed(2), '100.00')
     assert.ok(component.geometry.value.bars.every(bar => bar.color === '#25b8a7'))
+    // 即使容器到渲染后才就绪，也能从画布监听悬停，而不是依赖已移除的按钮。
+    const listeners = new Map()
+    let cleanup
+    watchers[3]({
+      addEventListener: (name, handler) => listeners.set(name, handler),
+      removeEventListener: (name, handler) => { assert.equal(listeners.get(name), handler); listeners.delete(name) }
+    }, null, fn => { cleanup = fn })
+    component.overlay.value = { getBoundingClientRect: () => ({ left: 10, top: 20 }) }
+    listeners.get('pointermove')({ clientX: 30, clientY: 20 + component.geometry.value.peakY, pointerType: 'mouse' })
+    assert.equal(component.zoneHovered.value, true)
+    listeners.get('pointerleave')()
+    assert.equal(component.zoneHovered.value, false)
+    cleanup()
+    assert.equal(listeners.size, 0)
     const before = component.geometry.value.bars[0].y
     scale = 1.1
     component.draw(300)

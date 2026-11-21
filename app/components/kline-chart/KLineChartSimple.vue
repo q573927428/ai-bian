@@ -24,6 +24,11 @@
         :ema-periods="selectedEmaPeriods"
         :linked-indicators="!!indicator"
         :expanded="isExpanded"
+        v-model:volume-profile-enabled="volumeProfileEnabled"
+        v-model:order-book-enabled="orderBookEnabled"
+        v-model:position-risk-enabled="positionRiskEnabled"
+        v-model:support-resistance-enabled="supportResistanceEnabled"
+        :order-book-unavailable="!!overlayHistoricalOrder"
         @timeframe-change="selectTimeframe"
         @refresh="refreshChart"
         @toggle-theme="toggleTheme"
@@ -47,7 +52,11 @@
         ref="chartCanvasRef"
         :kline-data="klineData"
         :trade-history="historicalOrder ? [historicalOrder] : visibleTradeHistory"
-        :historical-order="historicalOrder || (orderTooltipVisible ? orderTooltipOrders[0] : null)"
+        :historical-order="overlayHistoricalOrder"
+        :volume-profile-enabled="volumeProfileEnabled"
+        :order-book-enabled="orderBookEnabled"
+        :position-risk-enabled="positionRiskEnabled"
+        :support-resistance-enabled="supportResistanceEnabled"
         :scan-results="scanResults"
         :theme="theme"
         :symbol="displaySymbol"
@@ -134,6 +143,7 @@ import KLineScanResultDialog from './KLineScanResultDialog.vue'
 // 导入bot store
 import { useBotStore } from '../../stores/bot'
 import { useTheme } from '../../composables/useTheme'
+import { useChartOverlayPreference } from '../../composables/useChartOverlayPreference'
 import PasswordDialog from '../PasswordDialog.vue'
 import { usePageUnlock } from '../../composables/usePageUnlock'
 
@@ -200,6 +210,15 @@ const props = withDefaults(defineProps<Props>(), {
   timeframe: '',  // 默认为空字符串，表示没有提供timeframe
   height: 423
 })
+
+const orderBookEnabled = useChartOverlayPreference('chart-order-book-enabled', false)
+const volumeProfileEnabled = useChartOverlayPreference('chart-volume-profile-enabled', false)
+// 两种分布共用价格轴左侧空间，关闭盘口时仍由图层释放实时连接。
+watch(orderBookEnabled, value => { if (value) volumeProfileEnabled.value = false }, { flush: 'sync' })
+watch(volumeProfileEnabled, value => { if (value) orderBookEnabled.value = false }, { flush: 'sync' })
+const positionRiskEnabled = useChartOverlayPreference('chart-position-risk-enabled', true)
+// 复盘默认显示支撑阻力，但打开实时图中的订单详情不改变用户的图层偏好。
+const supportResistanceEnabled = useChartOverlayPreference('chart-support-resistance-enabled', !!props.historicalOrder)
 
 // 定义emits
 const emit = defineEmits<{
@@ -1022,6 +1041,7 @@ const hideTooltip = () => {
 // 订单详情状态
 const orderTooltipVisible = ref(false)
 const orderTooltipOrders = ref<TradeHistory[]>([])
+const overlayHistoricalOrder = computed(() => props.historicalOrder || (orderTooltipVisible.value ? orderTooltipOrders.value[0] : null))
 const orderTooltipTime = ref('')
 const orderTooltipKlineTime = ref(0)
 const orderTooltipPosition = ref({ left: '20px', top: '80px' })

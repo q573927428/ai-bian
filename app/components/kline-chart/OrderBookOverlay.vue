@@ -1,9 +1,6 @@
 <!-- ==================== 价格轴左侧实时盘口挂单条 ==================== -->
 <template>
   <template v-if="!historical && symbol">
-    <button class="depth-toggle" type="button" :aria-pressed="enabled" @click="$emit('toggle')">
-      {{ enabled ? '隐藏盘口挂单' : '盘口挂单' }}
-    </button>
     <span v-if="enabled" class="depth-status" :class="{ live: geometry, 'depth-capacity': connectionStatus === 'capacity' }" :title="connectionStatus === 'capacity' ? '最多同时观察 3 个交易对，关闭其他盘口后重试' : description">
       {{ connectionStatus === 'capacity' ? '' : '盘口 · ' }}{{ statusLabel }}{{ geometry?.partial ? ' · 部分覆盖' : '' }}
       <button v-if="connectionStatus === 'capacity'" class="depth-retry" type="button" @click.stop="reconnect">重试</button>
@@ -54,7 +51,6 @@ interface Geometry {
   bars: Bar[]
 }
 const props = defineProps<Props>()
-defineEmits<{ toggle: [] }>()
 const enabled = computed(() => props.enabled)
 const snapshot = shallowRef<OrderBookSnapshot | null>(null)
 const connectionStatus = shallowRef('syncing')
@@ -179,7 +175,6 @@ onBeforeUnmount(() => { mounted = false; source?.close(); cancelAnimationFrame(f
 </script>
 
 <style scoped>
-.depth-toggle { position: absolute; left: 12px; bottom: 86px; z-index: 3; border: 1px solid var(--border-color); border-radius: 4px; background: var(--bg-card, #141414); color: var(--text-secondary); cursor: pointer; font-size: 11px; padding: 3px 6px; }
 .depth-status { position: absolute; left: 20px; top: 76px; z-index: 3; font-size: 10px; color: var(--text-secondary, #909399); background: var(--bg-card, #141414); padding: 2px 4px; border-radius: 3px; }
 .depth-status.live { color: var(--text-primary, #e5eaf3); }
 .depth-retry { margin-left: 6px; border: 1px solid var(--border-color); border-radius: 3px; background: var(--bg-card, #141414); color: var(--text-primary, #e5eaf3); cursor: pointer; font-size: 11px; padding: 1px 5px; }

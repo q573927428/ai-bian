@@ -1,6 +1,6 @@
 <template>
-  <div class="chart-controls">
-    <div class="controls-left">
+  <div class="chart-controls" :class="{ 'has-chart-settings': !timeline }" role="group" aria-label="K 线工具栏">
+    <div class="quote-tools">
       <div v-if="marketQuote !== undefined" class="market-quote">
         <button type="button" class="market-quote-pair" aria-haspopup="dialog"
           :aria-label="`${displaySymbol}，打开价格卡片`" title="打开价格卡片" @click="emit('open-price-cards')">
@@ -30,7 +30,9 @@
         </dl>
       </div>
       <div v-else class="symbol-badge">{{ displaySymbol }}</div>
+    </div>
 
+    <div class="controls-tools">
       <!-- 与价格看板共用默认小尺寸单选按钮样式，分时仍作为独立显示模式。 -->
       <el-radio-group
         :model-value="timeline ? 'timeline' : selectedTimeframe"
@@ -46,174 +48,138 @@
           {{ option.label }}
         </el-radio-button>
       </el-radio-group>
-    </div>
 
-    <div class="controls-right">
-      <!-- 图表标记控制开关 -->
-      <div v-if="!timeline" class="marker-controls">
-        <div class="scan-controls-group">
-          <el-tooltip
-            :content="scanSupported ? `显示当前周期的历史策略扫描结果（${scanCount}）` : '当前周期没有对应的扫描策略'"
-            placement="top"
-          >
-            <el-switch
-              v-model="showScanMarkers"
-              inline-prompt
-              active-text="扫描"
-              inactive-text="扫描"
-              :loading="scanLoading"
-              :disabled="!scanSupported"
-              class="marker-switch scan-marker-switch"
-              @change="handleScanMarkersChange"
-            />
-          </el-tooltip>
+      <div v-if="!timeline" class="settings-tools">
+        <el-popover v-model:visible="settingsVisible" trigger="click" placement="bottom-end" :width="324"
+          :show-arrow="false" :hide-after="0" :persistent="false" role="dialog" title="图表设置"
+          popper-class="chart-settings-popover" @after-enter="focusChartSettings">
+          <template #reference>
+            <button ref="settingsButton" type="button" class="settings-button" aria-haspopup="dialog"
+              aria-label="图表设置" title="图表设置" :aria-expanded="settingsVisible" @keydown.esc="handleSettingsEscape">
+              <el-icon aria-hidden="true"><ElIconSetting /></el-icon>
+            </button>
+          </template>
 
-          <el-popover
-            v-if="showScanMarkers"
-            :visible="scanRangePopoverVisible"
-            placement="bottom-end"
-            :width="390"
-            :trigger="[]"
-            popper-class="scan-range-popover"
-          >
-            <template #reference>
-              <el-switch
-                v-model="scanRangePopoverVisible"
-                inline-prompt
-                active-text="时间"
-                inactive-text="时间"
-                :disabled="!scanSupported || !scanRangeBounds"
-                class="marker-switch scan-range-switch"
-                aria-label="显示扫描时间范围"
-              />
-            </template>
-
-            <div class="scan-range-panel">
-              <!-- 日期面板留在 Popover 内，并解除左右月份联动以支持选择较长时间范围。 -->
-              <el-date-picker
-                v-model="scanDateRange"
-                type="datetimerange"
-                range-separator="至"
-                start-placeholder="开始时间"
-                end-placeholder="结束时间"
-                format="YYYY-MM-DD HH:mm"
-                value-format="x"
-                :disabled-date="disableScanRangeDate"
-                :teleported="false"
-                unlink-panels
-                clearable
-                class="scan-range-picker"
-                style="width: 100%; min-width: 0; --el-date-editor-width: 100%; --el-date-editor-datetimerange-width: 100%"
-              />
-              <div class="scan-range-actions">
-                <el-button size="small" @click="resetScanTimeRange">重置</el-button>
-                <el-button size="small" type="primary" @click="applyScanTimeRange">应用</el-button>
+          <div ref="settingsPanel" class="chart-settings" tabindex="-1" @keydown.esc="handleSettingsEscape">
+            <div class="layer-setting">
+              <div class="layer-setting-row">
+                <span>EMA 均线</span>
+                <el-switch v-model="showEMALines" aria-label="EMA 均线" class="marker-switch" @change="handleEMALinesChange" />
+              </div>
+              <div class="layer-setting-row layer-setting-secondary">
+                <span>周期</span>
+                <small>选 2–3 个</small>
+              </div>
+              <div class="ema-periods" role="group" aria-label="EMA 周期">
+                <el-checkbox
+                  v-for="period in availableEmaPeriods"
+                  :key="period"
+                  size="small"
+                  :model-value="selectedEmaPeriods.includes(period)"
+                  :disabled="selectedEmaPeriods.includes(period) ? selectedEmaPeriods.length <= 2 : selectedEmaPeriods.length >= 3"
+                  @change="toggleEmaPeriod(period)"
+                >{{ period }}</el-checkbox>
               </div>
             </div>
-          </el-popover>
-        </div>
 
-        <!-- <el-tooltip content="显示/隐藏EMA金叉死叉标记" placement="top">
-          <el-switch
-            v-model="showEMAMarkers"
-            inline-prompt
-            active-text="交叉"
-            inactive-text="交叉"
-            @change="handleEMAMarkersChange"
-            class="marker-switch"
-          />
-        </el-tooltip> -->
-        
-        <el-tooltip content="显示/隐藏历史订单开仓平仓标记" placement="top">
-          <el-switch
-            v-model="showOrderMarkers"
-            inline-prompt
-            active-text="订单"
-            inactive-text="订单"
-            @change="handleOrderMarkersChange"
-            class="marker-switch"
-          />
-        </el-tooltip>
+            <div class="layer-setting">
+              <div class="layer-setting-row">
+                <div>
+                  <div>历史策略扫描</div>
+                  <small>{{ scanSupported ? `当前周期 ${scanCount} 条结果` : '当前周期没有对应的扫描策略' }}</small>
+                </div>
+                <el-switch v-model="showScanMarkers" aria-label="历史策略扫描" class="marker-switch"
+                  :loading="scanLoading" :disabled="!scanSupported" @change="handleScanMarkersChange" />
+              </div>
+              <div v-if="showScanMarkers && scanSupported && scanRangeBounds" class="scan-range-panel">
+                <!-- 日期面板留在同一弹层内，选日期时不会被判定为点击设置外部。 -->
+                <el-date-picker
+                  v-model="scanDateRange"
+                  type="datetimerange"
+                  range-separator="至"
+                  start-placeholder="开始时间"
+                  end-placeholder="结束时间"
+                  format="YYYY-MM-DD HH:mm"
+                  value-format="x"
+                  :disabled-date="disableScanRangeDate"
+                  :teleported="false"
+                  single-panel
+                  clearable
+                  size="small"
+                  class="scan-range-picker"
+                />
+                <div class="scan-range-actions">
+                  <el-button size="small" @click="resetScanTimeRange">重置</el-button>
+                  <el-button size="small" type="primary" @click="applyScanTimeRange">应用</el-button>
+                </div>
+              </div>
+            </div>
 
-        <el-tooltip
-          v-if="showOrderMarkers"
-          content="仅显示主周期与当前K线周期一致的历史订单"
-          placement="top"
-        >
-          <el-switch
-            v-model="filterOrderMarkersByTimeframe"
-            inline-prompt
-            active-text="周期"
-            inactive-text="周期"
-            @change="handleOrderTimeframeFilterChange"
-            class="marker-switch"
-          />
-        </el-tooltip>
-        
-        <el-tooltip content="显示/隐藏EMA快慢线" placement="top">
-          <el-switch
-            v-model="showEMALines"
-            inline-prompt
-            active-text="EMA"
-            inactive-text="EMA"
-            @change="handleEMALinesChange"
-            class="marker-switch"
-          />
-        </el-tooltip>
-        <!-- 菜单保持展开，便于连续调整；继续复用至少两个、最多三个周期的限制。 -->
-        <el-dropdown v-if="showEMALines" trigger="click" :hide-on-click="false" @command="toggleEmaPeriod">
-          <el-button size="small" class="ema-period-select" aria-label="选择EMA周期">
-            {{ selectedEmaPeriods.join(' / ') }}
-            <el-icon class="ema-select-arrow"><ElIconArrowDown /></el-icon>
-          </el-button>
-          <template #dropdown>
-            <el-dropdown-menu>
-              <el-dropdown-item
-                v-for="period in availableEmaPeriods"
-                :key="period"
-                :command="period"
-                :disabled="!selectedEmaPeriods.includes(period) && selectedEmaPeriods.length >= 3"
-              >
-                <el-checkbox
-                  :model-value="selectedEmaPeriods.includes(period)"
-                  :disabled="!selectedEmaPeriods.includes(period) && selectedEmaPeriods.length >= 3"
-                  style="pointer-events: none"
-                  tabindex="-1"
-                >{{ period }}</el-checkbox>
-              </el-dropdown-item>
-            </el-dropdown-menu>
-          </template>
-        </el-dropdown>
+            <div class="layer-setting">
+              <div class="layer-setting-row">
+                <span>历史订单标记</span>
+                <el-switch v-model="showOrderMarkers" aria-label="历史订单标记" class="marker-switch" @change="handleOrderMarkersChange" />
+              </div>
+              <div v-if="showOrderMarkers" class="layer-setting-row layer-setting-secondary">
+                <span>仅显示同周期订单</span>
+                <el-switch v-model="filterOrderMarkersByTimeframe" aria-label="仅显示同周期订单" class="marker-switch"
+                  @change="handleOrderTimeframeFilterChange" />
+              </div>
+            </div>
+
+            <div class="layer-setting" role="group" aria-label="图表叠加">
+              <div class="layer-setting-secondary">图表叠加</div>
+              <div class="overlay-settings-grid">
+                <div class="layer-setting-row">
+                  <span>成交分布</span>
+                  <el-switch v-model="volumeProfileEnabled" aria-label="成交分布" class="marker-switch" />
+                </div>
+                <div class="layer-setting-row">
+                  <span>盘口挂单</span>
+                  <el-switch v-model="orderBookEnabled" aria-label="盘口挂单" class="marker-switch"
+                    :disabled="orderBookUnavailable" />
+                </div>
+                <div class="layer-setting-row">
+                  <span>止盈止损</span>
+                  <el-switch v-model="positionRiskEnabled" aria-label="止盈止损" class="marker-switch" />
+                </div>
+                <div class="layer-setting-row">
+                  <span>支撑阻力</span>
+                  <el-switch v-model="supportResistanceEnabled" aria-label="支撑阻力" class="marker-switch" />
+                </div>
+              </div>
+              <div class="layer-setting-secondary">
+                {{ orderBookUnavailable ? '订单回看时不显示实时盘口' : '成交分布与盘口挂单不能同时显示' }}
+              </div>
+            </div>
+
+            <el-button size="small" class="settings-refresh" @click="refreshFromSettings">
+              <el-icon><ElIconRefresh /></el-icon> 刷新图表
+            </el-button>
+          </div>
+        </el-popover>
       </div>
-      
-      <el-button-group size="small" class="action-buttons">
-        <el-button
-          type="primary"
-          size="small"
-          @click="$emit('refresh')"
-          title="刷新图表"
-          class="action-btn"
-        >
-          <el-icon><ElIconRefresh /></el-icon>
-        </el-button>
+    </div>
 
-        <el-button
-          type="warning"
-          size="small"
-          @click="$emit('toggle-fullscreen')"
-          :title="expanded ? '还原图表（Esc）' : '放大图表至整个页面'"
-          :aria-label="expanded ? '还原K线图表' : '放大K线图表至整个页面'"
-          :aria-pressed="expanded"
-          class="action-btn"
-        >
-          <el-icon>
-            <svg v-if="expanded" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
-              <path d="M3 9h6V3m6 0v6h6M3 15h6v6m6 0v-6h6" />
-            </svg>
-            <ElIconFullScreen v-else />
-          </el-icon>
-        </el-button>
-      </el-button-group>
+    <div class="action-buttons" role="group" aria-label="图表操作">
+      <el-button size="small" class="action-btn toolbar-refresh" title="刷新图表" aria-label="刷新图表" @click="emit('refresh')">
+        <el-icon><ElIconRefresh /></el-icon>
+      </el-button>
+      <el-button
+        size="small"
+        class="action-btn"
+        :title="expanded ? '还原图表（Esc）' : '放大图表至整个页面'"
+        :aria-label="expanded ? '还原K线图表' : '放大K线图表至整个页面'"
+        :aria-pressed="expanded"
+        @click="emit('toggle-fullscreen')"
+      >
+        <el-icon>
+          <svg v-if="expanded" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+            <path d="M3 9h6V3m6 0v6h6M3 15h6v6m6 0v-6h6" />
+          </svg>
+          <ElIconFullScreen v-else />
+        </el-icon>
+      </el-button>
     </div>
   </div>
 </template>
@@ -251,6 +217,8 @@ interface Props {
   scanTimeRange?: [number, number] | null
   scanRangeBounds?: [number, number] | null
   emaPeriods?: number[]
+  /** 查看历史订单时禁用实时盘口，但保留原来的开关偏好。 */
+  orderBookUnavailable?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -270,6 +238,11 @@ const props = withDefaults(defineProps<Props>(), {
   scanRangeBounds: null,
   emaPeriods: () => [20, 200]
 })
+
+const volumeProfileEnabled = defineModel<boolean>('volumeProfileEnabled', { required: true })
+const orderBookEnabled = defineModel<boolean>('orderBookEnabled', { required: true })
+const positionRiskEnabled = defineModel<boolean>('positionRiskEnabled', { required: true })
+const supportResistanceEnabled = defineModel<boolean>('supportResistanceEnabled', { required: true })
 
 // 定义emits
 const emit = defineEmits<{
@@ -314,8 +287,9 @@ const showOrderMarkers = ref(props.showOrderMarkers)
 const filterOrderMarkersByTimeframe = ref(props.filterOrderMarkersByTimeframe)
 const showEMALines = ref(props.showEmaLines)
 const showScanMarkers = ref(props.showScanMarkers)
-// 时间面板默认收起，仅由开关控制，应用或重置范围后保持展开。
-const scanRangePopoverVisible = ref(false)
+const settingsVisible = ref(false)
+const settingsButton = ref<HTMLButtonElement | null>(null)
+const settingsPanel = ref<HTMLElement | null>(null)
 const scanDateRange = ref<[number, number] | null>(props.scanTimeRange ? [...props.scanTimeRange] : null)
 
 // 计算显示的symbol
@@ -355,6 +329,33 @@ const selectTimeframe = (timeframe: string) => {
   if (!props.timeline && selectedTimeframe.value === timeframe) return
   selectedTimeframe.value = timeframe
   emit('timeframe-change', timeframe)
+}
+
+/** 弹层传送到页面外层，打开后把焦点移入表单，避免 Tab 跳去图表之外。 */
+function focusChartSettings() {
+  if (settingsVisible.value && document.activeElement === settingsButton.value) {
+    settingsPanel.value?.focus({ preventScroll: true })
+  }
+}
+
+/** 先关闭设置，避免同一次 Esc 把全屏图表也还原。 */
+function handleSettingsEscape(event: KeyboardEvent) {
+  if (!settingsVisible.value || event.defaultPrevented) return
+  event.preventDefault()
+  event.stopPropagation()
+  closeChartSettings()
+}
+
+/** 收起设置并将焦点还给触发按钮，避免焦点留在已隐藏的弹层中。 */
+function closeChartSettings() {
+  settingsVisible.value = false
+  settingsButton.value?.focus({ preventScroll: true })
+}
+
+/** 手机将刷新放进设置，给完整交易对和报价留出空间。 */
+function refreshFromSettings() {
+  closeChartSettings()
+  emit('refresh')
 }
 
 // 切换EMA周期
@@ -487,53 +488,59 @@ watch(() => props.scanTimeRange, (newRange) => {
   scanDateRange.value = newRange ? [...newRange] : null
 }, { deep: true })
 
-// 扫描关闭、切入分时或数据不可用时收起面板，避免恢复后意外弹出。
-watch(
-  () => !props.timeline && showScanMarkers.value && props.scanSupported && Boolean(props.scanRangeBounds),
-  (available) => {
-    if (!available) scanRangePopoverVisible.value = false
-  }
-)
+// 分时没有这组 K 线设置；切回 K 线时不恢复之前打开的菜单。
+watch(() => props.timeline, (timeline) => {
+  if (timeline) settingsVisible.value = false
+})
 </script>
 
 <style scoped>
 .chart-controls {
   display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  align-items: center;
-  gap: 8px;
-  padding: 12px 20px;
-  border-bottom: 1px solid var(--border-color);
-  transition: all 0.3s ease;
-}
-
-.controls-left {
-  display: flex;
-  flex: 1 1 20px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
   gap: 12px;
+  min-width: 0;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--border-color);
+  /* 窄图表横向滚动，保留所有按钮和周期，不把工具栏挤成第二行。 */
+  overflow-x: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-lighter) transparent;
 }
 
-.controls-right {
-  display: flex;
-  flex: 0 1 auto;
-  align-items: center;
-  gap: 16px;
-  margin-left: auto;
+.quote-tools {
+  flex: none;
 }
 
-/* 标记控制开关 */
-.marker-controls {
+.controls-tools {
   display: flex;
+  flex: none;
   align-items: center;
-  gap: 6px;
-  padding: 2px 4px;
-  background: var(--bg-card);
-  border-radius: 8px;
+  gap: 12px;
+  margin-inline-start: auto;
+}
+
+.settings-button {
+  display: inline-grid;
+  place-items: center;
+  box-sizing: border-box;
+  width: 30px;
+  min-height: 28px;
+  padding: 0;
   border: 1px solid var(--border-color);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 16px;
+  cursor: pointer;
+}
+
+.settings-button:hover,
+.settings-button[aria-expanded="true"] {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
 }
 
 .marker-switch {
@@ -541,43 +548,78 @@ watch(
   --el-switch-off-color: var(--border-lighter);
 }
 
-.marker-switch :deep(.el-switch__label) {
-  font-size: 12px;
-  font-weight: 500;
+:global(.chart-settings-popover.el-popover) {
+  box-sizing: border-box;
+  max-width: calc(100vw - 16px);
 }
 
-.marker-switch :deep(.el-switch__label.is-active) {
-  color: var(--color-primary);
+.chart-settings {
+  display: grid;
+  font-size: 13px;
 }
 
-.scan-controls-group {
+.chart-settings:focus {
+  outline: none;
+}
+
+.chart-settings .settings-refresh {
+  display: none;
+}
+
+.layer-setting {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.layer-setting:last-of-type {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+.layer-setting-row {
   display: flex;
+  justify-content: space-between;
   align-items: center;
-  gap: 6px;
-  padding-right: 4px;
-  border-right: 1px solid var(--border-color);
+  gap: 8px;
 }
 
-.scan-marker-switch {
-  flex-shrink: 0;
+.layer-setting-row small,
+.layer-setting-secondary {
+  color: var(--text-secondary);
+  font-size: 12px;
 }
 
-.scan-range-switch {
-  flex-shrink: 0;
+.overlay-settings-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 112px), 1fr));
+  gap: 0 12px;
+}
+
+.ema-periods {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 2px 6px;
+  margin-top: 4px;
+}
+
+.ema-periods :deep(.el-checkbox) {
+  margin: 0;
 }
 
 .scan-range-panel {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  width: 100%;
+  gap: 8px;
+  margin-top: 8px;
   min-width: 0;
 }
 
-.scan-range-picker {
-  width: 100% !important;
+:global(.chart-settings-popover .scan-range-picker.el-date-editor--datetimerange) {
+  --el-date-editor-width: 100%;
+  --el-date-editor-datetimerange-width: 100%;
+  width: 100%;
   max-width: 100%;
-  min-width: 0 !important;
+  min-width: 0;
   box-sizing: border-box;
 }
 
@@ -589,21 +631,6 @@ watch(
   display: flex;
   justify-content: flex-end;
   gap: 8px;
-}
-
-:global(.scan-range-popover.el-popover) {
-  width: min(390px, calc(100vw - 24px)) !important;
-  max-width: calc(100vw - 24px);
-  box-sizing: border-box;
-}
-
-/* 日期范围组件默认固定为 400px，需要按 Popover 的实际内容宽度收缩。 */
-:global(.scan-range-popover .scan-range-picker.el-date-editor--datetimerange) {
-  --el-date-editor-width: 100%;
-  --el-date-editor-datetimerange-width: 100%;
-  width: 100% !important;
-  max-width: 100%;
-  min-width: 0 !important;
 }
 
 .symbol-badge {
@@ -619,9 +646,9 @@ watch(
 
 .market-quote {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
   gap: 6px 16px;
+  min-width: 0;
   color: var(--text-primary);
   white-space: nowrap;
 }
@@ -630,6 +657,8 @@ watch(
   display: flex;
   align-items: center;
   gap: 6px;
+  min-width: 0;
+  max-width: 100%;
   padding: 4px;
   border: 0;
   border-radius: 6px;
@@ -641,17 +670,24 @@ watch(
   cursor: pointer;
 }
 
+.market-quote-pair strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .market-quote-pair:hover,
 .market-quote-pair:focus-visible {
   background: var(--bg-hover);
 }
 
 .market-quote-caret {
+  flex: none;
   width: 12px;
   height: 12px;
 }
 
 .market-quote-icon {
+  flex: none;
   width: 22px;
   height: 22px;
   border-radius: 50%;
@@ -667,7 +703,6 @@ watch(
 
 .market-quote-values {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
   gap: 4px 14px;
   margin: 0;
@@ -720,109 +755,155 @@ watch(
 .market-quote-values .quote-down { color: var(--color-danger); }
 
 /* 略微收紧周期按钮宽度，保留与价格看板一致的高度和选中样式。 */
+.timeframe-buttons {
+  flex: none;
+  flex-wrap: nowrap;
+}
+
 .timeframe-buttons :deep(.el-radio-button__inner) {
   padding-right: 8px;
   padding-left: 8px;
 }
 
-.ema-period-select {
-  flex-shrink: 0;
-}
-
-.ema-select-arrow {
-  margin-left: 6px;
-}
-
 /* 操作按钮 */
 .action-buttons {
   display: flex;
-  gap: 1px;
+  flex: none;
+  gap: 6px;
+}
+
+.action-buttons :deep(.el-button) {
+  margin: 0;
+}
+
+.action-btn {
+  min-width: 30px;
+  min-height: 28px;
+  padding: 0 7px;
+}
+
+.action-btn .el-icon {
+  font-size: 14px;
 }
 
 @media (max-width: 576px) {
   .chart-controls {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 8px;
-    padding: 8px 10px;
+    /* 手机优先显示完整报价；所有周期仍在下排，无需横滑。 */
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "quote actions"
+      "tools tools";
+    padding-inline: 8px;
+    gap: 6px 8px;
+    overflow-x: visible;
   }
-  
-  .controls-left {
-    /* 纵向布局不能沿用桌面端的 20px flex 基准，否则交易对行会被压缩遮挡。 */
-    flex: none;
+
+  .quote-tools {
+    grid-area: quote;
     min-width: 0;
-    width: 100%;
-    flex-wrap: wrap;
-    justify-content: center;
-    gap: 8px;
   }
-  
-  .symbol-badge {
-    box-sizing: border-box;
-    width: 100%;
-    text-align: center;
-    padding: 4px 8px;
-    font-size: 13px;
-    border-radius: 12px;
+
+  .action-buttons {
+    grid-area: actions;
+    justify-self: end;
+    gap: 4px;
+  }
+
+  .has-chart-settings .toolbar-refresh {
+    display: none;
+  }
+
+  .chart-settings .settings-refresh {
+    display: inline-flex;
+    justify-self: start;
+    gap: 4px;
+    margin-top: 8px;
+  }
+
+  .action-btn {
+    min-width: 32px;
+    min-height: 34px;
+  }
+
+  .controls-tools {
+    grid-area: tools;
+    gap: 8px;
+    margin-inline-start: 0;
   }
 
   .market-quote {
-    justify-content: center;
-  }
-  
-  .timeframe-buttons {
-    width: 100%;
-    min-width: 0;
-    justify-content: center;
-  }
-  
-  .controls-right {
-    flex: none;
-    min-width: 0;
-    width: 100%;
-    margin-left: 0;
-    align-items: center;
+    display: grid;
+    grid-template-columns: fit-content(55%) minmax(0, 1fr);
     gap: 8px;
-    flex-wrap: nowrap;
-  }
-  
-  .marker-controls {
-    /* 开关与操作按钮并排；新增的周期、EMA 控件只在开关区域内换行。 */
-    flex: 1 1 0;
-    min-width: 0;
-    box-sizing: border-box;
-    gap: 4px;
-    padding: 2px 4px;
-    border-radius: 6px;
-    flex-wrap: wrap;
   }
 
-  .scan-controls-group {
+  .market-quote-pair {
     gap: 4px;
-    padding-right: 6px;
-  }
-  
-  .marker-switch :deep(.el-switch__label) {
-    font-size: 11px;
-  }
-  
-  .action-buttons {
-    flex: none;
-    margin-left: auto;
-    gap: 1px;
-  }
-
-  .action-buttons :deep(.el-button) {
-    margin-left: 0;
-  }
-  
-  .action-btn {
-    padding: 6px;
-  }
-  
-  .action-btn .el-icon {
+    padding: 2px;
     font-size: 14px;
   }
-  
+
+  .market-quote-pair strong {
+    /* 长代码可以断行，但不能因为报价变长而被省略号截掉。 */
+    overflow: visible;
+    overflow-wrap: anywhere;
+    white-space: normal;
+    text-overflow: clip;
+  }
+
+  .market-quote-icon {
+    width: 18px;
+    height: 18px;
+  }
+
+  .market-quote-values {
+    /* 成交量始终保留上下两行；极窄时整组换行，不拆开标签和数值。 */
+    flex-wrap: wrap;
+    gap: 2px 8px;
+  }
+
+  .market-quote-price {
+    font-size: 17px;
+  }
+
+  .market-quote-change {
+    flex-wrap: wrap;
+    row-gap: 0;
+  }
+
+  .market-quote-volume {
+    padding-inline-start: 8px;
+  }
+
+  .market-quote-volume dt {
+    font-size: 10px;
+  }
+
+  .market-quote-volume dd {
+    font-size: 12px;
+  }
+
+  .timeframe-buttons {
+    display: grid;
+    flex: 1 1 auto;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(0, 1fr);
+    min-width: 0;
+  }
+
+  .timeframe-buttons :deep(.el-radio-button__inner) {
+    display: grid;
+    place-items: center;
+    width: 100%;
+    min-height: 34px;
+    padding: 0 2px;
+    font-size: 12px;
+  }
+
+  .settings-button {
+    width: 34px;
+    min-height: 34px;
+  }
 }
 </style>

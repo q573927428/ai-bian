@@ -1,5 +1,5 @@
 <template>
-  <div class="chart-wrapper" :class="{ 'chart-wrapper-linked': indicator }" :style="indicator ? { '--indicator-pane-height': `${indicatorPaneHeight}px` } : undefined">
+  <div ref="chartWrapper" class="chart-wrapper" :class="{ 'chart-wrapper-linked': indicator }">
     <div ref="chartContainer" class="kline-chart" :title="pinnedCrosshair ? '光标已锁定，再次点击图表解除锁定' : '点击图表锁定光标，再次点击解除锁定'"></div>
     <div v-if="indicatorPaneTop !== null && ($slots['indicator-controls'] || indicator === 'DMI')" class="indicator-controls-overlay" :style="{ top: `${indicatorPaneTop + 6}px` }">
       <slot name="indicator-controls" />
@@ -13,10 +13,10 @@
         </button>
       </div>
     </div>
-    <SupportResistanceOverlay :symbol="symbol" :timeframe="timeframe" :klines="klineData" :loading="loading || !!error" :historical-order="historicalOrder" :get-chart="() => chart" :get-series="() => candlestickSeries" />
-    <PositionRiskOverlay :symbol="symbol" :historical-order="historicalOrder" :klines="klineData" :loading="loading || !!error" :get-chart="() => chart" :get-series="() => candlestickSeries" />
-    <OrderBookOverlay :enabled="orderBookEnabled" :symbol="symbol" :historical="!!historicalOrder" :loading="loading || !!error" :get-chart="() => chart" :get-series="() => candlestickSeries" @toggle="orderBookEnabled = !orderBookEnabled" />
-    <VolumeProfileOverlay :enabled="volumeProfileEnabled" :symbol="symbol" :timeframe="timeframe" :klines="klineData" :loading="loading || !!error" :get-chart="() => chart" :get-series="() => candlestickSeries" @toggle="volumeProfileEnabled = !volumeProfileEnabled" />
+    <SupportResistanceOverlay :enabled="supportResistanceEnabled" :symbol="symbol" :timeframe="timeframe" :klines="klineData" :loading="loading || !!error" :historical-order="historicalOrder" :get-chart="() => chart" :get-series="() => candlestickSeries" />
+    <PositionRiskOverlay :enabled="positionRiskEnabled" :symbol="symbol" :historical-order="historicalOrder" :klines="klineData" :loading="loading || !!error" :get-container="getChartWrapper" :get-chart="() => chart" :get-series="() => candlestickSeries" />
+    <OrderBookOverlay :enabled="orderBookEnabled" :symbol="symbol" :historical="!!historicalOrder" :loading="loading || !!error" :get-chart="() => chart" :get-series="() => candlestickSeries" />
+    <VolumeProfileOverlay :enabled="volumeProfileEnabled" :symbol="symbol" :timeframe="timeframe" :klines="klineData" :loading="loading || !!error" :get-container="getChartWrapper" :get-chart="() => chart" :get-series="() => candlestickSeries" />
 
     <!-- 加载状态 -->
     <div v-if="loading" class="chart-loading">
@@ -46,7 +46,6 @@ import PositionRiskOverlay from './PositionRiskOverlay.vue'
 import SupportResistanceOverlay from './SupportResistanceOverlay.vue'
 import OrderBookOverlay from './OrderBookOverlay.vue'
 import VolumeProfileOverlay from './VolumeProfileOverlay.vue'
-import { useChartOverlayPreference } from '../../composables/useChartOverlayPreference'
 import { useChartPosition } from '../../composables/usePositionChart'
 import { ref, onMounted, onUnmounted, watch, nextTick, computed } from 'vue'
 import { createChart, ColorType, CandlestickSeries, HistogramSeries, LineSeries, createSeriesMarkers } from 'lightweight-charts'
@@ -89,6 +88,10 @@ interface Props {
   showOrderMarkers?: boolean
   showScanMarkers?: boolean
   showEmaLines?: boolean
+  volumeProfileEnabled: boolean
+  orderBookEnabled: boolean
+  positionRiskEnabled: boolean
+  supportResistanceEnabled: boolean
   emaPeriods?: number[]
   height?: number
 }
@@ -112,11 +115,6 @@ const props = withDefaults(defineProps<Props>(), {
 
 // 使用Pinia store获取配置
 const botStore = useBotStore()
-const orderBookEnabled = useChartOverlayPreference('chart-order-book-enabled', false)
-const volumeProfileEnabled = useChartOverlayPreference('chart-volume-profile-enabled', false)
-// 两种分布共用价格轴左侧空间，互斥切换也能让盘口组件立即释放实时连接。
-watch(orderBookEnabled, value => { if (value) volumeProfileEnabled.value = false }, { flush: 'sync' })
-watch(volumeProfileEnabled, value => { if (value) orderBookEnabled.value = false }, { flush: 'sync' })
 const selectedRiskPosition = useChartPosition(() => props.symbol)
 
 // 计算EMA周期 - 优先使用props.emaPeriods，否则从配置获取
@@ -282,6 +280,9 @@ const emit = defineEmits<{
 }>()
 
 // 图表相关
+const chartWrapper = ref<HTMLElement | null>(null)
+// 图层通过容器追踪悬停，不需要在画布上保留一个按钮来监听。
+const getChartWrapper = () => chartWrapper.value
 const chartContainer = ref<HTMLElement | null>(null)
 let chart: any = null
 let candlestickSeries: any = null
@@ -290,7 +291,6 @@ let emaSeries: any[] = []
 let resizeObserver: ResizeObserver | null = null
 let indicatorPane: ReturnType<typeof createIndicatorPane> | undefined
 let indicatorResizeObserver: ResizeObserver | undefined
-const indicatorPaneHeight = ref(0)
 const indicatorPaneTop = ref<number | null>(null)
 const hiddenDmiLines = ref<ReadonlySet<KlineDmiLine>>(new Set())
 let markersApi: any = null
@@ -701,7 +701,7 @@ const handleCrosshairMove = (param: any) => {
 /** 首页给最新 K 线和右侧价格轴之间多留一些空间，订单复盘沿用原设置。 */
 function getCanvasOptions() {
   const options = getChartOptions(props.theme)
-  if (props.indicator) options.timeScale.rightOffset = 28
+  if (props.indicator) options.timeScale.rightOffset = 38
   return options
 }
 
@@ -832,7 +832,6 @@ const initChart = () => {
       if (!element || !chartElement) return
       /** 直接读取副图位置，拖动分隔线或放大图表时，按钮仍贴在副图上沿。 */
       const syncIndicatorBounds = () => {
-        indicatorPaneHeight.value = linkedPane.pane.getHeight()
         indicatorPaneTop.value = element.getBoundingClientRect().top - chartElement.getBoundingClientRect().top
       }
       syncIndicatorBounds()
@@ -1400,7 +1399,6 @@ const cleanupChart = () => {
   indicatorResizeObserver?.disconnect()
   indicatorResizeObserver = undefined
   indicatorPane = undefined
-  indicatorPaneHeight.value = 0
   indicatorPaneTop.value = null
   
   // 停止所有可能的动画或更新
@@ -1521,21 +1519,6 @@ defineExpose({
   height: v-bind(chartWrapperHeight);
   min-height: 250px;
   overflow: hidden;
-}
-
-.chart-wrapper :deep(.structure-toggle) { bottom: calc(30px + var(--indicator-pane-height, 0px)); }
-.chart-wrapper :deep(.risk-toggle) { bottom: calc(58px + var(--indicator-pane-height, 0px)); }
-.chart-wrapper :deep(.depth-toggle) { bottom: calc(86px + var(--indicator-pane-height, 0px)); }
-.chart-wrapper :deep(.profile-toggle) { bottom: calc(114px + var(--indicator-pane-height, 0px)); }
-
-/* 工作台中主图上的悬浮按钮也会盖住蜡烛和成交量；首页沿用原有样式。 */
-.chart-wrapper-linked :deep(.structure-toggle),
-.chart-wrapper-linked :deep(.risk-toggle),
-.chart-wrapper-linked :deep(.depth-toggle),
-.chart-wrapper-linked :deep(.profile-toggle) {
-  background: color-mix(in srgb, var(--bg-card) 28%, transparent);
-  border-color: color-mix(in srgb, var(--border-color) 55%, transparent);
-  color: var(--text-primary);
 }
 
 .indicator-controls-overlay {

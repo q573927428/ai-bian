@@ -1,7 +1,6 @@
 <!-- ==================== 持仓止盈止损价格区域 ==================== -->
 <template>
-  <button ref="toggleButton" class="risk-toggle" type="button" :aria-pressed="enabled" @click="enabled = !enabled">{{ enabled ? '隐藏止盈止损' : '止盈止损' }}</button>
-  <svg v-if="geometry" ref="overlay" class="position-risk-overlay" :class="{ 'is-hovered': hovered }" :width="geometry.width" :height="geometry.height" aria-label="持仓止盈止损区域">
+  <svg v-if="enabled && geometry" ref="overlay" class="position-risk-overlay" :class="{ 'is-hovered': hovered }" :width="geometry.width" :height="geometry.height" aria-label="持仓止盈止损区域">
     <rect v-for="zone in fillZones" :key="zone.key" :x="geometry.left" :y="zone.top" :width="geometry.right - geometry.left" :height="zone.height" :fill="zone.color" fill-opacity="0.16" />
     <text v-if="geometry.strategyId" :x="Math.max(5, geometry.left + 5)" :y="geometry.strategyY" class="price-value risk-detail">{{ geometry.strategyId }}</text>
     <g v-for="zone in geometry.zones" :key="zone.label">
@@ -18,18 +17,19 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onBeforeUnmount, shallowRef } from 'vue'
+import { computed, onMounted, onBeforeUnmount, shallowRef, watch } from 'vue'
 import type { TradeHistory } from '../../../types'
 import type { IChartApi, ISeriesApi } from 'lightweight-charts'
 import type { SimpleKLineData } from '../../../types/kline-simple'
 import { useChartPosition } from '../../composables/usePositionChart'
-import { useChartOverlayPreference } from '../../composables/useChartOverlayPreference'
 import { formatPrice } from './utils/kline-formatters'
 
 /** 获取实时图表实例，以适应交易对或指标切换时的图表重建。 */
 interface Props {
+  enabled: boolean
   symbol?: string
   klines: SimpleKLineData[]
+  getContainer: () => HTMLElement | null
   getChart: () => IChartApi | null
   getSeries: () => ISeriesApi<'Candlestick'> | null
   loading?: boolean
@@ -58,7 +58,6 @@ interface Geometry {
   tp1: { y: number; price: string } | null
 }
 const geometry = shallowRef<Geometry | null>(null)
-const toggleButton = shallowRef<HTMLButtonElement | null>(null)
 const overlay = shallowRef<SVGSVGElement | null>(null)
 const pointer = shallowRef<{ x: number; y: number } | null>(null)
 // 用实际鼠标位置命中风险色块，不受十字光标吸附或锁定状态影响。
@@ -70,7 +69,6 @@ const hovered = computed(() => {
     && point.y >= Math.max(0, Math.min(area.entry, ...area.zones.map(zone => zone.y)))
     && point.y <= Math.min(area.height, Math.max(area.entry, ...area.zones.map(zone => zone.y)))
 })
-let hoverContainer: HTMLElement | null = null
 
 /** 在图表父容器上旁听鼠标移动，保持 SVG 穿透，不拦截拖动、缩放和点击。 */
 function trackPointer(event: PointerEvent) {
@@ -83,8 +81,6 @@ function trackPointer(event: PointerEvent) {
 function clearPointer() {
   pointer.value = null
 }
-// 沿用默认显示，允许用户单独关闭风险区域，不影响订单标记及持仓监控。
-const enabled = useChartOverlayPreference('chart-position-risk-enabled', true)
 // 保证短期持仓的标签空间，同时让框体覆盖持仓期间的全部 K 线。
 const MIN_RISK_BOX_WIDTH = 100
 const LATEST_KLINE_PADDING = 30
@@ -118,7 +114,7 @@ function updateGeometry() {
   const series = props.getSeries()
   const selected = position.value
   let next: Geometry | null = null
-  if (enabled.value && chart && series && selected && !props.loading && props.klines.length &&
+  if (props.enabled && chart && series && selected && !props.loading && props.klines.length &&
       selected.symbol.replace('/', '').toUpperCase() === props.symbol?.replace('/', '').toUpperCase()) {
     const scale = chart.timeScale()
     const entry = series.priceToCoordinate(Number(selected.entryPrice))
@@ -164,21 +160,21 @@ function updateGeometry() {
   }
   frame = requestAnimationFrame(updateGeometry)
 }
-onMounted(() => {
-  hoverContainer = toggleButton.value?.parentElement ?? null
-  hoverContainer?.addEventListener('pointermove', trackPointer, { passive: true })
-  hoverContainer?.addEventListener('pointerleave', clearPointer)
-  frame = requestAnimationFrame(updateGeometry)
-})
-onBeforeUnmount(() => {
-  hoverContainer?.removeEventListener('pointermove', trackPointer)
-  hoverContainer?.removeEventListener('pointerleave', clearPointer)
-  cancelAnimationFrame(frame)
-})
+// 父画布的元素引用在渲染后才就绪；卸载或更换容器时自动解绑。
+watch(() => props.getContainer(), (container, _, onCleanup) => {
+  if (!container) return
+  container.addEventListener('pointermove', trackPointer, { passive: true })
+  container.addEventListener('pointerleave', clearPointer)
+  onCleanup(() => {
+    container.removeEventListener('pointermove', trackPointer)
+    container.removeEventListener('pointerleave', clearPointer)
+  })
+}, { immediate: true, flush: 'post' })
+onMounted(() => { frame = requestAnimationFrame(updateGeometry) })
+onBeforeUnmount(() => cancelAnimationFrame(frame))
 </script>
 
 <style scoped>
-.risk-toggle { position: absolute; left: 12px; bottom: 58px; z-index: 3; border: 1px solid var(--border-color); border-radius: 4px; background: var(--bg-card, #141414); color: var(--text-secondary); cursor: pointer; font-size: 11px; padding: 3px 6px; }
 .position-risk-overlay { position: absolute; top: 0; left: 0; pointer-events: none; overflow: hidden; z-index: 1; }
 /* 默认仅保留风险色块，鼠标进入其中任一区域后显示整组价位详情。 */
 .risk-detail { visibility: hidden; }
