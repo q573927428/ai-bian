@@ -1,6 +1,5 @@
 <template>
-  <Teleport :to="dialogTarget || 'body'" :disabled="!dialogTarget && !isBoardExpanded">
-  <el-card class="price-grid-card price-grid-card-standalone" :class="{ 'price-grid-card-expanded': isBoardExpanded }" shadow="hover">
+  <el-card class="price-grid-card price-grid-card-standalone" :class="{ 'price-grid-card-expanded': expanded }" shadow="hover">
     <template #header>
       <div class="price-cards-header price-cards-header-compact" :class="{ 'is-heatmap': viewMode === 'heatmap' }">
         <div class="price-cards-heading">
@@ -69,17 +68,15 @@
           </el-select>
         </div>
         <button
-          v-if="!dialogTarget"
-          ref="boardExpandButton"
           type="button"
           class="board-expand-button"
-          :title="isBoardExpanded ? '还原看板（Esc）' : '放大看板至整个页面'"
-          :aria-label="isBoardExpanded ? '还原价格看板' : '放大价格看板至整个页面'"
-          :aria-pressed="isBoardExpanded"
-          @click="toggleBoardExpanded"
+          :title="expanded ? '还原看板' : '放大看板至整个页面'"
+          :aria-label="expanded ? '还原价格看板' : '放大价格看板至整个页面'"
+          :aria-pressed="expanded"
+          @click="emit('toggle-expand')"
         >
           <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
-            <path v-if="isBoardExpanded" d="M3 9h6V3m6 0v6h6M3 15h6v6m6 0v-6h6" />
+            <path v-if="expanded" d="M3 9h6V3m6 0v6h6M3 15h6v6m6 0v-6h6" />
             <path v-else d="M9 3H3v6m12-6h6v6M3 15v6h6m6 0h6v-6" />
           </svg>
         </button>
@@ -198,7 +195,6 @@
     </div>
     </template>
   </el-card>
-  </Teleport>
 </template>
 
 <script setup lang="ts">
@@ -208,16 +204,14 @@ import { getHeatmapLegend } from '../utils/price-heatmap-colors'
 import { formatPrice } from './kline-chart/utils/kline-formatters'
 import { useBotStore } from '../stores/bot'
 import { useCoinIcon } from '../composables/useCoinIcon'
-import { useGlobalPolling } from '../composables/useGlobalPolling'
-import type { MarketBreadthSnapshot } from '../../types/market-breadth'
-import type { MarketPeriodVolumes } from '../../types/market-period-volumes'
-import { calculateLiveBreadth, summarizeBreadth } from '../utils/market-breadth'
-import { useMarketScope } from '../composables/useMarketScope'
+import type { useHomePriceBoard } from '../composables/useHomePriceBoard'
 
 /** 看板只同步交易对选择，主图由首页渲染。 */
 const props = defineProps<{
-  /** 弹窗与右栏共用一个看板实例，移动时保留筛选、热力图状态和行情订阅。 */
-  dialogTarget?: HTMLElement | null
+  /** 侧栏与弹窗共享筛选状态及行情；布局和滚动位置由各视图维护。 */
+  board: ReturnType<typeof useHomePriceBoard>
+  /** 由外层弹窗切换全屏，看板只改变布局。 */
+  expanded?: boolean
   /** 标签隐藏时延迟滚动定位，重新显示后再读取卡片尺寸。 */
   inactive?: boolean
   /** 由外部指定要展示的交易对，例如点击当前持仓时传入。 */
@@ -229,53 +223,22 @@ const props = defineProps<{
 const emit = defineEmits<{
   /** 手动选择价格卡片后，将最新交易对同步给首页。 */
   'update:chartSymbol': [symbol: string]
+  /** 由首页决定是打开全屏弹窗，还是切换已打开弹窗的尺寸。 */
+  'toggle-expand': []
 }>()
 
 const botStore = useBotStore()
-const isBoardExpanded = ref(false)
-const boardExpandButton = ref<HTMLButtonElement | null>(null)
-let previousBodyOverflow = ''
-
-/** 整个看板移至页面顶层并铺满视口，保留组件实例和当前筛选、缩放状态。 */
-function toggleBoardExpanded() {
-  if (!isBoardExpanded.value) {
-    previousBodyOverflow = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-  } else {
-    document.body.style.overflow = previousBodyOverflow
-  }
-  isBoardExpanded.value = !isBoardExpanded.value
-  // Teleport 移动节点后恢复按钮焦点，方便继续使用键盘切换。
-  void nextTick(() => boardExpandButton.value?.focus({ preventScroll: true }))
-}
-
-/** 支持通过 Esc 返回原布局；已由下拉框等控件处理的按键不再重复处理。 */
-function handleBoardEscape(event: KeyboardEvent) {
-  if (event.key === 'Escape' && !event.defaultPrevented && isBoardExpanded.value) {
-    toggleBoardExpanded()
-  }
-}
+const {
+  DEFAULT_CRYPTOS, viewMode, heatmapSizeMode, priceFilter, symbolSearch, changePeriod,
+  breadthSnapshot, periodVolumes, activeBreadth, getChangePercent,
+  marketScope, scopeSymbols, scopeSymbolSet, scopeLabel, unknownCount
+} = props.board
 
 const { getCoinIconUrl } = useCoinIcon()
 /** 标记与市场统计、置信度使用相同的官方元数据分类。 */
 function isTradFi(symbol: string): boolean {
   return breadthSnapshot.value?.assetCategories?.[symbol] === 'tradfi'
 }
-
-// 从配置文件获取加密货币列表，处理去掉/。
-const DEFAULT_CRYPTOS = computed<string[]>((previousSymbols) => {
-  const configuredSymbols = botStore.config?.symbols
-  const symbols = Array.isArray(configuredSymbols)
-    ? [...new Set<string>(configuredSymbols.map((symbol: string) => symbol.replace('/', '').trim().toUpperCase()).filter(Boolean))]
-    : []
-  // 状态刷新会替换整个配置对象；列表内容和顺序未变时复用旧引用，
-  // 避免误触发下方配置变更监听，清空快照后让统计、热力图和图表布局短暂跳动。
-  if (previousSymbols && symbols.length === previousSymbols.length
-    && symbols.every((symbol, index) => symbol === previousSymbols[index])) {
-    return previousSymbols
-  }
-  return symbols
-})
 
 // 响应式数据
 const cryptoPrices = ref<CryptoPrice[]>([])
@@ -285,86 +248,9 @@ const boardContentElement = ref<HTMLElement | null>(null)
 const baselineGridElement = ref<HTMLElement | null>(null)
 const cardGridHeight = ref(128)
 let cardGridResizeObserver: ResizeObserver | undefined
-const viewMode = ref<'cards' | 'heatmap'>('cards')
-// 大小模式由标题栏控制，切换卡片视图后仍保留当前选择。
-const heatmapSizeMode = ref<'change' | 'volume' | 'equal'>('change')
-const VIEW_MODE_KEY = 'price-board-view-mode'
-const priceFilter = ref<'all' | 'up' | 'down'>('all')
-const symbolSearch = ref('')
 // 搜索只筛选展示，市场统计始终覆盖当前资产分类。
 const normalizedSymbolSearch = computed(() => symbolSearch.value.replace(/[\s/]/g, '').toUpperCase())
-const changePeriod = ref<'5m' | '15m' | '1h' | '4h' | '24h'>('1h')
 const heatmapLegend = computed(() => getHeatmapLegend(changePeriod.value))
-const breadthSnapshot = ref<MarketBreadthSnapshot | null>(null)
-const { marketScope, scopeSymbols, scopeSymbolSet, scopeLabel, unknownCount } = useMarketScope(DEFAULT_CRYPTOS, breadthSnapshot)
-const periodVolumes = ref<MarketPeriodVolumes | null>(null)
-let volumeRequestId = 0
-const breadthClock = ref(Date.now())
-let breadthRequestId = 0
-
-// 所有周期（含滚动24h）复用服务端本地5m基准，结合实时价格重算。
-const fullBreadth = computed(() => {
-  const snapshot = breadthSnapshot.value
-  const validSnapshot = snapshot && breadthClock.value < snapshot.expiresAt
-    && JSON.stringify([...DEFAULT_CRYPTOS.value].sort()) === JSON.stringify(snapshot.symbols)
-  const stats = validSnapshot ? snapshot.periods[changePeriod.value] : null
-  return calculateLiveBreadth(DEFAULT_CRYPTOS.value, botStore.prices, changePeriod.value,
-    stats?.bases ?? {}, stats?.referenceTime ?? null, Math.max(breadthClock.value, Date.now()))
-})
-
-// 分类只改变头部聚合范围；完整行情供隐藏基准卡片测量，避免切换分类后
-// 其他分类的涨跌幅变成“待更新”，导致文本换行或卡片宽度变化而撑高看板。
-const activeBreadth = computed(() => {
-  const stats = fullBreadth.value
-  return summarizeBreadth(Object.fromEntries(scopeSymbols.value.map(symbol => [symbol, stats.changes[symbol] ?? null])),
-    stats.referenceTime, stats.bases)
-})
-
-/** 展示和测量卡片共享完整实时行情，分类过滤不改写其他标的的涨跌幅。 */
-function getChangePercent(symbol: string): number | null {
-  return fullBreadth.value.changes[symbol] ?? null
-}
-
-/** 获取共享快照；丢弃配置变更或卸载前发出的旧请求。 */
-async function loadMarketBreadth() {
-  const requestId = ++breadthRequestId
-  breadthClock.value = Date.now()
-  try {
-    const result = await $fetch<MarketBreadthSnapshot>('/api/market/breadth')
-    if (requestId === breadthRequestId) {
-      breadthSnapshot.value = result
-      breadthClock.value = Date.now()
-    }
-  } catch (error) {
-    console.warn('[Price] 获取市场广度失败:', error)
-  }
-}
-
-/** 仅在成交额热力图可见时读取多周期本地快照，丢弃配置变化或卸载前的请求。 */
-async function loadPeriodVolumes() {
-  if (viewMode.value !== 'heatmap' || heatmapSizeMode.value !== 'volume') return
-  const requestId = ++volumeRequestId
-  try {
-    const result = await $fetch<MarketPeriodVolumes>('/api/market/period-volumes')
-    if (requestId === volumeRequestId) periodVolumes.value = result
-  } catch (error) {
-    console.warn('[Price] 获取周期成交额失败:', error)
-  }
-}
-
-watch([viewMode, heatmapSizeMode], () => {
-  if (import.meta.client) void loadPeriodVolumes()
-})
-
-watch(DEFAULT_CRYPTOS, () => {
-  breadthRequestId++
-  breadthSnapshot.value = null
-  volumeRequestId++
-  periodVolumes.value = null
-  syncPricesFromStore()
-  if (import.meta.client) void loadMarketBreadth()
-  if (import.meta.client) void loadPeriodVolumes()
-})
 const heatmapMeasureCount = ref(21)
 // 价格变动动画状态
 const priceChangeAnimations = ref<Record<string, 'up' | 'down' | null>>({})
@@ -406,9 +292,7 @@ function selectHeatmapSymbol(symbol: string) {
   if (crypto) selectChartSymbol(crypto.symbol)
 }
 
-watch(viewMode, (mode) => {
-  // 浏览器禁用存储时仍允许正常切换视图。
-  try { localStorage.setItem(VIEW_MODE_KEY, mode) } catch { /* 忽略存储不可用。 */ }
+watch(viewMode, () => {
   void nextTick(measureOriginalPageHeight)
 })
 // 展示网格遵循筛选；基准网格始终取完整行情的一页，两者共用卡片模板以保持尺寸一致。
@@ -436,7 +320,7 @@ async function locateSelectedCard() {
 }
 
 // 只监听选择、模式及结果成员变化，实时价格刷新不能反复拉回用户的滚动位置。
-watch([selectedSymbol, viewMode, () => props.inactive, () => props.dialogTarget, () => filteredCryptoPrices.value.map(item => item.symbol).join(',')],
+watch([selectedSymbol, viewMode, () => props.inactive, () => filteredCryptoPrices.value.map(item => item.symbol).join(',')],
   () => { void locateSelectedCard() }, { flush: 'post' })
 
 /** 仅保存独立基准网格的节点，展示网格的增删不会影响高度测量。 */
@@ -466,10 +350,8 @@ function syncPricesFromStore() {
   }
 }
 
-// 监听store价格变化
-watch(() => botStore.prices, () => {
-  syncPricesFromStore()
-}, { deep: true })
+// 配置与实时行情同时驱动当前视图的卡片价格动画。
+watch([DEFAULT_CRYPTOS, () => botStore.prices], syncPricesFromStore, { deep: true })
 
 // 外部切换入口与价格卡片共用同一个图表状态，并统一兼容 BTC/USDT 与 BTCUSDT 写法。
 watch(() => props.chartSymbol, (symbol) => {
@@ -588,24 +470,14 @@ function getRandomColor(symbol: string) {
 }
 
 
-useGlobalPolling(loadMarketBreadth)
-useGlobalPolling(loadPeriodVolumes, () => viewMode.value === 'heatmap' && heatmapSizeMode.value === 'volume')
-
 // 组件生命周期
 onMounted(() => {
-  window.addEventListener('keydown', handleBoardEscape)
   // 按原来一页的卡片实际布局测量，保持取消分页前的高度与响应式行数。
   if (baselineGridElement.value) {
     cardGridResizeObserver = new ResizeObserver(measureOriginalPageHeight)
     cardGridResizeObserver.observe(baselineGridElement.value)
     if (boardContentElement.value) cardGridResizeObserver.observe(boardContentElement.value)
   }
-  try {
-    if (localStorage.getItem(VIEW_MODE_KEY) === 'heatmap') viewMode.value = 'heatmap'
-  } catch { /* 存储不可用时使用默认卡片视图。 */ }
-  void loadMarketBreadth()
-  // 订阅 botStore 共享价格更新，自动同步价格
-  botStore.subscribeToPrices('crypto-price-cards')
   updateHeatmapMeasureCount()
   window.addEventListener('resize', updateHeatmapMeasureCount)
   // 首次加载
@@ -613,16 +485,8 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
-  volumeRequestId++
   cardGridResizeObserver?.disconnect()
-  breadthRequestId++
-  botStore.unsubscribeFromPrices('crypto-price-cards')
-  if (import.meta.client) {
-    window.removeEventListener('keydown', handleBoardEscape)
-    // 离开页面时也必须释放滚动锁，避免影响其他页面。
-    if (isBoardExpanded.value) document.body.style.overflow = previousBodyOverflow
-    window.removeEventListener('resize', updateHeatmapMeasureCount)
-  }
+  if (import.meta.client) window.removeEventListener('resize', updateHeatmapMeasureCount)
 })
 
 /** 看板中单个交易对的实时价格与成交量。 */
@@ -637,16 +501,11 @@ interface CryptoPrice {
 </script>
 
 <style scoped>
-/* 整个组件占满浏览器页面；工具栏保留高度，正文使用剩余空间。 */
+/* 全屏尺寸由弹窗控制；看板只负责让正文使用工具栏以外的空间。 */
 .price-grid-card-expanded {
-  position: fixed;
-  /* 公共行情栏固定在底部，展开区域需扣除其高度及移动端安全区。 */
-  inset: 0 0 var(--app-footer-height, 0px);
-  z-index: 2000;
   box-sizing: border-box;
-  height: calc(100dvh - var(--app-footer-height, 0px));
+  height: 100%;
   margin: 0;
-  border-radius: 0;
   display: flex;
   flex-direction: column;
 }

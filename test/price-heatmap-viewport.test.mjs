@@ -25,10 +25,28 @@ test('首页只渲染一张 K 线主图，价格看板不再渲染独立 K 线',
   assert.match(board.code, /PriceHeatmap/, '价格看板保留热力图')
   assert.doesNotMatch(board.code, /ChartEngineSwitcher|KLineChartSimple|KLineWorkspaceChart/)
   assert.equal([...home.matchAll(/<KLineWorkspaceChart\b/g)].length, 1)
-  assert.equal([...home.matchAll(/<CryptoPriceCards\b/g)].length, 1, '弹窗与侧栏共用同一个价格看板')
   assert.match(home, /@open-price-cards="openPriceCardsDialog"/)
-  assert.match(home, /@closed="priceCardsInDialog = false"/, '关闭按钮和 Esc 也会把看板移回侧栏')
-  assert.match(board.code, /_ctx\.dialogTarget/, '看板可以移入弹窗而不重建')
+})
+
+test('价格卡片侧栏始终保留，弹窗共享行情和筛选且提供放大与还原按钮', () => {
+  const filename = 'index.vue'
+  const home = fs.readFileSync(new URL('../app/pages/index.vue', import.meta.url), 'utf8')
+  const { descriptor } = parse(home, { filename })
+  const template = descriptor.template.content
+  const sidebar = template.match(/<el-tab-pane label="价格卡片"[\s\S]*?<\/el-tab-pane>/)?.[0] ?? ''
+  const dialog = template.match(/<el-dialog v-model="showPriceCardsDialog"[\s\S]*?<\/el-dialog>/)?.[0] ?? ''
+  assert.match(sidebar, /<CryptoPriceCards\s+:board="priceBoard"[^>]*@toggle-expand="openPriceCardsDialog\(true\)"/)
+  assert.doesNotMatch(sidebar, /v-if|v-show|dialog-target/, '打开弹窗不会移走或隐藏侧栏的看板')
+  assert.match(dialog, /:fullscreen="priceCardsDialogExpanded"[^>]*destroy-on-close[^>]*@closed="finishClosingPriceCardsDialog"/)
+  assert.match(dialog, /<CryptoPriceCards\s+:board="priceBoard"\s+:expanded="priceCardsDialogExpanded"[^>]*@toggle-expand="togglePriceCardsDialogExpanded"/)
+  const board = fs.readFileSync(new URL('../app/components/CryptoPriceCards.vue', import.meta.url), 'utf8')
+  const button = board.match(/<button[^>]*class="board-expand-button"[\s\S]*?<\/button>/)?.[0] ?? ''
+  assert.match(button, /放大看板至整个页面/)
+  assert.match(button, /还原看板/)
+  assert.doesNotMatch(button, /v-if="!dialogTarget"/)
+  assert.doesNotMatch(board, /<Teleport\b/)
+  assert.deepEqual(compileTemplate({ filename, id: 'home', source: template }).errors, [])
+  assert.deepEqual(compileStyle({ filename, id: 'home', source: descriptor.styles[0].content, scoped: true }).errors, [])
 })
 
 test('首页行情区将环境详情放在最左侧并默认选中', () => {
@@ -115,18 +133,18 @@ test('首页每次持仓点击都触发独立热力图聚焦，包括重复交�
   const context = {
     KLINE_WORKSPACE_PERIODS,
     selectedChartSymbol: ref(''), selectedChartTimeframe: ref(''), chartFocusRequest: request,
-    priceCardsInDialog: ref(false), showPriceCardsDialog: ref(false), activePriceCardsTarget: ref(null),
+    priceCardsInDialog: ref(false), showPriceCardsDialog: ref(false), priceCardsDialogExpanded: ref(false),
     props: { get focusRequest() { return request.value }, get items() { return items.value } },
     nextTick, watch: (...args) => { stops.push(watch(...args)) },
     locateSymbol: async symbol => located.push(symbol)
   }
   vm.createContext(context)
-  vm.runInContext(ts.transpile(`let chartFocusId = 0; let searchTimer;\n${handlers}\n${requestWatch}\nglobalThis.click = handlePositionChartSelect;\nglobalThis.choosePrice = handlePriceChartSelect;\nglobalThis.openPriceCards = openPriceCardsDialog;`, {
+  vm.runInContext(ts.transpile(`let chartFocusId = 0; let searchTimer;\n${handlers}\n${requestWatch}\nObject.assign(globalThis, { handlePositionChartSelect, handlePriceChartSelect, handleDialogPriceChartSelect, openPriceCardsDialog, togglePriceCardsDialogExpanded, finishClosingPriceCardsDialog });`, {
     target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS
   }), context)
   try {
     for (let index = 0; index < 2; index++) {
-      context.click('BTC/USDT', '15m')
+      context.handlePositionChartSelect('BTC/USDT', '15m')
       await nextTick()
       await nextTick()
       await new Promise(resolve => setImmediate(resolve))
@@ -134,7 +152,7 @@ test('首页每次持仓点击都触发独立热力图聚焦，包括重复交�
     assert.deepEqual(located, ['BTCUSDT', 'BTCUSDT'])
     assert.equal(context.selectedChartSymbol.value, 'BTCUSDT')
     assert.equal(context.selectedChartTimeframe.value, '15m')
-    context.click('1000PEPE/USDT')
+    context.handlePositionChartSelect('1000PEPE/USDT')
     await nextTick()
     items.value = [...items.value, { symbol: '1000PEPEUSDT' }]
     await nextTick()
@@ -142,20 +160,31 @@ test('首页每次持仓点击都触发独立热力图聚焦，包括重复交�
     await new Promise(resolve => setImmediate(resolve))
     assert.deepEqual(located, ['BTCUSDT', 'BTCUSDT', '1000PEPEUSDT'])
     assert.equal(context.selectedChartTimeframe.value, '15m', '旧持仓没有周期时保留当前图表周期')
-    context.choosePrice('eth/usdt')
+    context.handlePriceChartSelect('eth/usdt')
     assert.equal(context.selectedChartSymbol.value, 'ETHUSDT')
     assert.equal(context.selectedChartTimeframe.value, '15m', '价格卡片只更改当前交易对')
     assert.equal(request.value, undefined, '手动选择后清除旧的持仓聚焦请求')
 
-    context.openPriceCards()
+    context.openPriceCardsDialog()
     assert.equal(context.showPriceCardsDialog.value, true)
     assert.equal(context.priceCardsInDialog.value, true)
-    context.activePriceCardsTarget.value = {}
-    context.choosePrice('sol/usdt')
+    assert.equal(context.priceCardsDialogExpanded.value, false, 'K 线入口打开普通弹窗')
+    context.togglePriceCardsDialogExpanded()
+    assert.equal(context.priceCardsDialogExpanded.value, true, '弹窗可放大')
+    context.togglePriceCardsDialogExpanded()
+    assert.equal(context.priceCardsDialogExpanded.value, false, '放大后可还原')
+    assert.equal(context.showPriceCardsDialog.value, true, '切换尺寸不关闭弹窗')
+    context.openPriceCardsDialog(true)
+    assert.equal(context.priceCardsDialogExpanded.value, true, '右栏按钮直接放大看板')
+    context.handleDialogPriceChartSelect('sol/usdt')
     assert.equal(context.selectedChartSymbol.value, 'SOLUSDT')
     assert.equal(context.selectedChartTimeframe.value, '15m', '弹窗选币也保留原有 K 线周期')
     assert.equal(context.showPriceCardsDialog.value, false, '选币后关闭弹窗')
-    assert.equal(context.priceCardsInDialog.value, true, '关闭动画期间看板仍留在弹窗')
+    assert.equal(context.priceCardsInDialog.value, true, '关闭动画期间 Esc 仍只由弹窗处理')
+    assert.equal(context.priceCardsDialogExpanded.value, true, '关闭动画期间保持当前尺寸')
+    context.finishClosingPriceCardsDialog()
+    assert.equal(context.priceCardsInDialog.value, false)
+    assert.equal(context.priceCardsDialogExpanded.value, false, '关窗结束后清除全屏状态')
   } finally {
     stops.forEach(stop => stop())
   }

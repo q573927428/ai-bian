@@ -39,7 +39,7 @@ function mixedSnapshot() {
 }
 
 test('首页分类切换只改变统计，隐藏高度基准卡片保持完整涨跌幅', () => {
-  const source = fs.readFileSync(new URL('../app/components/CryptoPriceCards.vue', import.meta.url), 'utf8')
+  const source = fs.readFileSync(new URL('../app/composables/useHomePriceBoard.ts', import.meta.url), 'utf8')
   const script = source.slice(source.indexOf('const fullBreadth = computed'), source.indexOf('/** 获取共享快照'))
   const now = Date.now()
   const allSymbols = ['BTCUSDT', 'STOCKUSDT']
@@ -49,7 +49,7 @@ test('首页分类切换只改变统计，隐藏高度基准卡片保持完整�
     periods: { '1h': { bases: { BTCUSDT: 100, STOCKUSDT: 100 }, referenceTime: now } }
   }
   const context = {
-    computed, summarizeBreadth, calculateLiveBreadth, scopeSymbols,
+    computed, summarizeBreadth, calculateLiveBreadth, market: { scopeSymbols },
     DEFAULT_CRYPTOS: ref(allSymbols), breadthSnapshot: ref(snapshot), breadthClock: ref(now), changePeriod: ref('1h'),
     botStore: { prices: { BTCUSDT: { price: 102, timestamp: now }, STOCKUSDT: { price: 99, timestamp: now } } }
   }

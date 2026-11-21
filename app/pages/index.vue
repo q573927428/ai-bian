@@ -52,9 +52,9 @@
                     <KLineEnvironmentPanel :symbol="chartSymbol" :timeframe="chartTimeframe" :active="activeMarketTab === 'environment'" />
                   </el-tab-pane>
                   <el-tab-pane label="价格卡片" name="prices">
-                    <CryptoPriceCards :chart-symbol="chartSymbol" :chart-focus-request="chartFocusRequest"
-                      :dialog-target="activePriceCardsTarget" :inactive="!activePriceCardsTarget && activeMarketTab !== 'prices'"
-                      @update:chart-symbol="handlePriceChartSelect" />
+                    <CryptoPriceCards :board="priceBoard" :chart-symbol="chartSymbol" :chart-focus-request="chartFocusRequest"
+                      :inactive="activeMarketTab !== 'prices'"
+                      @toggle-expand="openPriceCardsDialog(true)" @update:chart-symbol="handlePriceChartSelect" />
                   </el-tab-pane>
                   <el-tab-pane label="当前持仓" name="positions" lazy>
                     <!-- 查看持仓沿用原有公开模式，不改变左侧解锁规则。 -->
@@ -73,8 +73,13 @@
       <!-- 抽屉和对话框独立于三栏，切换标签不影响顶部导航和解锁流程。 -->
       <ClientOnly>
         <el-dialog v-model="showPriceCardsDialog" title="价格卡片" width="min(960px, calc(100vw - 24px))"
-          append-to-body align-center @closed="priceCardsInDialog = false">
-          <div ref="priceCardsDialogTarget" class="price-cards-dialog-content"></div>
+          class="home-price-cards-dialog" :fullscreen="priceCardsDialogExpanded" :align-center="!priceCardsDialogExpanded"
+          append-to-body destroy-on-close @closed="finishClosingPriceCardsDialog">
+          <div class="price-cards-dialog-content" :class="{ 'is-expanded': priceCardsDialogExpanded }">
+            <CryptoPriceCards :board="priceBoard" :expanded="priceCardsDialogExpanded" :chart-symbol="chartSymbol"
+              :chart-focus-request="chartFocusRequest" @toggle-expand="togglePriceCardsDialogExpanded"
+              @update:chart-symbol="handleDialogPriceChartSelect" />
+          </div>
         </el-dialog>
         <IndicatorsList v-model="showIndicatorsDrawer" @select-symbol="handlePositionChartSelect" />
         <MacroDataDrawer v-model="showMacroDataDrawer" />
@@ -92,6 +97,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useGlobalPolling } from '../composables/useGlobalPolling'
+import { useHomePriceBoard } from '../composables/useHomePriceBoard'
 import { useBotStore } from '../stores/bot'
 import { useStrategiesStore } from '../stores/strategies'
 import HomeStatusPanel from '../components/HomeStatusPanel.vue'
@@ -190,10 +196,10 @@ const selectedChartSymbol = useState<string>('home-chart-symbol', () => '')
 const selectedChartTimeframe = useState<string>('home-chart-timeframe', () => '')
 const activeMarketTab = ref('environment')
 const chartToolbarHeight = ref(0)
+const priceBoard = useHomePriceBoard()
 const showPriceCardsDialog = ref(false)
 const priceCardsInDialog = ref(false)
-const priceCardsDialogTarget = ref<HTMLElement | null>(null)
-const activePriceCardsTarget = computed(() => priceCardsInDialog.value ? priceCardsDialogTarget.value : null)
+const priceCardsDialogExpanded = ref(false)
 const chartSymbol = computed(() => {
   const selected = normalizeChartSymbol(selectedChartSymbol.value)
   if (selected) return selected
@@ -214,17 +220,34 @@ function normalizeChartSymbol(symbol: string) {
   return symbol.replace('/', '').trim().toUpperCase()
 }
 
-/** 打开当前看板，关闭动画结束后再把同一个实例移回右栏。 */
-function openPriceCardsDialog() {
+/** K 线入口打开普通弹窗，右栏的放大按钮直接打开全屏；两者都保留侧栏。 */
+function openPriceCardsDialog(expanded = false) {
+  priceCardsDialogExpanded.value = expanded
   priceCardsInDialog.value = true
   showPriceCardsDialog.value = true
+}
+
+/** 在同一个弹窗内切换尺寸，不重建弹窗里的看板。 */
+function togglePriceCardsDialogExpanded() {
+  priceCardsDialogExpanded.value = !priceCardsDialogExpanded.value
+}
+
+/** 等关闭动画结束再清除全屏状态和主图 Esc 保护，避免关窗时跳动。 */
+function finishClosingPriceCardsDialog() {
+  priceCardsInDialog.value = false
+  priceCardsDialogExpanded.value = false
 }
 
 /** 选择价格卡片只切换交易对，不把价格涨跌筛选周期带到主图。 */
 function handlePriceChartSelect(symbol: string) {
   selectedChartSymbol.value = normalizeChartSymbol(symbol)
   chartFocusRequest.value = undefined
-  if (activePriceCardsTarget.value) showPriceCardsDialog.value = false
+}
+
+/** 弹窗选币沿用侧栏的图表更新逻辑，另关闭弹窗以便查看主图。 */
+function handleDialogPriceChartSelect(symbol: string) {
+  handlePriceChartSelect(symbol)
+  showPriceCardsDialog.value = false
 }
 
 /** 同步主图周期给右栏，并拒绝分时等不属于 K 线的周期。 */
@@ -369,6 +392,27 @@ onMounted(async () => {
 
 .price-cards-dialog-content {
   height: min(540px, 68dvh);
+}
+
+/* 为固定在底部的公共行情栏留出空间，由看板正文而非整个弹窗滚动。 */
+:global(.el-dialog.home-price-cards-dialog.is-fullscreen) {
+  display: flex;
+  flex-direction: column;
+  height: calc(100dvh - var(--app-footer-height, 0px));
+  overflow: hidden;
+}
+
+:global(.home-price-cards-dialog.is-fullscreen .el-dialog__header) {
+  flex-shrink: 0;
+}
+
+:global(.home-price-cards-dialog.is-fullscreen .el-dialog__body) {
+  flex: 1;
+  min-height: 0;
+}
+
+.price-cards-dialog-content.is-expanded {
+  height: 100%;
 }
 
 .home-chart,
