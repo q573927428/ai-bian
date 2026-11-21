@@ -11,7 +11,7 @@
         @change="value => selectTimeframe(String(value))"
       >
         <el-radio-button
-          v-for="option in timeframeOptions"
+          v-for="option in visibleTimeframeOptions"
           :key="option.value"
           :value="option.value"
         >
@@ -160,7 +160,7 @@
       
       <el-button-group size="small" class="action-buttons">
         <!-- 引擎切换按钮 -->
-        <el-tooltip :content="activeEngine === 'native' ? '切换到TradingView图表' : '切换到自研K线图表'" placement="top">
+        <el-tooltip v-if="!linkedIndicators" :content="activeEngine === 'native' ? '切换到TradingView图表' : '切换到自研K线图表'" placement="top">
           <el-button
             size="small"
             type="default"
@@ -205,11 +205,14 @@
 
 <script setup lang="ts">
 import { ref, watch, computed } from 'vue'
+import { KLINE_WORKSPACE_PERIODS } from '../../utils/kline-indicators'
 
 /**
  * K线控制栏属性，包含图表状态、标记开关和周期过滤配置。
  */
 interface Props {
+  /** 副图与环境详情只跟踪受支持的原生 K 线周期。 */
+  linkedIndicators?: boolean
   /** 是否已在浏览器页面内展开，用于切换按钮提示和还原图标。 */
   expanded?: boolean
   timeline?: boolean
@@ -280,6 +283,9 @@ const timeframeOptions = [
   { label: '1d', value: '1d' },
   { label: '1w', value: '1w' }
 ]
+const visibleTimeframeOptions = computed(() => props.linkedIndicators
+  ? timeframeOptions.filter(option => KLINE_WORKSPACE_PERIODS.some(period => period === option.value))
+  : timeframeOptions)
 
 // 响应式数据
 const selectedTimeframe = ref(props.timeframe)

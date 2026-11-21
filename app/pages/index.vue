@@ -156,8 +156,8 @@ function handleNavigate(target: HomeNavigationTarget) {
     handleOpenProtectedPanel('logs')
     return
   }
-  if (target === 'indicators') {
-    void navigateTo('/indicators')
+  if (target === 'indicators' || target === 'kline') {
+    void navigateTo(`/${target}`)
     return
   }
   if (target === 'home') {

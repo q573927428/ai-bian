@@ -1,6 +1,6 @@
 <template>
   <Teleport to="body" :disabled="!isExpanded">
-  <div ref="simpleContainerRef" class="kline-chart-simple-container" :class="{ 'timeline-active': timeline, 'chart-expanded': isExpanded }">
+  <div ref="simpleContainerRef" class="kline-chart-simple-container" :class="{ 'timeline-active': timeline, 'chart-expanded': isExpanded, 'chart-linked': indicator }">
     <!-- 图表控制栏 -->
     <div ref="controlsWrapperRef" class="chart-controls-wrapper">
       <KLineChartControls
@@ -22,6 +22,7 @@
         :scan-range-bounds="scanRangeBounds"
         :ema-periods="selectedEmaPeriods"
         :active-engine="activeEngine"
+        :linked-indicators="!!indicator"
         :expanded="isExpanded"
         @timeframe-change="selectTimeframe"
         @refresh="refreshChart"
@@ -59,11 +60,16 @@
         :show-ema-lines="showEMALines"
         :ema-periods="selectedEmaPeriods"
         :height="chartHeight"
+        :indicator="indicator"
         @tooltip-update="handleTooltipUpdate"
         @order-click="handleOrderClick"
         @scan-click="handleScanClick"
         @retry="loadKLineData"
-      />
+      >
+        <template v-if="$slots['indicator-controls']" #indicator-controls>
+          <slot name="indicator-controls" />
+        </template>
+      </KLineChartCanvas>
 
       <KLineScanResultDialog
         v-model="scanDialogVisible"
@@ -105,7 +111,6 @@
         @close="orderTooltipVisible = false"
       />
     </div>
-
   </div>
   </Teleport>
   <PasswordDialog v-model="showScanPasswordDialog" @success="unlockScanMarkers" />
@@ -114,6 +119,7 @@
 <script setup lang="ts">
 import { ref, nextTick, onMounted, onUnmounted, watch, computed, onBeforeUnmount, getCurrentInstance } from 'vue'
 import type { SimpleKLineData, KLineApiResponse } from '../../../types/kline-simple'
+import type { KlineIndicator } from '../../utils/kline-indicators'
 import type { TradeHistory } from '../../../types'
 import type { ScanResultApiResponse, StrategyScanResult } from '../../../types/scan-result'
 
@@ -179,6 +185,8 @@ interface Props {
   historicalOrder?: TradeHistory | null
   /** 常规画布高度，允许订单复盘页独立调整，不影响首页布局与全屏尺寸。 */
   height?: number
+  /** K 线工作台在原图表的共享时间轴中挂载副图；首页不设置。 */
+  indicator?: KlineIndicator
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -189,8 +197,9 @@ const props = withDefaults(defineProps<Props>(), {
 })
 
 // 定义emits
-defineEmits<{
+const emit = defineEmits<{
   'switch-engine': [engine: 'native' | 'tradingview']
+  'timeframe-change': [timeframe: string]
 }>()
 
 // 计算显示的symbol
@@ -209,6 +218,7 @@ const computedTimeframe = computed(() => {
 
 // 响应式数据
 const selectedTimeframe = ref(computedTimeframe.value)
+watch(selectedTimeframe, value => emit('timeframe-change', value))
 const timeline = ref(false)
 const timelineRef = ref<InstanceType<typeof RealtimeTimeline> | null>(null)
 
@@ -669,8 +679,13 @@ const handleExpandedEscape = (event: KeyboardEvent) => {
 
 /** 普通模式沿用父级分配高度，展开时画布填满工具栏下方剩余空间。 */
 const updateChartHeight = () => {
+  const container = simpleContainerRef.value
+  if (props.indicator && container) {
+    // 指标按钮悬浮在副图内，不再挤占主副图共用的画布高度。
+    chartHeight.value = Math.max(1, container.clientHeight - (controlsWrapperRef.value?.offsetHeight || 0))
+    return
+  }
   if (!isExpanded.value) {
-    const container = simpleContainerRef.value
     if (window.innerWidth >= 992 && container?.closest('.market-column')) {
       // 直接读取 flex 布局分配后的空间，不用旧画布高度反推，避免更新时序造成误差。
       chartHeight.value = Math.max(250, container.clientHeight - (controlsWrapperRef.value?.offsetHeight || 0))
@@ -1285,6 +1300,8 @@ watch(() => props.timeframe, (newTimeframe, oldTimeframe) => {
 onMounted(() => {
   // 如果配置已经加载完成，直接加载数据；否则等待配置加载
   if (botStore.config || props.historicalOrder) {
+    // 工作台等完整配置后才挂载主图；随后到达的共享配置响应无需重发首屏行情。
+    if (props.indicator && botStore.botConfig) hasInitialized = true
     // 配置已加载，设置正确的初始周期并加载数据
     selectedTimeframe.value = computedTimeframe.value
     loadKLineData()
@@ -1361,5 +1378,16 @@ onUnmounted(() => {
   flex: 1;
   min-height: 0;
 }
+
+.chart-linked {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  transition: none;
+}
+
+.chart-linked.chart-expanded { height: calc(100dvh - var(--app-footer-height, 0px)); }
+.chart-linked .chart-container { flex: 1; min-height: 0; }
+.chart-linked .chart-controls-wrapper { flex: 0 0 auto; }
 
 </style>

@@ -1,6 +1,9 @@
 <template>
-  <div class="chart-wrapper">
+  <div class="chart-wrapper" :class="{ 'chart-wrapper-linked': indicator }" :style="indicator ? { '--indicator-pane-height': `${indicatorPaneHeight}px` } : undefined">
     <div ref="chartContainer" class="kline-chart" :title="pinnedCrosshair ? '光标已锁定，再次点击图表解除锁定' : '点击图表锁定光标，再次点击解除锁定'"></div>
+    <div v-if="$slots['indicator-controls'] && indicatorPaneTop !== null" class="indicator-controls-overlay" :style="{ top: `${indicatorPaneTop + 6}px` }">
+      <slot name="indicator-controls" />
+    </div>
     <SupportResistanceOverlay :symbol="symbol" :timeframe="timeframe" :klines="klineData" :loading="loading || !!error" :historical-order="historicalOrder" :get-chart="() => chart" :get-series="() => candlestickSeries" />
     <PositionRiskOverlay :symbol="symbol" :historical-order="historicalOrder" :klines="klineData" :loading="loading || !!error" :get-chart="() => chart" :get-series="() => candlestickSeries" />
     <OrderBookOverlay :enabled="orderBookEnabled" :symbol="symbol" :historical="!!historicalOrder" :loading="loading || !!error" :get-chart="() => chart" :get-series="() => candlestickSeries" @toggle="orderBookEnabled = !orderBookEnabled" />
@@ -58,9 +61,12 @@ import { calculateADXSeries } from '../../utils/adx-calculator'
 import { calculateErChartMetricsSeries } from '../../utils/er-chart-series'
 import { prepareCandlestickData, prepareVolumeData, getChartOptions, getPricePrecision, VOLUME_UP_COLOR, VOLUME_DOWN_COLOR } from './utils/kline-helpers'
 import { useBotStore } from '../../stores/bot'
+import { KLINE_WORKSPACE_PERIODS, type KlineIndicator } from '../../utils/kline-indicators'
+import { createIndicatorPane } from './utils/indicator-pane'
 
-// 定义props
+/** 主图画布及可选副图的行情、显示和交易标记配置。 */
 interface Props {
+  indicator?: KlineIndicator
   historicalOrder?: TradeHistory | null
   klineData: SimpleKLineData[]
   tradeHistory?: TradeHistory[]
@@ -273,6 +279,10 @@ let candlestickSeries: any = null
 let volumeSeries: any = null
 let emaSeries: any[] = []
 let resizeObserver: ResizeObserver | null = null
+let indicatorPane: ReturnType<typeof createIndicatorPane> | undefined
+let indicatorResizeObserver: ResizeObserver | undefined
+const indicatorPaneHeight = ref(0)
+const indicatorPaneTop = ref<number | null>(null)
 let markersApi: any = null
 // 保存时间和价格，使锁定位置不随鼠标移动或离开图表而改变。
 const pinnedCrosshair = ref<{ time: number; price: number } | null>(null)
@@ -673,9 +683,16 @@ const handleCrosshairMove = (param: any) => {
     restorePinnedCrosshair()
     return
   }
-  if (typeof param.time !== 'number') return
+  if (param.paneIndex === 1 || typeof param.time !== 'number') return
   const kline = findKlineByTime(props.klineData, param.time)
   if (kline) emitTooltipUpdate(kline)
+}
+
+/** 工作台更重视盘面密度，保留小段右侧留白，避免窄屏上最新行情挤到左边。 */
+function getCanvasOptions() {
+  const options = getChartOptions(props.theme)
+  if (props.indicator) options.timeScale.rightOffset = 12
+  return options
 }
 
 /** 再次点击优先解除锁定，即使点击位置没有 K 线也能退出。 */
@@ -718,7 +735,7 @@ const initChart = () => {
   
   // 创建新图表
   const chartOptions = {
-    ...getChartOptions(props.theme),
+    ...getCanvasOptions(),
     width: chartContainer.value.clientWidth,
     height: chartHeight.value
   }
@@ -793,12 +810,33 @@ const initChart = () => {
   })
   
   resizeObserver.observe(chartContainer.value)
+
+  if (props.indicator) {
+    const linkedPane = createIndicatorPane(chart)
+    indicatorPane = linkedPane
+    // Lightweight Charts 首次绘制后才会生成新分区对应的 DOM。
+    requestAnimationFrame(() => {
+      if (indicatorPane !== linkedPane) return
+      const element = linkedPane.pane.getHTMLElement()
+      const chartElement = chartContainer.value
+      if (!element || !chartElement) return
+      /** 直接读取副图位置，拖动分隔线或放大图表时，按钮仍贴在副图上沿。 */
+      const syncIndicatorBounds = () => {
+        indicatorPaneHeight.value = linkedPane.pane.getHeight()
+        indicatorPaneTop.value = element.getBoundingClientRect().top - chartElement.getBoundingClientRect().top
+      }
+      syncIndicatorBounds()
+      indicatorResizeObserver = new ResizeObserver(syncIndicatorBounds)
+      indicatorResizeObserver.observe(element)
+    })
+  }
   
   // 监听鼠标移动事件
   chart.subscribeCrosshairMove(handleCrosshairMove)
   
   // 监听点击事件 —— 点击K线时处理订单详情
   chart.subscribeClick((param: any) => {
+    if (param.paneIndex === 1) return
     toggleCrosshairLock(param)
     if (!param.point || !param.time) return
     
@@ -824,6 +862,13 @@ const initChart = () => {
   
   // 更新图表数据
   updateChart()
+  updateIndicatorPane()
+}
+
+/** 副图复用当前有效行情，包括加载更早历史和共享价格产生的盘中更新。 */
+function updateIndicatorPane() {
+  const period = KLINE_WORKSPACE_PERIODS.find(value => value === props.timeframe)
+  if (period && props.indicator) indicatorPane?.update(props.indicator, props.klineData, period)
 }
 
 // 根据时间查找K线数据
@@ -1161,7 +1206,7 @@ const updateChart = (preserveViewport = false) => {
           setTimeout(() => {
             if (chart) {
               chart.timeScale().applyOptions({
-                rightOffset: getChartOptions(props.theme).timeScale.rightOffset
+                rightOffset: getCanvasOptions().timeScale.rightOffset
               })
             }
           }, 0)
@@ -1250,10 +1295,12 @@ watch(() => props.klineData, (newData, oldData) => {
   if (newData !== oldData) updateChart(true)
 }, { deep: true })
 
+watch(() => props.indicator ? [props.indicator, props.klineData, props.timeframe] : undefined, updateIndicatorPane, { deep: true })
+
 // 监听主题变化
 watch(() => props.theme, () => {
   if (chart) {
-    chart.applyOptions(getChartOptions(props.theme))
+    chart.applyOptions(getCanvasOptions())
   }
 })
 
@@ -1332,6 +1379,11 @@ onMounted(() => {
 // 清理图表资源
 const cleanupChart = () => {
   pinnedCrosshair.value = null
+  indicatorResizeObserver?.disconnect()
+  indicatorResizeObserver = undefined
+  indicatorPane = undefined
+  indicatorPaneHeight.value = 0
+  indicatorPaneTop.value = null
   
   // 停止所有可能的动画或更新
   if (chart) {
@@ -1453,6 +1505,28 @@ defineExpose({
   overflow: hidden;
 }
 
+.chart-wrapper :deep(.structure-toggle) { bottom: calc(30px + var(--indicator-pane-height, 0px)); }
+.chart-wrapper :deep(.risk-toggle) { bottom: calc(58px + var(--indicator-pane-height, 0px)); }
+.chart-wrapper :deep(.depth-toggle) { bottom: calc(86px + var(--indicator-pane-height, 0px)); }
+.chart-wrapper :deep(.profile-toggle) { bottom: calc(114px + var(--indicator-pane-height, 0px)); }
+
+/* 工作台中主图上的悬浮按钮也会盖住蜡烛和成交量；首页沿用原有样式。 */
+.chart-wrapper-linked :deep(.structure-toggle),
+.chart-wrapper-linked :deep(.risk-toggle),
+.chart-wrapper-linked :deep(.depth-toggle),
+.chart-wrapper-linked :deep(.profile-toggle) {
+  background: color-mix(in srgb, var(--bg-card) 28%, transparent);
+  border-color: color-mix(in srgb, var(--border-color) 55%, transparent);
+  color: var(--text-primary);
+}
+
+.indicator-controls-overlay {
+  position: absolute;
+  left: 8px;
+  z-index: 4;
+  max-width: calc(100% - 58px);
+}
+
 .kline-chart {
   width: 100%;
   height: 100%;
@@ -1519,6 +1593,9 @@ defineExpose({
     margin: 8px;
     border-radius: 6px;
   }
+
+  /* 工作台画布已按中栏高度分配，外边距会在窄屏把共用时间轴推出容器。 */
+  .chart-wrapper-linked { margin: 0; }
   
   .kline-chart {
     min-height: 250px;

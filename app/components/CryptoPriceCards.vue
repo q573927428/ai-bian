@@ -1,5 +1,5 @@
 <template>
-  <el-card class="chart-card" shadow="hover">
+  <el-card v-if="!props.standalone" class="chart-card" shadow="hover">
     <!-- K线图表（引擎可切换：自研K线 / TradingView） -->
     <ClientOnly>
       <ChartEngineSwitcher :symbol="selectedSymbol || 'BTCUSDT'" :timeframe="props.chartTimeframe" />
@@ -10,9 +10,9 @@
   </el-card>
 
   <Teleport to="body" :disabled="!isBoardExpanded">
-  <el-card class="price-grid-card" :class="{ 'price-grid-card-expanded': isBoardExpanded }" shadow="hover">
+  <el-card class="price-grid-card" :class="{ 'price-grid-card-expanded': isBoardExpanded, 'price-grid-card-standalone': props.standalone }" shadow="hover">
     <template #header>
-      <div class="price-cards-header">
+      <div class="price-cards-header" :class="{ 'is-heatmap': viewMode === 'heatmap' }">
         <div class="price-cards-heading">
           <el-input
             v-model="symbolSearch"
@@ -24,11 +24,11 @@
           >
             <template #prefix><el-icon><ElIconSearch /></el-icon></template>
           </el-input>
-          <el-radio-group v-model="viewMode" size="small" aria-label="价格看板显示方式">
+          <el-radio-group v-model="viewMode" class="price-view-options" size="small" aria-label="价格看板显示方式">
             <el-radio-button value="cards" title="卡片视图" aria-label="卡片视图"><el-icon><ElIconPostcard /></el-icon></el-radio-button>
             <el-radio-button value="heatmap" title="热力图视图" aria-label="热力图视图"><el-icon><ElIconGrid /></el-icon></el-radio-button>
           </el-radio-group>
-          <el-radio-group v-model="changePeriod" size="small" aria-label="涨跌幅周期">
+          <el-radio-group v-model="changePeriod" class="price-period-options" size="small" aria-label="涨跌幅周期">
             <el-radio-button value="5m">5m</el-radio-button>
             <el-radio-button value="15m">15m</el-radio-button>
             <el-radio-button value="1h">1h</el-radio-button>
@@ -37,14 +37,18 @@
           </el-radio-group>
           <div class="price-counts" :title="`按${scopeLabel}中已配置交易对的${changePeriod}实时涨跌幅统计，不受搜索或涨跌筛选影响；持平 ${activeBreadth.flatCount}，分类未知 ${unknownCount}（仅计入全部）；AI使用每轮固定快照；上涨占比和中位数仅计算有效行情（含持平、排除待更）；所有周期参考价取本地5m K线（24h为滚动窗口）；参考价快照时间：${breadthSnapshot ? new Date(breadthSnapshot.computedAt).toLocaleString() : '待更新'}`">
             <MarketScopeSelect v-model="marketScope" />
-            <button type="button" class="count-filter" :class="{ 'is-active': priceFilter === 'all' }" :aria-pressed="priceFilter === 'all'" title="显示当前分类全部交易对" @click="priceFilter = 'all'">总 {{ scopeSymbols.length }}</button>
-            <button type="button" class="count-filter count-up" :class="{ 'is-active': priceFilter === 'up' }" :aria-pressed="priceFilter === 'up'" title="仅显示上涨交易对" @click="priceFilter = 'up'">涨 {{ priceCounts.up }}</button>
-            <button type="button" class="count-filter count-down" :class="{ 'is-active': priceFilter === 'down' }" :aria-pressed="priceFilter === 'down'" title="仅显示下跌交易对" @click="priceFilter = 'down'">跌 {{ priceCounts.down }}</button>
-            <span title="上涨交易对占有效行情的比例（含持平）">涨比 {{ priceCounts.upRatio === null ? '—' : `${priceCounts.upRatio.toFixed(0)}%` }}</span>
-            <span title="当前周期有效行情的涨跌幅中位数" :class="{ 'count-up': (priceCounts.median ?? 0) > 0, 'count-down': (priceCounts.median ?? 0) < 0 }">
-              中位 {{ priceCounts.median === null ? '—' : formatPercent(priceCounts.median) }}
-            </span>
-            <span v-if="priceCounts.pending" title="当前周期尚无有效行情的交易对数量">待 {{ priceCounts.pending }}</span>
+            <div class="price-count-filters" role="group" aria-label="涨跌筛选">
+              <button type="button" class="count-filter" :class="{ 'is-active': priceFilter === 'all' }" :aria-pressed="priceFilter === 'all'" title="显示当前分类全部交易对" @click="priceFilter = 'all'">总 {{ scopeSymbols.length }}</button>
+              <button type="button" class="count-filter count-up" :class="{ 'is-active': priceFilter === 'up' }" :aria-pressed="priceFilter === 'up'" title="仅显示上涨交易对" @click="priceFilter = 'up'">涨 {{ priceCounts.up }}</button>
+              <button type="button" class="count-filter count-down" :class="{ 'is-active': priceFilter === 'down' }" :aria-pressed="priceFilter === 'down'" title="仅显示下跌交易对" @click="priceFilter = 'down'">跌 {{ priceCounts.down }}</button>
+            </div>
+            <div class="price-count-metrics">
+              <span title="上涨交易对占有效行情的比例（含持平）">涨比 <span class="price-metric-value">{{ priceCounts.upRatio === null ? '—' : `${priceCounts.upRatio.toFixed(0)}%` }}</span></span>
+              <span title="当前周期有效行情的涨跌幅中位数" :class="{ 'count-up': (priceCounts.median ?? 0) > 0, 'count-down': (priceCounts.median ?? 0) < 0 }">
+                中位 <span class="price-metric-value">{{ priceCounts.median === null ? '—' : formatPercent(priceCounts.median) }}</span>
+              </span>
+              <span v-if="priceCounts.pending" title="当前周期尚无有效行情的交易对数量">待 <span class="price-metric-value">{{ priceCounts.pending }}</span></span>
+            </div>
           </div>
         </div>
         <div class="price-board-actions">
@@ -219,7 +223,10 @@ import type { MarketPeriodVolumes } from '../../types/market-period-volumes'
 import { calculateLiveBreadth, summarizeBreadth } from '../utils/market-breadth'
 import { useMarketScope } from '../composables/useMarketScope'
 
+/** 交易对选择与看板布局参数，首页默认保留内置主图。 */
 const props = defineProps<{
+  /** 独立页面只渲染价格看板，并由外栏决定可用高度。 */
+  standalone?: boolean
   /** 由外部指定要展示的交易对，例如点击当前持仓时传入。 */
   chartSymbol?: string
   /** 持仓对应的主周期，传递给当前图表引擎。 */
@@ -694,6 +701,35 @@ interface CryptoPrice {
   margin: 0;
 }
 
+.price-grid-card-standalone:not(.price-grid-card-expanded) {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+}
+
+.price-grid-card-standalone:not(.price-grid-card-expanded) :deep(.el-card__header) {
+  flex: 0 0 auto;
+  padding: 10px;
+}
+
+.price-grid-card-standalone:not(.price-grid-card-expanded) :deep(.el-card__body) {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  padding: 0;
+}
+
+.price-grid-card-standalone:not(.price-grid-card-expanded) .price-board-content {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  height: auto;
+  margin: 0;
+}
+
+.price-grid-card-standalone:not(.price-grid-card-expanded) .cards-scroll { inset: 0; }
+
 .price-board-actions {
   /* 统一吸收头部剩余空间，避免多个 auto 外边距把右侧控件分散。 */
   position: sticky;
@@ -764,6 +800,9 @@ interface CryptoPrice {
   font-size: 12px;
   white-space: nowrap;
 }
+
+.price-count-filters,
+.price-count-metrics { display: contents; }
 
 .count-up,
 .count-filter.count-up {
@@ -846,6 +885,97 @@ interface CryptoPrice {
   width: 70px;
   flex-shrink: 0;
 }
+
+/* 左栏宽度与窗口宽度不等。按固定的操作层级排列，不让控件随统计字数换位。 */
+.price-grid-card-standalone:not(.price-grid-card-expanded) .price-cards-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto 28px;
+  gap: 8px;
+  overflow: visible;
+  margin: 0;
+}
+
+.price-grid-card-standalone:not(.price-grid-card-expanded) .price-cards-heading,
+.price-grid-card-standalone:not(.price-grid-card-expanded) .price-board-actions {
+  display: contents;
+}
+
+.price-grid-card-standalone:not(.price-grid-card-expanded) .price-symbol-search {
+  grid-area: 1 / 1;
+  width: 100%;
+  max-width: none;
+  --el-input-height: 28px;
+}
+
+.price-grid-card-standalone:not(.price-grid-card-expanded) .price-view-options {
+  grid-area: 1 / 2;
+  display: grid;
+  grid-template-columns: repeat(2, 29px);
+}
+
+.price-grid-card-standalone:not(.price-grid-card-expanded) .board-expand-button {
+  grid-area: 1 / 3;
+  width: 28px;
+  height: 28px;
+}
+
+.price-grid-card-standalone:not(.price-grid-card-expanded) .price-period-options {
+  grid-area: 2 / 1 / 3 / -1;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.price-grid-card-standalone:not(.price-grid-card-expanded) .price-cards-heading :deep(.el-radio-button__inner) {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 28px;
+  padding: 0;
+}
+
+.price-grid-card-standalone:not(.price-grid-card-expanded) .heatmap-header-actions {
+  grid-area: 3 / 1 / 4 / -1;
+  justify-self: end;
+}
+
+.price-grid-card-standalone:not(.price-grid-card-expanded) .price-counts {
+  grid-area: 3 / 1 / 4 / -1;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 6px;
+  min-width: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.price-grid-card-standalone:not(.price-grid-card-expanded) .is-heatmap .price-counts { grid-row: 4; }
+
+.price-grid-card-standalone:not(.price-grid-card-expanded) .price-count-filters {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 2px;
+}
+
+.price-grid-card-standalone:not(.price-grid-card-expanded) .count-filter {
+  flex: 1 0 auto;
+  min-height: 24px;
+  padding: 0 2px;
+}
+
+.price-grid-card-standalone:not(.price-grid-card-expanded) .price-count-metrics {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 3px 8px;
+  padding: 4px 7px;
+  border-radius: 4px;
+  background: var(--bg-hover);
+  font-size: 11px;
+  line-height: 16px;
+}
+
+.price-grid-card-standalone:not(.price-grid-card-expanded) .price-metric-value { font-weight: 600; }
 
 .cards-grid {
   display: flex;
