@@ -23,12 +23,12 @@
         <aside class="environment-column" aria-labelledby="kline-environment-title">
           <header class="environment-toolbar">
             <h2 id="kline-environment-title">环境详情</h2>
-            <el-button size="small" :disabled="!symbol" :loading="environmentLoading" @click="refreshEnvironment">刷新</el-button>
+            <el-button size="small" :disabled="!symbol || timeframe === '1w'" :loading="environmentLoading" @click="refreshEnvironment">刷新</el-button>
           </header>
           <div class="environment-scroll" :aria-busy="environmentLoading">
             <p v-if="environmentError" class="environment-status" role="status">{{ environmentError }}</p>
             <EnvironmentDetails v-if="environment" :key="`${symbol}:${timeframe}`" v-bind="environment" :now="now" panel />
-            <el-empty v-else-if="!environmentError" :description="environmentLoading ? '正在读取环境详情…' : '等待交易对数据'" :image-size="64" />
+            <el-empty v-else-if="!environmentError" :description="environmentEmptyDescription" :image-size="64" />
           </div>
         </aside>
       </div>
@@ -43,8 +43,7 @@ import KLineChartSimple from '../components/kline-chart/KLineChartSimple.vue'
 import { useGlobalPolling } from '../composables/useGlobalPolling'
 import { useBotStore } from '../stores/bot'
 import type { EnvironmentDetailsData } from '../utils/environment-display'
-import { DEFAULT_KLINE_INDICATOR, KLINE_INDICATORS, KLINE_WORKSPACE_PERIODS, type KlineIndicator } from '../utils/kline-indicators'
-import type { Timeframe } from '../../types/strategy'
+import { DEFAULT_KLINE_INDICATOR, KLINE_INDICATORS, KLINE_WORKSPACE_PERIODS, type KlineIndicator, type KlineWorkspacePeriod } from '../utils/kline-indicators'
 
 /** 指标接口的环境字段直接交给详情组件展示，不在浏览器重复评分。 */
 interface EnvironmentResponse {
@@ -60,12 +59,16 @@ interface EnvironmentResponse {
 useHead({ title: 'K线工作台' })
 const botStore = useBotStore()
 const symbol = ref('')
-const timeframe = ref<Timeframe>('1h')
+const timeframe = ref<KlineWorkspacePeriod>('1h')
 const indicator = ref<KlineIndicator>(DEFAULT_KLINE_INDICATOR)
 const now = ref(Date.now())
 const environment = shallowRef<Omit<EnvironmentDetailsData, 'now'>>()
 const environmentLoading = ref(false)
 const environmentError = ref('')
+const environmentEmptyDescription = computed(() => {
+  if (timeframe.value === '1w') return '周线暂无环境详情'
+  return environmentLoading.value ? '正在读取环境详情…' : '等待交易对数据'
+})
 let environmentRequest: AbortController | undefined
 let clock: ReturnType<typeof setInterval> | undefined
 
@@ -84,7 +87,8 @@ function selectTimeframe(value: string) {
 
 /** 按当前标的和周期加载单份快照；切换后取消旧请求并阻止迟到响应覆盖。 */
 async function refreshEnvironment() {
-  if (!import.meta.client || !symbol.value || environmentRequest) return
+  // 环境接口只支持到日线；周线不发请求，也不借用日线快照。
+  if (!import.meta.client || !symbol.value || timeframe.value === '1w' || environmentRequest) return
   const request = new AbortController()
   environmentRequest = request
   environmentLoading.value = true
@@ -127,7 +131,7 @@ watch([symbol, timeframe], () => {
   environment.value = undefined
   void refreshEnvironment()
 }, { immediate: true })
-useGlobalPolling(refreshEnvironment, () => !!symbol.value)
+useGlobalPolling(refreshEnvironment, () => !!symbol.value && timeframe.value !== '1w')
 onMounted(() => { clock = setInterval(() => { now.value = Date.now() }, 10_000) })
 onBeforeUnmount(() => {
   environmentRequest?.abort()
@@ -145,7 +149,7 @@ onBeforeUnmount(() => {
 }
 .kline-grid {
   display: grid;
-  grid-template-columns: minmax(200px, 16fr) minmax(0, 56fr) minmax(300px, 28fr);
+  grid-template-columns: minmax(200px, 16fr) minmax(0, 60fr) minmax(300px, 24fr);
   grid-template-rows: minmax(0, 1fr);
   gap: 10px;
   height: 100%;
@@ -167,7 +171,7 @@ onBeforeUnmount(() => {
   justify-content: space-between;
   border-bottom: 1px solid var(--border-color);
 }
-.environment-toolbar h2 { margin: 0; color: var(--text-primary); font-size: 14px; }
+.environment-toolbar h2 { margin: 0; color: var(--text-primary); font-size: 14px; padding: 13px 0;}
 .environment-scroll { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: auto; padding: 10px 12px; }
 .environment-status { margin: 0 0 8px; color: var(--text-secondary); font-size: 13px; }
 .indicator-buttons {

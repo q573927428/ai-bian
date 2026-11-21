@@ -100,6 +100,7 @@ export function formatPercent(percent: number): string {
  */
 export function getTimeframeSeconds(timeframe: string): number {
   switch (timeframe) {
+    case '1m': return 60
     case '5m': return 5 * 60
     case '15m': return 15 * 60
     case '1h': return 60 * 60
@@ -118,5 +119,7 @@ export function getTimeframeSeconds(timeframe: string): number {
  */
 export function alignToKlineTime(timestamp: number, timeframe: string): number {
   const timeframeSeconds = getTimeframeSeconds(timeframe)
-  return Math.floor(timestamp / 1000 / timeframeSeconds) * timeframeSeconds
+  // Unix 纪元是周四，Binance 周线从 UTC 周一开盘；偏移后才会匹配后端时间戳。
+  const offset = timeframe === '1w' ? 4 * 24 * 60 * 60 : 0
+  return Math.floor((timestamp / 1000 - offset) / timeframeSeconds) * timeframeSeconds + offset
 }

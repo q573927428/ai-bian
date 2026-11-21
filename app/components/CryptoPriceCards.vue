@@ -53,6 +53,7 @@
         </div>
         <div class="price-board-actions">
         <div v-if="viewMode === 'heatmap'" class="heatmap-header-actions">
+          <span class="heatmap-size-label" aria-hidden="true">区块面积</span>
           <el-tooltip placement="bottom" effect="dark">
             <template #content>
               <div class="heatmap-help">
@@ -70,7 +71,7 @@
           v-model="heatmapSizeMode"
           class="heatmap-size-select"
           size="small"
-          aria-label="热力图区块大小"
+          aria-label="热力图区块面积"
         >
           <el-option label="涨跌幅" value="change" />
           <el-option label="成交额" value="volume" />
@@ -711,6 +712,7 @@ interface CryptoPrice {
 .price-grid-card-standalone:not(.price-grid-card-expanded) :deep(.el-card__header) {
   flex: 0 0 auto;
   padding: 10px;
+  container: kline-price-sidebar / inline-size;
 }
 
 .price-grid-card-standalone:not(.price-grid-card-expanded) :deep(.el-card__body) {
@@ -881,6 +883,10 @@ interface CryptoPrice {
   flex-shrink: 0;
 }
 
+.heatmap-size-label {
+  display: none;
+}
+
 .heatmap-size-select {
   width: 70px;
   flex-shrink: 0;
@@ -935,7 +941,17 @@ interface CryptoPrice {
 
 .price-grid-card-standalone:not(.price-grid-card-expanded) .heatmap-header-actions {
   grid-area: 3 / 1 / 4 / -1;
-  justify-self: end;
+  justify-self: stretch;
+}
+
+.price-grid-card-standalone:not(.price-grid-card-expanded) .heatmap-size-label {
+  display: inline;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.price-grid-card-standalone:not(.price-grid-card-expanded) .heatmap-size-select {
+  margin-inline-start: auto;
 }
 
 .price-grid-card-standalone:not(.price-grid-card-expanded) .price-counts {
@@ -976,6 +992,30 @@ interface CryptoPrice {
 }
 
 .price-grid-card-standalone:not(.price-grid-card-expanded) .price-metric-value { font-weight: 600; }
+
+/* 空间足够时把面积设置并入周期行；按左栏内容宽度判断，不受浏览器窗口宽度误导。 */
+@container kline-price-sidebar (min-width: 248px) {
+  .price-grid-card-standalone:not(.price-grid-card-expanded) .is-heatmap .price-period-options {
+    grid-column: 1 / 2;
+  }
+
+  .price-grid-card-standalone:not(.price-grid-card-expanded) .heatmap-header-actions {
+    grid-area: 2 / 2 / 3 / -1;
+    justify-self: end;
+  }
+
+  .price-grid-card-standalone:not(.price-grid-card-expanded) .heatmap-size-label {
+    display: none;
+  }
+
+  .price-grid-card-standalone:not(.price-grid-card-expanded) .heatmap-size-select :deep(.el-select__wrapper) {
+    min-height: 28px;
+  }
+
+  .price-grid-card-standalone:not(.price-grid-card-expanded) .is-heatmap .price-counts {
+    grid-row: 3;
+  }
+}
 
 .cards-grid {
   display: flex;

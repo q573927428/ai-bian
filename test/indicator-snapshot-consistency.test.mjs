@@ -55,7 +55,7 @@ function makeKlines(now, timeframeMs, currentVolume, count = 150) {
 }
 
 /** 使用真实指标中心、调度器和策略装配流程；仅拦截最终AI请求。 */
-function createFixture() {
+function createFixture(hubLogger = logger) {
   const clock = { now: Date.UTC(2026, 9, 30, 10, 10) }
   /** 提供可推进的时钟，验证排队后仍使用快照时点计算进度。 */
   class FixtureDate extends Date {
@@ -81,7 +81,7 @@ function createFixture() {
     } },
     technicalindicators: technicalIndicators,
     '../../utils/stable-hash': hashes,
-    '../../utils/logger': { logger },
+    '../../utils/logger': { logger: hubLogger },
     '../../utils/kline-simple-storage': {
       getKLineFileMTime: (_, timeframe) => versions.get(timeframe),
       getSimpleKLineAsOHLCV: (_, timeframe, limit) => source.get(timeframe)?.slice(-limit) ?? []
@@ -379,6 +379,48 @@ test('成交量缓存感知TTL内的盘中更新，并与technicalindicators的E
   f.hub.updateConfig({ ...f.config, volumeEmaPeriod: 5 })
   assert.equal((await f.hub.getIndicators('BTCUSDT', '1h', 'Volume')).values.emaPeriod, 5)
   await assert.rejects(f.hub.getIndicators('BTCUSDT', '1h', 'Volume', undefined, bars.slice(-2)), /数据不足/)
+})
+
+test('仅跳过 ANTUSDT 日线历史不足的刷新报错，达到门槛后自动恢复', async () => {
+  const errors = []
+  const f = createFixture({ ...logger, error: (...args) => errors.push(args) })
+  const symbol = 'ANTUSDT'
+  const timeframe = '1d'
+  const bars = makeKlines(f.clock.now, 86_400_000, 30, 20)
+  f.hub.updateConfig({ ...f.config, volumeEmaPeriod: 12 })
+  // 先填入缓存，验证历史不足时既不报错，也不会保留上次的成交量指标。
+  await f.hub.getIndicators(symbol, timeframe, 'Volume', undefined, bars)
+  const symbolData = f.hub.symbolDataCache.get(symbol)
+  f.source.set(timeframe, bars.slice(-5))
+  f.versions.set(timeframe, 'short-history')
+  await f.hub.refreshSymbolTimeframe(symbol, timeframe)
+  await f.hub.refreshSymbolTimeframe(symbol, timeframe)
+  assert.equal(symbolData.klineData.get(timeframe).length, 5)
+  assert.equal(symbolData.volumeData.has(timeframe), false)
+  assert.deepEqual(errors, [])
+  await assert.rejects(f.hub.getIndicators(symbol, timeframe, 'Volume'), /数据不足/)
+
+  // 同周期的其他交易对、同交易对的其他周期，仍按原规则记录历史不足。
+  f.hub.getOrCreateSymbolData('BTCUSDT')
+  f.source.set('4h', bars.slice(-5))
+  await f.hub.refreshSymbolTimeframe('BTCUSDT', timeframe)
+  await f.hub.refreshSymbolTimeframe(symbol, '4h')
+  assert.equal(errors.length, 2)
+  assert.match(errors[0][1], /BTCUSDT 1d 数据刷新失败/)
+  assert.match(errors[1][1], /ANTUSDT 4h 数据刷新失败/)
+  errors.length = 0
+
+  f.source.set(timeframe, bars)
+  f.versions.set(timeframe, 'enough-history')
+  await f.hub.refreshSymbolTimeframe(symbol, timeframe)
+  assert.equal(symbolData.volumeData.get(timeframe).values.emaPeriod, 12)
+  assert.deepEqual(errors, [])
+
+  f.source.set(timeframe, [...bars.slice(0, -1), { ...bars.at(-1), volume: -1 }])
+  await f.hub.refreshSymbolTimeframe(symbol, timeframe)
+  assert.equal(symbolData.volumeData.has(timeframe), false)
+  assert.equal(errors.length, 1)
+  assert.match(errors[0][1], /成交量无效/)
 })
 
 test('技术指标和EMA缓存随盘中价格变化刷新，未变K线在TTL到期后也重新计算', async () => {

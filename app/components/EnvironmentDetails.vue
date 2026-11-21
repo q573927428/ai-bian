@@ -99,7 +99,7 @@ const breadthPeriod = computed(() => mainPeriod.value === '1d' ? '24h' : mainPer
 const expired = computed(() => !!props.summary && props.now >= props.summary.expiresAt)
 // 只有快照提供至少一个周期的有效排名才展示该列，旧响应不增加空列。
 const hasPeriodRankings = computed(() => props.summary?.rows.some(row => row.ranking != null) ?? false)
-const rankingDirections = [{ key: 'long', label: '做多排名' }, { key: 'short', label: '做空排名' }] as const
+const rankingDirections = [{ key: 'long', label: '做多' }, { key: 'short', label: '做空' }] as const
 const selectedRankingDirection = ref<'long' | 'short' | null>(null)
 // 默认展示环境分更高方向的排名；用户手动切换后保持选择，快照刷新不抢回方向。
 const rankingDirection = computed(() => selectedRankingDirection.value ?? (

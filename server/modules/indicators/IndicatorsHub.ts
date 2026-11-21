@@ -87,6 +87,7 @@ export class IndicatorsHub {
 
   // Volume 缓存 TTL（毫秒）
   private readonly VOLUME_CACHE_TTL = 120 * 1000 // 2分钟
+  private readonly VOLUME_AVERAGE_PERIOD = 20
 
   // 进行中的请求
   private pendingRequests: Map<string, Promise<any>> = new Map()
@@ -127,6 +128,11 @@ export class IndicatorsHub {
     return Math.max(2, Math.floor(configured))
   }
 
+  /** 成交量结果同时提供简单均值和 EMA，两个窗口都必须有足够行情。 */
+  private getMinVolumeKlines(emaPeriod = this.getVolumeEmaPeriod()): number {
+    return Math.max(this.VOLUME_AVERAGE_PERIOD, emaPeriod)
+  }
+
   /** EMA包含当前未收盘K线的快照值，与现有AI量能口径一致。 */
   private calculateVolumeEma(volumes: number[], period: number): number {
     if (volumes.length === 0) return 0
@@ -149,11 +155,11 @@ export class IndicatorsHub {
   /** 事件刷新与按需读取共用成交量算法，防止两条路径产生不同EMA或时间标记。 */
   private calculateVolumeData(symbol: string, timeframe: Timeframe, klines: OHLCV[]): IndicatorData {
     const emaPeriod = this.getVolumeEmaPeriod()
-    if (klines.length < Math.max(20, emaPeriod) || klines.some(c => !Number.isFinite(c.volume) || c.volume < 0)) {
+    if (klines.length < this.getMinVolumeKlines(emaPeriod) || klines.some(c => !Number.isFinite(c.volume) || c.volume < 0)) {
       throw new Error(`${symbol} ${timeframe} K线数据不足或成交量无效，无法计算成交量EMA`)
     }
     const current = klines.at(-1)!.volume
-    const average = klines.slice(-20).reduce((sum, c) => sum + c.volume, 0) / 20
+    const average = klines.slice(-this.VOLUME_AVERAGE_PERIOD).reduce((sum, c) => sum + c.volume, 0) / this.VOLUME_AVERAGE_PERIOD
     const emaAverage = this.calculateVolumeEma(klines.map(c => c.volume), emaPeriod)
     return {
       symbol, timeframe, timestamp: Date.now(), sourceKlineHash: shortHash(klines),
@@ -1219,14 +1225,15 @@ export class IndicatorsHub {
 
       // 3. 重新计算该周期的成交量指标
       const klines = symbolData.klineData.get(timeframe)
-      if (klines && klines.length > 0) {
-        const volumeData = this.calculateVolumeData(symbol, timeframe, klines)
-        
-        if (!symbolData.volumeData) {
-          symbolData.volumeData = new Map()
-        }
-        symbolData.volumeData.set(timeframe, volumeData)
+      if (!klines?.length) return
+      // 只跳过 ANTUSDT 上线初期的日线样本不足；其他交易对、周期和真实数据错误按原逻辑处理。
+      if (symbol === 'ANTUSDT' && timeframe === '1d' && klines.length < this.getMinVolumeKlines()) return
+
+      const volumeData = this.calculateVolumeData(symbol, timeframe, klines)
+      if (!symbolData.volumeData) {
+        symbolData.volumeData = new Map()
       }
+      symbolData.volumeData.set(timeframe, volumeData)
 
       // logger.info('IndicatorsHub', `${symbol} ${timeframe} 数据已刷新（事件驱动）`)
     } catch (error: any) {

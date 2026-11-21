@@ -1,8 +1,17 @@
 <template>
   <div class="chart-wrapper" :class="{ 'chart-wrapper-linked': indicator }" :style="indicator ? { '--indicator-pane-height': `${indicatorPaneHeight}px` } : undefined">
     <div ref="chartContainer" class="kline-chart" :title="pinnedCrosshair ? '光标已锁定，再次点击图表解除锁定' : '点击图表锁定光标，再次点击解除锁定'"></div>
-    <div v-if="$slots['indicator-controls'] && indicatorPaneTop !== null" class="indicator-controls-overlay" :style="{ top: `${indicatorPaneTop + 6}px` }">
+    <div v-if="indicatorPaneTop !== null && ($slots['indicator-controls'] || indicator === 'DMI')" class="indicator-controls-overlay" :style="{ top: `${indicatorPaneTop + 6}px` }">
       <slot name="indicator-controls" />
+      <div v-if="indicator === 'DMI'" class="dmi-legend" role="group" aria-label="DMI 曲线">
+        <button
+          v-for="line in KLINE_DMI_LINES" :key="line.label" type="button"
+          :aria-pressed="!hiddenDmiLines.has(line.label)" @click="toggleDmiLine(line.label)"
+        >
+          <span class="dmi-legend-swatch" :style="{ backgroundColor: line.color, height: `${line.lineWidth}px` }" aria-hidden="true"></span>
+          {{ line.label }}
+        </button>
+      </div>
     </div>
     <SupportResistanceOverlay :symbol="symbol" :timeframe="timeframe" :klines="klineData" :loading="loading || !!error" :historical-order="historicalOrder" :get-chart="() => chart" :get-series="() => candlestickSeries" />
     <PositionRiskOverlay :symbol="symbol" :historical-order="historicalOrder" :klines="klineData" :loading="loading || !!error" :get-chart="() => chart" :get-series="() => candlestickSeries" />
@@ -61,7 +70,7 @@ import { calculateADXSeries } from '../../utils/adx-calculator'
 import { calculateErChartMetricsSeries } from '../../utils/er-chart-series'
 import { prepareCandlestickData, prepareVolumeData, getChartOptions, getPricePrecision, VOLUME_UP_COLOR, VOLUME_DOWN_COLOR } from './utils/kline-helpers'
 import { useBotStore } from '../../stores/bot'
-import { KLINE_WORKSPACE_PERIODS, type KlineIndicator } from '../../utils/kline-indicators'
+import { KLINE_DMI_LINES, KLINE_WORKSPACE_PERIODS, type KlineDmiLine, type KlineIndicator } from '../../utils/kline-indicators'
 import { createIndicatorPane } from './utils/indicator-pane'
 
 /** 主图画布及可选副图的行情、显示和交易标记配置。 */
@@ -283,6 +292,7 @@ let indicatorPane: ReturnType<typeof createIndicatorPane> | undefined
 let indicatorResizeObserver: ResizeObserver | undefined
 const indicatorPaneHeight = ref(0)
 const indicatorPaneTop = ref<number | null>(null)
+const hiddenDmiLines = ref<ReadonlySet<KlineDmiLine>>(new Set())
 let markersApi: any = null
 // 保存时间和价格，使锁定位置不随鼠标移动或离开图表而改变。
 const pinnedCrosshair = ref<{ time: number; price: number } | null>(null)
@@ -812,7 +822,7 @@ const initChart = () => {
   resizeObserver.observe(chartContainer.value)
 
   if (props.indicator) {
-    const linkedPane = createIndicatorPane(chart)
+    const linkedPane = createIndicatorPane(chart, hiddenDmiLines.value)
     indicatorPane = linkedPane
     // Lightweight Charts 首次绘制后才会生成新分区对应的 DOM。
     requestAnimationFrame(() => {
@@ -869,6 +879,14 @@ const initChart = () => {
 function updateIndicatorPane() {
   const period = KLINE_WORKSPACE_PERIODS.find(value => value === props.timeframe)
   if (period && props.indicator) indicatorPane?.update(props.indicator, props.klineData, period)
+}
+
+/** 图例状态保留在画布组件中，切换指标或重建图表时沿用。 */
+function toggleDmiLine(line: KlineDmiLine) {
+  const hidden = new Set(hiddenDmiLines.value)
+  if (!hidden.delete(line)) hidden.add(line)
+  hiddenDmiLines.value = hidden
+  indicatorPane?.setHiddenDmiLines(hidden)
 }
 
 // 根据时间查找K线数据
@@ -1525,6 +1543,51 @@ defineExpose({
   left: 8px;
   z-index: 4;
   max-width: calc(100% - 58px);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+}
+
+.dmi-legend {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--bg-card) 82%, transparent);
+}
+
+.dmi-legend button {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 4px;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 11px;
+  line-height: 16px;
+  cursor: pointer;
+}
+
+.dmi-legend button:hover {
+  background: color-mix(in srgb, var(--text-primary) 10%, transparent);
+}
+
+.dmi-legend button[aria-pressed="false"] {
+  color: var(--text-secondary);
+  text-decoration: line-through;
+}
+
+.dmi-legend button[aria-pressed="false"] .dmi-legend-swatch {
+  opacity: 0.35;
+}
+
+.dmi-legend-swatch {
+  width: 9px;
+  border-radius: 1px;
 }
 
 .kline-chart {

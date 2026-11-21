@@ -142,7 +142,7 @@ const simpleContainerRef = ref<HTMLElement | null>(null)
 const controlsWrapperRef = ref<HTMLElement | null>(null)
 
 // 导入工具函数
-import { formatTime } from './utils/kline-formatters'
+import { alignToKlineTime, formatTime, getTimeframeSeconds } from './utils/kline-formatters'
 import { calculateEMASeries, calculateATRSeries, calculateATRPercent } from '../../utils/ema-calculator'
 import { calculateRSISeries } from '../../utils/rsi-calculator'
 import { calculateADXSeries } from '../../utils/adx-calculator'
@@ -868,20 +868,6 @@ const handleTooltipUpdate = (data: any, time: string) => {
   tooltipVisible.value = true
 }
 
-// 获取时间段的秒数（新K线检测需要）
-const getTimeframeSeconds = (timeframe: string): number => {
-  switch (timeframe) {
-    case '1m': return 60
-    case '5m': return 5 * 60
-    case '15m': return 15 * 60
-    case '1h': return 60 * 60
-    case '4h': return 4 * 60 * 60
-    case '1d': return 24 * 60 * 60
-    case '1w': return 7 * 24 * 60 * 60
-    default: return 60 * 60
-  }
-}
-
 // 默认行情和实时刷新也会重建 tooltipData，必须显式带上 ER，避免覆盖悬停计算结果。
 const latestEr = computed(() => calculateErChartMetricsSeries(
   klineData.value.slice(-(DEFAULT_ER_PERIOD + 1)),
@@ -1094,9 +1080,7 @@ const checkAndUpdatePrice = () => {
   const lastKline = klineData.value[klineData.value.length - 1]
   if (!lastKline) return
   
-  const now = Math.floor(Date.now() / 1000)
-  const timeframeSeconds = getTimeframeSeconds(selectedTimeframe.value)
-  const currentKlineTimestamp = Math.floor(now / timeframeSeconds) * timeframeSeconds
+  const currentKlineTimestamp = alignToKlineTime(Date.now(), selectedTimeframe.value)
   
   if (lastKline.t === currentKlineTimestamp) {
     updateLastKlineWithPrice(price.price)
@@ -1189,10 +1173,7 @@ const checkForNewKline = (syncLastBar = true) => {
   if (!lastKline) return
   
   const now = Math.floor(Date.now() / 1000)
-  const timeframeSeconds = getTimeframeSeconds(selectedTimeframe.value)
-  
-  // 计算当前K线周期的时间戳
-  const currentKlineTimestamp = Math.floor(now / timeframeSeconds) * timeframeSeconds
+  const currentKlineTimestamp = alignToKlineTime(now * 1000, selectedTimeframe.value)
   
   // 后端在周期结束后延迟约12秒开始按交易对串行同步，前端等待30秒再整批校正，尽量避开批量同步窗口。
   const backendDelaySeconds = 30
