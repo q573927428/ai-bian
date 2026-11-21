@@ -698,10 +698,10 @@ const handleCrosshairMove = (param: any) => {
   if (kline) emitTooltipUpdate(kline)
 }
 
-/** 工作台更重视盘面密度，保留小段右侧留白，避免窄屏上最新行情挤到左边。 */
+/** 首页给最新 K 线和右侧价格轴之间多留一些空间，订单复盘沿用原设置。 */
 function getCanvasOptions() {
   const options = getChartOptions(props.theme)
-  if (props.indicator) options.timeScale.rightOffset = 12
+  if (props.indicator) options.timeScale.rightOffset = 28
   return options
 }
 

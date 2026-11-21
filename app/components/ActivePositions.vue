@@ -2,8 +2,7 @@
   <el-card class="active-positions-card" shadow="hover">
     <template #header>
       <div class="positions-card-header">
-        <span class="positions-title">📌 当前持仓</span>
-        <!-- 标题右侧汇总全部持仓；筛选仅影响列表，盈亏随共享行情实时刷新。 -->
+        <!-- 标签栏已经标明当前持仓，卡片头只保留汇总和筛选。 -->
         <div class="positions-summary" aria-label="全部当前持仓盈亏汇总">
           <span>总{{ positions.length }}</span>
           <span class="text-success">盈{{ positionSummary.profitCount }}</span>
@@ -828,10 +827,6 @@ onUnmounted(() => {
   gap: 8px;
   color: var(--text-primary);
   font-weight: 600;
-}
-
-.positions-title {
-  white-space: nowrap;
 }
 
 .positions-card-header > .el-button {

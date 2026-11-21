@@ -89,7 +89,7 @@
 import { computed, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import type { Component } from 'vue'
-import { ElIconHouse, ElIconStar, ElIconDataAnalysis, ElIconCoin, ElIconTickets, ElIconPlatform, ElIconTrendCharts, ElIconUserFilled } from '#components'
+import { ElIconHouse, ElIconStar, ElIconDataAnalysis, ElIconTickets, ElIconPlatform, ElIconTrendCharts, ElIconUserFilled } from '#components'
 import { useTheme } from '../composables/useTheme'
 import type { HomeNavigationTarget } from '../../types/home'
 
@@ -124,7 +124,6 @@ const mobileNavOpen = ref(false)
 const navigationItems: NavigationItem[] = [
   { id: 'home', label: '首页', description: '交易总览', icon: ElIconHouse },
   { id: 'indicators', label: '指标', description: '技术信号', icon: ElIconDataAnalysis },
-  { id: 'kline', label: 'K线', description: '行情图表', icon: ElIconCoin },
   { id: 'orders', label: '订单', description: '交易复盘', icon: ElIconTickets },
   { id: 'macro', label: '宏观', description: '全球市场', icon: ElIconPlatform },
   { id: 'trends', label: '趋势', description: '行情脉络', icon: ElIconTrendCharts },

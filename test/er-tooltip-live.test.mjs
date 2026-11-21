@@ -11,12 +11,13 @@ import { DEFAULT_ER_PERIOD } from '../app/utils/efficiency-ratio.ts'
 import { calculateEMASeries, calculateATRSeries, calculateATRPercent } from '../app/utils/ema-calculator.ts'
 import { calculateRSISeries } from '../app/utils/rsi-calculator.ts'
 import { calculateADXSeries } from '../app/utils/adx-calculator.ts'
+import { getTimeframeSeconds } from '../app/components/kline-chart/utils/kline-formatters.ts'
 
 /** 执行真实组件的数据展示和价格更新函数，隔离图表渲染和行情网络连接。 */
 function createFixture() {
   const source = parse(readFileSync(new URL('../app/components/kline-chart/KLineChartSimple.vue', import.meta.url), 'utf8')).descriptor.scriptSetup.content
   const ast = ts.createSourceFile('chart.ts', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS)
-  const names = new Set(['getTimeframeSeconds', 'latestEr', 'updateLastKlineWithPrice', 'calculateLatestEmaDiff', 'calculateLatestAtrPercent', 'calculateLatestRsi', 'calculateLatestAdx', 'showLatestKline'])
+  const names = new Set(['latestEr', 'updateLastKlineWithPrice', 'calculateLatestEmaDiff', 'calculateLatestAtrPercent', 'calculateLatestRsi', 'calculateLatestAdx', 'showLatestKline'])
   const declarations = ast.statements.filter(statement => ts.isVariableStatement(statement)
     && statement.declarationList.declarations.some(declaration => names.has(declaration.name.getText(ast))))
   assert.equal(declarations.length, names.size)
@@ -30,7 +31,7 @@ function createFixture() {
   const globals = {
     ref, computed, klineData, tooltipData, selectedTimeframe: ref('5m'),
     tooltipVisible: ref(false), tooltipTime: ref(''), meta: ref({}), chartCanvasRef: ref(null),
-    botStore: { config: { emaPeriods: [20, 200] } }, formatTime: String,
+    botStore: { config: { emaPeriods: [20, 200] } }, formatTime: String, getTimeframeSeconds,
     calculateErChartMetricsSeries, DEFAULT_ER_PERIOD, calculateEMASeries, calculateATRSeries,
     calculateATRPercent, calculateRSISeries, calculateADXSeries,
     exports: {}

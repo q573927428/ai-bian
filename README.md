@@ -120,7 +120,7 @@ ai-bian/
 │   │   ├── StrategyEditor.vue    # 策略编辑器
 │   │   ├── StrategyVersionHistory.vue # 版本历史
 │   │   ├── ProfitWinRateChart.vue     # 盈亏胜率图
-│   │   └── TradingViewChartModal.vue  # K 线图弹窗
+│   │   └── kline-chart/         # 首页主图与订单复盘图表
 │   ├── composables/              # 组合式函数
 │   │   └── useTheme.ts           # 主题切换
 │   ├── pages/                    # 页面
@@ -508,7 +508,7 @@ ScoreBreakdown = {
 | **ProfitWinRateChart** | 盈亏/胜率走势 ECharts 图表 |
 | **BotConfigDialog** | Bot 全局配置对话框 |
 | **PasswordDialog** | 密码验证对话框（24 小时有效） |
-| **TradingViewChartModal** | K 线图弹窗 |
+| **KLineChartSimple** | 首页与订单复盘使用的 K 线图表 |
 
 ### 功能特性
 

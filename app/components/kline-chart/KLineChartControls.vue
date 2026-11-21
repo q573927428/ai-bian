@@ -159,19 +159,6 @@
       </div>
       
       <el-button-group size="small" class="action-buttons">
-        <!-- 引擎切换按钮 -->
-        <el-tooltip v-if="!linkedIndicators" :content="activeEngine === 'native' ? '切换到TradingView图表' : '切换到自研K线图表'" placement="top">
-          <el-button
-            size="small"
-            type="default"
-            @click="$emit('switch-engine', activeEngine === 'native' ? 'tradingview' : 'native')"
-            :title="activeEngine === 'native' ? '切换至TradingView' : '切换至自研K线'"
-            class="action-btn"
-          >
-            <el-icon><ElIconCoin v-if="activeEngine === 'native'" /><ElIconTrendCharts v-else /></el-icon>
-          </el-button>
-        </el-tooltip>
-
         <el-button
           type="primary"
           size="small"
@@ -231,7 +218,6 @@ interface Props {
   scanTimeRange?: [number, number] | null
   scanRangeBounds?: [number, number] | null
   emaPeriods?: number[]
-  activeEngine?: 'native' | 'tradingview'
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -249,8 +235,7 @@ const props = withDefaults(defineProps<Props>(), {
   scanCount: 0,
   scanTimeRange: null,
   scanRangeBounds: null,
-  emaPeriods: () => [20, 200],
-  activeEngine: 'native'
+  emaPeriods: () => [20, 200]
 })
 
 // 定义emits
@@ -267,7 +252,6 @@ const emit = defineEmits<{
   'scan-markers-change': [show: boolean]
   'scan-range-change': [range: [number, number] | null]
   'ema-periods-change': [periods: number[]]
-  'switch-engine': [engine: 'native' | 'tradingview']
 }>()
 
 // 可用的EMA周期选项

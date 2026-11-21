@@ -3,8 +3,7 @@
   <el-card class="latest-news-card" shadow="hover">
     <template #header>
       <div class="news-header">
-        <span>📢 重要快讯</span>
-        <span v-if="updatedAt" class="news-updated-at">{{ failed || degraded ? '上次更新' : '更新于' }} {{ formatTime(updatedAt) }}</span>
+        <span v-if="updatedAt" class="news-updated-at">{{ failed || degraded ? '上次更新' : '更新于' }} <time :datetime="updatedAt">{{ formatTime(updatedAt) }}</time></span>
         <el-button class="news-refresh" type="primary" text size="small" :loading="loading" @click="loadNews">
           <el-icon v-if="!loading"><ElIconRefresh /></el-icon>
           <span>刷新</span>
@@ -108,8 +107,8 @@ onUnmounted(() => {
 .latest-news-card :deep(.el-card__header) { flex-shrink: 0; }
 .news-header { display: flex; justify-content: space-between; align-items: center; font-weight: 600; color: var(--text-primary);margin: -5px 0; }
 .news-header { gap: 8px; flex-wrap: wrap; }
-.news-updated-at { margin-left: auto; font-size: 11px; font-weight: 400; color: var(--text-secondary); }
-.news-refresh { gap: 2px; padding: 0; font-size: 12px; }
+.news-updated-at { font-size: 11px; font-weight: 400; color: var(--text-secondary); }
+.news-refresh { margin-inline-start: auto; gap: 2px; padding: 0; font-size: 12px; }
 .news-refresh :deep(> span) { gap: 2px; }
 .latest-news-card :deep(.el-card__body) { display: flex; flex-direction: column; flex: 1; min-height: 0; padding: 12px 16px; }
 .news-status { flex-shrink: 0; min-height: 18px; margin-bottom: 8px; font-size: 11px; color: var(--text-secondary); }

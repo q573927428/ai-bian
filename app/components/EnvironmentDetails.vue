@@ -2,7 +2,13 @@
 <template>
   <section class="environment-details" :class="{ 'is-panel': panel }" aria-label="环境置信度与市场广度">
     <header class="detail-header">
-      <div class="title-row"><span class="detail-title">{{ symbol }} <span class="secondary">/ 环境分析</span></span><span class="main-tag">主周期 {{ mainPeriod }}</span></div>
+      <div class="title-row">
+        <span class="detail-title">{{ symbol }} <span class="secondary">/ 环境分析</span></span>
+        <div class="period-actions">
+          <span class="main-tag">主周期 {{ mainPeriod }}</span>
+          <slot name="period-actions" />
+        </div>
+      </div>
       <div class="detail-meta">
         <span>{{ scopeLabel }} · 同类样本 {{ summary?.selectedCount ?? context?.marketScope?.selectedCount ?? 0 }} 个</span>
         <span v-if="summary">{{ updatedAt }} 更新 · 北京时间{{ expired ? '（数据已过期）' : '' }}</span>
@@ -145,6 +151,7 @@ function changeTone(value: number | null): string { return value == null || valu
 .detail-header { padding: 2px 2px 8px; border-bottom: 1px solid var(--border-color); }
 .title-row, .detail-meta, .score-heading, .section-heading, .table-footer, .ranking { display: flex; align-items: center; justify-content: space-between; gap: 6px 12px; flex-wrap: wrap; }
 .detail-title { font-size: 18px; font-weight: 500; }.detail-title .secondary { font-size: 14px; }
+.period-actions { display: flex; align-items: center; gap: 8px; }
 .main-tag { padding: 2px 8px; border-radius: 5px; background: var(--bg-hover); color: var(--text-secondary); font-size: 12px; }
 .detail-meta { justify-content: flex-start; margin-top: 6px; font-size: 12px; color: var(--text-secondary); }
 .score-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 10px; }

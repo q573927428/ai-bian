@@ -22,7 +22,7 @@ const { passwordVerified, showPasswordDialog, handleUnlock, handlePasswordSucces
   onOpen: panel => { void navigateTo(`/${panel}`) },
   onLock: () => {}
 })
-const activePanels = computed(() => ({ home: route.path === '/', hot: route.path === '/hot', indicators: route.path === '/indicators', kline: route.path === '/kline', orders: route.path === '/orders', macro: route.path === '/macro', trends: route.path === '/trends' }))
+const activePanels = computed(() => ({ home: route.path === '/', hot: route.path === '/hot', indicators: route.path === '/indicators', orders: route.path === '/orders', macro: route.path === '/macro', trends: route.path === '/trends' }))
 /** 指标直接浏览，订单仍通过登录门禁。 */
 function handleNavigate(target: HomeNavigationTarget) {
   if (target === 'orders') { handleOpenProtectedPanel(target); return }

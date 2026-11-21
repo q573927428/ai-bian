@@ -21,7 +21,6 @@
         :scan-time-range="scanTimeRange"
         :scan-range-bounds="scanRangeBounds"
         :ema-periods="selectedEmaPeriods"
-        :active-engine="activeEngine"
         :linked-indicators="!!indicator"
         :expanded="isExpanded"
         @timeframe-change="selectTimeframe"
@@ -35,7 +34,6 @@
         @scan-markers-change="handleScanMarkersChange"
         @scan-range-change="handleScanRangeChange"
         @ema-periods-change="handleEmaPeriodsChange"
-        @switch-engine="(engine: any) => $emit('switch-engine', engine)"
       />
     </div>
 
@@ -158,22 +156,24 @@ const { theme: globalTheme, toggleTheme: globalToggleTheme } = useTheme()
 // 是否已经初始化过（防止初始加载时不必要的切换）
 let hasInitialized = false
 
-// 防抖函数
+/** 合并快速切换交易对；周期同步和卸载可取消已经排队的请求。 */
 const debounce = <T extends (...args: any[]) => any>(
   func: T,
   wait: number
-): ((...args: Parameters<T>) => void) => {
+) => {
   let timeout: number | null = null
-  
-  return (...args: Parameters<T>) => {
-    if (timeout !== null) {
-      clearTimeout(timeout)
-    }
-    
+  const cancel = () => {
+    if (timeout === null) return
+    clearTimeout(timeout)
+    timeout = null
+  }
+  return Object.assign((...args: Parameters<T>) => {
+    cancel()
     timeout = window.setTimeout(() => {
+      timeout = null
       func(...args)
     }, wait)
-  }
+  }, { cancel })
 }
 
 
@@ -181,25 +181,23 @@ const debounce = <T extends (...args: any[]) => any>(
 interface Props {
   symbol?: string
   timeframe?: string
-  activeEngine?: 'native' | 'tradingview'
   historicalOrder?: TradeHistory | null
   /** 常规画布高度，允许订单复盘页独立调整，不影响首页布局与全屏尺寸。 */
   height?: number
-  /** K 线工作台在原图表的共享时间轴中挂载副图；首页不设置。 */
+  /** 首页在主图的共享时间轴中挂载副图。 */
   indicator?: KlineIndicator
 }
 
 const props = withDefaults(defineProps<Props>(), {
   symbol: 'BTCUSDT',
   timeframe: '',  // 默认为空字符串，表示没有提供timeframe
-  activeEngine: 'native',
   height: 423
 })
 
 // 定义emits
 const emit = defineEmits<{
-  'switch-engine': [engine: 'native' | 'tradingview']
   'timeframe-change': [timeframe: string]
+  'toolbar-height-change': [height: number]
 }>()
 
 // 计算显示的symbol
@@ -680,22 +678,19 @@ const handleExpandedEscape = (event: KeyboardEvent) => {
 /** 普通模式沿用父级分配高度，展开时画布填满工具栏下方剩余空间。 */
 const updateChartHeight = () => {
   const container = simpleContainerRef.value
+  const controlsHeight = controlsWrapperRef.value?.offsetHeight ?? 0
+  // 展开图表后工具栏宽度变化，保留首页原布局高度，避免退回时右栏跳动。
+  if (!isExpanded.value && controlsHeight > 0) emit('toolbar-height-change', controlsHeight)
   if (props.indicator && container) {
     // 指标按钮悬浮在副图内，不再挤占主副图共用的画布高度。
-    chartHeight.value = Math.max(1, container.clientHeight - (controlsWrapperRef.value?.offsetHeight || 0))
+    chartHeight.value = Math.max(1, container.clientHeight - controlsHeight)
     return
   }
   if (!isExpanded.value) {
-    if (window.innerWidth >= 992 && container?.closest('.market-column')) {
-      // 直接读取 flex 布局分配后的空间，不用旧画布高度反推，避免更新时序造成误差。
-      chartHeight.value = Math.max(250, container.clientHeight - (controlsWrapperRef.value?.offsetHeight || 0))
-      return
-    }
     chartHeight.value = props.height
     return
   }
 
-  const controlsHeight = controlsWrapperRef.value?.offsetHeight || 0
   chartHeight.value = Math.max(1, (simpleContainerRef.value?.clientHeight || window.innerHeight) - controlsHeight)
 }
 
@@ -1269,19 +1264,19 @@ watch(() => props.symbol, (newSymbol, oldSymbol) => {
   }
 })
 
-// 监听timeframe变化
-watch(() => props.timeframe, (newTimeframe, oldTimeframe) => {
-  if (newTimeframe && newTimeframe !== oldTimeframe) {
-    selectedTimeframe.value = newTimeframe
-    loadKLineData()
-  }
+// 父页面会回传用户刚选的周期；值已一致时不要重复清空和请求图表。
+watch(() => props.timeframe, (newTimeframe) => {
+  if (!newTimeframe || newTimeframe === selectedTimeframe.value) return
+  // 持仓定位能同时换交易对和周期，只请求一次更新后的组合。
+  debouncedHandleSymbolChange.cancel()
+  selectTimeframe(newTimeframe)
 })
 
 // 组件挂载时初始化
 onMounted(() => {
   // 如果配置已经加载完成，直接加载数据；否则等待配置加载
   if (botStore.config || props.historicalOrder) {
-    // 工作台等完整配置后才挂载主图；随后到达的共享配置响应无需重发首屏行情。
+    // 首页等完整配置后才挂载主图；随后到达的共享配置响应无需重发首屏行情。
     if (props.indicator && botStore.botConfig) hasInitialized = true
     // 配置已加载，设置正确的初始周期并加载数据
     selectedTimeframe.value = computedTimeframe.value
@@ -1296,22 +1291,20 @@ onMounted(() => {
   startNewKlineCheck()
   window.addEventListener('keydown', handleExpandedEscape)
   window.addEventListener('resize', handleWindowResize)
-  const column = simpleContainerRef.value?.closest('.chart-card')?.parentElement
   layoutObserver = new ResizeObserver(updateChartHeight)
   if (simpleContainerRef.value) layoutObserver.observe(simpleContainerRef.value)
-  const prices = column?.querySelector('.price-grid-card')
-  if (prices) layoutObserver.observe(prices)
   if (controlsWrapperRef.value) layoutObserver.observe(controlsWrapperRef.value)
 })
 
 // 组件卸载前同步清理
 onBeforeUnmount(() => {
   // 卸载后所有行情和历史请求都应失效，避免仍在写入旧图表或缓存。
+  debouncedHandleSymbolChange.cancel()
   requestGeneration++
   earlierGeneration++
   stopNewKlineCheck()
   window.removeEventListener('keydown', handleExpandedEscape)
-  // 切换引擎或离开页面时释放滚动锁。
+  // 离开页面时释放滚动锁。
   if (isExpanded.value) document.body.style.overflow = previousBodyOverflow
   window.removeEventListener('resize', handleWindowResize)
   layoutObserver?.disconnect()
@@ -1325,7 +1318,6 @@ onUnmounted(() => {
 
 <style scoped>
 .kline-chart-simple-container {
-  /* 保留完整布局高度，避免负边距触发外层引擎容器的纵向滚动。 */
   margin: 0;
   overflow: hidden;
   background: var(--bg-card);

@@ -8,12 +8,27 @@ import { init, use } from 'echarts/core'
 import { TreemapChart } from 'echarts/charts'
 import { SVGRenderer } from 'echarts/renderers'
 import { ref, watch, nextTick } from 'vue'
+import { compileTemplate, parse } from 'vue/compiler-sfc'
+import { KLINE_WORKSPACE_PERIODS } from '../app/utils/kline-indicators.ts'
 
 use([TreemapChart, SVGRenderer])
 
+test('首页只渲染一张 K 线主图，价格看板不再渲染独立 K 线', () => {
+  const home = fs.readFileSync(new URL('../app/pages/index.vue', import.meta.url), 'utf8')
+  const source = fs.readFileSync(new URL('../app/components/CryptoPriceCards.vue', import.meta.url), 'utf8')
+  const filename = 'CryptoPriceCards.vue'
+  const { descriptor, errors } = parse(source, { filename })
+  assert.deepEqual(errors, [])
+  const board = compileTemplate({ filename, id: 'price-board', source: descriptor.template.content })
+  assert.deepEqual(board.errors, [])
+  assert.match(board.code, /PriceHeatmap/, '价格看板保留热力图')
+  assert.doesNotMatch(board.code, /ChartEngineSwitcher|KLineChartSimple|KLineWorkspaceChart/)
+  assert.equal([...home.matchAll(/<KLineWorkspaceChart\b/g)].length, 1)
+})
+
 test('首页每次持仓点击都触发独立热力图聚焦，包括重复交易对及行情迟到', async () => {
   const home = fs.readFileSync(new URL('../app/pages/index.vue', import.meta.url), 'utf8')
-  const handler = home.slice(home.indexOf('function handlePositionChartSelect('), home.indexOf('const handleConfigSuccess'))
+  const handlers = home.slice(home.indexOf('function normalizeChartSymbol('), home.indexOf('const handleConfigSuccess'))
   const heatmap = fs.readFileSync(new URL('../app/components/PriceHeatmap.vue', import.meta.url), 'utf8')
   const requestWatch = heatmap.slice(heatmap.indexOf('watch([() => props.focusRequest,'), heatmap.indexOf('watch(() => props.searchQuery'))
   const request = ref()
@@ -21,13 +36,14 @@ test('首页每次持仓点击都触发独立热力图聚焦，包括重复交�
   const located = []
   const stops = []
   const context = {
+    KLINE_WORKSPACE_PERIODS,
     selectedChartSymbol: ref(''), selectedChartTimeframe: ref(''), chartFocusRequest: request,
     props: { get focusRequest() { return request.value }, get items() { return items.value } },
     nextTick, watch: (...args) => { stops.push(watch(...args)) },
     locateSymbol: async symbol => located.push(symbol)
   }
   vm.createContext(context)
-  vm.runInContext(ts.transpile(`let chartFocusId = 0; let searchTimer;\n${handler}\n${requestWatch}\nglobalThis.click = handlePositionChartSelect;`, {
+  vm.runInContext(ts.transpile(`let chartFocusId = 0; let searchTimer;\n${handlers}\n${requestWatch}\nglobalThis.click = handlePositionChartSelect;\nglobalThis.choosePrice = handlePriceChartSelect;`, {
     target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS
   }), context)
   try {
@@ -38,6 +54,8 @@ test('首页每次持仓点击都触发独立热力图聚焦，包括重复交�
       await new Promise(resolve => setImmediate(resolve))
     }
     assert.deepEqual(located, ['BTCUSDT', 'BTCUSDT'])
+    assert.equal(context.selectedChartSymbol.value, 'BTCUSDT')
+    assert.equal(context.selectedChartTimeframe.value, '15m')
     context.click('1000PEPE/USDT')
     await nextTick()
     items.value = [...items.value, { symbol: '1000PEPEUSDT' }]
@@ -45,6 +63,11 @@ test('首页每次持仓点击都触发独立热力图聚焦，包括重复交�
     await nextTick()
     await new Promise(resolve => setImmediate(resolve))
     assert.deepEqual(located, ['BTCUSDT', 'BTCUSDT', '1000PEPEUSDT'])
+    assert.equal(context.selectedChartTimeframe.value, '15m', '旧持仓没有周期时保留当前图表周期')
+    context.choosePrice('eth/usdt')
+    assert.equal(context.selectedChartSymbol.value, 'ETHUSDT')
+    assert.equal(context.selectedChartTimeframe.value, '15m', '价格卡片只更改当前交易对')
+    assert.equal(request.value, undefined, '手动选择后清除旧的持仓聚焦请求')
   } finally {
     stops.forEach(stop => stop())
   }

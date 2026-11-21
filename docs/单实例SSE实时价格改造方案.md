@@ -84,7 +84,6 @@ Binance Futures WebSocket（每个服务进程一条连接）
 - `CryptoPriceCards.vue` 继续从 `botStore.prices` 生成卡片并触发价格动画。
 - `ActivePositions.vue` 继续按持仓 symbol 读取 Store，响应式计算浮盈。
 - `KLineChartSimple.vue` 继续监听当前 symbol，实时修正当前柱的 `close/high/low`；现有 `last-bar` 轮询继续校正成交量和权威 OHLC。
-- TradingView 引擎继续使用自身行情，不接入本 SSE。
 
 ## 6. 配置热更新
 

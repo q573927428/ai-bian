@@ -34,51 +34,46 @@
 
           </el-col>
 
-          <!-- 右侧 - 持仓和交易历史 -->
-          <el-col class="market-column" :xs="24" :sm="24" :md="12" :lg="12">
-            
-            <!-- 加密货币价格卡片组件 -->
-            <ClientOnly>
-              <CryptoPriceCards v-model:chart-symbol="selectedChartSymbol" :chart-timeframe="selectedChartTimeframe" :chart-focus-request="chartFocusRequest" />
-            </ClientOnly>
-
-            <!-- 技术指标抽屉由顶部导航打开 -->
-            <ClientOnly>
-              <IndicatorsList v-model="showIndicatorsDrawer" @select-symbol="handlePositionChartSelect" />
-            </ClientOnly>
-
-            <ClientOnly>
-              <MacroDataDrawer v-model="showMacroDataDrawer" />
-              <CryptoTrendsDrawer v-model="showCryptoTrendsDrawer" />
-            </ClientOnly>
-
-            <!-- 密码验证对话框 -->
-            <ClientOnly>
-              <PasswordDialog v-model="showPasswordDialog" @success="handlePasswordSuccess" />
-            </ClientOnly>
-
-            <!-- 策略组件 -->
-            <ClientOnly v-if="passwordVerified">
-              <Strategies v-model="showStrategiesDrawer" />
-            </ClientOnly>
-
-
-
+          <!-- 中间只放主图和共用时间轴的副图，切换右侧标签不会重建图表。 -->
+          <el-col class="home-chart-column" :xs="24" :sm="24" :md="12" :lg="12">
+            <section class="home-chart" aria-label="K 线和副图指标">
+              <ClientOnly>
+                <KLineWorkspaceChart :symbol="chartSymbol" :timeframe="chartTimeframe" @timeframe-change="selectChartTimeframe" @toolbar-height-change="chartToolbarHeight = $event" />
+              </ClientOnly>
+            </section>
           </el-col>
 
-          <el-col class="positions-news-column" :xs="24" :sm="24" :md="6" :lg="6">
-            <!-- 当前持仓固定显示，查看持仓无需解锁。 -->
-            <ClientOnly>
-              <ActivePositions @select-symbol="handlePositionChartSelect" />
-              <LatestNews />
-            </ClientOnly>
+          <el-col class="workspace-sidebar" :xs="24" :sm="24" :md="6" :lg="6">
+            <aside class="workspace-panel" aria-label="行情与交易面板">
+              <ClientOnly>
+                <el-tabs v-model="activeMarketTab" class="workspace-tabs" :style="chartToolbarHeight ? { '--home-chart-toolbar-height': `${chartToolbarHeight}px` } : undefined" stretch>
+                  <el-tab-pane label="价格卡片" name="prices">
+                    <CryptoPriceCards :chart-symbol="chartSymbol" :chart-focus-request="chartFocusRequest" :inactive="activeMarketTab !== 'prices'" @update:chart-symbol="handlePriceChartSelect" />
+                  </el-tab-pane>
+                  <el-tab-pane label="当前持仓" name="positions" lazy>
+                    <!-- 查看持仓沿用原有公开模式，不改变左侧解锁规则。 -->
+                    <ActivePositions @select-symbol="handlePositionChartSelect" />
+                  </el-tab-pane>
+                  <el-tab-pane label="重要快讯" name="news" lazy>
+                    <LatestNews />
+                  </el-tab-pane>
+                  <el-tab-pane label="环境详情" name="environment" lazy>
+                    <KLineEnvironmentPanel :symbol="chartSymbol" :timeframe="chartTimeframe" :active="activeMarketTab === 'environment'" />
+                  </el-tab-pane>
+                </el-tabs>
+              </ClientOnly>
+            </aside>
           </el-col>
-          
         </el-row>
       </el-main>
-      
-      <!-- 配置对话框 -->
+
+      <!-- 抽屉和对话框独立于三栏，切换标签不影响顶部导航和解锁流程。 -->
       <ClientOnly>
+        <IndicatorsList v-model="showIndicatorsDrawer" @select-symbol="handlePositionChartSelect" />
+        <MacroDataDrawer v-model="showMacroDataDrawer" />
+        <CryptoTrendsDrawer v-model="showCryptoTrendsDrawer" />
+        <PasswordDialog v-model="showPasswordDialog" @success="handlePasswordSuccess" />
+        <Strategies v-if="passwordVerified" v-model="showStrategiesDrawer" />
         <BotConfigDialog v-model="showConfigDialog" @success="handleConfigSuccess" />
       </ClientOnly>
 
@@ -94,6 +89,7 @@ import { useBotStore } from '../stores/bot'
 import { useStrategiesStore } from '../stores/strategies'
 import HomeStatusPanel from '../components/HomeStatusPanel.vue'
 import { usePageUnlock } from '../composables/usePageUnlock'
+import { KLINE_WORKSPACE_PERIODS, type KlineWorkspacePeriod } from '../utils/kline-indicators'
 import type { HomeNavigationTarget, HomeProtectedPanel } from '../../types/home'
 
 // 导入组件
@@ -103,6 +99,8 @@ import IndicatorsList from '../components/IndicatorsList.vue'
 import MacroDataDrawer from '../components/MacroDataDrawer.vue'
 import ActivePositions from '../components/ActivePositions.vue'
 import LatestNews from '../components/LatestNews.vue'
+import KLineEnvironmentPanel from '../components/KLineEnvironmentPanel.vue'
+import KLineWorkspaceChart from '../components/kline-chart/KLineWorkspaceChart.vue'
 import Strategies from '../components/Strategies.vue'
 import BotConfigDialog from '../components/BotConfigDialog.vue'
 import ProfitWinRateChart from '../components/ProfitWinRateChart.vue'
@@ -156,7 +154,7 @@ function handleNavigate(target: HomeNavigationTarget) {
     handleOpenProtectedPanel('logs')
     return
   }
-  if (target === 'indicators' || target === 'kline') {
+  if (target === 'indicators') {
     void navigateTo(`/${target}`)
     return
   }
@@ -183,16 +181,46 @@ function handleNavigate(target: HomeNavigationTarget) {
 // 与全局通知共享图表目标，跨页面返回时仍能定位到通知中的交易对及周期。
 const selectedChartSymbol = useState<string>('home-chart-symbol', () => '')
 const selectedChartTimeframe = useState<string>('home-chart-timeframe', () => '')
+const activeMarketTab = ref('prices')
+const chartToolbarHeight = ref(0)
+const chartSymbol = computed(() => {
+  const selected = normalizeChartSymbol(selectedChartSymbol.value)
+  if (selected) return selected
+  const configured = (botStore.botConfig?.symbols ?? []).map(normalizeChartSymbol).filter(Boolean)
+  return configured.includes('BTCUSDT') ? 'BTCUSDT' : (configured[0] ?? '')
+})
+const chartTimeframe = computed<KlineWorkspacePeriod>(() =>
+  KLINE_WORKSPACE_PERIODS.find(period => period === selectedChartTimeframe.value)
+    ?? KLINE_WORKSPACE_PERIODS.find(period => period === botStore.botConfig?.defaultTimeframe)
+    ?? '1h'
+)
 // 每次点击都有独立请求，重复点击当前持仓也能重新放大热力图。
 const chartFocusRequest = ref<{ symbol: string; id: number }>()
 let chartFocusId = 0
 
+/** 统一处理价格卡片、持仓和全局通知提供的交易对格式。 */
+function normalizeChartSymbol(symbol: string) {
+  return symbol.replace('/', '').trim().toUpperCase()
+}
+
+/** 选择价格卡片只切换交易对，不把价格涨跌筛选周期带到主图。 */
+function handlePriceChartSelect(symbol: string) {
+  selectedChartSymbol.value = normalizeChartSymbol(symbol)
+  chartFocusRequest.value = undefined
+}
+
+/** 同步主图周期给右栏，并拒绝分时等不属于 K 线的周期。 */
+function selectChartTimeframe(timeframe: string) {
+  if (KLINE_WORKSPACE_PERIODS.some(period => period === timeframe)) selectedChartTimeframe.value = timeframe
+}
+
 /** 点击持仓交易对时，同时定位图表交易对和该持仓的主周期。 */
 function handlePositionChartSelect(symbol: string, mainTimeframe?: string) {
-  selectedChartSymbol.value = symbol
-  chartFocusRequest.value = { symbol: symbol.replace('/', '').trim().toUpperCase(), id: ++chartFocusId }
+  const normalized = normalizeChartSymbol(symbol)
+  selectedChartSymbol.value = normalized
+  chartFocusRequest.value = { symbol: normalized, id: ++chartFocusId }
   // 兼容未保存主周期的旧持仓，避免向图表传入无效周期。
-  if (mainTimeframe) selectedChartTimeframe.value = mainTimeframe
+  if (mainTimeframe) selectChartTimeframe(mainTimeframe)
 }
 
 const handleConfigSuccess = () => {
@@ -311,11 +339,6 @@ onMounted(async () => {
 
 <style scoped>
 .container {
-  /* 公共底部统一占位，首页仅使用剩余视口，避免重复预留空间。 */
-  height: calc(100vh - var(--app-footer-height) - var(--app-header-height, 60px));
-  height: calc(100dvh - var(--app-footer-height) - var(--app-header-height, 60px));
-  box-sizing: border-box;
-  overflow: hidden;
   display: flex;
   flex-direction: column;
 }
@@ -324,50 +347,78 @@ onMounted(async () => {
   flex: 1;
   min-height: 0;
 }
-/* 页面只控制三列及图表高度，组件内部样式分别由各组件维护。 */
+.main { padding: 20px; }
+
+.home-chart,
+.workspace-panel {
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid var(--border-color);
+  border-radius: var(--el-border-radius-base);
+  background: var(--bg-card);
+}
+
+.workspace-tabs {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.workspace-tabs :deep(.el-tabs__header) {
+  flex-shrink: 0;
+  margin: 0;
+  padding: 0 4px;
+}
+
+.workspace-tabs :deep(.el-tabs__item) {
+  padding-inline: 4px;
+  font-size: clamp(12px, 1vw, 14px);
+}
+
+/* 每次只显示一个标签，当前内容填满右栏，长列表在组件正文内滚动。 */
+.workspace-tabs :deep(.el-tabs__content) { flex: 1; min-height: 0; }
+.workspace-tabs :deep(.el-tab-pane) { height: 100%; }
+.workspace-tabs :deep(.price-grid-card:not(.price-grid-card-expanded)),
+.workspace-tabs :deep(.active-positions-card),
+.workspace-tabs :deep(.latest-news-card) {
+  height: 100%;
+  max-height: none;
+  margin: 0;
+  border: 0;
+  box-shadow: none;
+}
+.workspace-tabs :deep(.latest-news-card .news-list) { height: auto; }
+
 @media (min-width: 992px) {
-  .main {
-    /* 底部行情与快讯统一为截图红框高度，剩余内容在面板内滚动。 */
-    --home-bottom-panel-height: 250px;
-    min-height: 0;
+  .container {
+    /* 桌面端沿用首页的视口占位，左侧布局尺寸保持不变。 */
+    height: calc(100vh - var(--app-footer-height) - var(--app-header-height, 60px));
+    height: calc(100dvh - var(--app-footer-height) - var(--app-header-height, 60px));
     overflow: hidden;
   }
+  .main { min-height: 0; overflow: hidden; }
+  .main > .el-row,
+  .main > .el-row > .el-col { height: 100%; min-height: 0; }
+  .main > .el-row > .el-col { min-width: 0; overflow: hidden; }
 
-  .main > .el-row {
-    height: 100%;
-    min-height: 0;
-  }
+  /* 工具栏因宽度或图层开关换行时，右侧标签栏也保持同一条分界线。 */
+  .workspace-tabs { --el-tabs-header-height: var(--home-chart-toolbar-height, 63px); }
+  .workspace-tabs :deep(.el-tabs__nav-wrap) { margin-bottom: 0; }
 
-  .main > .el-row > .el-col {
-    height: 100%;
-    min-height: 0;
-    overflow: hidden;
-  }
-  .main > .el-row > .el-col > :deep(.el-card:last-child) {
-    /* 最后一张卡片不再留列底外边距，避免撑出额外滚动空间。 */
-    margin-bottom: 0;
-  }
-
-  .main > .el-row > .el-col::-webkit-scrollbar {
-    display: none;
-    width: 0;
-    height: 0;
-  }
-  .main > .el-row > .overview-column,
-  .main > .el-row > .market-column {
+  .overview-column {
     display: flex;
     flex-direction: column;
     gap: 20px;
   }
 
-  .overview-column > :deep(.card),
-  .market-column > :deep(.price-grid-card) {
+  .overview-column > :deep(.card) {
     flex: 0 0 auto;
     margin-bottom: 0;
   }
 
-  .overview-column > :deep(.chart-card),
-  .market-column > :deep(.chart-card) {
+  .overview-column > :deep(.chart-card) {
     display: flex;
     flex-direction: column;
     flex: 1;
@@ -377,32 +428,6 @@ onMounted(async () => {
 
   .overview-column :deep(.chart-card > .el-card__header) {
     flex-shrink: 0;
-  }
-
-  .market-column > :deep(.price-grid-card:not(.price-grid-card-expanded)) {
-    display: flex;
-    flex-direction: column;
-    flex: 0 0 var(--home-bottom-panel-height);
-    height: var(--home-bottom-panel-height);
-    min-height: 0;
-    box-sizing: border-box;
-  }
-
-  .market-column :deep(.price-grid-card:not(.price-grid-card-expanded) > .el-card__header) {
-    flex-shrink: 0;
-  }
-
-  .market-column :deep(.price-grid-card:not(.price-grid-card-expanded) > .el-card__body) {
-    display: flex;
-    flex-direction: column;
-    flex: 1;
-    min-height: 0;
-  }
-
-  .market-column :deep(.price-grid-card:not(.price-grid-card-expanded) .price-board-content) {
-    flex: 1;
-    min-height: 0;
-    height: auto;
   }
 
   .overview-column :deep(.chart-card > .el-card__body) {
@@ -424,84 +449,20 @@ onMounted(async () => {
   .overview-column :deep(.stats-container) {
     flex-shrink: 0;
   }
-
-  .market-column :deep(.chart-card > .el-card__body) {
-    flex: 1;
-    min-height: 0;
-    padding: 0;
-  }
-
-  .market-column :deep(.chart-engine-switcher) {
-    height: 100%;
-    margin: 0;
-  }
-
-  /* 两种图表引擎共用剩余空间布局，头部增高时由图表区域收缩。 */
-  .market-column :deep(.kline-chart-simple-container:not(:fullscreen)),
-  .market-column :deep(.tradingview-panel) {
-    display: flex;
-    flex-direction: column;
-    height: 100%;
-    margin: 0;
-    transition: none;
-  }
-
-  .market-column :deep(.chart-controls-wrapper),
-  .market-column :deep(.tradingview-panel > .chart-controls) {
-    flex-shrink: 0;
-  }
-
-  .market-column :deep(.kline-chart-simple-container > .chart-container),
-  .market-column :deep(.tradingview-panel > .chart-container) {
-    flex: 1;
-    min-height: 0;
-  }
-
-  .market-column :deep(.tradingview-panel .tradingview-chart) {
-    height: 100% !important;
-    min-height: 0;
-  }
-
-  .market-column :deep(.horizontal-line) {
-    display: none;
-  }
-
-  .main > .el-row > .positions-news-column {
-    display: flex;
-    flex-direction: column;
-    gap: 20px;
-    overflow: hidden;
-  }
-
-  .positions-news-column :deep(.active-positions-card) {
-    /* 与 K 线一起填满底部固定面板之外的空间，持仓过多时仍在正文内滚动。 */
-    flex: 1;
-    max-height: none;
-    min-height: 0;
-    margin-bottom: 0;
-  }
-
-  .positions-news-column :deep(.latest-news-card) {
-    flex: 0 0 var(--home-bottom-panel-height);
-    height: var(--home-bottom-panel-height);
-    box-sizing: border-box;
-    min-height: 0;
-    margin-bottom: 0;
-  }
-
-  .positions-news-column :deep(.news-list) {
-    height: auto;
-  }
 }
 
-.main {
-  padding: 20px;
+@media (min-width: 992px) and (max-height: 520px) {
+  .main { overflow: auto; }
+  .main > .el-row { min-height: 420px; }
+}
+
+@media (max-width: 991px) {
+  /* 窄屏沿用单列顺序；图表和标签保留独立高度，页面可继续向下滚动。 */
+  .home-chart { height: clamp(450px, 65dvh, 680px); margin-bottom: 20px; }
+  .workspace-panel { height: clamp(380px, 60dvh, 620px); }
 }
 
 @media (max-width: 768px) {
-
-  .main {
-    padding: 10px;
-  }
+  .main { padding: 10px; }
 }
 </style>

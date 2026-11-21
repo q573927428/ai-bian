@@ -1,18 +1,8 @@
 <template>
-  <el-card v-if="!props.standalone" class="chart-card" shadow="hover">
-    <!-- K线图表（引擎可切换：自研K线 / TradingView） -->
-    <ClientOnly>
-      <ChartEngineSwitcher :symbol="selectedSymbol || 'BTCUSDT'" :timeframe="props.chartTimeframe" />
-    </ClientOnly>
-    
-    <!-- 水平线 -->
-    <div class="horizontal-line"></div>
-  </el-card>
-
   <Teleport to="body" :disabled="!isBoardExpanded">
-  <el-card class="price-grid-card" :class="{ 'price-grid-card-expanded': isBoardExpanded, 'price-grid-card-standalone': props.standalone }" shadow="hover">
+  <el-card class="price-grid-card price-grid-card-standalone" :class="{ 'price-grid-card-expanded': isBoardExpanded }" shadow="hover">
     <template #header>
-      <div class="price-cards-header" :class="{ 'is-heatmap': viewMode === 'heatmap' }">
+      <div class="price-cards-header price-cards-header-compact" :class="{ 'is-heatmap': viewMode === 'heatmap' }">
         <div class="price-cards-heading">
           <el-input
             v-model="symbolSearch"
@@ -35,7 +25,7 @@
             <el-radio-button value="4h">4h</el-radio-button>
             <el-radio-button value="24h">24h</el-radio-button>
           </el-radio-group>
-          <div class="price-counts" :title="`按${scopeLabel}中已配置交易对的${changePeriod}实时涨跌幅统计，不受搜索或涨跌筛选影响；持平 ${activeBreadth.flatCount}，分类未知 ${unknownCount}（仅计入全部）；AI使用每轮固定快照；上涨占比和中位数仅计算有效行情（含持平、排除待更）；所有周期参考价取本地5m K线（24h为滚动窗口）；参考价快照时间：${breadthSnapshot ? new Date(breadthSnapshot.computedAt).toLocaleString() : '待更新'}`">
+          <div class="price-counts price-counts-compact" :title="`按${scopeLabel}中已配置交易对的${changePeriod}实时涨跌幅统计，不受搜索或涨跌筛选影响；持平 ${activeBreadth.flatCount}，分类未知 ${unknownCount}（仅计入全部）；AI使用每轮固定快照；上涨占比和中位数仅计算有效行情（含持平、排除待更）；所有周期参考价取本地5m K线（24h为滚动窗口）；参考价快照时间：${breadthSnapshot ? new Date(breadthSnapshot.computedAt).toLocaleString() : '待更新'}`">
             <MarketScopeSelect v-model="marketScope" />
             <div class="price-count-filters" role="group" aria-label="涨跌筛选">
               <button type="button" class="count-filter" :class="{ 'is-active': priceFilter === 'all' }" :aria-pressed="priceFilter === 'all'" title="显示当前分类全部交易对" @click="priceFilter = 'all'">总 {{ scopeSymbols.length }}</button>
@@ -142,7 +132,7 @@
           'price-down': (getChangePercent(crypto.symbol) ?? 0) < 0,
           'is-selected': crypto.symbol === selectedSymbol
         }"
-        @click="openChartModal(crypto)"
+        @click="selectChartSymbol(crypto.symbol)"
       >
         <el-badge
           v-if="isTradFi(crypto.symbol)"
@@ -212,7 +202,6 @@
 
 <script setup lang="ts">
 import { ref, computed, nextTick, onMounted, onUnmounted, watch, type ComponentPublicInstance } from 'vue'
-import ChartEngineSwitcher from '../components/kline-chart/ChartEngineSwitcher.vue'
 import PriceHeatmap from './PriceHeatmap.vue'
 import { getHeatmapLegend } from '../utils/price-heatmap-colors'
 import { formatPrice } from './kline-chart/utils/kline-formatters'
@@ -224,14 +213,12 @@ import type { MarketPeriodVolumes } from '../../types/market-period-volumes'
 import { calculateLiveBreadth, summarizeBreadth } from '../utils/market-breadth'
 import { useMarketScope } from '../composables/useMarketScope'
 
-/** 交易对选择与看板布局参数，首页默认保留内置主图。 */
+/** 看板只同步交易对选择，主图由首页渲染。 */
 const props = defineProps<{
-  /** 独立页面只渲染价格看板，并由外栏决定可用高度。 */
-  standalone?: boolean
+  /** 标签隐藏时延迟滚动定位，重新显示后再读取卡片尺寸。 */
+  inactive?: boolean
   /** 由外部指定要展示的交易对，例如点击当前持仓时传入。 */
   chartSymbol?: string
-  /** 持仓对应的主周期，传递给当前图表引擎。 */
-  chartTimeframe?: string
   /** 持仓主动点击请求，重复选择同一交易对时仍执行热力图聚焦。 */
   chartFocusRequest?: { symbol: string; id: number }
 }>()
@@ -290,7 +277,6 @@ const DEFAULT_CRYPTOS = computed<string[]>((previousSymbols) => {
 // 响应式数据
 const cryptoPrices = ref<CryptoPrice[]>([])
 const isLoading = ref(false)
-const showChartModal = ref(false)
 const selectedSymbol = ref('')
 const boardContentElement = ref<HTMLElement | null>(null)
 const baselineGridElement = ref<HTMLElement | null>(null)
@@ -414,7 +400,7 @@ const heatmapItems = computed(() => filteredCryptoPrices.value.map((crypto) => (
 /** 热力图区块与卡片共用图表选择入口。 */
 function selectHeatmapSymbol(symbol: string) {
   const crypto = cryptoPrices.value.find((item) => item.symbol === symbol)
-  if (crypto) openChartModal(crypto)
+  if (crypto) selectChartSymbol(crypto.symbol)
 }
 
 watch(viewMode, (mode) => {
@@ -431,7 +417,7 @@ const cardGrids = computed(() => [
 /** 仅滚动卡片容器，避免 scrollIntoView 连带移动页面和上方 K 线。 */
 async function locateSelectedCard() {
   await nextTick()
-  if (viewMode.value !== 'cards' || !selectedSymbol.value) return
+  if (props.inactive || viewMode.value !== 'cards' || !selectedSymbol.value) return
   const scroller = boardContentElement.value?.querySelector<HTMLElement>('.cards-scroll')
   const card = Array.from(scroller?.querySelectorAll<HTMLElement>('.price-card') ?? [])
     .find(element => element.dataset.symbol === selectedSymbol.value)
@@ -447,7 +433,7 @@ async function locateSelectedCard() {
 }
 
 // 只监听选择、模式及结果成员变化，实时价格刷新不能反复拉回用户的滚动位置。
-watch([selectedSymbol, viewMode, () => filteredCryptoPrices.value.map(item => item.symbol).join(',')],
+watch([selectedSymbol, viewMode, () => props.inactive, () => filteredCryptoPrices.value.map(item => item.symbol).join(',')],
   () => { void locateSelectedCard() }, { flush: 'post' })
 
 /** 仅保存独立基准网格的节点，展示网格的增删不会影响高度测量。 */
@@ -547,20 +533,10 @@ function triggerPriceAnimation(symbol: string, direction: 'up' | 'down') {
   }
 }
 
-/**
- * 切换价格卡片对应的图表，并同步父页面状态，确保后续持仓点击能够再次触发切换。
- */
-function openChartModal(crypto: CryptoPrice) {
-  selectedSymbol.value = crypto.symbol
-  emit('update:chartSymbol', crypto.symbol)
-  showChartModal.value = true
-}
-
-// 关闭图表弹窗
-function closeChartModal() {
-  showChartModal.value = false
-  selectedSymbol.value = ''
-  emit('update:chartSymbol', '')
+/** 同步首页主图交易对，并立即标记当前选中的卡片。 */
+function selectChartSymbol(symbol: string) {
+  selectedSymbol.value = symbol
+  emit('update:chartSymbol', symbol)
 }
 
 // 格式化函数
@@ -658,11 +634,6 @@ interface CryptoPrice {
 </script>
 
 <style scoped>
-.chart-card,
-.price-grid-card {
-  margin-bottom: 20px;
-}
-
 /* 整个组件占满浏览器页面；工具栏保留高度，正文使用剩余空间。 */
 .price-grid-card-expanded {
   position: fixed;
@@ -892,7 +863,7 @@ interface CryptoPrice {
   flex-shrink: 0;
 }
 
-/* 左栏宽度与窗口宽度不等。按固定的操作层级排列，不让控件随统计字数换位。 */
+/* 首页右栏宽度与窗口宽度不等；固定操作层级，避免控件随统计字数换位。 */
 .price-grid-card-standalone:not(.price-grid-card-expanded) .price-cards-header {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto 28px;
@@ -956,21 +927,21 @@ interface CryptoPrice {
 
 .price-grid-card-standalone:not(.price-grid-card-expanded) .price-counts {
   grid-area: 3 / 1 / 4 / -1;
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
   gap: 6px;
   min-width: 0;
   font-variant-numeric: tabular-nums;
 }
 
-.price-grid-card-standalone:not(.price-grid-card-expanded) .is-heatmap .price-counts { grid-row: 4; }
-
-.price-grid-card-standalone:not(.price-grid-card-expanded) .price-count-filters {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 2px;
+.price-grid-card-standalone:not(.price-grid-card-expanded) .price-counts-compact {
+  /* 右栏特别窄时允许横向查看，不换行，也不隐藏任何筛选或统计。 */
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: thin;
+  padding: 2px;
+  font-size: 11px;
 }
+
+.price-grid-card-standalone:not(.price-grid-card-expanded) .is-heatmap .price-counts { grid-row: 4; }
 
 .price-grid-card-standalone:not(.price-grid-card-expanded) .count-filter {
   flex: 1 0 auto;
@@ -978,22 +949,19 @@ interface CryptoPrice {
   padding: 0 2px;
 }
 
-.price-grid-card-standalone:not(.price-grid-card-expanded) .price-count-metrics {
-  grid-column: 1 / -1;
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  gap: 3px 8px;
-  padding: 4px 7px;
-  border-radius: 4px;
-  background: var(--bg-hover);
-  font-size: 11px;
-  line-height: 16px;
+.price-grid-card-standalone:not(.price-grid-card-expanded) .price-counts-compact .count-filter {
+  flex: 0 1 44px;
+}
+
+.price-grid-card-standalone:not(.price-grid-card-expanded) .price-counts-compact .price-count-metrics > span {
+  /* 先按文字长度留位，再分配剩余空间；空间不足时优先收窄短按钮。 */
+  flex: 1 0 auto;
+  text-align: center;
 }
 
 .price-grid-card-standalone:not(.price-grid-card-expanded) .price-metric-value { font-weight: 600; }
 
-/* 空间足够时把面积设置并入周期行；按左栏内容宽度判断，不受浏览器窗口宽度误导。 */
+/* 空间足够时把面积设置并入周期行；以看板内容宽度为准。 */
 @container kline-price-sidebar (min-width: 248px) {
   .price-grid-card-standalone:not(.price-grid-card-expanded) .is-heatmap .price-period-options {
     grid-column: 1 / 2;
@@ -1014,6 +982,67 @@ interface CryptoPrice {
 
   .price-grid-card-standalone:not(.price-grid-card-expanded) .is-heatmap .price-counts {
     grid-row: 3;
+  }
+}
+
+/* 首页上排给周期更多空间，下排把面积选择靠右；窄栏继续沿用分行布局。 */
+@container kline-price-sidebar (min-width: 372px) {
+  .price-grid-card-standalone:not(.price-grid-card-expanded) .price-cards-header-compact {
+    grid-template-columns: minmax(64px, 0.85fr) 48px minmax(155px, 1.3fr) var(--compact-heatmap-column, 0px) 26px;
+    gap: 6px 4px;
+  }
+
+  .price-grid-card-standalone:not(.price-grid-card-expanded) .price-cards-header-compact.is-heatmap {
+    --compact-heatmap-column: 40px;
+  }
+
+  .price-grid-card-standalone:not(.price-grid-card-expanded) .price-cards-header-compact .price-view-options {
+    grid-template-columns: repeat(2, 24px);
+  }
+
+  .price-grid-card-standalone:not(.price-grid-card-expanded) .price-cards-header-compact .price-period-options {
+    grid-area: 1 / 3;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+
+  .price-grid-card-standalone:not(.price-grid-card-expanded) .price-cards-header-compact .price-period-options :deep(.el-radio-button__inner) {
+    padding-inline: 4px;
+    font-size: 11px;
+  }
+
+  .price-grid-card-standalone:not(.price-grid-card-expanded) .price-cards-header-compact .heatmap-header-actions {
+    display: contents;
+  }
+
+  .price-grid-card-standalone:not(.price-grid-card-expanded) .price-cards-header-compact .heatmap-help-button {
+    grid-area: 1 / 4;
+    justify-self: end;
+  }
+
+  .price-grid-card-standalone:not(.price-grid-card-expanded) .price-cards-header-compact .board-expand-button {
+    grid-area: 1 / 5;
+    width: 26px;
+  }
+
+  .price-grid-card-standalone:not(.price-grid-card-expanded) .price-cards-header-compact .price-counts {
+    grid-area: 2 / 1 / 3 / -1;
+    gap: 4px;
+    scrollbar-width: none;
+  }
+
+  .price-grid-card-standalone:not(.price-grid-card-expanded) .price-cards-header-compact.is-heatmap .price-counts {
+    /* 统计和下拉框用不同的列，筛选数量变长也不会盖住下拉框。 */
+    grid-column-end: 4;
+  }
+
+  .price-grid-card-standalone:not(.price-grid-card-expanded) .price-cards-header-compact .heatmap-size-select {
+    grid-area: 2 / 4 / 3 / -1;
+    width: 100%;
+    margin-inline-start: 0;
+  }
+
+  .price-grid-card-standalone:not(.price-grid-card-expanded) .price-cards-header-compact .heatmap-size-select :deep(.el-select__wrapper) {
+    min-height: 24px;
   }
 }
 
@@ -1061,10 +1090,6 @@ interface CryptoPrice {
 .cards-grid-baseline .price-card {
   min-width: 116px;
 }
-.horizontal-line{
-  margin-bottom: 30px;
-}
-
 .price-card {
   background: var(--price-card-bg);
   border: 1px solid var(--price-card-border);

@@ -541,6 +541,8 @@ onMounted(() => {
     if (!chart || !chartElement.value) return
     const width = chartElement.value.clientWidth
     const height = chartElement.value.clientHeight
+    // 标签隐藏时保留最后一次有效尺寸，持仓仍可以定位到热力图，切回来不会丢失视口。
+    if (!width || !height) return
     if (width === chart.getWidth() && height === chart.getHeight()) return
     // 容器真正变化才调整视口；普通行情重绘不能清空缩放状态。
     if (viewRect && chart.getWidth() && chart.getHeight()) {
